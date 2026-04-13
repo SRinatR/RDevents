@@ -1,0 +1,175 @@
+// Prisma schema for Event Platform MVP
+// Single PostgreSQL database. Platform roles stay on User; event roles live in EventMember.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  PLATFORM_ADMIN
+  SUPER_ADMIN
+}
+
+enum AuthProvider {
+  EMAIL
+  GOOGLE
+  YANDEX
+  TELEGRAM
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  COMPLETED
+}
+
+enum EventMemberRole {
+  PARTICIPANT
+  VOLUNTEER
+  EVENT_ADMIN
+}
+
+enum EventMemberStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ACTIVE
+  REMOVED
+}
+
+enum AnalyticsEventType {
+  HOME_VIEW
+  EVENTS_LIST_VIEW
+  EVENT_DETAIL_VIEW
+  REGISTER_CLICK
+  EVENT_REGISTRATION
+  USER_REGISTER
+  USER_LOGIN
+  PROVIDER_USED
+}
+
+model User {
+  id               String    @id @default(cuid())
+  email            String    @unique
+  passwordHash     String?
+  name             String
+  bio              String?
+  city             String?
+  phone            String?
+  avatarUrl        String?
+  role             UserRole  @default(USER)
+  isActive         Boolean   @default(true)
+  emailVerifiedAt  DateTime?
+  registeredAt     DateTime  @default(now())
+  lastLoginAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  accounts             UserAccount[]
+  createdEvents        Event[]          @relation("CreatedBy")
+  eventMemberships     EventMember[]    @relation("EventMemberUser")
+  assignedEventMembers EventMember[]    @relation("EventMemberAssignedBy")
+  analyticsEvents      AnalyticsEvent[]
+
+  @@map("users")
+}
+
+model UserAccount {
+  id                  String       @id @default(cuid())
+  userId              String
+  provider            AuthProvider
+  providerAccountId   String
+  providerEmail       String?
+  providerUsername    String?
+  providerAvatarUrl   String?
+  linkedAt            DateTime     @default(now())
+  lastUsedAt          DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("user_accounts")
+}
+
+model Event {
+  id                   String      @id @default(cuid())
+  slug                 String      @unique
+  title                String
+  shortDescription     String
+  fullDescription      String      @db.Text
+  coverImageUrl        String?
+  category             String
+  location             String
+  capacity             Int         @default(100)
+  registrationsCount   Int         @default(0)
+  startsAt             DateTime
+  endsAt               DateTime
+  registrationDeadline DateTime?
+  conditions           String?
+  contactEmail         String?
+  tags                 String[]
+  status               EventStatus @default(DRAFT)
+  isFeatured           Boolean     @default(false)
+  publishedAt          DateTime?
+  createdById          String?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  createdBy            User?            @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  members              EventMember[]
+  analyticsEvents      AnalyticsEvent[]
+
+  @@map("events")
+}
+
+model EventMember {
+  id               String            @id @default(cuid())
+  eventId          String
+  userId           String
+  role             EventMemberRole
+  status           EventMemberStatus @default(PENDING)
+  assignedByUserId String?
+  assignedAt       DateTime          @default(now())
+  approvedAt       DateTime?
+  notes            String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  event            Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user             User              @relation("EventMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedByUser   User?             @relation("EventMemberAssignedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, userId, role])
+  @@index([userId, role, status])
+  @@index([eventId, role, status])
+  @@map("event_members")
+}
+
+model AnalyticsEvent {
+  id           String             @id @default(cuid())
+  type         AnalyticsEventType
+  userId       String?
+  eventId      String?
+  authProvider AuthProvider?
+  sessionId    String?
+  locale       String?
+  path         String?
+  meta         Json?
+  createdAt    DateTime           @default(now())
+
+  user         User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  event        Event?             @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([type])
+  @@index([createdAt])
+  @@index([eventId])
+  @@map("analytics_events")
+}
