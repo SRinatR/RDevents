@@ -3,7 +3,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import { env } from './config/env.js';
-import { errorHandler } from './common/middleware.js';
+import { errorHandler, requestIdMiddleware, requestLogger } from './common/middleware.js';
 
 import { authRouter } from './modules/auth/auth.router.js';
 import { eventsRouter } from './modules/events/events.router.js';
@@ -18,6 +18,7 @@ export function createApp() {
   const app = express();
 
   // ─── Global middleware ────────────────────────────────────────────────────
+  app.use(requestIdMiddleware);
   app.use(cors({
     origin: env.CORS_ORIGIN,
     credentials: true,
@@ -25,10 +26,21 @@ export function createApp() {
   app.use(cookieParser());
   app.use(express.json({ limit: '2mb' }));
   app.use(morgan(env.isDev ? 'dev' : 'combined'));
+  app.use(requestLogger);
 
   // ─── Health check ─────────────────────────────────────────────────────────
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', ts: new Date().toISOString() });
+  });
+
+  app.get('/ready', async (_req, res) => {
+    try {
+      // Check database connectivity
+      await import('./db/prisma.js').then(m => m.prisma.$queryRaw`SELECT 1`);
+      res.json({ status: 'ready', ts: new Date().toISOString() });
+    } catch (error) {
+      res.status(503).json({ status: 'unavailable', ts: new Date().toISOString() });
+    }
   });
 
   // ─── API routes ───────────────────────────────────────────────────────────

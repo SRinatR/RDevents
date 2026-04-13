@@ -1,7 +1,9 @@
 import type { Request, Response, NextFunction } from 'express';
 import type { User, UserRole } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { verifyAccessToken } from './jwt.js';
 import { prisma } from '../db/prisma.js';
+import { logger } from './logger.js';
 
 const PLATFORM_ADMIN_ROLES: UserRole[] = ['PLATFORM_ADMIN', 'SUPER_ADMIN'];
 const EVENT_ADMIN_STATUSES = ['ACTIVE', 'APPROVED'] as const;
@@ -100,9 +102,95 @@ export function requireEventAdmin(paramName = 'id') {
   };
 }
 
+// Request ID middleware - should be first in the chain
+export function requestIdMiddleware(req: Request, res: Response, next: NextFunction) {
+  const requestId = (req.headers['x-request-id'] as string) || randomUUID();
+  (req as any).requestId = requestId;
+  res.setHeader('X-Request-ID', requestId);
+  next();
+}
+
+// Request logging middleware
+export function requestLogger(req: Request, res: Response, next: NextFunction) {
+  const requestId = (req as any).requestId;
+  const user = (req as AuthenticatedRequest).user;
+  const startTime = Date.now();
+
+  logger.info('Request started', {
+    action: 'request_started',
+    requestId,
+    userId: user?.id,
+    meta: {
+      method: req.method,
+      path: req.path,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    },
+  });
+
+  res.on('finish', () => {
+    const duration = Date.now() - startTime;
+    logger.info('Request finished', {
+      action: 'request_finished',
+      requestId,
+      userId: user?.id,
+      meta: {
+        method: req.method,
+        path: req.path,
+        statusCode: res.statusCode,
+        duration,
+      },
+    });
+  });
+
+  next();
+}
+
+// Improved error handler with safe error codes and logging
 export function errorHandler(err: unknown, req: Request, res: Response, next: NextFunction) {
-  console.error(err);
+  const requestId = (req as any).requestId;
+  const user = (req as AuthenticatedRequest).user;
+
   if (res.headersSent) return next(err);
-  const message = err instanceof Error ? err.message : 'Internal server error';
-  res.status(500).json({ error: message });
+
+  // Determine error details
+  const error = err instanceof Error ? err : new Error('Unknown error');
+  let statusCode = 500;
+  let errorCode = 'INTERNAL_ERROR';
+  let safeMessage = 'An unexpected error occurred';
+
+  // Map known error types
+  if (error.message.includes('P2002')) {
+    statusCode = 409;
+    errorCode = 'DUPLICATE_ENTRY';
+    safeMessage = 'A record with this value already exists';
+  } else if (error.message.includes('P2025')) {
+    statusCode = 404;
+    errorCode = 'RECORD_NOT_FOUND';
+    safeMessage = 'The requested record was not found';
+  } else if (error.message.includes('validation')) {
+    statusCode = 400;
+    errorCode = 'VALIDATION_ERROR';
+    safeMessage = 'Invalid input data';
+  }
+
+  // Log the error with full context
+  logger.error('Request error', error, {
+    action: 'request_error',
+    requestId,
+    userId: user?.id,
+    errorCode,
+    meta: {
+      method: req.method,
+      path: req.path,
+      statusCode,
+    },
+  });
+
+  // Send safe error response to client
+  res.status(statusCode).json({
+    error: safeMessage,
+    code: errorCode,
+    requestId,
+  });
 }
