@@ -1,16 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { use, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../../../hooks/useAuth';
 import { eventsApi } from '../../../../../lib/api';
 import { useRouteLocale } from '../../../../../hooks/useRouteParams';
 
-export default function CabinetEventDashboard({ params }: { params: { slug: string } }) {
+export default function CabinetEventDashboard({ params }: { params: Promise<{ slug: string }> }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const locale = useRouteLocale();
+  const { slug } = use(params);
 
   const [event, setEvent] = useState<any>(null);
   const [eventLoading, setEventLoading] = useState(true);
@@ -27,12 +28,12 @@ export default function CabinetEventDashboard({ params }: { params: { slug: stri
   }, [user, loading, router, locale]);
 
   useEffect(() => {
-    if (!user || !params.slug) return;
-    eventsApi.get(params.slug)
+    if (!user || !slug) return;
+    eventsApi.get(slug)
       .then(r => setEvent(r.event))
       .catch(() => router.push(`/${locale}/cabinet/my-events`))
       .finally(() => setEventLoading(false));
-  }, [user, params.slug, router, locale]);
+  }, [user, slug, router, locale]);
 
   if (loading || !user) return null;
   if (eventLoading) return <div style={{ color: 'var(--color-text-muted)' }}>Загрузка мероприятия...</div>;
