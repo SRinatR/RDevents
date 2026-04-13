@@ -23,6 +23,11 @@ export default function EventDetailPage() {
   const [volunteerError, setVolunteerError] = useState('');
   const [volunteerStatus, setVolunteerStatus] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [teamState, setTeamState] = useState<'IDLE' | 'CREATING' | 'JOINING'>('IDLE');
+  const [teamName, setTeamName] = useState('');
+  const [joinCode, setJoinCode] = useState('');
+  const [teamError, setTeamError] = useState('');
+  const [myTeam, setMyTeam] = useState<any>(null);
 
   useEffect(() => {
     if (!slug) return;
@@ -31,6 +36,7 @@ export default function EventDetailPage() {
       .then(({ event: e }) => {
         setEvent(e);
         setIsRegistered(e.isRegistered ?? false);
+        setMyTeam(e.teamMembership?.team ?? null);
         const vm = e.memberships?.find((m: any) => m.role === 'VOLUNTEER');
         setVolunteerStatus(vm?.status ?? null);
         analyticsApi.track('EVENT_DETAIL_VIEW', { eventId: e.id, locale });
@@ -55,6 +61,51 @@ export default function EventDetailPage() {
       setRegistering(false);
     }
   }
+
+  async function handleCreateTeam() {
+    if (!user) return;
+    setRegistering(true);
+    setTeamError('');
+    try {
+      const res = await eventsApi.createTeam(event.id, { name: teamName });
+      setMyTeam(res.team);
+      setIsRegistered(true);
+      setTeamState('IDLE');
+      setEvent((prev: any) => prev ? { ...prev, registrationsCount: prev.registrationsCount + 1 } : prev);
+    } catch (err) {
+      if (err instanceof ApiError) setTeamError(err.message);
+    } finally {
+      setRegistering(false);
+    }
+  }
+
+  async function handleJoinTeam() {
+    if (!user) return;
+    setRegistering(true);
+    setTeamError('');
+    try {
+      // Find team by code (client side hack for MVP, normally we'd join straight by code)
+      // Since joinTeam needs teamId, we can retrieve teams or just do join by code endpoint on backend
+      // Right now the API expects eventId, teamId, code. Let's just catch failure or assume joinCode is the teamId for MVP?
+      // Wait, our backend joinTeam expects URL /teams/:teamId/join. If we only have code, we need an endpoint.
+      // We will add it later or just pass code and a fake teamId if backend doesn't resolve by code alone.
+      // Actually backend needs teamId. Let's just fetch teams first.
+      const res = await eventsApi.listTeams(event.id);
+      const team = res.teams.find((t: any) => t.joinCode === joinCode);
+      if (!team) throw new Error('Invalid join code or team not found');
+      
+      const memberRes = await eventsApi.joinTeam(event.id, team.id, joinCode);
+      setMyTeam(team);
+      setIsRegistered(true);
+      setTeamState('IDLE');
+      setEvent((prev: any) => prev ? { ...prev, registrationsCount: prev.registrationsCount + 1 } : prev);
+    } catch (err: any) {
+      setTeamError(err.message || 'Error joining team');
+    } finally {
+      setRegistering(false);
+    }
+  }
+
 
   async function handleVolunteerApply() {
     if (!user || !event) return;
@@ -280,24 +331,80 @@ export default function EventDetailPage() {
               {/* Register section */}
               {event.status === 'PUBLISHED' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {isRegistered ? (
+                  {myTeam ? (
+                    <div className="alert alert-success" style={{ textAlign: 'center', fontWeight: 700, fontSize: '0.90rem' }}>
+                      ✓ {locale === 'ru' ? 'Вы в команде:' : 'In team:'} {myTeam.name}
+                    </div>
+                  ) : isRegistered ? (
                     <div className="alert alert-success" style={{ textAlign: 'center', fontWeight: 700, fontSize: '0.95rem' }}>
                       ✓ {t('events.registered')}
                     </div>
                   ) : user ? (
                     <>
-                      <button
-                        onClick={handleRegister}
-                        disabled={registering || isFull}
-                        className="btn btn-primary"
-                        style={{ width: '100%', height: 52, fontSize: '1rem', borderRadius: 'var(--radius-xl)' }}
-                      >
-                        {registering
-                          ? t('common.loading')
-                          : isFull
-                          ? (locale === 'ru' ? 'Мест нет' : 'No spots left')
-                          : t('events.join')}
-                      </button>
+                      {event.isTeamBased ? (
+                        <>
+                          {teamState === 'IDLE' && (
+                            <>
+                              <button onClick={() => setTeamState('CREATING')} disabled={isFull} className="btn btn-primary" style={{ height: 46 }}>
+                                🛡️ {locale === 'ru' ? 'Создать команду' : 'Create Team'}
+                              </button>
+                              <button onClick={() => setTeamState('JOINING')} className="btn btn-secondary" style={{ height: 46 }}>
+                                🤝 {locale === 'ru' ? 'Вступить в команду' : 'Join Team'}
+                              </button>
+                              {event.allowSoloParticipation && (
+                                <button onClick={handleRegister} disabled={registering || isFull} className="btn btn-ghost" style={{ height: 40, marginTop: 4 }}>
+                                  {locale === 'ru' ? 'Участвовать одному' : 'Participate solo'}
+                                </button>
+                              )}
+                            </>
+                          )}
+
+                          {teamState === 'CREATING' && (
+                            <div style={{ padding: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' }}>
+                              <input 
+                                className="input-field" 
+                                placeholder={locale === 'ru' ? 'Название команды' : 'Team Name'} 
+                                value={teamName} onChange={e => setTeamName(e.target.value)} 
+                                style={{ height: 40, marginBottom: 8 }} 
+                              />
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button onClick={handleCreateTeam} disabled={registering || !teamName} className="btn btn-primary btn-sm" style={{ flex: 1 }}>{t('common.save')}</button>
+                                <button onClick={() => setTeamState('IDLE')} className="btn btn-ghost btn-sm">{t('common.cancel')}</button>
+                              </div>
+                            </div>
+                          )}
+
+                          {teamState === 'JOINING' && (
+                            <div style={{ padding: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' }}>
+                              <input 
+                                className="input-field" 
+                                placeholder={locale === 'ru' ? 'Код приглашения' : 'Join Code'} 
+                                value={joinCode} onChange={e => setJoinCode(e.target.value)} 
+                                style={{ height: 40, marginBottom: 8 }} 
+                              />
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button onClick={handleJoinTeam} disabled={registering || !joinCode} className="btn btn-primary btn-sm" style={{ flex: 1 }}>{t('events.join')}</button>
+                                <button onClick={() => setTeamState('IDLE')} className="btn btn-ghost btn-sm">{t('common.cancel')}</button>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {teamError && <p className="alert alert-danger" style={{ margin: 0, marginTop: 8 }}>{teamError}</p>}
+                        </>
+                      ) : (
+                        <button
+                          onClick={handleRegister}
+                          disabled={registering || isFull}
+                          className="btn btn-primary"
+                          style={{ width: '100%', height: 52, fontSize: '1rem', borderRadius: 'var(--radius-xl)' }}
+                        >
+                          {registering
+                            ? t('common.loading')
+                            : isFull
+                            ? (locale === 'ru' ? 'Мест нет' : 'No spots left')
+                            : t('events.join')}
+                        </button>
+                      )}
                       {regError && <p className="alert alert-danger" style={{ margin: 0 }}>{regError}</p>}
                     </>
                   ) : (

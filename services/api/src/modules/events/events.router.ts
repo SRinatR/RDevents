@@ -60,3 +60,46 @@ eventsRouter.post('/:id/volunteer/apply', authenticate, async (req, res) => {
     res.status(status).json({ error: message });
   }
 });
+
+// GET /api/events/:id/teams
+eventsRouter.get('/:id/teams', optionalAuth, async (req, res) => {
+  const teams = await import('./events.service.js').then(m => m.getTeamsByEvent(String(req.params['id'])));
+  res.json({ teams });
+});
+
+// POST /api/events/:id/teams
+eventsRouter.post('/:id/teams', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  try {
+    const team = await import('./events.service.js').then(m => m.createTeam(String(req.params['id']), user.id, req.body));
+    res.status(201).json({ team });
+  } catch (err: any) {
+    const map: Record<string, [number, string]> = {
+      EVENT_NOT_FOUND: [404, 'Event not found'],
+      EVENT_NOT_TEAM_BASED: [400, 'Event is not team-based'],
+      ALREADY_IN_TEAM: [409, 'You are already in a team for this event'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message });
+  }
+});
+
+// POST /api/events/:id/teams/:teamId/join
+eventsRouter.post('/:id/teams/:teamId/join', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  try {
+    const member = await import('./events.service.js').then(m => m.joinTeam(String(req.params['id']), String(req.params['teamId']), user.id, req.body?.code));
+    res.status(200).json({ member });
+  } catch (err: any) {
+    const map: Record<string, [number, string]> = {
+      EVENT_NOT_FOUND: [404, 'Event not found'],
+      TEAM_NOT_FOUND: [404, 'Team not found'],
+      TEAM_NOT_ACTIVE: [400, 'Team is not active'],
+      TEAM_FULL: [400, 'Team is full'],
+      INVALID_JOIN_CODE: [403, 'Invalid join code'],
+      ALREADY_IN_TEAM: [409, 'You are already in a team for this event'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message });
+  }
+});

@@ -57,6 +57,8 @@ async function main() {
   console.log('Seeding database...');
 
   await prisma.analyticsEvent.deleteMany();
+  await prisma.eventTeamMember.deleteMany();
+  await prisma.eventTeam.deleteMany();
   await prisma.eventMember.deleteMany();
   await prisma.event.deleteMany();
   await prisma.userAccount.deleteMany();
@@ -221,19 +223,24 @@ async function main() {
       isFeatured: false,
     },
     {
-      slug: 'ai-hackathon-draft',
+      slug: 'ai-hackathon-2026',
       title: 'AI Hackathon 2026',
-      shortDescription: 'Draft event for an upcoming AI hackathon.',
-      fullDescription: 'Draft event with final program, partners, and rules to be published later.',
+      shortDescription: 'Build next-generation AI tools with your team in 48 hours.',
+      fullDescription: 'Join hundreds of developers, designers, and domain experts to build AI-driven prototypes. Teams can be up to 5 members. Mentors will be available, and the best prototype wins $10,000.',
       category: 'Tech',
-      location: 'TBD',
-      coverImageUrl: null,
-      capacity: 100,
+      location: 'Inha University, Tashkent',
+      coverImageUrl: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=1200&h=700&fit=crop',
+      capacity: 300,
       startsAt: new Date('2026-07-15T09:00:00Z'),
       endsAt: new Date('2026-07-17T18:00:00Z'),
-      tags: ['ai', 'hackathon'],
-      isFeatured: false,
-      status: EventStatus.DRAFT,
+      registrationDeadline: new Date('2026-07-12T23:59:00Z'),
+      tags: ['ai', 'hackathon', 'competition'],
+      isFeatured: true,
+      status: EventStatus.PUBLISHED,
+      isTeamBased: true,
+      minTeamSize: 2,
+      maxTeamSize: 5,
+      allowSoloParticipation: false,
     },
   ];
 
@@ -309,7 +316,66 @@ async function main() {
         assignedByUserId: eventAdmin.id,
         approvedAt: new Date(),
       },
+      {
+        eventId: events[6].id,
+        userId: eventAdmin.id,
+        role: 'EVENT_ADMIN',
+        status: 'ACTIVE',
+        assignedByUserId: superAdmin.id,
+        approvedAt: new Date(),
+        notes: 'Team hackathon admin',
+      },
+      {
+        eventId: events[6].id,
+        userId: participant.id,
+        role: 'PARTICIPANT',
+        status: 'ACTIVE',
+        assignedByUserId: participant.id,
+        approvedAt: new Date(),
+      },
+      {
+        eventId: events[6].id,
+        userId: socialUser.id,
+        role: 'PARTICIPANT',
+        status: 'ACTIVE',
+        assignedByUserId: socialUser.id,
+        approvedAt: new Date(),
+      },
     ],
+  });
+
+  // Create a team for AI Hackathon
+  const hackathonId = events[6].id;
+  const team1 = await prisma.eventTeam.create({
+    data: {
+      eventId: hackathonId,
+      name: 'TechTitans',
+      slug: 'techtitans-xy12',
+      joinCode: 'T1T4N5',
+      description: 'Building AI agents for the future of productivity.',
+      captainUserId: participant.id,
+      status: 'ACTIVE',
+      maxSize: 5,
+    }
+  });
+
+  await prisma.eventTeamMember.createMany({
+    data: [
+      {
+        teamId: team1.id,
+        userId: participant.id,
+        role: 'CAPTAIN',
+        status: 'ACTIVE',
+        approvedAt: new Date(),
+      },
+      {
+        teamId: team1.id,
+        userId: socialUser.id,
+        role: 'MEMBER',
+        status: 'ACTIVE',
+        approvedAt: new Date(),
+      }
+    ]
   });
 
   for (const event of events) {

@@ -211,6 +211,26 @@ adminRouter.get('/events/:id/registrations', async (req, res) => {
   res.json({ registrations });
 });
 
+adminRouter.get('/events/:id/teams', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await assertCanManageEvent(user, eventId, res))) return;
+
+  const teams = await prisma.eventTeam.findMany({
+    where: { eventId },
+    include: {
+      captainUser: { select: { id: true, name: true, email: true, avatarUrl: true } },
+      members: {
+        include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+        orderBy: { joinedAt: 'desc' },
+      },
+      _count: { select: { members: { where: { status: 'ACTIVE' } } } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  res.json({ teams });
+});
+
 adminRouter.get('/events/:id/event-admins', async (req, res) => {
   const user = (req as any).user as User;
   const eventId = req.params['id']!;
@@ -259,6 +279,27 @@ adminRouter.post('/events/:id/event-admins', requirePlatformAdmin, async (req, r
   });
 
   res.status(201).json({ membership });
+});
+
+adminRouter.delete('/events/:id/event-admins/:userId', requirePlatformAdmin, async (req, res) => {
+  const eventId = String(req.params['id']);
+  const userId = String(req.params['userId']);
+
+  const membership = await prisma.eventMember.findUnique({
+    where: { eventId_userId_role: { eventId, userId, role: 'EVENT_ADMIN' } }
+  });
+
+  if (!membership) {
+    res.status(404).json({ error: 'Event admin not found' });
+    return;
+  }
+
+  await prisma.eventMember.update({
+    where: { id: membership.id },
+    data: { status: 'REMOVED' }
+  });
+
+  res.json({ ok: true });
 });
 
 adminRouter.get('/events/:id/volunteers', async (req, res) => {

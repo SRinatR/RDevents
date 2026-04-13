@@ -107,6 +107,15 @@ export const eventsApi = {
   applyVolunteer: (eventId: string, notes?: string) =>
     request<{ membership: any }>(`/api/events/${eventId}/volunteer/apply`, { method: 'POST', auth: true, body: { notes } }),
 
+  listTeams: (eventId: string) =>
+    request<{ teams: any[] }>(`/api/events/${eventId}/teams`, { auth: true }),
+
+  createTeam: (eventId: string, body: { name: string; description?: string }) =>
+    request<{ team: any }>(`/api/events/${eventId}/teams`, { method: 'POST', auth: true, body }),
+
+  joinTeam: (eventId: string, teamId: string, code?: string) =>
+    request<{ member: any }>(`/api/events/${eventId}/teams/${teamId}/join`, { method: 'POST', auth: true, body: { code } }),
+
   myEvents: () =>
     request<{ events: any[] }>('/api/me/events', { auth: true }),
 };
@@ -134,6 +143,9 @@ export const adminApi = {
   assignEventAdmin: (eventId: string, body: { userId?: string; email?: string; notes?: string }) =>
     request<{ membership: any }>(`/api/admin/events/${eventId}/event-admins`, { method: 'POST', auth: true, body }),
 
+  removeEventAdmin: (eventId: string, userId: string) =>
+    request<{ ok: boolean }>(`/api/admin/events/${eventId}/event-admins/${userId}`, { method: 'DELETE', auth: true }),
+
   listEventVolunteers: (eventId: string, status?: string) => {
     const qs = status ? '?' + new URLSearchParams({ status }).toString() : '';
     return request<{ volunteers: any[] }>(`/api/admin/events/${eventId}/volunteers${qs}`, { auth: true });
@@ -144,6 +156,9 @@ export const adminApi = {
 
   listEventParticipants: (eventId: string) =>
     request<{ participants: any[] }>(`/api/admin/events/${eventId}/participants`, { auth: true }),
+
+  listEventTeams: (eventId: string) =>
+    request<{ teams: any[] }>(`/api/admin/events/${eventId}/teams`, { auth: true }),
 
   getEventAnalytics: (eventId: string) =>
     request<any>(`/api/admin/events/${eventId}/analytics`, { auth: true }),
