@@ -30,92 +30,214 @@ export default function CabinetPage() {
   }, [user]);
 
   if (loading || !user) return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
+    <div className="loading-center">
+      <div className="spinner" />
     </div>
   );
 
+  const summaryCards = [
+    { icon: '🎪', value: events.length, label: t('cabinet.myEvents'),         bg: 'var(--color-primary-subtle)',  iconBg: 'var(--color-primary)' },
+    { icon: '🔗', value: user.accounts?.length ?? 0, label: t('cabinet.connectedAccounts'), bg: 'rgba(168,85,247,0.08)', iconBg: '#a855f7' },
+    { icon: '👤', value: user.role, label: locale === 'ru' ? 'Роль' : 'Role', bg: 'var(--color-success-subtle)',  iconBg: 'var(--color-success)' },
+  ] as const;
+
+  const navLinks = [
+    { href: `/${locale}/cabinet/profile`, label: t('cabinet.profile'),   icon: '👤' },
+    { href: `/${locale}/cabinet/events`,  label: t('cabinet.myEvents'),  icon: '🎪' },
+  ];
+
   return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', padding: '40px 0 60px' }}>
+    <div style={{ minHeight: 'calc(100vh - 64px)', padding: '48px 0 80px' }}>
       <div className="container">
-        <div style={{ marginBottom: 36 }}>
-          <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(1.8rem, 4vw, 2.4rem)', fontWeight: 900, letterSpacing: 0 }}>
+
+        {/* Header */}
+        <div style={{ marginBottom: 36, animation: 'fadeIn 0.4s ease both' }}>
+          <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(1.8rem, 4vw, 2.4rem)', fontWeight: 900, letterSpacing: '-0.03em' }}>
             {t('cabinet.title')}
           </h1>
-          <p style={{ margin: 0, color: 'var(--color-text-muted)' }}>{t('cabinet.subtitle')}</p>
+          <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: '1rem' }}>
+            {t('cabinet.subtitle')}
+          </p>
         </div>
 
         {/* Quick nav */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 40 }}>
-          {[
-            { href: `/${locale}/cabinet/profile`, label: t('cabinet.profile') },
-            { href: `/${locale}/cabinet/events`, label: t('cabinet.myEvents') },
-          ].map(({ href, label }) => (
-            <Link key={href} href={href} style={{ padding: '10px 20px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', fontWeight: 700, fontSize: '0.9rem', color: 'var(--color-text-primary)', background: 'var(--color-surface)' }}>
-              {label}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 36 }}>
+          {navLinks.map(({ href, label, icon }) => (
+            <Link key={href} href={href} className="nav-chip">
+              {icon} {label}
             </Link>
           ))}
         </div>
 
-        {/* Summary grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 40 }}>
-          {[
-            { label: t('cabinet.myEvents'), value: events.length, icon: '🎪' },
-            { label: t('cabinet.connectedAccounts'), value: user.accounts?.length ?? 0, icon: '🔗' },
-            { label: 'Role', value: user.role, icon: '👤' },
-          ].map(({ label, value, icon }) => (
-            <div key={label} style={{ padding: 22, borderRadius: 'var(--radius-2xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', boxShadow: 'var(--shadow-sm)' }}>
-              <div style={{ fontSize: '1.4rem', marginBottom: 8 }}>{icon}</div>
-              <div style={{ fontSize: '1.8rem', fontWeight: 900, letterSpacing: 0 }}>{value}</div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: 4 }}>{label}</div>
+        {/* Summary cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 36 }}>
+          {summaryCards.map(({ icon, value, label, bg, iconBg }) => (
+            <div key={label} className="stat-card" style={{ animation: 'slideUp 0.4s ease both' }}>
+              <div className="stat-card-icon" style={{ background: bg }}>
+                <span style={{ fontSize: '1.1rem' }}>{icon}</span>
+              </div>
+              <div className="stat-card-value">{value}</div>
+              <div className="stat-card-label">{label}</div>
             </div>
           ))}
         </div>
 
         {/* User info card */}
-        <div style={{ padding: 24, borderRadius: 'var(--radius-2xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', marginBottom: 32 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--color-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', fontWeight: 900, flexShrink: 0 }}>
-              {user.avatarUrl ? <img src={user.avatarUrl} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : user.name.charAt(0).toUpperCase()}
+        <div style={{
+          padding: '24px 28px',
+          borderRadius: 'var(--radius-2xl)',
+          border: '1.5px solid var(--color-border)',
+          background: 'var(--color-surface-strong)',
+          marginBottom: 36,
+          boxShadow: 'var(--shadow-sm)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: user.bio ? 16 : 0 }}>
+            {/* Avatar */}
+            <div style={{
+              width: 62,
+              height: 62,
+              borderRadius: 'var(--radius-full)',
+              background: 'linear-gradient(135deg, var(--color-primary), #a855f7)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.5rem',
+              fontWeight: 900,
+              flexShrink: 0,
+              overflow: 'hidden',
+              boxShadow: 'var(--shadow-primary)',
+            }}>
+              {user.avatarUrl
+                ? <img src={user.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : user.name.charAt(0).toUpperCase()}
             </div>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: '1.1rem' }}>{user.name}</div>
-              <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>{user.email}</div>
-              {user.city && <div style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>📍 {user.city}</div>}
+
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 800, fontSize: '1.15rem', color: 'var(--color-text-primary)' }}>
+                {user.name}
+              </div>
+              <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginTop: 2 }}>
+                {user.email}
+              </div>
+              {user.city && (
+                <div style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: 3 }}>
+                  📍 {user.city}
+                </div>
+              )}
             </div>
-            <Link href={`/${locale}/cabinet/profile`} style={{ marginLeft: 'auto', padding: '8px 16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', fontWeight: 700, fontSize: '0.85rem', color: 'var(--color-text-primary)' }}>
-              {t('common.edit')}
+
+            <Link
+              href={`/${locale}/cabinet/profile`}
+              className="btn btn-secondary btn-sm"
+              style={{ flexShrink: 0 }}
+            >
+              ✏️ {t('common.edit')}
             </Link>
           </div>
-          {user.bio && <p style={{ margin: 0, color: 'var(--color-text-secondary)', fontSize: '0.95rem' }}>{user.bio}</p>}
+
+          {user.bio && (
+            <p style={{
+              margin: 0,
+              paddingTop: 16,
+              borderTop: '1px solid var(--color-border)',
+              color: 'var(--color-text-secondary)',
+              fontSize: '0.95rem',
+              lineHeight: 1.65,
+            }}>
+              {user.bio}
+            </p>
+          )}
         </div>
 
-        {/* Recent events */}
-        <h2 style={{ margin: '0 0 16px', fontSize: '1.3rem', fontWeight: 800 }}>{t('cabinet.myEvents')}</h2>
+        {/* My events */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+          <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>
+            {t('cabinet.myEvents')}
+          </h2>
+          {events.length > 3 && (
+            <Link href={`/${locale}/cabinet/events`} className="btn btn-ghost btn-sm">
+              {t('common.viewAll')} ({events.length}) →
+            </Link>
+          )}
+        </div>
+
         {eventsLoading ? (
-          <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {[1, 2, 3].map(i => (
+              <div key={i} className="skeleton" style={{ height: 84, borderRadius: 'var(--radius-xl)' }} />
+            ))}
+          </div>
         ) : events.length === 0 ? (
-          <div style={{ padding: '32px', borderRadius: 'var(--radius-2xl)', border: '1px dashed var(--color-border)', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-            {t('cabinet.noEvents')}
+          <div style={{
+            padding: '40px 24px',
+            borderRadius: 'var(--radius-2xl)',
+            border: '1.5px dashed var(--color-border)',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🎪</div>
+            <p style={{ margin: '0 0 16px', color: 'var(--color-text-muted)', fontWeight: 500 }}>
+              {t('cabinet.noEvents')}
+            </p>
+            <Link href={`/${locale}/events`} className="btn btn-primary btn-sm">
+              {locale === 'ru' ? 'Найти события' : 'Browse events'}
+            </Link>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {events.slice(0, 3).map((r: any) => (
-              <Link key={r.registrationId} href={`/${locale}/events/${r.event.slug}`} style={{ display: 'flex', gap: 14, padding: 16, borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', textDecoration: 'none' }}>
-                {r.event.coverImageUrl && <img src={r.event.coverImageUrl} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 'var(--radius-md)', flexShrink: 0 }} />}
-                <div>
-                  <div style={{ fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 4 }}>{r.event.title}</div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>📅 {new Date(r.event.startsAt).toLocaleDateString()}</div>
+              <Link
+                key={r.registrationId}
+                href={`/${locale}/events/${r.event.slug}`}
+                style={{
+                  display: 'flex',
+                  gap: 16,
+                  padding: '14px 18px',
+                  borderRadius: 'var(--radius-xl)',
+                  border: '1.5px solid var(--color-border)',
+                  background: 'var(--color-surface-strong)',
+                  textDecoration: 'none',
+                  alignItems: 'center',
+                  transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast)',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = 'var(--color-primary-glow)';
+                  e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+                  e.currentTarget.style.transform = 'translateX(4px)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = 'var(--color-border)';
+                  e.currentTarget.style.boxShadow = 'none';
+                  e.currentTarget.style.transform = 'none';
+                }}
+              >
+                {r.event.coverImageUrl ? (
+                  <img
+                    src={r.event.coverImageUrl}
+                    alt=""
+                    style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 'var(--radius-lg)', flexShrink: 0 }}
+                  />
+                ) : (
+                  <div style={{
+                    width: 56, height: 56, borderRadius: 'var(--radius-lg)', flexShrink: 0,
+                    background: 'var(--color-primary-subtle)', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem',
+                  }}>🎪</div>
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {r.event.title}
+                  </div>
+                  <div style={{ fontSize: '0.84rem', color: 'var(--color-text-muted)' }}>
+                    📅 {new Date(r.event.startsAt).toLocaleDateString(locale === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </div>
                 </div>
+                <span style={{ color: 'var(--color-text-faint)', fontSize: '1.1rem' }}>›</span>
               </Link>
             ))}
-            {events.length > 3 && (
-              <Link href={`/${locale}/cabinet/events`} style={{ textAlign: 'center', padding: '10px', color: 'var(--color-primary)', fontWeight: 700, fontSize: '0.9rem' }}>
-                {t('common.viewAll')} ({events.length}) →
-              </Link>
-            )}
           </div>
         )}
+
       </div>
     </div>
   );
