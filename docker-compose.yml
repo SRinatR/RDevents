@@ -41,7 +41,7 @@ services:
       - ./services/api/prisma:/app/services/api/prisma
       - ./services/api/prisma.config.ts:/app/services/api/prisma.config.ts
     working_dir: /app/services/api
-    command: sh -c "pnpm prisma generate && pnpm dev"
+    command: sh -c "pnpm prisma generate && pnpm prisma migrate deploy && pnpm db:seed && pnpm dev"
 
   web:
     build:
