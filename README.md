@@ -8,6 +8,7 @@
 - **Frontend**: Next.js 16.2.3 + React 19 + next-intl (i18n)
 - **Backend**: Express + TypeScript + Prisma ORM
 - **Database**: PostgreSQL 17
+- **Runtime**: Node.js 25.6+
 - **Package Manager**: pnpm 10.33+
 - **Monorepo**: Turbo 2.9.6
 
@@ -80,7 +81,7 @@ event-platform-mvp/
 ## 🚀 Быстрый старт
 
 ### Требования
-- Node.js >= 22.12.0
+- Node.js >= 25.6.0 (`.nvmrc` и `.node-version` зафиксированы на 25.6.0)
 - pnpm >= 10.33.0
 - PostgreSQL 17 (локально или через Docker)
 
@@ -386,7 +387,7 @@ psql -U event_platform_user -d event_platform
 
 ### Требования для production
 - PostgreSQL (managed или self-hosted)
-- Node.js 22+
+- Node.js 25.6+
 - Reverse proxy (nginx, caddy)
 
 ### Environment variables (production)

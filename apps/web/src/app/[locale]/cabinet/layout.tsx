@@ -1,22 +1,19 @@
 'use client';
 
 import { ReactNode } from 'react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../hooks/useAuth';
 import { useRouteLocale } from '../../../hooks/useRouteParams';
+import Sidebar from '@/components/layout/Sidebar';
 
 export default function CabinetLayout({ children }: { children: ReactNode }) {
-  const t = useTranslations();
   const { user, loading } = useAuth();
-  const pathname = usePathname();
   const locale = useRouteLocale();
   const router = useRouter();
 
   if (loading) {
     return (
-      <div style={{ minHeight: 'calc(100vh - 64px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="min-h-screen flex items-center justify-center bg-[#FAF8F7]">
         <div className="spinner" />
       </div>
     );
@@ -29,70 +26,20 @@ export default function CabinetLayout({ children }: { children: ReactNode }) {
     return null;
   }
 
-  // Helper to determine active state of links
-  const isActive = (path: string) => pathname === `/${locale}${path}`;
-  const isEventsActive = pathname.includes(`/${locale}/cabinet/my-events`) || pathname.includes(`/${locale}/cabinet/events`);
-  const displayName = user.name || user.email;
-
   return (
-    <div style={{ minHeight: 'calc(100vh - 64px)' }}>
-      <div className="container cabinet-layout">
-        
-        {/* Sidebar */}
-        <aside className="cabinet-sidebar">
-          
-          {/* User Block */}
-          <div className="cabinet-user-card">
-            <div style={{
-              width: 80, height: 80, borderRadius: 'var(--radius-full)',
-              background: 'linear-gradient(135deg, var(--color-primary), #a855f7)',
-              color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '2.5rem', fontWeight: 900, marginBottom: 16,
-              boxShadow: 'var(--shadow-primary)'
-            }}>
-              {user.avatarUrl 
-                ? <img src={user.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> 
-                : displayName.charAt(0).toUpperCase()}
-            </div>
-            <div style={{ fontWeight: 800, fontSize: '1.2rem', color: 'var(--color-text-primary)' }}>
-              {displayName}
-            </div>
-            <div style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: 2, marginBottom: 18 }}>
-              {user.email}
-            </div>
-            <Link href={`/${locale}/cabinet`} className="btn btn-secondary btn-sm" style={{ width: '100%' }}>
-              Редактировать профиль
-            </Link>
+    <div className="min-h-screen bg-[#FAF8F7]">
+      <div className="max-w-[1400px] mx-auto px-6 py-8">
+        <div className="flex gap-8">
+          <Sidebar 
+            locale={locale}
+            userName={user.name}
+            userEmail={user.email}
+            userAvatar={user.avatarUrl}
+          />
+          <div className="flex-1">
+            {children}
           </div>
-
-          {/* Navigation */}
-          <nav className="cabinet-nav">
-            <Link href={`/${locale}/cabinet`} className={`cabinet-nav-item ${isActive('/cabinet') ? 'active' : ''}`}>
-              <span style={{ fontSize: '1.2rem' }}>👤</span> {t('cabinet.profile', { fallback: 'Профиль' })}
-            </Link>
-            
-            <Link href={`/${locale}/cabinet/applications`} className={`cabinet-nav-item ${isActive('/cabinet/applications') ? 'active' : ''}`}>
-              <span style={{ fontSize: '1.2rem' }}>📄</span> Мои заявки
-            </Link>
-
-            <div className={`cabinet-nav-item ${isEventsActive ? 'active' : ''}`} style={{ cursor: 'default' }}>
-              <span style={{ fontSize: '1.2rem' }}>📅</span> Мероприятия
-            </div>
-            <Link href={`/${locale}/cabinet/my-events`} className={`cabinet-nav-subitem ${isActive('/cabinet/my-events') || pathname.includes('/cabinet/my-events/') ? 'active' : ''}`}>
-              • Мои мероприятия
-            </Link>
-            <Link href={`/${locale}/cabinet/events`} className={`cabinet-nav-subitem ${isActive('/cabinet/events') ? 'active' : ''}`}>
-              • Все мероприятия
-            </Link>
-          </nav>
-
-        </aside>
-
-        {/* Content */}
-        <main className="cabinet-content">
-          {children}
-        </main>
-        
+        </div>
       </div>
     </div>
   );

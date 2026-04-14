@@ -3,7 +3,7 @@ import type { Prisma } from '@prisma/client';
 import type { EventQuery } from './events.schemas.js';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 
-const ACTIVE_MEMBER_STATUSES = ['ACTIVE', 'APPROVED'] as const;
+const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
 const ACTIVE_TEAM_MEMBER_STATUSES = ['ACTIVE', 'PENDING'] as const;
 const PLATFORM_ADMIN_ROLES = ['PLATFORM_ADMIN', 'SUPER_ADMIN'] as const;
 const PROFILE_FIELD_LABELS: Record<string, string> = {
@@ -206,9 +206,9 @@ export async function getEventBySlug(slug: string, userId?: string) {
       where: { team: { eventId: event.id }, userId, status: { notIn: ['REMOVED', 'LEFT'] } },
       include: { team: { select: { id: true, name: true, slug: true, joinCode: true, status: true, captainUserId: true } } }
     });
-    registrationAnswers = await prisma.eventRegistrationAnswer.findUnique({
+    registrationAnswers = await prisma.eventRegistrationFormSubmission.findUnique({
       where: { eventId_userId: { eventId: event.id, userId } },
-      select: { answers: true },
+      select: { answersJson: true },
     });
   }
 
@@ -218,7 +218,7 @@ export async function getEventBySlug(slug: string, userId?: string) {
     membershipRoles,
     memberships,
     teamMembership,
-    registrationAnswers: registrationAnswers?.answers ?? {},
+    registrationAnswers: registrationAnswers?.answersJson ?? {},
     registrationFieldLabels: Object.fromEntries(event.requiredEventFields.map(field => [field, getEventFieldLabel(field)])),
   };
 }
@@ -232,10 +232,10 @@ export async function getRegistrationPrecheck(
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) throw new Error('EVENT_NOT_FOUND');
   if (event.status !== 'PUBLISHED') throw new Error('EVENT_NOT_AVAILABLE');
-  if (event.registrationOpensAt && event.registrationOpensAt > new Date()) {
+  if (event.registrationOpenAt && event.registrationOpenAt > new Date()) {
     throw new Error('REGISTRATION_NOT_OPEN');
   }
-  if (event.registrationDeadline && event.registrationDeadline < new Date()) {
+  if (event.registrationCloseAt && event.registrationCloseAt < new Date()) {
     throw new Error('EVENT_NOT_AVAILABLE');
   }
 
@@ -259,9 +259,9 @@ export async function getRegistrationPrecheck(
         bio: true,
       },
     }),
-    prisma.eventRegistrationAnswer.findUnique({
+    prisma.eventRegistrationFormSubmission.findUnique({
       where: { eventId_userId: { eventId, userId } },
-      select: { answers: true },
+      select: { answersJson: true },
     }),
   ]);
 
@@ -272,7 +272,7 @@ export async function getRegistrationPrecheck(
   if (participantCount >= event.capacity && !existing) throw new Error('EVENT_FULL');
 
   const answers = {
-    ...normalizeAnswers(storedAnswers?.answers as Record<string, unknown> | undefined),
+    ...normalizeAnswers(storedAnswers?.answersJson as Record<string, unknown> | undefined),
     ...normalizeAnswers(answersInput),
   };
   const missingFields = [
@@ -324,15 +324,16 @@ export async function registerForEvent(eventId: string, userId: string, answers?
     }
 
     if (event.requiredEventFields.length > 0) {
-      await tx.eventRegistrationAnswer.upsert({
+      await tx.eventRegistrationFormSubmission.upsert({
         where: { eventId_userId: { eventId, userId } },
         create: {
           eventId,
           userId,
-          answers: precheck.answers as Prisma.InputJsonValue,
+          answersJson: precheck.answers as Prisma.InputJsonValue,
+          isComplete: true,
         },
         update: {
-          answers: precheck.answers as Prisma.InputJsonValue,
+          answersJson: precheck.answers as Prisma.InputJsonValue,
         },
       });
     }
@@ -462,15 +463,16 @@ export async function saveRegistrationAnswers(eventId: string, userId: string, a
   });
   if (!event) throw new Error('EVENT_NOT_FOUND');
 
-  return prisma.eventRegistrationAnswer.upsert({
+  return prisma.eventRegistrationFormSubmission.upsert({
     where: { eventId_userId: { eventId, userId } },
     create: {
       eventId,
       userId,
-      answers: normalizeAnswers(answers) as Prisma.InputJsonValue,
+      answersJson: normalizeAnswers(answers) as Prisma.InputJsonValue,
+      isComplete: true,
     },
     update: {
-      answers: normalizeAnswers(answers) as Prisma.InputJsonValue,
+      answersJson: normalizeAnswers(answers) as Prisma.InputJsonValue,
     },
   });
 }
@@ -484,7 +486,7 @@ export async function applyForVolunteer(eventId: string, userId: string, notes?:
     where: { eventId_userId_role: { eventId, userId, role: 'VOLUNTEER' } },
   });
 
-  if (existing && ['PENDING', 'APPROVED', 'ACTIVE'].includes(existing.status)) {
+  if (existing && ['PENDING', 'ACTIVE'].includes(existing.status)) {
     throw new Error('VOLUNTEER_APPLICATION_EXISTS');
   }
 
@@ -636,7 +638,7 @@ export async function createTeam(
   if (event.status !== 'PUBLISHED') throw new Error('EVENT_NOT_AVAILABLE');
   const precheck = await assertRegistrationRequirements(eventId, userId, data.answers, { allowExistingParticipant: true });
 
-  if (event.registrationDeadline && event.registrationDeadline < new Date()) {
+  if (event.registrationCloseAt && event.registrationCloseAt < new Date()) {
     throw new Error('EVENT_NOT_AVAILABLE');
   }
 
@@ -662,15 +664,16 @@ export async function createTeam(
     if (participantCount >= event.capacity && !existingSolo) throw new Error('EVENT_FULL');
 
     if (event.requiredEventFields.length > 0) {
-      await tx.eventRegistrationAnswer.upsert({
+      await tx.eventRegistrationFormSubmission.upsert({
         where: { eventId_userId: { eventId, userId } },
         create: {
           eventId,
           userId,
-          answers: precheck.answers as Prisma.InputJsonValue,
+          answersJson: precheck.answers as Prisma.InputJsonValue,
+          isComplete: true,
         },
         update: {
-          answers: precheck.answers as Prisma.InputJsonValue,
+          answersJson: precheck.answers as Prisma.InputJsonValue,
         },
       });
     }
@@ -745,7 +748,7 @@ export async function joinTeam(
   if (event.status !== 'PUBLISHED') throw new Error('EVENT_NOT_AVAILABLE');
   const precheck = await assertRegistrationRequirements(eventId, userId, answers, { allowExistingParticipant: true });
 
-  if (event.registrationDeadline && event.registrationDeadline < new Date()) {
+  if (event.registrationCloseAt && event.registrationCloseAt < new Date()) {
     throw new Error('EVENT_NOT_AVAILABLE');
   }
 
@@ -768,15 +771,16 @@ export async function joinTeam(
     const isPending = event.teamJoinMode === 'BY_REQUEST';
 
     if (event.requiredEventFields.length > 0) {
-      await tx.eventRegistrationAnswer.upsert({
+      await tx.eventRegistrationFormSubmission.upsert({
         where: { eventId_userId: { eventId, userId } },
         create: {
           eventId,
           userId,
-          answers: precheck.answers as Prisma.InputJsonValue,
+          answersJson: precheck.answers as Prisma.InputJsonValue,
+          isComplete: true,
         },
         update: {
-          answers: precheck.answers as Prisma.InputJsonValue,
+          answersJson: precheck.answers as Prisma.InputJsonValue,
         },
       });
     }

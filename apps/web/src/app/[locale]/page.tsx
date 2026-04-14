@@ -17,267 +17,239 @@ type PreviewEvent = {
   coverImageUrl?: string | null;
 };
 
-const FEATURE_ICONS = ['⚡', '📊', '🎭'];
-const FEATURE_COLORS = ['indigo', 'purple', 'coral'] as const;
-
 export default async function HomePage({ params }: HomePageProps) {
   const { locale } = await params;
   const t = await getTranslations();
   const previewEvents = await getPreviewEvents();
 
-  const featureKeys = ['fast', 'analytics', 'roles'] as const;
-  const steps = [
-    t('home.howItWorks.step1'),
-    t('home.howItWorks.step2'),
-    t('home.howItWorks.step3'),
-  ];
-
   return (
-    <div className="page-shell">
-      <main className="page-main">
-
-        {/* ── Hero ───────────────────────────────── */}
-        <section className="hero">
-          <div className="hero-bg" />
-          <div className="container hero-content">
-
-            <span className="hero-badge">
-              <span className="hero-badge-dot">✦</span>
-              {t('common.appName')} · MVP
-            </span>
-
-            <h1 className="hero-title">
-              {t('home.heroTitle').split(' ').slice(0, -2).join(' ')}{' '}
-              <span className="text-gradient">
-                {t('home.heroTitle').split(' ').slice(-2).join(' ')}
-              </span>
-            </h1>
-
-            <p className="hero-subtitle">{t('home.heroSubtitle')}</p>
-
-            <div className="hero-actions">
-              <Link href={`/${locale}/events`} className="btn btn-primary btn-lg">
-                🎪 {t('home.exploreCta')}
-              </Link>
-              <Link href={`/${locale}/register`} className="btn btn-secondary btn-lg">
-                {t('home.joinCta')} →
-              </Link>
-            </div>
-
-            <div className="hero-stats">
-              <div className="hero-stat">
-                <span className="hero-stat-icon">🎪</span>
-                <div>
-                  <div className="hero-stat-value">10+</div>
-                  <div className="hero-stat-label">
-                    {locale === 'ru' ? 'стартовых событий' : 'starter events'}
-                  </div>
-                </div>
-              </div>
-              <div className="hero-stat">
-                <span className="hero-stat-icon">🔐</span>
-                <div>
-                  <div className="hero-stat-value">4</div>
-                  <div className="hero-stat-label">
-                    {locale === 'ru' ? 'способа входа' : 'auth methods'}
-                  </div>
-                </div>
-              </div>
-              <div className="hero-stat">
-                <span className="hero-stat-icon">📊</span>
-                <div>
-                  <div className="hero-stat-value">1</div>
-                  <div className="hero-stat-label">
-                    {locale === 'ru' ? 'панель управления' : 'admin panel'}
-                  </div>
-                </div>
-              </div>
-            </div>
+    <div className="min-h-screen flex flex-col bg-white">
+      <main className="flex-1">
+        <section className="relative overflow-hidden bg-white py-16">
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute -left-32 top-1/3 w-80 h-80 rounded-full bg-[#F5C7D8] opacity-40" />
+            <div className="absolute -left-24 top-2/3 w-64 h-64 rounded-full bg-[#B8E4D4] opacity-50" />
+            <div className="absolute -right-32 top-1/4 w-96 h-96 rounded-full bg-[#FFE5B4] opacity-40" />
+            <div className="absolute right-0 top-2/3 w-80 h-80 rounded-full bg-[#C8E6D7] opacity-40" />
+            <div className="absolute left-1/4 -bottom-32 w-72 h-72 rounded-full bg-[#F5D1E0] opacity-30" />
           </div>
-        </section>
 
-        {/* ── Features ───────────────────────────── */}
-        <section className="section">
-          <div className="container">
-            <h2 className="section-title">{t('home.featuresTitle')}</h2>
-            <p className="section-subtitle">
-              {locale === 'ru'
-                ? 'Платформа объединяет публичный сайт, регистрацию, админку и аналитику в одном продукте.'
-                : 'The platform combines a public website, registration flows, admin tools and analytics in one product.'}
-            </p>
-
-            <div className="cards-grid">
-              {featureKeys.map((key, index) => (
-                <article
-                  key={key}
-                  className="feature-card"
-                  style={{ animationDelay: `${index * 0.1}s` }}
-                >
-                  <div className={`feature-icon-wrap ${FEATURE_COLORS[index]}`}>
-                    {FEATURE_ICONS[index]}
-                  </div>
-                  <div className="feature-num">0{index + 1}</div>
-                  <h3 className="feature-title">{t(`home.features.${key}.title`)}</h3>
-                  <p className="feature-description">{t(`home.features.${key}.description`)}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ── Preview Events ──────────────────────── */}
-        <section className="section" style={{ background: 'var(--color-bg-soft)', paddingTop: 64, paddingBottom: 64 }}>
-          <div className="container">
-            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
-              <div>
-                <h2 className="section-title">{t('home.popularTitle')}</h2>
-                <p className="section-subtitle">
-                  {locale === 'ru'
-                    ? 'Подборка открытых событий из живого каталога.'
-                    : 'A selection of open events from the live catalog.'}
-                </p>
-              </div>
-              <Link href={`/${locale}/events`} className="btn btn-secondary">
-                {locale === 'ru' ? 'Все события' : 'View all'} →
-              </Link>
+          <div className="max-w-[1400px] mx-auto px-6 relative z-10">
+            <div className="text-center mb-12">
+              <h1 className="text-5xl md:text-6xl font-bold mb-4 text-[#1a1a1a] leading-tight">
+                {locale === 'ru' ? 'Международная платформа' : 'International platform'}<br />
+                {locale === 'ru' ? 'возможностей' : 'of opportunities'}
+              </h1>
+              <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+                {locale === 'ru'
+                  ? 'Единое пространство для организаторов, участников, команд и волонтёров'
+                  : 'A shared space for organizers, participants, teams, and volunteers'}
+              </p>
             </div>
 
-            {previewEvents.length === 0 ? (
-              <div className="empty-state" style={{ paddingTop: 40 }}>
-                <div className="empty-state-icon">🎪</div>
-                <p className="empty-state-text">
-                  {locale === 'ru' ? 'События скоро появятся.' : 'Events will appear soon.'}
-                </p>
-              </div>
-            ) : (
-              <div className="cards-grid">
-                {previewEvents.map((event) => (
-                  <Link key={event.id} href={`/${locale}/events/${event.slug}`} className="event-card">
-                    {event.coverImageUrl ? (
-                      <img
-                        src={event.coverImageUrl}
-                        alt={event.title}
-                        className="event-card-cover"
-                      />
-                    ) : (
-                      <div className="event-card-cover-placeholder">🎪</div>
-                    )}
-                    <div className="event-card-body">
-                      <div className="event-card-header">
-                        <span className="badge badge-primary">{event.category}</span>
+            {previewEvents.length > 0 && previewEvents[0] && (
+              <div className="max-w-5xl mx-auto">
+                <div className="relative rounded-3xl overflow-hidden shadow-2xl bg-gradient-to-br from-yellow-400 via-yellow-300 to-orange-400 p-1">
+                  <div className="relative rounded-[22px] overflow-hidden bg-gradient-to-r from-green-400 via-teal-300 to-green-300 h-[400px]">
+                    <div className="absolute inset-0 opacity-20">
+                      <div className="absolute inset-0 bg-gradient-to-r from-green-300 to-teal-200" />
+                    </div>
+
+                    <div className="relative h-full flex items-center">
+                      <div className="flex-1 px-12 z-10">
+                        <div className="bg-white rounded-2xl p-8 max-w-lg shadow-xl">
+                          <p className="text-green-600 font-semibold mb-3">
+                            {formatPreviewDate(previewEvents[0].startsAt, locale)}
+                          </p>
+                          <h2 className="text-3xl font-bold text-[#2E3192] mb-6 leading-tight">
+                            {previewEvents[0].title}
+                          </h2>
+
+                          <div className="flex flex-wrap gap-3 mb-6">
+                            <div className="bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-2 rounded-lg font-bold text-sm shadow-md">
+                              {locale === 'ru' ? 'ПОДАЙ ЗАЯВКУ' : 'APPLY NOW'}
+                            </div>
+                            <div className="bg-gradient-to-r from-pink-500 to-pink-600 text-white px-6 py-2 rounded-lg font-bold text-sm shadow-md">
+                              {locale === 'ru' ? 'ВМЕСТЕ С СООБЩЕСТВОМ' : 'WITH THE COMMUNITY'}
+                            </div>
+                          </div>
+
+                          <Link href={`/${locale}/events/${previewEvents[0].slug}`}>
+                            <button className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-4 px-8 rounded-xl shadow-lg transition-all">
+                              {locale === 'ru' ? 'Подать заявку' : 'Apply'}
+                            </button>
+                          </Link>
+                        </div>
                       </div>
-                      <h3 className="event-card-title">{event.title}</h3>
-                      <div className="event-card-meta">
-                        <span>📅 {formatPreviewDate(event.startsAt, locale)}</span>
-                        <span>📍 {event.location}</span>
+
+                      <div className="flex-1 h-full flex items-center justify-center pr-12">
+                        {previewEvents[0].coverImageUrl ? (
+                          <img
+                            src={previewEvents[0].coverImageUrl}
+                            alt={previewEvents[0].title}
+                            className="max-h-[350px] object-contain drop-shadow-2xl"
+                          />
+                        ) : (
+                          <div className="flex h-[280px] w-[280px] items-center justify-center rounded-2xl bg-white/70 text-7xl shadow-xl">
+                            🎪
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </Link>
-                ))}
+                  </div>
+                </div>
               </div>
             )}
           </div>
         </section>
 
-        {/* ── How It Works ───────────────────────── */}
-        <section className="section">
-          <div className="container">
-            <h2 className="section-title">{t('home.howItWorksTitle')}</h2>
-            <div className="cards-grid">
-              {steps.map((step, index) => (
-                <article
-                  key={step}
-                  className="feature-card"
-                  style={{ animationDelay: `${index * 0.1}s`, textAlign: 'center' }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
-                    <div style={{
-                      width: 56,
-                      height: 56,
-                      borderRadius: 'var(--radius-full)',
-                      background: `linear-gradient(135deg, var(--color-primary), #a855f7)`,
-                      color: '#fff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '1.4rem',
-                      fontWeight: 900,
-                      boxShadow: 'var(--shadow-primary)',
-                    }}>
-                      {index + 1}
+        <section className="py-16 bg-[#FAF8F7]">
+          <div className="max-w-[1400px] mx-auto px-6">
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-4xl font-bold text-[#1a1a1a]">
+                {locale === 'ru' ? 'Мероприятия' : 'Events'}
+              </h2>
+              <Link href={`/${locale}/events`} className="text-[#E55C94] hover:text-[#D04A82] font-medium flex items-center gap-2">
+                {locale === 'ru' ? 'Смотреть все' : 'View all'}
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+            </div>
+
+            {previewEvents.length === 0 ? (
+              <div className="text-center py-16">
+                <div className="text-6xl mb-4">🎪</div>
+                <p className="text-gray-600">
+                  {locale === 'ru' ? 'События скоро появятся.' : 'Events will appear soon.'}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {previewEvents.map((event) => (
+                  <div key={event.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                    <div className="relative h-[200px] bg-[#F5EDE7] flex items-center justify-center p-6">
+                      {event.coverImageUrl ? (
+                        <img
+                          src={event.coverImageUrl}
+                          alt={event.title}
+                          className="w-full h-full object-contain"
+                        />
+                        ) : (
+                        <div className="flex h-full w-full items-center justify-center rounded-xl bg-white text-5xl">
+                          🎪
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-5">
+                      <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span>{formatPreviewDate(event.startsAt, locale)}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span>{event.location}</span>
+                      </div>
+
+                      <h3 className="text-base font-semibold mb-4 text-[#1a1a1a] leading-tight min-h-[60px]">
+                        {event.title}
+                      </h3>
+
+                      <Link href={`/${locale}/events/${event.slug}`}>
+                        <button className="w-full px-4 py-2.5 bg-gradient-to-r from-[#E84393] to-[#E55C94] text-white rounded-full font-medium text-sm hover:opacity-90 transition-opacity">
+                          {locale === 'ru' ? 'Подробнее' : 'Details'}
+                        </button>
+                      </Link>
                     </div>
                   </div>
-                  <h3 className="feature-title">
-                    {locale === 'ru' ? `Шаг ${index + 1}` : `Step ${index + 1}`}
-                  </h3>
-                  <p className="feature-description">{step}</p>
-                </article>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </section>
+      </main>
 
-        {/* ── CTA Banner ──────────────────────────── */}
-        <section className="section-sm">
-          <div className="container">
-            <div style={{
-              background: 'linear-gradient(135deg, var(--color-primary) 0%, #a855f7 100%)',
-              borderRadius: 'var(--radius-3xl)',
-              padding: '52px 40px',
-              textAlign: 'center',
-              boxShadow: 'var(--shadow-primary-lg)',
-              position: 'relative',
-              overflow: 'hidden',
-            }}>
-              <div style={{
-                position: 'absolute',
-                inset: 0,
-                background: 'radial-gradient(ellipse 60% 50% at 80% 20%, rgba(255,255,255,0.12) 0%, transparent 60%)',
-                pointerEvents: 'none',
-              }} />
-              <h2 style={{ fontSize: 'clamp(1.6rem, 3vw, 2.4rem)', fontWeight: 900, color: '#fff', marginBottom: 12, position: 'relative' }}>
-                {locale === 'ru' ? 'Готовы начать?' : 'Ready to get started?'}
-              </h2>
-              <p style={{ color: 'rgba(255,255,255,0.82)', fontSize: '1.05rem', marginBottom: 28, position: 'relative' }}>
-                {locale === 'ru'
-                  ? 'Присоединяйтесь к платформе и создавайте незабываемые события.'
-                  : 'Join the platform and create unforgettable events.'}
-              </p>
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', position: 'relative' }}>
-                <Link href={`/${locale}/register`} className="btn btn-lg" style={{ background: '#fff', color: 'var(--color-primary)', fontWeight: 800 }}>
-                  {t('home.joinCta')}
+      <footer className="bg-white border-t border-gray-200 mt-20">
+        <div className="max-w-[1400px] mx-auto px-6 py-12">
+          <div className="grid md:grid-cols-2 gap-8 mb-8">
+            <div className="space-y-6">
+              <div className="flex items-center gap-3">
+                <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#E55C94] text-xl font-black text-white">
+                  E
+                </span>
+                <div>
+                  <div className="text-lg font-black text-[#1a1a1a]">EventPlatform</div>
+                  <div className="text-sm text-gray-600">
+                    {locale === 'ru' ? 'Платформа для событий и команд' : 'Events and teams platform'}
+                  </div>
+                </div>
+              </div>
+              <a
+                href="mailto:support@eventplatform.local"
+                className="inline-flex rounded-full border-2 border-gray-800 bg-transparent px-6 py-2 font-medium text-gray-800 hover:bg-gray-50"
+              >
+                {locale === 'ru' ? 'Обратная связь' : 'Feedback'}
+              </a>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <Link href={`/${locale}/events`} className="block text-sm hover:text-primary transition-colors">
+                  {locale === 'ru' ? 'Мероприятия' : 'Events'}
                 </Link>
-                <Link href={`/${locale}/events`} className="btn btn-lg" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1.5px solid rgba(255,255,255,0.3)', backdropFilter: 'blur(8px)' }}>
-                  {t('home.exploreCta')}
+                <Link href={`/${locale}/register`} className="block text-sm hover:text-primary transition-colors">
+                  {locale === 'ru' ? 'Регистрация' : 'Register'}
+                </Link>
+                <Link href={`/${locale}/login`} className="block text-sm hover:text-primary transition-colors">
+                  {locale === 'ru' ? 'Вход' : 'Login'}
+                </Link>
+              </div>
+              <div className="space-y-3">
+                <Link href={`/${locale}/cabinet`} className="block text-sm hover:text-primary transition-colors">
+                  {locale === 'ru' ? 'Кабинет' : 'Cabinet'}
+                </Link>
+                <Link href={`/${locale}/admin`} className="block text-sm hover:text-primary transition-colors">
+                  {locale === 'ru' ? 'Админ-панель' : 'Admin'}
                 </Link>
               </div>
             </div>
           </div>
-        </section>
 
-      </main>
-
-      <footer className="footer">
-        <div className="container footer-inner">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{
-              width: 28,
-              height: 28,
-              borderRadius: 'var(--radius-md)',
-              background: 'linear-gradient(135deg, var(--color-primary), #a855f7)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-              fontSize: '0.75rem',
-            }}>✦</span>
-            <span style={{ fontWeight: 700, color: 'var(--color-text-secondary)' }}>EventPlatform</span>
-            <span>© 2026</span>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-sm text-gray-600">
+            <div>
+              <p className="mb-1">© 2026 EventPlatform</p>
+              <p>{locale === 'ru' ? 'Все права защищены' : 'All rights reserved'}</p>
+            </div>
+            <Link
+              href="/doc/privacy-policy-ru.pdf"
+              target="_blank"
+              className="text-sm underline hover:text-primary transition-colors"
+            >
+              {locale === 'ru' ? 'Политика конфиденциальности' : 'Privacy Policy'}
+            </Link>
           </div>
-          <div className="footer-links">
-            <a href="#">{t('footer.product')}</a>
-            <a href="#">{t('footer.company')}</a>
-            <a href="#">{t('footer.support')}</a>
+        </div>
+
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-xl p-6 z-50">
+          <div className="max-w-[1400px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <p className="text-sm text-gray-700">
+              {locale === 'ru'
+                ? 'Платформа работает как часы благодаря файлам cookie. Чтобы всё работало корректно, пожалуйста, ознакомьтесь с нашей'
+                : 'The platform works like a clock thanks to cookies. To ensure everything works correctly, please read our'}
+              <Link href="/doc/privacy-policy-ru.pdf" target="_blank" className="text-[#E55C94] underline">
+                {locale === 'ru' ? 'Политикой конфиденциальности' : 'Privacy Policy'}
+              </Link>
+            </p>
+            <button className="bg-[#E55C94] hover:bg-[#D04A82] text-white rounded-full px-8 py-2 whitespace-nowrap cursor-pointer border-none">
+              {locale === 'ru' ? 'Принять' : 'Accept'}
+            </button>
           </div>
         </div>
       </footer>

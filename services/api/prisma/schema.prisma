@@ -37,9 +37,10 @@ enum EventMemberRole {
 
 enum EventMemberStatus {
   PENDING
-  APPROVED
-  REJECTED
   ACTIVE
+  RESERVE
+  REJECTED
+  CANCELLED
   REMOVED
 }
 
@@ -47,6 +48,12 @@ enum TeamJoinMode {
   OPEN
   BY_CODE
   BY_REQUEST
+}
+
+enum RegistrationMode {
+  INDIVIDUAL
+  TEAM
+  BOTH
 }
 
 enum EventTeamStatus {
@@ -91,7 +98,16 @@ model User {
   id              String    @id @default(cuid())
   email           String    @unique
   passwordHash    String?
-  name            String?
+  // Name fields
+  lastNameCyrillic   String?
+  firstNameCyrillic  String?
+  middleNameCyrillic String?
+  lastNameLatin      String?
+  firstNameLatin     String?
+  middleNameLatin    String?
+  fullNameCyrillic   String?
+  fullNameLatin      String?
+  
   bio             String?
   city            String?
   phone           String?
@@ -113,7 +129,7 @@ model User {
   teamMemberships      EventTeamMember[]
   captainedTeams       EventTeam[]       @relation("TeamCaptain")
   analyticsEvents      AnalyticsEvent[]
-  registrationAnswers  EventRegistrationAnswer[]
+  registrationSubmissions EventRegistrationFormSubmission[]
 
   @@map("users")
 }
@@ -146,12 +162,25 @@ model Event {
   coverImageUrl        String?
   category             String
   location             String
+  
+  // Registration and limits
   capacity             Int         @default(100)
   registrationsCount   Int         @default(0)
+  
+  // Timing
   startsAt             DateTime
   endsAt               DateTime
-  registrationDeadline DateTime?
-  registrationOpensAt  DateTime?
+  registrationOpenAt   DateTime?
+  registrationCloseAt  DateTime?
+  
+  // Registration Settings
+  registrationEnabled          Boolean @default(true)
+  registrationMode             RegistrationMode @default(INDIVIDUAL)
+  volunteerApplicationsEnabled Boolean @default(false)
+  requiredProfileFields        String[] @default([])
+  requiredEventFields          String[] @default([])
+  customRegistrationFields     Json?
+
   conditions           String?
   contactEmail         String?
   tags                 String[]
@@ -165,8 +194,6 @@ model Event {
   allowSoloParticipation       Boolean      @default(true)
   teamJoinMode                 TeamJoinMode @default(OPEN)
   requireAdminApprovalForTeams Boolean      @default(false)
-  requiredProfileFields        String[]     @default([])
-  requiredEventFields          String[]     @default([])
 
   publishedAt DateTime?
   createdById String?
@@ -177,25 +204,26 @@ model Event {
   members         EventMember[]
   teams           EventTeam[]
   analyticsEvents AnalyticsEvent[]
-  registrationAnswers EventRegistrationAnswer[]
+  registrationSubmissions EventRegistrationFormSubmission[]
 
   @@map("events")
 }
 
-model EventRegistrationAnswer {
-  id        String   @id @default(cuid())
-  eventId   String
-  userId    String
-  answers   Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model EventRegistrationFormSubmission {
+  id            String   @id @default(cuid())
+  eventId       String
+  userId        String
+  answersJson   Json
+  isComplete    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([eventId, userId])
   @@index([userId])
-  @@map("event_registration_answers")
+  @@map("event_registration_form_submissions")
 }
 
 model EventMember {
@@ -208,7 +236,7 @@ model EventMember {
   assignedAt       DateTime          @default(now())
   approvedAt       DateTime?
   rejectedAt       DateTime?
-  removedAt        DateTime?
+  cancelledAt      DateTime?
   notes            String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -227,9 +255,7 @@ model EventTeam {
   id            String          @id @default(cuid())
   eventId       String
   name          String
-  slug          String          @unique
   joinCode      String?         @unique
-  description   String?         @db.Text
   captainUserId String
   status        EventTeamStatus @default(ACTIVE)
   maxSize       Int             @default(5)

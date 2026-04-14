@@ -6,7 +6,7 @@ import { prisma } from '../db/prisma.js';
 import { logger } from './logger.js';
 
 const PLATFORM_ADMIN_ROLES: UserRole[] = ['PLATFORM_ADMIN', 'SUPER_ADMIN'];
-const EVENT_ADMIN_STATUSES = ['ACTIVE', 'APPROVED'] as const;
+const EVENT_ADMIN_STATUSES = ['ACTIVE'] as const;
 
 export type AuthenticatedRequest = Request & { user?: User };
 

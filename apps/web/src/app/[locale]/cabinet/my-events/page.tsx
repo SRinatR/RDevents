@@ -1,20 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../../hooks/useAuth';
 import { eventsApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
+import { Button } from '@/components/ui/button';
 
-export default function CabinetMyEventsPage() {
+export default function MyEventsPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const locale = useRouteLocale();
 
-  const [activeTab, setActiveTab] = useState('my-events');
   const [events, setEvents] = useState<any[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!loading && !user) router.push(`/${locale}/login`);
@@ -22,84 +23,152 @@ export default function CabinetMyEventsPage() {
 
   useEffect(() => {
     if (!user) return;
+
+    setEventsLoading(true);
+    setError('');
     eventsApi.myEvents()
-      .then(r => setEvents(r.events))
-      .catch(() => {})
+      .then(result => setEvents(result.events || []))
+      .catch(() => setError(locale === 'ru' ? 'Не удалось загрузить мероприятия.' : 'Failed to load events.'))
       .finally(() => setEventsLoading(false));
-  }, [user]);
+  }, [user, locale]);
 
-  if (loading || !user) return null; // Wait for layout
+  if (loading || !user) return null;
 
-  const handleTabChange = (tab: string) => {
-    if (tab === 'all-events') router.push(`/${locale}/cabinet/events`);
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleDateString(locale === 'ru' ? 'ru-RU' : 'en-US', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
+
+  const getStatusBadge = (status: string) => {
+    const statusConfig: Record<string, { className: string; label: string }> = {
+      ACTIVE: {
+        className: 'bg-green-100 text-green-700',
+        label: locale === 'ru' ? 'Активно' : 'Active',
+      },
+      APPROVED: {
+        className: 'bg-green-100 text-green-700',
+        label: locale === 'ru' ? 'Одобрено' : 'Approved',
+      },
+      PENDING: {
+        className: 'bg-yellow-100 text-yellow-700',
+        label: locale === 'ru' ? 'На рассмотрении' : 'Pending',
+      },
+      REJECTED: {
+        className: 'bg-red-100 text-red-700',
+        label: locale === 'ru' ? 'Отклонено' : 'Rejected',
+      },
+    };
+    const config = statusConfig[status] || {
+      className: 'bg-gray-100 text-gray-700',
+      label: status,
+    };
+
+    return (
+      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${config.className}`}>
+        {config.label}
+      </span>
+    );
   };
 
   return (
-    <div>
-      <h1 style={{ margin: '0 0 24px', fontSize: '2rem', fontWeight: 900, letterSpacing: '-0.02em' }}>
-        Мероприятия
+    <div className="bg-white rounded-2xl p-8 shadow-sm">
+      <h1 className="text-3xl font-bold mb-8 text-[#1a1a1a]">
+        {locale === 'ru' ? 'Мероприятия' : 'Events'}
       </h1>
 
-      <div className="cabinet-tabs">
-        <button onClick={() => handleTabChange('my-events')} className={`cabinet-tab ${activeTab === 'my-events' ? 'active' : ''}`} style={{ background: 'none', border: 'none', borderBottom: '2px solid transparent', cursor: 'pointer', paddingBottom: 12 }}>
-          Мои мероприятия
-        </button>
-        <button onClick={() => handleTabChange('all-events')} className={`cabinet-tab ${activeTab === 'all-events' ? 'active' : ''}`} style={{ background: 'none', border: 'none', borderBottom: '2px solid transparent', cursor: 'pointer', paddingBottom: 12 }}>
-          Все мероприятия
-        </button>
+      <div className="flex gap-8 mb-8 border-b border-gray-200">
+        <Link
+          href={`/${locale}/cabinet/my-events`}
+          className="pb-3 text-base font-medium text-[#E55C94] border-b-2 border-[#E55C94]"
+        >
+          {locale === 'ru' ? 'Мои мероприятия' : 'My Events'}
+        </Link>
+        <Link
+          href={`/${locale}/cabinet/events`}
+          className="pb-3 text-base font-medium text-gray-600 hover:text-[#E55C94] transition-colors border-b-2 border-transparent"
+        >
+          {locale === 'ru' ? 'Все мероприятия' : 'All Events'}
+        </Link>
       </div>
 
-      <div>
-        {eventsLoading ? (
-          <div style={{ color: 'var(--color-text-muted)' }}>Загрузка...</div>
-        ) : events.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 20px', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-xl)' }}>
-            <p style={{ margin: '0 0 16px', color: 'var(--color-text-muted)' }}>Вы пока не участвуете ни в одном мероприятии</p>
-            <Link href={`/${locale}/cabinet/events`} className="btn btn-primary btn-sm">Исследовать</Link>
+      {eventsLoading ? (
+        <div className="flex items-center justify-center py-16">
+          <div className="text-gray-600">
+            {locale === 'ru' ? 'Загрузка...' : 'Loading...'}
           </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {events.map((r: any) => {
-              const statusLabel = r.status === 'PENDING' ? 'На рассмотрении' : (r.status === 'APPROVED' || r.status === 'ACTIVE' ? 'Заявка одобрена' : r.status);
-              const isPending = r.status === 'PENDING';
+        </div>
+      ) : error ? (
+        <div className="p-6 bg-red-50 border border-red-200 rounded-xl text-red-700">
+          {error}
+        </div>
+      ) : events.length === 0 ? (
+        <div className="bg-[#FAF8F7] rounded-2xl p-24 text-center border-2 border-dashed border-gray-200">
+          <div className="text-6xl mb-4">🎪</div>
+          <p className="text-gray-600 text-lg mb-6">
+            {locale === 'ru' ? 'Вы пока не участвуете ни в одном мероприятии' : 'You have not joined any events yet'}
+          </p>
+          <Link href={`/${locale}/cabinet/events`}>
+            <Button className="bg-gradient-to-r from-[#E84393] to-[#E55C94] hover:opacity-90 text-white font-bold">
+              {locale === 'ru' ? 'Посмотреть мероприятия' : 'View Events'}
+            </Button>
+          </Link>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {events.map((registration: any) => {
+            const event = registration.event ?? registration;
+            const href = event.slug
+              ? `/${locale}/cabinet/my-events/${event.slug}`
+              : `/${locale}/cabinet/my-events`;
 
-              return (
-                <Link key={r.registrationId} href={`/${locale}/cabinet/my-events/${r.event.slug}`} style={{ textDecoration: 'none' }}>
-                  <div style={{ 
-                    display: 'flex', alignItems: 'center', gap: 16, padding: '20px 24px', 
-                    borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border)', 
-                    background: 'var(--color-surface)', transition: 'border-color var(--transition-fast)' 
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-primary-glow)' }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border)' }}
-                  >
-                    {r.event.coverImageUrl ? (
-                      <img src={r.event.coverImageUrl} alt="" style={{ width: 100, height: 100, borderRadius: '50%', objectFit: 'cover' }} />
-                    ) : (
-                      <div style={{ width: 100, height: 100, borderRadius: '50%', background: 'var(--color-bg-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem' }}>🎪</div>
-                    )}
-                    
-                    <div style={{ flex: 1, minWidth: 0, paddingLeft: 8 }}>
-                      <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: 8 }}>
-                        {r.event.location} &nbsp;&nbsp; {new Date(r.event.startsAt).toLocaleDateString()} — {new Date(r.event.endsAt).toLocaleDateString()}
-                      </div>
-                      <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--color-text-primary)' }}>
-                        {r.event.title}
-                      </div>
+            return (
+              <Link
+                key={registration.registrationId ?? registration.id ?? event.id}
+                href={href}
+                className="block bg-[#FAF8F7] rounded-2xl p-6 hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-center gap-6">
+                  {event.coverImageUrl ? (
+                    <img
+                      src={event.coverImageUrl}
+                      alt=""
+                      className="w-28 h-28 rounded-xl object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-28 h-28 rounded-xl bg-[#F5EDE7] flex items-center justify-center text-5xl flex-shrink-0">
+                      🎪
                     </div>
+                  )}
 
-                    <div style={{ flexShrink: 0 }}>
-                      <span className={`badge ${isPending ? 'badge-muted' : 'badge-success'}`} style={{ padding: '6px 16px', fontSize: '0.85rem', fontWeight: 700, borderRadius: 'var(--radius-full)', background: isPending ? 'rgba(245,158,11,0.1)' : 'rgba(22,163,74,0.1)', color: isPending ? '#d97706' : '#16a34a' }}>
-                        {statusLabel}
-                      </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-gray-600 mb-2 flex flex-wrap items-center gap-4">
+                      {event.location && (
+                        <span className="flex items-center gap-1">
+                          <span>📍</span>
+                          <span>{event.location}</span>
+                        </span>
+                      )}
+                      {event.startsAt && event.endsAt && (
+                        <span className="flex items-center gap-1">
+                          <span>📅</span>
+                          <span>{formatDate(event.startsAt)} — {formatDate(event.endsAt)}</span>
+                        </span>
+                      )}
                     </div>
+                    <div className="text-xl font-bold text-[#1a1a1a] mb-3">
+                      {event.title}
+                    </div>
+                    {getStatusBadge(registration.status)}
                   </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

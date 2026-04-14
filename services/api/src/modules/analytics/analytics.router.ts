@@ -49,7 +49,7 @@ analyticsRouter.get('/summary', async (_req, res) => {
   const [totalUsers, totalEvents, totalRegistrations, totalViews] = await Promise.all([
     prisma.user.count(),
     prisma.event.count({ where: { status: 'PUBLISHED' } }),
-    prisma.eventMember.count({ where: { role: 'PARTICIPANT', status: { in: ['ACTIVE', 'APPROVED'] } } }),
+    prisma.eventMember.count({ where: { role: 'PARTICIPANT', status: 'ACTIVE' } }),
     prisma.analyticsEvent.count({ where: { type: 'EVENT_DETAIL_VIEW' } }),
   ]);
 

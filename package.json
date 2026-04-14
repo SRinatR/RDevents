@@ -11,23 +11,18 @@
     "dev": "corepack pnpm --parallel --filter @event-platform/web --filter @event-platform/api run dev",
     "dev:web": "corepack pnpm --filter @event-platform/web run dev",
     "dev:api": "corepack pnpm --filter @event-platform/api run dev",
-
     "build": "corepack pnpm --filter @event-platform/shared run build && corepack pnpm --filter @event-platform/ui run build && corepack pnpm --filter @event-platform/api run build && corepack pnpm --filter @event-platform/web run build",
     "build:web": "corepack pnpm --filter @event-platform/web run build",
     "build:api": "corepack pnpm --filter @event-platform/api run build",
-
     "typecheck": "corepack pnpm --filter @event-platform/shared run typecheck && corepack pnpm --filter @event-platform/ui run typecheck && corepack pnpm --filter @event-platform/api run typecheck && corepack pnpm --filter @event-platform/web run typecheck",
     "lint": "corepack pnpm --filter @event-platform/shared run lint && corepack pnpm --filter @event-platform/ui run lint && corepack pnpm --filter @event-platform/api run lint && corepack pnpm --filter @event-platform/web run lint",
     "test": "corepack pnpm --filter @event-platform/shared run test && corepack pnpm --filter @event-platform/ui run test && corepack pnpm --filter @event-platform/api run test && corepack pnpm --filter @event-platform/web run test",
-
     "clean": "corepack pnpm --filter @event-platform/shared run clean && corepack pnpm --filter @event-platform/ui run clean && corepack pnpm --filter @event-platform/api run clean && corepack pnpm --filter @event-platform/web run clean && node -e \"const fs=require('fs'); ['node_modules','.turbo'].forEach(p=>fs.rmSync(p,{recursive:true,force:true}))\"",
-
     "db:generate": "corepack pnpm --filter @event-platform/api prisma generate",
     "db:migrate": "corepack pnpm --filter @event-platform/api prisma migrate dev",
     "db:push": "corepack pnpm --filter @event-platform/api prisma db push",
     "db:seed": "corepack pnpm --filter @event-platform/api prisma db seed",
     "db:studio": "corepack pnpm --filter @event-platform/api prisma studio",
-
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f"
@@ -45,7 +40,7 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
+    "@types/node": "^25.6.0",
     "turbo": "2.9.6",
     "typescript": "6.0.2"
   }

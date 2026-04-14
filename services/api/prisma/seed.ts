@@ -5,7 +5,7 @@ import argon2 from 'argon2';
 import pg from 'pg';
 import 'dotenv/config';
 
-const connectionString = process.env.DATABASE_URL;
+const connectionString = process.env.DATABASE_URL?.replace('localhost', '127.0.0.1');
 const pool = new pg.Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
@@ -33,7 +33,9 @@ async function createUser(input: {
   const user = await prisma.user.create({
     data: {
       email: input.email,
-      name: input.name,
+      firstNameLatin: input.name,
+      fullNameLatin: input.name,
+      fullNameCyrillic: input.name,
       passwordHash,
       role: input.role ?? UserRole.USER,
       city: input.city,
@@ -63,7 +65,6 @@ async function main() {
   console.log('Seeding database...');
 
   await prisma.analyticsEvent.deleteMany();
-  await prisma.eventRegistrationAnswer.deleteMany();
   await prisma.eventTeamMember.deleteMany();
   await prisma.eventTeam.deleteMany();
   await prisma.eventMember.deleteMany();
@@ -131,7 +132,9 @@ async function main() {
   const socialUser = await prisma.user.create({
     data: {
       email: 'social@example.com',
-      name: 'Social Demo User',
+      firstNameLatin: 'Social Demo User',
+      fullNameLatin: 'Social Demo User',
+      fullNameCyrillic: 'Social Demo User',
       role: UserRole.USER,
       isActive: true,
       city: 'Nukus',
@@ -286,12 +289,15 @@ async function main() {
 
   const events = [];
   for (const input of eventInputs) {
+    const { registrationDeadline, status: inputStatus, ...rest } = input;
+    const status = inputStatus ?? EventStatus.PUBLISHED;
     events.push(await prisma.event.create({
       data: {
-        ...input,
-        status: input.status ?? EventStatus.PUBLISHED,
+        ...rest,
+        registrationCloseAt: registrationDeadline,
+        status,
         createdById: superAdmin.id,
-        publishedAt: input.status === EventStatus.DRAFT ? null : new Date(),
+        publishedAt: status === EventStatus.PUBLISHED ? new Date() : null,
       },
     }));
   }
@@ -343,7 +349,7 @@ async function main() {
         eventId: events[1].id,
         userId: volunteer.id,
         role: 'VOLUNTEER',
-        status: 'APPROVED',
+        status: 'ACTIVE',
         assignedByUserId: platformAdmin.id,
         approvedAt: new Date(),
         notes: 'Approved for cleanup team coordination.',
@@ -400,62 +406,69 @@ async function main() {
     ],
   });
 
-  await prisma.eventRegistrationAnswer.createMany({
+  await prisma.eventRegistrationFormSubmission.createMany({
     data: [
       {
         eventId: events[0].id,
         userId: participant.id,
-        answers: {
+        answersJson: {
           motivation: 'I want to meet local builders and share product engineering lessons.',
           experience: 'Three years in frontend and community meetups.',
         },
+        isComplete: true,
       },
       {
         eventId: events[1].id,
         userId: participant.id,
-        answers: {
+        answersJson: {
           preferredSlot: 'Morning cleanup crew',
         },
+        isComplete: true,
       },
       {
         eventId: events[2].id,
         userId: socialUser.id,
-        answers: {
+        answersJson: {
           motivation: 'I want to validate an early startup idea with mentors.',
           teamPreference: 'Open to joining a product-focused team.',
         },
+        isComplete: true,
       },
       {
         eventId: events[5].id,
         userId: eventAdmin.id,
-        answers: {
+        answersJson: {
           teamPreference: 'Captain',
         },
+        isComplete: true,
       },
       {
         eventId: events[5].id,
         userId: volunteer.id,
-        answers: {
+        answersJson: {
           teamPreference: 'Wing player',
         },
+        isComplete: true,
       },
       {
         eventId: events[6].id,
         userId: participant.id,
-        answers: {
+        answersJson: {
           motivation: 'I want to build a useful AI assistant prototype.',
           experience: 'Full-stack developer with hackathon experience.',
           teamPreference: 'Captain',
         },
+        isComplete: true,
       },
       {
         eventId: events[6].id,
         userId: socialUser.id,
-        answers: {
+        answersJson: {
           motivation: 'Interested in product design for AI workflows.',
           experience: 'Designer with two AI prototype projects.',
           teamPreference: 'Designer / researcher',
         },
+        isComplete: true,
       },
     ],
   });
@@ -466,9 +479,7 @@ async function main() {
     data: {
       eventId: hackathonId,
       name: 'TechTitans',
-      slug: 'techtitans-xy12',
       joinCode: 'T1T4N5',
-      description: 'Building AI agents for the future of productivity.',
       captainUserId: participant.id,
       status: 'ACTIVE',
       maxSize: 5,
@@ -498,9 +509,7 @@ async function main() {
     data: {
       eventId: events[5].id,
       name: 'Samarkand Shooters',
-      slug: 'samarkand-shooters-a9',
       joinCode: 'HOOPS3',
-      description: 'Amateur 3x3 squad for the weekend tournament.',
       captainUserId: eventAdmin.id,
       status: 'ACTIVE',
       maxSize: 4,
@@ -528,7 +537,7 @@ async function main() {
 
   for (const event of events) {
     const count = await prisma.eventMember.count({
-      where: { eventId: event.id, role: 'PARTICIPANT', status: { in: ['ACTIVE', 'APPROVED'] } },
+      where: { eventId: event.id, role: 'PARTICIPANT', status: { in: ['ACTIVE'] } },
     });
     await prisma.event.update({ where: { id: event.id }, data: { registrationsCount: count } });
   }

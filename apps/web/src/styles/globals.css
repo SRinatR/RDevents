@@ -1,6 +1,79 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 @import "../../../../packages/ui/src/styles/tokens.css";
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 97%;
+    --foreground: 0 0% 20%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 22%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 22%;
+    --primary: 339 68% 62%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 336 100% 96%;
+    --secondary-foreground: 339 68% 62%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 55%;
+    --accent: 336 100% 96%;
+    --accent-foreground: 0 0% 22%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 90%;
+    --input: 0 0% 88%;
+    --ring: 339 68% 62%;
+    --radius: 0.75rem;
+    --color-bg: #fafafa;
+    --color-bg-soft: #FAF8F7;
+    --color-text-primary: #1a1a1a;
+    --color-text-secondary: #666666;
+    --color-primary: #E55C94;
+    --color-primary-hover: #D04A82;
+    --color-primary-subtle: rgba(229, 92, 148, 0.1);
+    --color-surface: #ffffff;
+    --color-surface-strong: #ffffff;
+    --color-border: #e5e5e5;
+    --color-border-strong: #d4d4d4;
+    --color-text-faint: #a3a3a3;
+    --color-text-muted: #737373;
+    --color-accent: #f472b6;
+    --color-danger: #ef4444;
+    --shadow-primary: 0 4px 16px rgba(229, 92, 148, 0.3);
+    --shadow-primary-lg: 0 8px 24px rgba(229, 92, 148, 0.4);
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 12px 32px rgba(0, 0, 0, 0.12);
+    --shadow-2xl: 0 24px 48px rgba(0, 0, 0, 0.15);
+    --radius-sm: 0.5rem;
+    --radius-md: 0.75rem;
+    --radius-lg: 1rem;
+    --radius-xl: 1.25rem;
+    --radius-2xl: 1.5rem;
+    --radius-3xl: 2rem;
+    --radius-full: 9999px;
+    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+  }
+}
+
 /* ═══════════════════════════════════════
    Reset & Base
 ═══════════════════════════════════════ */

@@ -7,9 +7,9 @@ import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 
 export const adminRouter = Router();
 
-const ACTIVE_MEMBER_STATUSES = ['ACTIVE', 'APPROVED'] as const;
+const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
 const PLATFORM_ADMIN_ROLES = ['PLATFORM_ADMIN', 'SUPER_ADMIN'];
-const VOLUNTEER_DECISION_STATUSES: EventMemberStatus[] = ['APPROVED', 'REJECTED', 'ACTIVE', 'REMOVED'];
+const VOLUNTEER_DECISION_STATUSES: EventMemberStatus[] = ['REJECTED', 'ACTIVE', 'REMOVED'];
 
 adminRouter.use(requireAuth);
 
@@ -84,7 +84,7 @@ async function participantCounts(eventIds: string[]) {
 function volunteerDecisionData(status: EventMemberStatus, notes?: string) {
   return {
     status,
-    approvedAt: ['APPROVED', 'ACTIVE'].includes(status) ? new Date() : null,
+    approvedAt: status === 'ACTIVE' ? new Date() : null,
     rejectedAt: status === 'REJECTED' ? new Date() : null,
     removedAt: status === 'REMOVED' ? new Date() : null,
     notes: notes ?? undefined,
@@ -479,7 +479,7 @@ adminRouter.patch('/events/:id/volunteers/:memberId', async (req, res) => {
       include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
     });
 
-    if (status === 'APPROVED' || status === 'ACTIVE') {
+    if (status === 'ACTIVE') {
       await trackAnalyticsEvent(tx, {
         type: 'VOLUNTEER_APPLICATION_APPROVED',
         userId: updated.userId,
@@ -502,7 +502,7 @@ adminRouter.patch('/events/:id/volunteers/:memberId', async (req, res) => {
   res.json({ membership });
 });
 
-async function decideVolunteerByUserId(req: any, res: any, status: 'APPROVED' | 'REJECTED') {
+async function decideVolunteerByUserId(req: any, res: any, status: 'ACTIVE' | 'REJECTED') {
   const user = req.user as User;
   const eventId = String(req.params['id']);
   const targetUserId = String(req.params['userId']);
@@ -524,7 +524,7 @@ async function decideVolunteerByUserId(req: any, res: any, status: 'APPROVED' | 
     });
 
     await trackAnalyticsEvent(tx, {
-      type: status === 'APPROVED'
+      type: status === 'ACTIVE'
         ? 'VOLUNTEER_APPLICATION_APPROVED'
         : 'VOLUNTEER_APPLICATION_REJECTED',
       userId: targetUserId,
@@ -539,7 +539,7 @@ async function decideVolunteerByUserId(req: any, res: any, status: 'APPROVED' | 
 }
 
 adminRouter.post('/events/:id/volunteer-applications/:userId/approve', async (req, res) => {
-  await decideVolunteerByUserId(req as any, res as any, 'APPROVED');
+  await decideVolunteerByUserId(req as any, res as any, 'ACTIVE');
 });
 
 adminRouter.post('/events/:id/volunteer-applications/:userId/reject', async (req, res) => {
