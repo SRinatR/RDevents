@@ -28,11 +28,13 @@ async function createUser(input: {
   birthDate?: Date;
   bio?: string;
   avatarUrl?: string;
+  isActive?: boolean;
 }) {
   const passwordHash = await argon2.hash(input.password, passwordOptions);
   const user = await prisma.user.create({
     data: {
       email: input.email,
+      name: input.name,
       firstNameLatin: input.name,
       fullNameLatin: input.name,
       fullNameCyrillic: input.name,
@@ -44,7 +46,7 @@ async function createUser(input: {
       birthDate: input.birthDate,
       bio: input.bio,
       avatarUrl: input.avatarUrl,
-      isActive: true,
+      isActive: input.isActive ?? true,
       registeredAt: new Date(),
     },
   });
@@ -129,9 +131,84 @@ async function main() {
     bio: 'Regular user who applies to volunteer for specific events.',
   });
 
+  const secondEventAdmin = await createUser({
+    email: 'manager@example.com',
+    password: 'manager123',
+    name: 'Regional Manager',
+    city: 'Andijan',
+    phone: '+998 90 000 10 07',
+    telegram: '@regional_manager',
+    birthDate: new Date('1990-12-12T00:00:00Z'),
+    bio: 'Event admin assigned to regional and team-review events.',
+  });
+
+  const pendingParticipant = await createUser({
+    email: 'pending@example.com',
+    password: 'pending123',
+    name: 'Pending Participant',
+    city: 'Tashkent',
+    phone: '+998 90 000 10 08',
+    telegram: '@pending_participant',
+    birthDate: new Date('2000-03-21T00:00:00Z'),
+    bio: 'Demo account with pending event and volunteer applications.',
+  });
+
+  const reserveParticipant = await createUser({
+    email: 'reserve@example.com',
+    password: 'reserve123',
+    name: 'Reserve Participant',
+    city: 'Fergana',
+    phone: '+998 90 000 10 09',
+    telegram: '@reserve_participant',
+    birthDate: new Date('1999-08-16T00:00:00Z'),
+    bio: 'Demo account for reserve and waitlist states.',
+  });
+
+  const rejectedParticipant = await createUser({
+    email: 'rejected@example.com',
+    password: 'rejected123',
+    name: 'Rejected Participant',
+    city: 'Namangan',
+    phone: '+998 90 000 10 10',
+    telegram: '@rejected_participant',
+    birthDate: new Date('1995-05-09T00:00:00Z'),
+    bio: 'Demo account for rejected application states.',
+  });
+
+  const incompleteUser = await createUser({
+    email: 'incomplete@example.com',
+    password: 'incomplete123',
+    name: 'Incomplete Profile',
+    bio: 'Missing phone, city, telegram, and birth date for registration requirement tests.',
+  });
+
+  const teamApplicant = await createUser({
+    email: 'teamjoiner@example.com',
+    password: 'teamjoiner123',
+    name: 'Team Joiner',
+    city: 'Tashkent',
+    phone: '+998 90 000 10 11',
+    telegram: '@team_joiner',
+    birthDate: new Date('2001-01-11T00:00:00Z'),
+    bio: 'Demo account for team join request flows.',
+  });
+
+  const inactiveUser = await createUser({
+    email: 'disabled@example.com',
+    password: 'disabled123',
+    name: 'Disabled Account',
+    city: 'Tashkent',
+    phone: '+998 90 000 10 12',
+    telegram: '@disabled_account',
+    birthDate: new Date('1993-10-03T00:00:00Z'),
+    bio: 'Inactive user account for auth rejection checks.',
+    isActive: false,
+  });
+
   const socialUser = await prisma.user.create({
     data: {
       email: 'social@example.com',
+      name: 'Social Demo User',
       firstNameLatin: 'Social Demo User',
       fullNameLatin: 'Social Demo User',
       fullNameCyrillic: 'Social Demo User',
@@ -157,6 +234,28 @@ async function main() {
       linkedAt: new Date(),
       lastUsedAt: new Date(),
     },
+  });
+
+  await prisma.userAccount.createMany({
+    data: [
+      {
+        userId: socialUser.id,
+        provider: AuthProvider.YANDEX,
+        providerAccountId: 'yandex-demo-social',
+        providerEmail: 'social@example.com',
+        providerUsername: 'Social Demo User',
+        providerAvatarUrl: 'https://i.pravatar.cc/160?img=47',
+        linkedAt: new Date(),
+      },
+      {
+        userId: socialUser.id,
+        provider: AuthProvider.TELEGRAM,
+        providerAccountId: 'telegram-demo-social',
+        providerUsername: 'social_demo',
+        providerAvatarUrl: 'https://i.pravatar.cc/160?img=47',
+        linkedAt: new Date(),
+      },
+    ],
   });
 
   const eventInputs = [
@@ -285,6 +384,112 @@ async function main() {
       maxTeamSize: 5,
       allowSoloParticipation: false,
     },
+    {
+      slug: 'robotics-lab-orientation',
+      title: 'Robotics Lab Orientation',
+      shortDescription: 'A published event whose registration opens later, useful for gate testing.',
+      fullDescription: 'Students and mentors can preview the new robotics lab, meet coordinators, and learn how upcoming cohorts will be selected. Registration is intentionally not open yet for testing.',
+      category: 'Education',
+      location: 'Tashkent Robotics Center',
+      coverImageUrl: 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=700&fit=crop',
+      capacity: 60,
+      startsAt: new Date('2026-08-10T09:00:00Z'),
+      endsAt: new Date('2026-08-10T12:00:00Z'),
+      registrationOpensAt: new Date('2026-07-01T09:00:00Z'),
+      registrationDeadline: new Date('2026-08-05T18:00:00Z'),
+      requiredProfileFields: ['name', 'phone', 'city', 'telegram'],
+      requiredEventFields: ['motivation', 'university', 'course'],
+      tags: ['education', 'robotics', 'students'],
+      isFeatured: false,
+    },
+    {
+      slug: 'sold-out-product-clinic',
+      title: 'Sold Out Product Clinic',
+      shortDescription: 'A tiny workshop with one seat, already full for capacity testing.',
+      fullDescription: 'A deliberately small product critique session. The seed fills the only available seat so the event-full branch can be tested immediately.',
+      category: 'Business',
+      location: 'Founders Hub, Tashkent',
+      coverImageUrl: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=1200&h=700&fit=crop',
+      capacity: 1,
+      startsAt: new Date('2026-05-30T14:00:00Z'),
+      endsAt: new Date('2026-05-30T16:00:00Z'),
+      registrationDeadline: new Date('2026-05-29T18:00:00Z'),
+      requiredProfileFields: ['name', 'phone'],
+      requiredEventFields: ['motivation'],
+      tags: ['product', 'clinic', 'sold-out'],
+      isFeatured: false,
+    },
+    {
+      slug: 'open-source-sprint-by-request',
+      title: 'Open Source Sprint',
+      shortDescription: 'A team-based sprint where joining a team requires captain approval.',
+      fullDescription: 'Contributors form teams to fix issues, improve documentation, and ship small open-source improvements. Team membership requests stay pending until a captain or event admin approves them.',
+      category: 'Tech',
+      location: 'Digital City, Tashkent',
+      coverImageUrl: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=1200&h=700&fit=crop',
+      capacity: 80,
+      startsAt: new Date('2026-07-25T10:00:00Z'),
+      endsAt: new Date('2026-07-26T18:00:00Z'),
+      registrationDeadline: new Date('2026-07-22T18:00:00Z'),
+      requiredProfileFields: ['name', 'phone', 'telegram'],
+      requiredEventFields: ['experience', 'teamPreference'],
+      tags: ['open-source', 'teams', 'approval'],
+      isTeamBased: true,
+      minTeamSize: 2,
+      maxTeamSize: 4,
+      allowSoloParticipation: false,
+      teamJoinMode: 'BY_REQUEST' as const,
+      requireAdminApprovalForTeams: true,
+      isFeatured: false,
+    },
+    {
+      slug: 'draft-admin-planning-session',
+      title: 'Draft Admin Planning Session',
+      shortDescription: 'A draft event that should appear in admin tooling but not public listings.',
+      fullDescription: 'Internal planning placeholder used to test draft status, admin lists, event editing, and unpublished event visibility rules.',
+      category: 'Internal',
+      location: 'Online',
+      coverImageUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1200&h=700&fit=crop',
+      capacity: 25,
+      startsAt: new Date('2026-09-01T09:00:00Z'),
+      endsAt: new Date('2026-09-01T11:00:00Z'),
+      registrationDeadline: new Date('2026-08-25T18:00:00Z'),
+      tags: ['draft', 'admin'],
+      status: EventStatus.DRAFT,
+      isFeatured: false,
+    },
+    {
+      slug: 'cancelled-food-fair',
+      title: 'Cancelled Food Fair',
+      shortDescription: 'A cancelled event for status badges and admin filters.',
+      fullDescription: 'This public food fair was cancelled in the seed data so status colors, admin actions, and unavailable registration states can be checked.',
+      category: 'Food',
+      location: 'Tashkent City Park',
+      coverImageUrl: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=1200&h=700&fit=crop',
+      capacity: 300,
+      startsAt: new Date('2026-05-10T10:00:00Z'),
+      endsAt: new Date('2026-05-10T18:00:00Z'),
+      registrationDeadline: new Date('2026-05-08T18:00:00Z'),
+      tags: ['food', 'cancelled'],
+      status: EventStatus.CANCELLED,
+      isFeatured: false,
+    },
+    {
+      slug: 'spring-retrospective-completed',
+      title: 'Spring Retrospective',
+      shortDescription: 'A completed event for archive, analytics, and my-events states.',
+      fullDescription: 'A past retrospective event used for completed status, historical analytics, and cabinet pages that show older memberships.',
+      category: 'Community',
+      location: 'Youth Center, Tashkent',
+      coverImageUrl: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=1200&h=700&fit=crop',
+      capacity: 90,
+      startsAt: new Date('2026-04-01T15:00:00Z'),
+      endsAt: new Date('2026-04-01T18:00:00Z'),
+      registrationDeadline: new Date('2026-03-30T18:00:00Z'),
+      tags: ['archive', 'completed'],
+      status: EventStatus.COMPLETED,
+      isFeatured: false,
+    },
   ];
 
   const events = [];
@@ -294,7 +499,7 @@ async function main() {
     events.push(await prisma.event.create({
       data: {
         ...rest,
-        registrationCloseAt: registrationDeadline,
+        registrationDeadline,
         status,
         createdById: superAdmin.id,
         publishedAt: status === EventStatus.PUBLISHED ? new Date() : null,
@@ -403,6 +608,123 @@ async function main() {
         assignedByUserId: volunteer.id,
         approvedAt: new Date(),
       },
+      {
+        eventId: events[6].id,
+        userId: teamApplicant.id,
+        role: 'PARTICIPANT',
+        status: 'ACTIVE',
+        assignedByUserId: teamApplicant.id,
+        approvedAt: new Date(),
+      },
+      {
+        eventId: events[7].id,
+        userId: incompleteUser.id,
+        role: 'PARTICIPANT',
+        status: 'PENDING',
+        assignedByUserId: incompleteUser.id,
+        notes: 'Pending profile completion before registration can be approved.',
+      },
+      {
+        eventId: events[8].id,
+        userId: participant.id,
+        role: 'PARTICIPANT',
+        status: 'ACTIVE',
+        assignedByUserId: participant.id,
+        approvedAt: new Date(),
+        notes: 'Fills the only available seat for EVENT_FULL testing.',
+      },
+      {
+        eventId: events[9].id,
+        userId: secondEventAdmin.id,
+        role: 'EVENT_ADMIN',
+        status: 'ACTIVE',
+        assignedByUserId: superAdmin.id,
+        approvedAt: new Date(),
+        notes: 'Manages the team request event.',
+      },
+      {
+        eventId: events[9].id,
+        userId: secondEventAdmin.id,
+        role: 'PARTICIPANT',
+        status: 'ACTIVE',
+        assignedByUserId: secondEventAdmin.id,
+        approvedAt: new Date(),
+      },
+      {
+        eventId: events[9].id,
+        userId: pendingParticipant.id,
+        role: 'PARTICIPANT',
+        status: 'PENDING',
+        assignedByUserId: pendingParticipant.id,
+        notes: 'Pending participant membership for admin review screens.',
+      },
+      {
+        eventId: events[2].id,
+        userId: reserveParticipant.id,
+        role: 'PARTICIPANT',
+        status: 'RESERVE',
+        assignedByUserId: reserveParticipant.id,
+        notes: 'Waitlist / reserve state.',
+      },
+      {
+        eventId: events[1].id,
+        userId: rejectedParticipant.id,
+        role: 'PARTICIPANT',
+        status: 'REJECTED',
+        assignedByUserId: platformAdmin.id,
+        rejectedAt: new Date(),
+        notes: 'Rejected participant state.',
+      },
+      {
+        eventId: events[4].id,
+        userId: pendingParticipant.id,
+        role: 'PARTICIPANT',
+        status: 'CANCELLED',
+        assignedByUserId: pendingParticipant.id,
+        notes: 'Cancelled by participant.',
+      },
+      {
+        eventId: events[12].id,
+        userId: socialUser.id,
+        role: 'PARTICIPANT',
+        status: 'ACTIVE',
+        assignedByUserId: socialUser.id,
+        approvedAt: new Date('2026-03-29T12:00:00Z'),
+      },
+      {
+        eventId: events[6].id,
+        userId: pendingParticipant.id,
+        role: 'VOLUNTEER',
+        status: 'PENDING',
+        assignedByUserId: pendingParticipant.id,
+        notes: 'Pending volunteer application for the hackathon.',
+      },
+      {
+        eventId: events[1].id,
+        userId: rejectedParticipant.id,
+        role: 'VOLUNTEER',
+        status: 'REJECTED',
+        assignedByUserId: platformAdmin.id,
+        rejectedAt: new Date(),
+        notes: 'Rejected volunteer application.',
+      },
+      {
+        eventId: events[0].id,
+        userId: reserveParticipant.id,
+        role: 'VOLUNTEER',
+        status: 'REMOVED',
+        assignedByUserId: superAdmin.id,
+        removedAt: new Date(),
+        notes: 'Removed volunteer record for filter testing.',
+      },
+      {
+        eventId: events[8].id,
+        userId: volunteer.id,
+        role: 'VOLUNTEER',
+        status: 'PENDING',
+        assignedByUserId: volunteer.id,
+        notes: 'Volunteer request on a full participant event.',
+      },
     ],
   });
 
@@ -470,6 +792,59 @@ async function main() {
         },
         isComplete: true,
       },
+      {
+        eventId: events[6].id,
+        userId: teamApplicant.id,
+        answersJson: {
+          motivation: 'I want to help build the backend for an AI prototype.',
+          experience: 'Node.js and PostgreSQL contributor.',
+          teamPreference: 'Backend engineer',
+        },
+        isComplete: true,
+      },
+      {
+        eventId: events[7].id,
+        userId: incompleteUser.id,
+        answersJson: {
+          motivation: 'I want to see what robotics projects are planned.',
+        },
+        isComplete: false,
+      },
+      {
+        eventId: events[8].id,
+        userId: participant.id,
+        answersJson: {
+          motivation: 'I want direct product feedback from mentors.',
+        },
+        isComplete: true,
+      },
+      {
+        eventId: events[9].id,
+        userId: secondEventAdmin.id,
+        answersJson: {
+          experience: 'Maintainer for several community repos.',
+          teamPreference: 'Captain',
+        },
+        isComplete: true,
+      },
+      {
+        eventId: events[9].id,
+        userId: teamApplicant.id,
+        answersJson: {
+          experience: 'Frontend and documentation contributions.',
+          teamPreference: 'Join an existing team',
+        },
+        isComplete: true,
+      },
+      {
+        eventId: events[2].id,
+        userId: reserveParticipant.id,
+        answersJson: {
+          motivation: 'I want to practice pitching with a team.',
+          teamPreference: 'Reserve member',
+        },
+        isComplete: true,
+      },
     ],
   });
 
@@ -479,6 +854,7 @@ async function main() {
     data: {
       eventId: hackathonId,
       name: 'TechTitans',
+      slug: 'tech-titans',
       joinCode: 'T1T4N5',
       captainUserId: participant.id,
       status: 'ACTIVE',
@@ -509,6 +885,7 @@ async function main() {
     data: {
       eventId: events[5].id,
       name: 'Samarkand Shooters',
+      slug: 'samarkand-shooters',
       joinCode: 'HOOPS3',
       captainUserId: eventAdmin.id,
       status: 'ACTIVE',
@@ -533,6 +910,97 @@ async function main() {
         approvedAt: new Date(),
       }
     ]
+  });
+
+  const requestTeam = await prisma.eventTeam.create({
+    data: {
+      eventId: events[9].id,
+      name: 'Approval Queue Crew',
+      slug: 'approval-queue-crew',
+      joinCode: 'QUEUE1',
+      description: 'Team with a pending member request for BY_REQUEST flow testing.',
+      captainUserId: secondEventAdmin.id,
+      status: 'ACTIVE',
+      maxSize: 4,
+    },
+  });
+
+  await prisma.eventTeamMember.createMany({
+    data: [
+      {
+        teamId: requestTeam.id,
+        userId: secondEventAdmin.id,
+        role: 'CAPTAIN',
+        status: 'ACTIVE',
+        approvedAt: new Date(),
+      },
+      {
+        teamId: requestTeam.id,
+        userId: teamApplicant.id,
+        role: 'MEMBER',
+        status: 'PENDING',
+      },
+      {
+        teamId: requestTeam.id,
+        userId: rejectedParticipant.id,
+        role: 'MEMBER',
+        status: 'REJECTED',
+      },
+    ],
+  });
+
+  const designMindsTeam = await prisma.eventTeam.create({
+    data: {
+      eventId: hackathonId,
+      name: 'Design Minds',
+      slug: 'design-minds',
+      joinCode: 'DESIGN',
+      description: 'Second active hackathon team with a pending member.',
+      captainUserId: teamApplicant.id,
+      status: 'ACTIVE',
+      maxSize: 5,
+    },
+  });
+
+  await prisma.eventTeamMember.createMany({
+    data: [
+      {
+        teamId: designMindsTeam.id,
+        userId: teamApplicant.id,
+        role: 'CAPTAIN',
+        status: 'ACTIVE',
+        approvedAt: new Date(),
+      },
+      {
+        teamId: designMindsTeam.id,
+        userId: reserveParticipant.id,
+        role: 'MEMBER',
+        status: 'PENDING',
+      },
+    ],
+  });
+
+  const pendingTeam = await prisma.eventTeam.create({
+    data: {
+      eventId: events[9].id,
+      name: 'Pending Approval Team',
+      slug: 'pending-approval-team',
+      joinCode: 'PEND99',
+      description: 'Team record waiting for admin approval.',
+      captainUserId: pendingParticipant.id,
+      status: 'PENDING',
+      maxSize: 4,
+    },
+  });
+
+  await prisma.eventTeamMember.create({
+    data: {
+      teamId: pendingTeam.id,
+      userId: pendingParticipant.id,
+      role: 'CAPTAIN',
+      status: 'ACTIVE',
+      approvedAt: new Date(),
+    },
   });
 
   for (const event of events) {
@@ -565,6 +1033,19 @@ async function main() {
       { type: 'TEAM_JOIN_REQUESTED', userId: socialUser.id, eventId: events[6].id },
       { type: 'TEAM_MEMBER_APPROVED', userId: socialUser.id, eventId: events[6].id },
       { type: 'EVENT_ADMIN_ASSIGNED', userId: eventAdmin.id, eventId: events[0].id },
+      { type: 'EVENT_DETAIL_VIEW', userId: incompleteUser.id, eventId: events[7].id, locale: 'en' },
+      { type: 'REGISTER_CLICK', userId: incompleteUser.id, eventId: events[7].id, locale: 'en' },
+      { type: 'EVENT_DETAIL_VIEW', userId: participant.id, eventId: events[8].id, locale: 'ru' },
+      { type: 'EVENT_REGISTRATION', userId: participant.id, eventId: events[8].id, authProvider: 'EMAIL' },
+      { type: 'EVENT_DETAIL_VIEW', userId: teamApplicant.id, eventId: events[9].id, locale: 'en' },
+      { type: 'TEAM_CREATED', userId: secondEventAdmin.id, eventId: events[9].id },
+      { type: 'TEAM_CREATED', userId: pendingParticipant.id, eventId: events[9].id },
+      { type: 'TEAM_JOIN_REQUESTED', userId: teamApplicant.id, eventId: events[9].id },
+      { type: 'VOLUNTEER_APPLICATION_SUBMITTED', userId: pendingParticipant.id, eventId: events[6].id },
+      { type: 'VOLUNTEER_APPLICATION_REJECTED', userId: rejectedParticipant.id, eventId: events[1].id },
+      { type: 'EVENT_ADMIN_ASSIGNED', userId: secondEventAdmin.id, eventId: events[9].id },
+      { type: 'USER_LOGIN', userId: socialUser.id, authProvider: 'YANDEX' },
+      { type: 'PROVIDER_USED', userId: socialUser.id, authProvider: 'TELEGRAM' },
     ],
   });
 
@@ -575,8 +1056,15 @@ async function main() {
   console.log('  Super admin:    admin@example.com / admin123');
   console.log('  Platform admin: platform@example.com / platform123');
   console.log('  Event admin:    organizer@example.com / organizer123');
+  console.log('  Event manager:  manager@example.com / manager123');
   console.log('  User:           user@example.com / user123');
   console.log('  Volunteer:      volunteer@example.com / volunteer123');
+  console.log('  Pending user:   pending@example.com / pending123');
+  console.log('  Reserve user:   reserve@example.com / reserve123');
+  console.log('  Rejected user:  rejected@example.com / rejected123');
+  console.log('  Incomplete:     incomplete@example.com / incomplete123');
+  console.log('  Team joiner:    teamjoiner@example.com / teamjoiner123');
+  console.log('  Disabled:       disabled@example.com / disabled123');
 }
 
 main()

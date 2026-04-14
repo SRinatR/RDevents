@@ -232,10 +232,10 @@ export async function getRegistrationPrecheck(
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) throw new Error('EVENT_NOT_FOUND');
   if (event.status !== 'PUBLISHED') throw new Error('EVENT_NOT_AVAILABLE');
-  if (event.registrationOpenAt && event.registrationOpenAt > new Date()) {
+  if (event.registrationOpensAt && event.registrationOpensAt > new Date()) {
     throw new Error('REGISTRATION_NOT_OPEN');
   }
-  if (event.registrationCloseAt && event.registrationCloseAt < new Date()) {
+  if (event.registrationDeadline && event.registrationDeadline < new Date()) {
     throw new Error('EVENT_NOT_AVAILABLE');
   }
 
@@ -638,7 +638,7 @@ export async function createTeam(
   if (event.status !== 'PUBLISHED') throw new Error('EVENT_NOT_AVAILABLE');
   const precheck = await assertRegistrationRequirements(eventId, userId, data.answers, { allowExistingParticipant: true });
 
-  if (event.registrationCloseAt && event.registrationCloseAt < new Date()) {
+  if (event.registrationDeadline && event.registrationDeadline < new Date()) {
     throw new Error('EVENT_NOT_AVAILABLE');
   }
 
@@ -748,7 +748,7 @@ export async function joinTeam(
   if (event.status !== 'PUBLISHED') throw new Error('EVENT_NOT_AVAILABLE');
   const precheck = await assertRegistrationRequirements(eventId, userId, answers, { allowExistingParticipant: true });
 
-  if (event.registrationCloseAt && event.registrationCloseAt < new Date()) {
+  if (event.registrationDeadline && event.registrationDeadline < new Date()) {
     throw new Error('EVENT_NOT_AVAILABLE');
   }
 

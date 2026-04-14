@@ -15,6 +15,11 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
   pnpm install --frozen-lockfile --filter @event-platform/web...
 
 FROM deps AS dev
+COPY apps/web/next.config.ts apps/web/next.config.ts
+COPY apps/web/postcss.config.js apps/web/postcss.config.js
+COPY apps/web/tailwind.config.ts apps/web/tailwind.config.ts
+COPY apps/web/tsconfig.json apps/web/tsconfig.json
+COPY apps/web/next-env.d.ts apps/web/next-env.d.ts
 COPY packages/ui/src/styles/tokens.css packages/ui/src/styles/tokens.css
 WORKDIR /app/apps/web
 EXPOSE 3000

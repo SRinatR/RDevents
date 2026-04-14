@@ -37,6 +37,7 @@ enum EventMemberRole {
 
 enum EventMemberStatus {
   PENDING
+  APPROVED
   ACTIVE
   RESERVE
   REJECTED
@@ -98,6 +99,7 @@ model User {
   id              String    @id @default(cuid())
   email           String    @unique
   passwordHash    String?
+  name            String?
   // Name fields
   lastNameCyrillic   String?
   firstNameCyrillic  String?
@@ -170,8 +172,8 @@ model Event {
   // Timing
   startsAt             DateTime
   endsAt               DateTime
-  registrationOpenAt   DateTime?
-  registrationCloseAt  DateTime?
+  registrationOpensAt  DateTime?
+  registrationDeadline DateTime?
   
   // Registration Settings
   registrationEnabled          Boolean @default(true)
@@ -236,7 +238,7 @@ model EventMember {
   assignedAt       DateTime          @default(now())
   approvedAt       DateTime?
   rejectedAt       DateTime?
-  cancelledAt      DateTime?
+  removedAt        DateTime?
   notes            String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -255,7 +257,9 @@ model EventTeam {
   id            String          @id @default(cuid())
   eventId       String
   name          String
+  slug          String          @unique
   joinCode      String?         @unique
+  description   String?
   captainUserId String
   status        EventTeamStatus @default(ACTIVE)
   maxSize       Int             @default(5)

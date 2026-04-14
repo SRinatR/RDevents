@@ -40,6 +40,7 @@ services:
       - ./services/api/src:/app/services/api/src
       - ./services/api/prisma:/app/services/api/prisma
       - ./services/api/prisma.config.ts:/app/services/api/prisma.config.ts
+      - ./services/api/tsconfig.json:/app/services/api/tsconfig.json:ro
     working_dir: /app/services/api
     command: sh -c "pnpm prisma generate && pnpm prisma migrate deploy && pnpm db:seed && pnpm dev"
 
@@ -63,6 +64,8 @@ services:
       - ./apps/web/src:/app/apps/web/src
       - ./apps/web/public:/app/apps/web/public
       - ./apps/web/next.config.ts:/app/apps/web/next.config.ts
+      - ./apps/web/postcss.config.js:/app/apps/web/postcss.config.js:ro
+      - ./apps/web/tailwind.config.ts:/app/apps/web/tailwind.config.ts:ro
       - ./apps/web/tsconfig.json:/app/apps/web/tsconfig.json
       - ./packages/ui/src/styles:/app/packages/ui/src/styles:ro
     working_dir: /app/apps/web

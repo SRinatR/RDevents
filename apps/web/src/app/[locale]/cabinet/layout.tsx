@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../hooks/useAuth';
 import { useRouteLocale } from '../../../hooks/useRouteParams';
@@ -11,6 +11,12 @@ export default function CabinetLayout({ children }: { children: ReactNode }) {
   const locale = useRouteLocale();
   const router = useRouter();
 
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace(`/${locale}/login`);
+    }
+  }, [loading, user, router, locale]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#FAF8F7]">
@@ -20,9 +26,6 @@ export default function CabinetLayout({ children }: { children: ReactNode }) {
   }
 
   if (!user) {
-    if (typeof window !== 'undefined') {
-      router.push(`/${locale}/login`);
-    }
     return null;
   }
 

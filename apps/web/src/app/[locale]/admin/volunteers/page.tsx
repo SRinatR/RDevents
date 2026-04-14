@@ -8,7 +8,7 @@ import { useAuth } from '../../../../hooks/useAuth';
 import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
 
-const STATUS_FILTERS = ['PENDING', 'APPROVED', 'REJECTED', 'ACTIVE', 'REMOVED'] as const;
+const STATUS_FILTERS = ['PENDING', 'ACTIVE', 'REJECTED', 'REMOVED'] as const;
 
 export default function AdminVolunteersPage() {
   const t = useTranslations();
@@ -52,7 +52,7 @@ export default function AdminVolunteersPage() {
     loadVolunteers();
   }, [loadVolunteers]);
 
-  async function updateStatus(memberId: string, nextStatus: 'APPROVED' | 'REJECTED') {
+  async function updateStatus(memberId: string, nextStatus: 'ACTIVE' | 'REJECTED') {
     setActionId(memberId);
     try {
       await adminApi.updateVolunteerStatus(selectedEventId, memberId, { status: nextStatus });
@@ -139,7 +139,7 @@ export default function AdminVolunteersPage() {
                     </div>
                     {membership.status === 'PENDING' && (
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <button onClick={() => updateStatus(membership.id, 'APPROVED')} disabled={actionId === membership.id} style={{ padding: '8px 14px', borderRadius: 'var(--radius-lg)', border: '1px solid #16a34a', background: '#16a34a', color: '#fff', fontWeight: 800, cursor: 'pointer', opacity: actionId === membership.id ? 0.6 : 1 }}>
+                        <button onClick={() => updateStatus(membership.id, 'ACTIVE')} disabled={actionId === membership.id} style={{ padding: '8px 14px', borderRadius: 'var(--radius-lg)', border: '1px solid #16a34a', background: '#16a34a', color: '#fff', fontWeight: 800, cursor: 'pointer', opacity: actionId === membership.id ? 0.6 : 1 }}>
                           Approve
                         </button>
                         <button onClick={() => updateStatus(membership.id, 'REJECTED')} disabled={actionId === membership.id} style={{ padding: '8px 14px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-danger)', background: 'white', color: 'var(--color-danger)', fontWeight: 800, cursor: 'pointer', opacity: actionId === membership.id ? 0.6 : 1 }}>
