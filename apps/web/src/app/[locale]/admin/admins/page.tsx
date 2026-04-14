@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../../hooks/useAuth';
@@ -13,53 +13,90 @@ export default function AdminAdminsPage() {
   const router = useRouter();
   const locale = useRouteLocale();
 
-  const [admins, setAdmins] = useState<any[]>([]);
+  const [platformAdmins, setPlatformAdmins] = useState<any[]>([]);
+  const [eventAdmins, setEventAdmins] = useState<any[]>([]);
+  const [events, setEvents] = useState<any[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState('');
+  const [email, setEmail] = useState('');
+  const [notes, setNotes] = useState('');
   const [loadingData, setLoadingData] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
-  const [addingEmail, setAddingEmail] = useState('');
-  const [addingError, setAddingError] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   useEffect(() => {
     if (!loading && (!user || !isSuperAdmin)) router.push(`/${locale}`);
   }, [user, loading, isSuperAdmin, router, locale]);
 
-  const loadData = () => {
+  async function loadData() {
     setLoadingData(true);
-    adminApi.listAdmins()
-      .then(r => setAdmins(r.admins))
-      .catch(() => {})
-      .finally(() => setLoadingData(false));
-  };
+    setError('');
+    try {
+      const [adminsResult, eventsResult] = await Promise.all([
+        adminApi.listAdmins(),
+        adminApi.listEvents({ limit: 100 }),
+      ]);
+      setPlatformAdmins(adminsResult.platformAdmins ?? adminsResult.admins ?? []);
+      setEventAdmins(adminsResult.eventAdmins ?? []);
+      setEvents(eventsResult.data);
+      setSelectedEventId(current => current || eventsResult.data[0]?.id || '');
+    } catch (err: any) {
+      setError(err.message || 'Failed to load admins');
+    } finally {
+      setLoadingData(false);
+    }
+  }
 
   useEffect(() => {
     if (user && isSuperAdmin) loadData();
   }, [user, isSuperAdmin]);
 
-  const handleRemove = async (userId: string) => {
-    if (!confirm('Remove admin role from this user?')) return;
-    setActionId(userId);
+  async function handleAssign(e: FormEvent) {
+    e.preventDefault();
+    if (!selectedEventId || !email.trim()) return;
+    setActionId('assign');
+    setError('');
+    setSuccess('');
     try {
-      await adminApi.updateUserRole(userId, 'USER');
-      setAdmins(prev => prev.filter(a => a.id !== userId));
-    } catch {
-      alert('Failed to remove admin');
+      await adminApi.assignEventAdmin(selectedEventId, { email: email.trim(), notes: notes.trim() || undefined });
+      setEmail('');
+      setNotes('');
+      setSuccess('Event admin assigned');
+      await loadData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to assign event admin');
     } finally {
       setActionId(null);
     }
-  };
+  }
 
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!addingEmail.trim()) return;
-    setAddingError('');
+  async function handleRemoveEventAdmin(membership: any) {
+    if (!confirm('Remove this event admin assignment?')) return;
+    setActionId(membership.id);
+    setError('');
     try {
-      await adminApi.updateUserRole(addingEmail.trim(), 'PLATFORM_ADMIN');
-      setAddingEmail('');
-      loadData();
+      await adminApi.removeEventAdmin(membership.eventId, membership.userId);
+      setEventAdmins(prev => prev.filter(item => item.id !== membership.id));
     } catch (err: any) {
-      setAddingError(err.message || 'Failed to add admin');
+      setError(err.message || 'Failed to remove event admin');
+    } finally {
+      setActionId(null);
     }
-  };
+  }
+
+  async function handleRemovePlatformAdmin(userId: string) {
+    if (!confirm('Remove platform admin role from this user?')) return;
+    setActionId(userId);
+    setError('');
+    try {
+      await adminApi.updateUserRole(userId, 'USER');
+      setPlatformAdmins(prev => prev.filter(admin => admin.id !== userId));
+    } catch (err: any) {
+      setError(err.message || 'Failed to update role');
+    } finally {
+      setActionId(null);
+    }
+  }
 
   if (loading || !user || !isSuperAdmin) return (
     <div style={{ minHeight: 'calc(100vh - 60px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -70,63 +107,113 @@ export default function AdminAdminsPage() {
   return (
     <div style={{ minHeight: 'calc(100vh - 60px)', padding: '40px 0 60px' }}>
       <div className="container">
-        <div style={{ marginBottom: 36 }}>
+        <div style={{ marginBottom: 32 }}>
           <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(1.8rem, 4vw, 2.4rem)', fontWeight: 900, letterSpacing: 0 }}>
             {t('admin.admins')}
           </h1>
-          <p style={{ margin: 0, color: 'var(--color-text-muted)' }}>{admins.length} admins</p>
+          <p style={{ margin: 0, color: 'var(--color-text-muted)' }}>
+            Event-scoped admins and platform admins
+          </p>
         </div>
 
-        {/* Add admin form */}
-        <form onSubmit={handleAdd} style={{ display: 'flex', gap: 12, marginBottom: 32, maxWidth: 480 }}>
-          <input
-            type="email"
-            value={addingEmail}
-            onChange={e => setAddingEmail(e.target.value)}
-            placeholder="User email to promote as admin"
-            style={{ flex: 1, padding: '10px 14px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', fontSize: '0.95rem', boxSizing: 'border-box' }}
-          />
-          <button type="submit" style={{ padding: '10px 20px', borderRadius: 'var(--radius-lg)', background: 'var(--color-primary)', color: '#fff', fontWeight: 700, border: 'none', cursor: 'pointer' }}>
-            Add
-          </button>
-        </form>
-        {addingError && (
-          <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-lg)', background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', fontSize: '0.9rem', marginBottom: 16, maxWidth: 480 }}>
-            {addingError}
-          </div>
-        )}
+        {error && <div className="alert alert-danger" style={{ marginBottom: 16 }}>{error}</div>}
+        {success && <div className="alert alert-success" style={{ marginBottom: 16 }}>{success}</div>}
 
         {loadingData ? (
           <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
-        ) : admins.length === 0 ? (
-          <div style={{ padding: '48px', borderRadius: 'var(--radius-2xl)', border: '1px dashed var(--color-border)', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-            No admins yet.
-          </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {admins.map((a: any) => (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
-                <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#2563eb', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1rem', flexShrink: 0 }}>
-                  {a.avatarUrl ? <img src={a.avatarUrl} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : a.name?.charAt(0)?.toUpperCase()}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700 }}>{a.name}</div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>{a.email}</div>
-                </div>
-                <span style={{ padding: '4px 10px', borderRadius: 'var(--radius-lg)', fontSize: '0.8rem', fontWeight: 700, background: '#2563eb20', color: '#2563eb' }}>
-                  {a.role}
-                </span>
-                {a.id !== user.id && (
-                  <button
-                    onClick={() => handleRemove(a.id)}
-                    disabled={actionId === a.id}
-                    style={{ padding: '6px 14px', borderRadius: 'var(--radius-lg)', border: '1px solid #ef4444', fontSize: '0.85rem', color: '#ef4444', background: 'transparent', cursor: 'pointer', opacity: actionId === a.id ? 0.5 : 1 }}
-                  >
-                    {actionId === a.id ? '...' : 'Remove'}
-                  </button>
-                )}
+          <div style={{ display: 'grid', gap: 32 }}>
+            <section style={{ padding: 22, borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
+              <h2 style={{ margin: '0 0 16px', fontSize: '1.15rem', fontWeight: 800 }}>Assign event admin</h2>
+              <form onSubmit={handleAssign} style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.2fr) minmax(220px, 1fr)', gap: 12 }}>
+                <select
+                  value={selectedEventId}
+                  onChange={event => setSelectedEventId(event.target.value)}
+                  className="input-field"
+                  disabled={events.length === 0}
+                >
+                  {events.map(event => <option key={event.id} value={event.id}>{event.title}</option>)}
+                </select>
+                <input
+                  value={email}
+                  onChange={event => setEmail(event.target.value)}
+                  type="email"
+                  className="input-field"
+                  placeholder="organizer@example.com"
+                />
+                <input
+                  value={notes}
+                  onChange={event => setNotes(event.target.value)}
+                  className="input-field"
+                  placeholder="Internal note"
+                />
+                <button type="submit" disabled={actionId === 'assign' || !selectedEventId || !email.trim()} className="btn btn-primary">
+                  {actionId === 'assign' ? 'Assigning...' : 'Assign event admin'}
+                </button>
+              </form>
+            </section>
+
+            <section>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>Event admins</h2>
+                <span className="badge badge-primary">{eventAdmins.length}</span>
               </div>
-            ))}
+              {eventAdmins.length === 0 ? (
+                <div className="empty-state" style={{ padding: 36 }}>No event admins assigned yet.</div>
+              ) : (
+                <div style={{ display: 'grid', gap: 10 }}>
+                  {eventAdmins.map(membership => (
+                    <div key={membership.id} className="table-row">
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 800 }}>{membership.user?.name}</div>
+                        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.86rem' }}>{membership.user?.email}</div>
+                        <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.86rem', marginTop: 4 }}>
+                          {membership.event?.title}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveEventAdmin(membership)}
+                        disabled={actionId === membership.id}
+                        className="btn btn-ghost btn-sm"
+                        style={{ color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}
+                      >
+                        {actionId === membership.id ? '...' : 'Remove'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>Platform admins</h2>
+                <span className="badge badge-primary">{platformAdmins.length}</span>
+              </div>
+              <div style={{ display: 'grid', gap: 10 }}>
+                {platformAdmins.map(admin => (
+                  <div key={admin.id} className="table-row">
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 800 }}>{admin.name}</div>
+                      <div style={{ color: 'var(--color-text-muted)', fontSize: '0.86rem' }}>{admin.email}</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span className="badge badge-primary">{admin.role}</span>
+                      {admin.id !== user.id && admin.role !== 'SUPER_ADMIN' && (
+                        <button
+                          onClick={() => handleRemovePlatformAdmin(admin.id)}
+                          disabled={actionId === admin.id}
+                          className="btn btn-ghost btn-sm"
+                          style={{ color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}
+                        >
+                          {actionId === admin.id ? '...' : 'Remove'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
           </div>
         )}
       </div>

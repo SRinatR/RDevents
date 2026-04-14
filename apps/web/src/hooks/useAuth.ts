@@ -7,10 +7,12 @@ import { authApi } from '../lib/api';
 export interface AuthUser {
   id: string;
   email: string;
-  name: string;
+  name?: string | null;
   bio?: string | null;
   city?: string | null;
   phone?: string | null;
+  telegram?: string | null;
+  birthDate?: string | null;
   avatarUrl?: string | null;
   role: string;
   isActive: boolean;
@@ -30,7 +32,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
+  register: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   updateProfile: (data: Partial<AuthUser>) => Promise<void>;
@@ -61,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(result.user);
   }, []);
 
-  const register = useCallback(async (email: string, password: string, name: string) => {
+  const register = useCallback(async (email: string, password: string, name?: string) => {
     const result = await doRegister(email, password, name);
     setUser(result.user);
   }, []);

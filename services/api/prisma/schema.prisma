@@ -7,7 +7,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum UserRole {
@@ -79,16 +78,25 @@ enum AnalyticsEventType {
   USER_REGISTER
   USER_LOGIN
   PROVIDER_USED
+  TEAM_CREATED
+  TEAM_JOIN_REQUESTED
+  TEAM_MEMBER_APPROVED
+  VOLUNTEER_APPLICATION_SUBMITTED
+  VOLUNTEER_APPLICATION_APPROVED
+  VOLUNTEER_APPLICATION_REJECTED
+  EVENT_ADMIN_ASSIGNED
 }
 
 model User {
   id              String    @id @default(cuid())
   email           String    @unique
   passwordHash    String?
-  name            String
+  name            String?
   bio             String?
   city            String?
   phone           String?
+  telegram        String?
+  birthDate       DateTime?
   avatarUrl       String?
   role            UserRole  @default(USER)
   isActive        Boolean   @default(true)
@@ -105,6 +113,7 @@ model User {
   teamMemberships      EventTeamMember[]
   captainedTeams       EventTeam[]       @relation("TeamCaptain")
   analyticsEvents      AnalyticsEvent[]
+  registrationAnswers  EventRegistrationAnswer[]
 
   @@map("users")
 }
@@ -142,6 +151,7 @@ model Event {
   startsAt             DateTime
   endsAt               DateTime
   registrationDeadline DateTime?
+  registrationOpensAt  DateTime?
   conditions           String?
   contactEmail         String?
   tags                 String[]
@@ -155,6 +165,8 @@ model Event {
   allowSoloParticipation       Boolean      @default(true)
   teamJoinMode                 TeamJoinMode @default(OPEN)
   requireAdminApprovalForTeams Boolean      @default(false)
+  requiredProfileFields        String[]     @default([])
+  requiredEventFields          String[]     @default([])
 
   publishedAt DateTime?
   createdById String?
@@ -165,8 +177,25 @@ model Event {
   members         EventMember[]
   teams           EventTeam[]
   analyticsEvents AnalyticsEvent[]
+  registrationAnswers EventRegistrationAnswer[]
 
   @@map("events")
+}
+
+model EventRegistrationAnswer {
+  id        String   @id @default(cuid())
+  eventId   String
+  userId    String
+  answers   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([userId])
+  @@map("event_registration_answers")
 }
 
 model EventMember {
@@ -178,6 +207,8 @@ model EventMember {
   assignedByUserId String?
   assignedAt       DateTime          @default(now())
   approvedAt       DateTime?
+  rejectedAt       DateTime?
+  removedAt        DateTime?
   notes            String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt

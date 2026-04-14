@@ -32,6 +32,7 @@ export default function CabinetLayout({ children }: { children: ReactNode }) {
   // Helper to determine active state of links
   const isActive = (path: string) => pathname === `/${locale}${path}`;
   const isEventsActive = pathname.includes(`/${locale}/cabinet/my-events`) || pathname.includes(`/${locale}/cabinet/events`);
+  const displayName = user.name || user.email;
 
   return (
     <div style={{ minHeight: 'calc(100vh - 64px)' }}>
@@ -51,10 +52,10 @@ export default function CabinetLayout({ children }: { children: ReactNode }) {
             }}>
               {user.avatarUrl 
                 ? <img src={user.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> 
-                : user.name.charAt(0).toUpperCase()}
+                : displayName.charAt(0).toUpperCase()}
             </div>
             <div style={{ fontWeight: 800, fontSize: '1.2rem', color: 'var(--color-text-primary)' }}>
-              {user.name}
+              {displayName}
             </div>
             <div style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: 2, marginBottom: 18 }}>
               {user.email}

@@ -14,7 +14,12 @@ analyticsRouter.post('/track', optionalAuth, async (req, res) => {
   const validTypes: AnalyticsEventType[] = [
     'HOME_VIEW', 'EVENTS_LIST_VIEW', 'EVENT_DETAIL_VIEW',
     'REGISTER_CLICK', 'EVENT_REGISTRATION', 'USER_REGISTER',
-    'USER_LOGIN', 'PROVIDER_USED',
+    'USER_LOGIN', 'PROVIDER_USED', 'TEAM_CREATED',
+    'TEAM_JOIN_REQUESTED', 'TEAM_MEMBER_APPROVED',
+    'VOLUNTEER_APPLICATION_SUBMITTED',
+    'VOLUNTEER_APPLICATION_APPROVED',
+    'VOLUNTEER_APPLICATION_REJECTED',
+    'EVENT_ADMIN_ASSIGNED',
   ];
 
   if (!validTypes.includes(type)) {

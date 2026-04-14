@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8, 'Password must be at least 8 characters'),
-  name: z.string().min(2, 'Name must be at least 2 characters'),
+  name: z.string().min(2, 'Name must be at least 2 characters').optional(),
 });
 
 export const loginSchema = z.object({
@@ -12,10 +12,12 @@ export const loginSchema = z.object({
 });
 
 export const updateProfileSchema = z.object({
-  name: z.string().min(2).optional(),
+  name: z.string().min(2).optional().or(z.literal('')),
   bio: z.string().max(500).optional(),
   city: z.string().max(100).optional(),
   phone: z.string().max(20).optional(),
+  telegram: z.string().max(64).optional(),
+  birthDate: z.string().datetime().optional().or(z.literal('')),
   avatarUrl: z.string().url().optional().or(z.literal('')),
 });
 

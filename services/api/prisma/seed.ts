@@ -23,6 +23,9 @@ async function createUser(input: {
   name: string;
   role?: UserRole;
   city?: string;
+  phone?: string;
+  telegram?: string;
+  birthDate?: Date;
   bio?: string;
   avatarUrl?: string;
 }) {
@@ -34,6 +37,9 @@ async function createUser(input: {
       passwordHash,
       role: input.role ?? UserRole.USER,
       city: input.city,
+      phone: input.phone,
+      telegram: input.telegram,
+      birthDate: input.birthDate,
       bio: input.bio,
       avatarUrl: input.avatarUrl,
       isActive: true,
@@ -57,6 +63,7 @@ async function main() {
   console.log('Seeding database...');
 
   await prisma.analyticsEvent.deleteMany();
+  await prisma.eventRegistrationAnswer.deleteMany();
   await prisma.eventTeamMember.deleteMany();
   await prisma.eventTeam.deleteMany();
   await prisma.eventMember.deleteMany();
@@ -70,6 +77,9 @@ async function main() {
     name: 'Super Admin',
     role: UserRole.SUPER_ADMIN,
     city: 'Tashkent',
+    phone: '+998 90 000 10 01',
+    telegram: '@super_admin',
+    birthDate: new Date('1989-04-10T00:00:00Z'),
     bio: 'Platform owner with global access.',
   });
 
@@ -79,6 +89,9 @@ async function main() {
     name: 'Platform Manager',
     role: UserRole.PLATFORM_ADMIN,
     city: 'Tashkent',
+    phone: '+998 90 000 10 02',
+    telegram: '@platform_manager',
+    birthDate: new Date('1991-02-18T00:00:00Z'),
     bio: 'Platform admin who helps manage events and analytics.',
   });
 
@@ -87,6 +100,9 @@ async function main() {
     password: 'organizer123',
     name: 'Event Organizer',
     city: 'Samarkand',
+    phone: '+998 90 000 10 03',
+    telegram: '@event_organizer',
+    birthDate: new Date('1992-09-05T00:00:00Z'),
     bio: 'User with admin rights for specific events only.',
   });
 
@@ -95,6 +111,9 @@ async function main() {
     password: 'user123',
     name: 'John Participant',
     city: 'Tashkent',
+    phone: '+998 90 000 10 04',
+    telegram: '@john_participant',
+    birthDate: new Date('1998-01-20T00:00:00Z'),
     bio: 'Regular participant account for demo flow.',
   });
 
@@ -103,6 +122,9 @@ async function main() {
     password: 'volunteer123',
     name: 'Jane Volunteer',
     city: 'Bukhara',
+    phone: '+998 90 000 10 05',
+    telegram: '@jane_volunteer',
+    birthDate: new Date('1997-07-14T00:00:00Z'),
     bio: 'Regular user who applies to volunteer for specific events.',
   });
 
@@ -113,6 +135,9 @@ async function main() {
       role: UserRole.USER,
       isActive: true,
       city: 'Nukus',
+      phone: '+998 90 000 10 06',
+      telegram: '@social_demo',
+      birthDate: new Date('1996-11-03T00:00:00Z'),
       avatarUrl: 'https://i.pravatar.cc/160?img=47',
       registeredAt: new Date(),
     },
@@ -144,6 +169,8 @@ async function main() {
       startsAt: new Date('2026-05-15T18:00:00Z'),
       endsAt: new Date('2026-05-15T21:00:00Z'),
       registrationDeadline: new Date('2026-05-14T20:00:00Z'),
+      requiredProfileFields: ['name', 'phone', 'city', 'telegram'],
+      requiredEventFields: ['motivation', 'experience'],
       tags: ['tech', 'meetup', 'networking'],
       isFeatured: true,
     },
@@ -159,6 +186,8 @@ async function main() {
       startsAt: new Date('2026-05-22T08:00:00Z'),
       endsAt: new Date('2026-05-22T13:00:00Z'),
       registrationDeadline: new Date('2026-05-21T18:00:00Z'),
+      requiredProfileFields: ['name', 'phone', 'city'],
+      requiredEventFields: ['preferredSlot'],
       tags: ['community', 'volunteer', 'environment'],
       isFeatured: true,
     },
@@ -174,6 +203,8 @@ async function main() {
       startsAt: new Date('2026-06-05T16:00:00Z'),
       endsAt: new Date('2026-06-07T18:00:00Z'),
       registrationDeadline: new Date('2026-06-04T12:00:00Z'),
+      requiredProfileFields: ['name', 'phone', 'telegram'],
+      requiredEventFields: ['motivation', 'teamPreference'],
       tags: ['startup', 'business', 'pitch'],
       isFeatured: true,
     },
@@ -219,8 +250,15 @@ async function main() {
       startsAt: new Date('2026-06-20T09:00:00Z'),
       endsAt: new Date('2026-06-20T17:00:00Z'),
       registrationDeadline: new Date('2026-06-18T18:00:00Z'),
+      requiredProfileFields: ['name', 'phone', 'city'],
+      requiredEventFields: ['teamPreference'],
       tags: ['sports', 'basketball', 'community'],
       isFeatured: false,
+      isTeamBased: true,
+      minTeamSize: 3,
+      maxTeamSize: 4,
+      allowSoloParticipation: false,
+      teamJoinMode: 'BY_CODE' as const,
     },
     {
       slug: 'ai-hackathon-2026',
@@ -234,6 +272,8 @@ async function main() {
       startsAt: new Date('2026-07-15T09:00:00Z'),
       endsAt: new Date('2026-07-17T18:00:00Z'),
       registrationDeadline: new Date('2026-07-12T23:59:00Z'),
+      requiredProfileFields: ['name', 'phone', 'telegram'],
+      requiredEventFields: ['motivation', 'experience', 'teamPreference'],
       tags: ['ai', 'hackathon', 'competition'],
       isFeatured: true,
       status: EventStatus.PUBLISHED,
@@ -341,6 +381,82 @@ async function main() {
         assignedByUserId: socialUser.id,
         approvedAt: new Date(),
       },
+      {
+        eventId: events[5].id,
+        userId: eventAdmin.id,
+        role: 'PARTICIPANT',
+        status: 'ACTIVE',
+        assignedByUserId: eventAdmin.id,
+        approvedAt: new Date(),
+      },
+      {
+        eventId: events[5].id,
+        userId: volunteer.id,
+        role: 'PARTICIPANT',
+        status: 'ACTIVE',
+        assignedByUserId: volunteer.id,
+        approvedAt: new Date(),
+      },
+    ],
+  });
+
+  await prisma.eventRegistrationAnswer.createMany({
+    data: [
+      {
+        eventId: events[0].id,
+        userId: participant.id,
+        answers: {
+          motivation: 'I want to meet local builders and share product engineering lessons.',
+          experience: 'Three years in frontend and community meetups.',
+        },
+      },
+      {
+        eventId: events[1].id,
+        userId: participant.id,
+        answers: {
+          preferredSlot: 'Morning cleanup crew',
+        },
+      },
+      {
+        eventId: events[2].id,
+        userId: socialUser.id,
+        answers: {
+          motivation: 'I want to validate an early startup idea with mentors.',
+          teamPreference: 'Open to joining a product-focused team.',
+        },
+      },
+      {
+        eventId: events[5].id,
+        userId: eventAdmin.id,
+        answers: {
+          teamPreference: 'Captain',
+        },
+      },
+      {
+        eventId: events[5].id,
+        userId: volunteer.id,
+        answers: {
+          teamPreference: 'Wing player',
+        },
+      },
+      {
+        eventId: events[6].id,
+        userId: participant.id,
+        answers: {
+          motivation: 'I want to build a useful AI assistant prototype.',
+          experience: 'Full-stack developer with hackathon experience.',
+          teamPreference: 'Captain',
+        },
+      },
+      {
+        eventId: events[6].id,
+        userId: socialUser.id,
+        answers: {
+          motivation: 'Interested in product design for AI workflows.',
+          experience: 'Designer with two AI prototype projects.',
+          teamPreference: 'Designer / researcher',
+        },
+      },
     ],
   });
 
@@ -378,6 +494,38 @@ async function main() {
     ]
   });
 
+  const basketballTeam = await prisma.eventTeam.create({
+    data: {
+      eventId: events[5].id,
+      name: 'Samarkand Shooters',
+      slug: 'samarkand-shooters-a9',
+      joinCode: 'HOOPS3',
+      description: 'Amateur 3x3 squad for the weekend tournament.',
+      captainUserId: eventAdmin.id,
+      status: 'ACTIVE',
+      maxSize: 4,
+    }
+  });
+
+  await prisma.eventTeamMember.createMany({
+    data: [
+      {
+        teamId: basketballTeam.id,
+        userId: eventAdmin.id,
+        role: 'CAPTAIN',
+        status: 'ACTIVE',
+        approvedAt: new Date(),
+      },
+      {
+        teamId: basketballTeam.id,
+        userId: volunteer.id,
+        role: 'MEMBER',
+        status: 'ACTIVE',
+        approvedAt: new Date(),
+      }
+    ]
+  });
+
   for (const event of events) {
     const count = await prisma.eventMember.count({
       where: { eventId: event.id, role: 'PARTICIPANT', status: { in: ['ACTIVE', 'APPROVED'] } },
@@ -401,6 +549,13 @@ async function main() {
       { type: 'USER_LOGIN', userId: superAdmin.id, authProvider: 'EMAIL' },
       { type: 'USER_LOGIN', userId: platformAdmin.id, authProvider: 'EMAIL' },
       { type: 'USER_LOGIN', userId: socialUser.id, authProvider: 'GOOGLE' },
+      { type: 'VOLUNTEER_APPLICATION_SUBMITTED', userId: volunteer.id, eventId: events[0].id },
+      { type: 'VOLUNTEER_APPLICATION_APPROVED', userId: volunteer.id, eventId: events[1].id },
+      { type: 'TEAM_CREATED', userId: participant.id, eventId: events[6].id },
+      { type: 'TEAM_CREATED', userId: eventAdmin.id, eventId: events[5].id },
+      { type: 'TEAM_JOIN_REQUESTED', userId: socialUser.id, eventId: events[6].id },
+      { type: 'TEAM_MEMBER_APPROVED', userId: socialUser.id, eventId: events[6].id },
+      { type: 'EVENT_ADMIN_ASSIGNED', userId: eventAdmin.id, eventId: events[0].id },
     ],
   });
 

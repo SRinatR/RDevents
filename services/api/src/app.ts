@@ -13,6 +13,7 @@ import { adminRouter } from './modules/admin/admin.router.js';
 import { analyticsRouter } from './modules/analytics/analytics.router.js';
 import { volunteersRouter } from './modules/volunteers/volunteers.router.js';
 import { uploadsRouter } from './modules/uploads/uploads.router.js';
+import { prisma } from './db/prisma.js';
 
 export function createApp() {
   const app = express();
@@ -29,19 +30,23 @@ export function createApp() {
   app.use(requestLogger);
 
   // ─── Health check ─────────────────────────────────────────────────────────
-  app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', ts: new Date().toISOString() });
-  });
+  const healthHandler = (_req: express.Request, res: express.Response) => {
+    res.json({ status: 'ok', service: 'event-platform-api', ts: new Date().toISOString() });
+  };
 
-  app.get('/ready', async (_req, res) => {
+  const readyHandler = async (_req: express.Request, res: express.Response) => {
     try {
-      // Check database connectivity
-      await import('./db/prisma.js').then(m => m.prisma.$queryRaw`SELECT 1`);
-      res.json({ status: 'ready', ts: new Date().toISOString() });
+      await prisma.$queryRaw`SELECT 1`;
+      res.json({ status: 'ready', database: 'ok', ts: new Date().toISOString() });
     } catch (error) {
-      res.status(503).json({ status: 'unavailable', ts: new Date().toISOString() });
+      res.status(503).json({ status: 'unavailable', database: 'unavailable', ts: new Date().toISOString() });
     }
-  });
+  };
+
+  app.get('/health', healthHandler);
+  app.get('/api/health', healthHandler);
+  app.get('/ready', readyHandler);
+  app.get('/api/ready', readyHandler);
 
   // ─── API routes ───────────────────────────────────────────────────────────
   app.use('/api/auth', authRouter);

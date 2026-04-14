@@ -1,9 +1,9 @@
-FROM node:22-alpine AS base
+FROM node:25.6.0-alpine AS base
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 
-RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
+RUN npm install -g pnpm@10.33.0
 
 WORKDIR /app
 
@@ -56,7 +56,7 @@ RUN pnpm --filter @event-platform/api deploy --prod --legacy /prod/api \
     find "$runtime" -type f \( -name '*.mjs' ! -name '*postgresql*' \) -delete; \
   done
 
-FROM node:22-alpine AS runner
+FROM node:25.6.0-alpine AS runner
 ENV NODE_ENV=production
 WORKDIR /app
 

@@ -17,9 +17,16 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return;
   }
 
+  const token = header.slice(7);
+  let payload: ReturnType<typeof verifyAccessToken>;
   try {
-    const token = header.slice(7);
-    const payload = verifyAccessToken(token);
+    payload = verifyAccessToken(token);
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired token' });
+    return;
+  }
+
+  try {
     const user = await prisma.user.findUnique({ where: { id: payload.sub } });
 
     if (!user || !user.isActive) {
@@ -29,8 +36,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     (req as AuthenticatedRequest).user = user;
     next();
-  } catch {
-    res.status(401).json({ error: 'Invalid or expired token' });
+  } catch (error) {
+    next(error);
   }
 }
 
@@ -130,10 +137,11 @@ export function requestLogger(req: Request, res: Response, next: NextFunction) {
 
   res.on('finish', () => {
     const duration = Date.now() - startTime;
+    const finishedUser = (req as AuthenticatedRequest).user;
     logger.info('Request finished', {
       action: 'request_finished',
       requestId,
-      userId: user?.id,
+      userId: finishedUser?.id,
       meta: {
         method: req.method,
         path: req.path,
@@ -158,13 +166,18 @@ export function errorHandler(err: unknown, req: Request, res: Response, next: Ne
   let statusCode = 500;
   let errorCode = 'INTERNAL_ERROR';
   let safeMessage = 'An unexpected error occurred';
+  const prismaCode = typeof (error as any).code === 'string' ? (error as any).code : undefined;
 
   // Map known error types
-  if (error.message.includes('P2002')) {
+  if (prismaCode?.startsWith('P10') || error.name === 'PrismaClientInitializationError') {
+    statusCode = 503;
+    errorCode = 'DATABASE_UNAVAILABLE';
+    safeMessage = 'Service is temporarily unavailable';
+  } else if (prismaCode === 'P2002' || error.message.includes('P2002')) {
     statusCode = 409;
     errorCode = 'DUPLICATE_ENTRY';
     safeMessage = 'A record with this value already exists';
-  } else if (error.message.includes('P2025')) {
+  } else if (prismaCode === 'P2025' || error.message.includes('P2025')) {
     statusCode = 404;
     errorCode = 'RECORD_NOT_FOUND';
     safeMessage = 'The requested record was not found';

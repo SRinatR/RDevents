@@ -1,9 +1,59 @@
 import { Router } from 'express';
 import { authenticate, optionalAuth } from '../../common/middleware.js';
-import { eventQuerySchema } from './events.schemas.js';
-import { applyForVolunteer, listEvents, getEventBySlug, registerForEvent } from './events.service.js';
+import { eventQuerySchema, registrationAnswersSchema } from './events.schemas.js';
+import {
+  applyForVolunteer,
+  approveTeamMember,
+  createTeam,
+  getEventBySlug,
+  getEventMembership,
+  getRegistrationPrecheck,
+  getTeamById,
+  getTeamsByEvent,
+  joinTeam,
+  joinTeamByCode,
+  leaveTeam,
+  listEvents,
+  RegistrationRequirementsError,
+  registerForEvent,
+  rejectTeamMember,
+  removeTeamMember,
+  saveRegistrationAnswers,
+  unregisterFromEvent,
+  updateTeam,
+} from './events.service.js';
 
 export const eventsRouter = Router();
+
+const registrationFlowErrors: Record<string, [number, string]> = {
+  EVENT_NOT_FOUND: [404, 'Event not found'],
+  EVENT_NOT_AVAILABLE: [400, 'Event is not available for registration'],
+  REGISTRATION_NOT_OPEN: [400, 'Registration is not open yet'],
+  EVENT_REQUIRES_TEAM: [400, 'This event requires team participation'],
+  EVENT_NOT_TEAM_BASED: [400, 'Event is not team-based'],
+  TEAM_NOT_FOUND: [404, 'Team not found'],
+  TEAM_NOT_ACTIVE: [400, 'Team is not active'],
+  TEAM_FULL: [400, 'Team is full'],
+  INVALID_JOIN_CODE: [403, 'Invalid join code'],
+  EVENT_FULL: [400, 'Event is at full capacity'],
+  ALREADY_REGISTERED: [409, 'You are already registered for this event'],
+  ALREADY_IN_TEAM: [409, 'You are already in a team for this event'],
+  USER_NOT_FOUND: [404, 'User not found'],
+};
+
+function sendMappedError(res: any, err: any, map: Record<string, [number, string]> = {}) {
+  if (err instanceof RegistrationRequirementsError) {
+    res.status(422).json({
+      error: 'Required registration data is missing',
+      code: 'REGISTRATION_REQUIREMENTS_MISSING',
+      details: { missingFields: err.missingFields },
+    });
+    return;
+  }
+
+  const [status, message] = map[err.message] ?? registrationFlowErrors[err.message] ?? [500, 'Internal error'];
+  res.status(status).json({ error: message, code: err.message });
+}
 
 // GET /api/events
 eventsRouter.get('/', optionalAuth, async (req, res) => {
@@ -29,23 +79,77 @@ eventsRouter.get('/:slug', optionalAuth, async (req, res) => {
 // POST /api/events/:id/register — requires auth
 eventsRouter.post('/:id/register', authenticate, async (req, res) => {
   const user = (req as any).user;
+  const parsed = registrationAnswersSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+    return;
+  }
+
   try {
-    const registration = await registerForEvent(String(req.params['id']), user.id);
+    const registration = await registerForEvent(String(req.params['id']), user.id, parsed.data.answers);
     res.status(201).json({ registration });
   } catch (err: any) {
+    sendMappedError(res, err);
+  }
+});
+
+// POST /api/events/:id/registration/precheck — validates event gates without creating membership
+eventsRouter.post('/:id/registration/precheck', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  const parsed = registrationAnswersSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+    return;
+  }
+
+  try {
+    const precheck = await getRegistrationPrecheck(String(req.params['id']), user.id, parsed.data.answers);
+    res.json({ precheck });
+  } catch (err: any) {
+    sendMappedError(res, err);
+  }
+});
+
+// PATCH /api/events/:id/registration-answers — saves event-specific form answers before final join
+eventsRouter.patch('/:id/registration-answers', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  const parsed = registrationAnswersSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+    return;
+  }
+
+  try {
+    const answers = await saveRegistrationAnswers(String(req.params['id']), user.id, parsed.data.answers);
+    res.json({ answers });
+  } catch (err: any) {
+    sendMappedError(res, err);
+  }
+});
+
+// DELETE /api/events/:id/register — cancel current user's participant membership
+eventsRouter.delete('/:id/register', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  try {
+    const membership = await unregisterFromEvent(String(req.params['id']), user.id);
+    res.json({ membership });
+  } catch (err: any) {
     const map: Record<string, [number, string]> = {
-      EVENT_NOT_FOUND: [404, 'Event not found'],
-      EVENT_NOT_AVAILABLE: [400, 'Event is not available for registration'],
-      EVENT_FULL: [400, 'Event is at full capacity'],
-      ALREADY_REGISTERED: [409, 'You are already registered for this event'],
+      REGISTRATION_NOT_FOUND: [404, 'Registration not found'],
     };
     const [status, message] = map[err.message] ?? [500, 'Internal error'];
     res.status(status).json({ error: message });
   }
 });
 
-// POST /api/events/:id/volunteer/apply — user applies to volunteer for this event
-eventsRouter.post('/:id/volunteer/apply', authenticate, async (req, res) => {
+// GET /api/events/:id/membership — current user's event-scoped roles and team
+eventsRouter.get('/:id/membership', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  const membership = await getEventMembership(String(req.params['id']), user.id);
+  res.json({ membership });
+});
+
+async function handleVolunteerApplication(req: any, res: any) {
   const user = (req as any).user;
   try {
     const membership = await applyForVolunteer(String(req.params['id']), user.id, req.body?.notes);
@@ -59,11 +163,25 @@ eventsRouter.post('/:id/volunteer/apply', authenticate, async (req, res) => {
     const [status, message] = map[err.message] ?? [500, 'Internal error'];
     res.status(status).json({ error: message });
   }
+}
+
+// POST /api/events/:id/volunteer/apply — existing URL kept for the web app.
+eventsRouter.post('/:id/volunteer/apply', authenticate, handleVolunteerApplication);
+
+// POST /api/events/:id/volunteer-application — URL from the MVP spec.
+eventsRouter.post('/:id/volunteer-application', authenticate, handleVolunteerApplication);
+
+// GET /api/events/:id/volunteer-application/me
+eventsRouter.get('/:id/volunteer-application/me', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  const membership = await getEventMembership(String(req.params['id']), user.id);
+  const volunteerApplication = membership.memberships.find(item => item.role === 'VOLUNTEER') ?? null;
+  res.json({ volunteerApplication });
 });
 
 // GET /api/events/:id/teams
 eventsRouter.get('/:id/teams', optionalAuth, async (req, res) => {
-  const teams = await import('./events.service.js').then(m => m.getTeamsByEvent(String(req.params['id'])));
+  const teams = await getTeamsByEvent(String(req.params['id']));
   res.json({ teams });
 });
 
@@ -71,16 +189,39 @@ eventsRouter.get('/:id/teams', optionalAuth, async (req, res) => {
 eventsRouter.post('/:id/teams', authenticate, async (req, res) => {
   const user = (req as any).user;
   try {
-    const team = await import('./events.service.js').then(m => m.createTeam(String(req.params['id']), user.id, req.body));
+    const team = await createTeam(String(req.params['id']), user.id, req.body);
     res.status(201).json({ team });
   } catch (err: any) {
+    sendMappedError(res, err, { EVENT_NOT_AVAILABLE: [400, 'Event is not available for teams'] });
+  }
+});
+
+// GET /api/events/:id/teams/:teamId
+eventsRouter.get('/:id/teams/:teamId', optionalAuth, async (req, res) => {
+  try {
+    const team = await getTeamById(String(req.params['id']), String(req.params['teamId']));
+    res.json({ team });
+  } catch (err: any) {
     const map: Record<string, [number, string]> = {
-      EVENT_NOT_FOUND: [404, 'Event not found'],
-      EVENT_NOT_TEAM_BASED: [400, 'Event is not team-based'],
-      ALREADY_IN_TEAM: [409, 'You are already in a team for this event'],
+      TEAM_NOT_FOUND: [404, 'Team not found'],
     };
     const [status, message] = map[err.message] ?? [500, 'Internal error'];
     res.status(status).json({ error: message });
+  }
+});
+
+// POST /api/events/:id/teams/join-by-code
+eventsRouter.post('/:id/teams/join-by-code', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  try {
+    const code = String(req.body?.code ?? '');
+    const member = await joinTeamByCode(String(req.params['id']), user.id, code, req.body?.answers);
+    res.status(200).json({ member });
+  } catch (err: any) {
+    sendMappedError(res, err, {
+      EVENT_NOT_AVAILABLE: [400, 'Event is not available for teams'],
+      TEAM_NOT_FOUND: [404, 'Team not found for this code'],
+    });
   }
 });
 
@@ -88,19 +229,10 @@ eventsRouter.post('/:id/teams', authenticate, async (req, res) => {
 eventsRouter.post('/:id/teams/:teamId/join', authenticate, async (req, res) => {
   const user = (req as any).user;
   try {
-    const member = await import('./events.service.js').then(m => m.joinTeam(String(req.params['id']), String(req.params['teamId']), user.id, req.body?.code));
+    const member = await joinTeam(String(req.params['id']), String(req.params['teamId']), user.id, req.body?.code, req.body?.answers);
     res.status(200).json({ member });
   } catch (err: any) {
-    const map: Record<string, [number, string]> = {
-      EVENT_NOT_FOUND: [404, 'Event not found'],
-      TEAM_NOT_FOUND: [404, 'Team not found'],
-      TEAM_NOT_ACTIVE: [400, 'Team is not active'],
-      TEAM_FULL: [400, 'Team is full'],
-      INVALID_JOIN_CODE: [403, 'Invalid join code'],
-      ALREADY_IN_TEAM: [409, 'You are already in a team for this event'],
-    };
-    const [status, message] = map[err.message] ?? [500, 'Internal error'];
-    res.status(status).json({ error: message });
+    sendMappedError(res, err, { EVENT_NOT_AVAILABLE: [400, 'Event is not available for teams'] });
   }
 });
 
@@ -108,12 +240,12 @@ eventsRouter.post('/:id/teams/:teamId/join', authenticate, async (req, res) => {
 eventsRouter.patch('/:id/teams/:teamId', authenticate, async (req, res) => {
   const user = (req as any).user;
   try {
-    const team = await import('./events.service.js').then(m => m.updateTeam(
+    const team = await updateTeam(
       String(req.params['id']),
       String(req.params['teamId']),
       user.id,
       req.body
-    ));
+    );
     res.json({ team });
   } catch (err: any) {
     const map: Record<string, [number, string]> = {
@@ -130,11 +262,11 @@ eventsRouter.patch('/:id/teams/:teamId', authenticate, async (req, res) => {
 eventsRouter.post('/:id/teams/:teamId/leave', authenticate, async (req, res) => {
   const user = (req as any).user;
   try {
-    await import('./events.service.js').then(m => m.leaveTeam(
+    await leaveTeam(
       String(req.params['id']),
       String(req.params['teamId']),
       user.id
-    ));
+    );
     res.json({ ok: true });
   } catch (err: any) {
     const map: Record<string, [number, string]> = {
@@ -152,12 +284,12 @@ eventsRouter.post('/:id/teams/:teamId/leave', authenticate, async (req, res) => 
 eventsRouter.post('/:id/teams/:teamId/members/:userId/approve', authenticate, async (req, res) => {
   const user = (req as any).user;
   try {
-    const member = await import('./events.service.js').then(m => m.approveTeamMember(
+    const member = await approveTeamMember(
       String(req.params['id']),
       String(req.params['teamId']),
       user.id,
       String(req.params['userId'])
-    ));
+    );
     res.json({ member });
   } catch (err: any) {
     const map: Record<string, [number, string]> = {
@@ -176,12 +308,12 @@ eventsRouter.post('/:id/teams/:teamId/members/:userId/approve', authenticate, as
 eventsRouter.post('/:id/teams/:teamId/members/:userId/reject', authenticate, async (req, res) => {
   const user = (req as any).user;
   try {
-    await import('./events.service.js').then(m => m.rejectTeamMember(
+    await rejectTeamMember(
       String(req.params['id']),
       String(req.params['teamId']),
       user.id,
       String(req.params['userId'])
-    ));
+    );
     res.json({ ok: true });
   } catch (err: any) {
     const map: Record<string, [number, string]> = {
@@ -199,12 +331,12 @@ eventsRouter.post('/:id/teams/:teamId/members/:userId/reject', authenticate, asy
 eventsRouter.delete('/:id/teams/:teamId/members/:userId', authenticate, async (req, res) => {
   const user = (req as any).user;
   try {
-    await import('./events.service.js').then(m => m.removeTeamMember(
+    await removeTeamMember(
       String(req.params['id']),
       String(req.params['teamId']),
       user.id,
       String(req.params['userId'])
-    ));
+    );
     res.json({ ok: true });
   } catch (err: any) {
     const map: Record<string, [number, string]> = {

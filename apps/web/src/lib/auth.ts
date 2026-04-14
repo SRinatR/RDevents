@@ -22,8 +22,8 @@ export async function doLogin(email: string, password: string) {
   return result;
 }
 
-export async function doRegister(email: string, password: string, name: string) {
-  const result = await authApi.register({ email, password, name });
+export async function doRegister(email: string, password: string, name?: string) {
+  const result = await authApi.register({ email, password, ...(name ? { name } : {}) });
   setAccessToken(result.accessToken);
   return result;
 }

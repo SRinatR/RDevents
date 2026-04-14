@@ -7,6 +7,32 @@ import { eventsApi, analyticsApi, ApiError } from '../../../../lib/api';
 import { useAuth } from '../../../../hooks/useAuth';
 import { useRouteParams } from '../../../../hooks/useRouteParams';
 
+type MissingField = {
+  key: string;
+  label: string;
+  scope: 'PROFILE' | 'EVENT_FORM';
+  action: 'PROFILE' | 'EVENT_FORM';
+};
+
+const FIELD_LABELS_RU: Record<string, string> = {
+  name: 'Имя',
+  phone: 'Телефон',
+  city: 'Город',
+  telegram: 'Telegram',
+  birthDate: 'Дата рождения',
+  bio: 'Био',
+  motivation: 'Мотивация участия',
+  experience: 'Опыт',
+  teamPreference: 'Предпочтение по команде',
+  tshirtSize: 'Размер футболки',
+  emergencyContact: 'Контакт на случай экстренной связи',
+  preferredSlot: 'Предпочтительный слот',
+  specialRequirements: 'Особые требования',
+  university: 'Университет',
+  faculty: 'Факультет',
+  course: 'Курс',
+};
+
 export default function EventDetailPage() {
   const t = useTranslations();
   const { user } = useAuth();
@@ -28,6 +54,9 @@ export default function EventDetailPage() {
   const [joinCode, setJoinCode] = useState('');
   const [teamError, setTeamError] = useState('');
   const [myTeam, setMyTeam] = useState<any>(null);
+  const [missingFields, setMissingFields] = useState<MissingField[]>([]);
+  const [eventAnswers, setEventAnswers] = useState<Record<string, string>>({});
+  const [savingAnswers, setSavingAnswers] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -37,6 +66,7 @@ export default function EventDetailPage() {
         setEvent(e);
         setIsRegistered(e.isRegistered ?? false);
         setMyTeam(e.teamMembership?.team ?? null);
+        setEventAnswers(e.registrationAnswers ?? {});
         const vm = e.memberships?.find((m: any) => m.role === 'VOLUNTEER');
         setVolunteerStatus(vm?.status ?? null);
         analyticsApi.track('EVENT_DETAIL_VIEW', { eventId: e.id, locale });
@@ -51,12 +81,13 @@ export default function EventDetailPage() {
     setRegError('');
     analyticsApi.track('REGISTER_CLICK', { eventId: event.id });
     try {
-      await eventsApi.register(event.id);
+      await eventsApi.register(event.id, eventAnswers);
       setIsRegistered(true);
+      setMissingFields([]);
       setEvent((prev: any) => prev ? { ...prev, registrationsCount: prev.registrationsCount + 1 } : prev);
       analyticsApi.track('EVENT_REGISTRATION', { eventId: event.id });
     } catch (err) {
-      if (err instanceof ApiError) setRegError(err.message);
+      handleRegistrationError(err, setRegError);
     } finally {
       setRegistering(false);
     }
@@ -67,13 +98,16 @@ export default function EventDetailPage() {
     setRegistering(true);
     setTeamError('');
     try {
-      const res = await eventsApi.createTeam(event.id, { name: teamName });
+      const res = await eventsApi.createTeam(event.id, { name: teamName, answers: eventAnswers });
       setMyTeam(res.team);
-      setIsRegistered(true);
+      setIsRegistered(res.team.status === 'ACTIVE');
+      setMissingFields([]);
       setTeamState('IDLE');
-      setEvent((prev: any) => prev ? { ...prev, registrationsCount: prev.registrationsCount + 1 } : prev);
+      if (res.team.status === 'ACTIVE') {
+        setEvent((prev: any) => prev ? { ...prev, registrationsCount: prev.registrationsCount + 1 } : prev);
+      }
     } catch (err) {
-      if (err instanceof ApiError) setTeamError(err.message);
+      handleRegistrationError(err, setTeamError);
     } finally {
       setRegistering(false);
     }
@@ -84,25 +118,52 @@ export default function EventDetailPage() {
     setRegistering(true);
     setTeamError('');
     try {
-      // Find team by code (client side hack for MVP, normally we'd join straight by code)
-      // Since joinTeam needs teamId, we can retrieve teams or just do join by code endpoint on backend
-      // Right now the API expects eventId, teamId, code. Let's just catch failure or assume joinCode is the teamId for MVP?
-      // Wait, our backend joinTeam expects URL /teams/:teamId/join. If we only have code, we need an endpoint.
-      // We will add it later or just pass code and a fake teamId if backend doesn't resolve by code alone.
-      // Actually backend needs teamId. Let's just fetch teams first.
-      const res = await eventsApi.listTeams(event.id);
-      const team = res.teams.find((t: any) => t.joinCode === joinCode);
-      if (!team) throw new Error('Invalid join code or team not found');
-      
-      const memberRes = await eventsApi.joinTeam(event.id, team.id, joinCode);
+      const { member } = await eventsApi.joinTeamByCode(event.id, joinCode, eventAnswers);
+      const { team } = await eventsApi.getTeam(event.id, member.teamId);
       setMyTeam(team);
-      setIsRegistered(true);
+      setIsRegistered(member.status === 'ACTIVE');
+      setMissingFields([]);
       setTeamState('IDLE');
-      setEvent((prev: any) => prev ? { ...prev, registrationsCount: prev.registrationsCount + 1 } : prev);
+      if (member.status === 'ACTIVE') {
+        setEvent((prev: any) => prev ? { ...prev, registrationsCount: prev.registrationsCount + 1 } : prev);
+      }
     } catch (err: any) {
-      setTeamError(err.message || 'Error joining team');
+      handleRegistrationError(err, setTeamError);
     } finally {
       setRegistering(false);
+    }
+  }
+
+  function handleRegistrationError(err: unknown, setMessage: (message: string) => void) {
+    if (err instanceof ApiError) {
+      const details = err.details as { missingFields?: MissingField[] } | undefined;
+      if (Array.isArray(details?.missingFields)) {
+        setMissingFields(details.missingFields);
+        setMessage('');
+        return;
+      }
+      setMessage(err.message);
+      return;
+    }
+    setMessage(locale === 'ru' ? 'Не удалось выполнить действие' : 'Action failed');
+  }
+
+  async function handleSaveRegistrationAnswers() {
+    if (!user || !event) return;
+    setSavingAnswers(true);
+    setRegError('');
+    setTeamError('');
+    try {
+      await eventsApi.saveRegistrationAnswers(event.id, eventAnswers);
+      const { precheck } = await eventsApi.registrationPrecheck(event.id, eventAnswers);
+      setMissingFields(precheck.missingFields ?? []);
+      if (precheck.ok) {
+        setRegError(locale === 'ru' ? 'Анкета сохранена. Теперь можно завершить участие.' : 'Form saved. You can finish joining now.');
+      }
+    } catch (err) {
+      handleRegistrationError(err, setRegError);
+    } finally {
+      setSavingAnswers(false);
     }
   }
 
@@ -114,7 +175,7 @@ export default function EventDetailPage() {
     try {
       await eventsApi.applyVolunteer(event.id);
       setVolunteerStatus('PENDING');
-      analyticsApi.track('VOLUNTEER_APPLICATION', { eventId: event.id });
+      analyticsApi.track('VOLUNTEER_APPLICATION_SUBMITTED', { eventId: event.id });
     } catch (err) {
       if (err instanceof ApiError) setVolunteerError(err.message);
     } finally {
@@ -165,6 +226,17 @@ export default function EventDetailPage() {
     : 0;
   const isFull = event.registrationsCount >= event.capacity;
   const hasActiveVolunteer = ['PENDING', 'APPROVED', 'ACTIVE'].includes(volunteerStatus ?? '');
+  const profileMissing = missingFields.filter(field => field.scope === 'PROFILE');
+  const eventFormMissing = missingFields.filter(field => field.scope === 'EVENT_FORM');
+  const profileLink = profileMissing.length > 0
+    ? `/${locale}/cabinet?${new URLSearchParams({
+        required: profileMissing.map(field => field.key).join(','),
+        event: event.title,
+      }).toString()}`
+    : '';
+  const fieldLabel = (field: MissingField) => locale === 'ru'
+    ? FIELD_LABELS_RU[field.key] ?? field.label
+    : field.label;
 
   return (
     <div style={{ minHeight: 'calc(100vh - 64px)', paddingBottom: 80 }}>
@@ -404,6 +476,61 @@ export default function EventDetailPage() {
                             ? (locale === 'ru' ? 'Мест нет' : 'No spots left')
                             : t('events.join')}
                         </button>
+                      )}
+                      {missingFields.length > 0 && (
+                        <div className="alert" style={{
+                          margin: 0,
+                          padding: 14,
+                          background: 'var(--color-primary-subtle)',
+                          border: '1px solid var(--color-primary-glow)',
+                          color: 'var(--color-primary)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 10,
+                        }}>
+                          <div style={{ fontWeight: 800, lineHeight: 1.4 }}>
+                            {locale === 'ru'
+                              ? `Чтобы участвовать, нужно заполнить ещё ${missingFields.length} обязательн${missingFields.length === 1 ? 'ое поле' : 'ых поля'}.`
+                              : `Complete ${missingFields.length} required field${missingFields.length === 1 ? '' : 's'} to join.`}
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.88rem', color: 'var(--color-text-secondary)' }}>
+                            {missingFields.map(field => (
+                              <div key={`${field.scope}-${field.key}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                                <span style={{ fontWeight: 700 }}>{fieldLabel(field)}</span>
+                                <span>{field.scope === 'PROFILE' ? (locale === 'ru' ? 'Профиль' : 'Profile') : (locale === 'ru' ? 'Анкета мероприятия' : 'Event form')}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {profileMissing.length > 0 && (
+                            <Link href={profileLink} className="btn btn-secondary btn-sm" style={{ justifyContent: 'center' }}>
+                              {locale === 'ru' ? 'Заполнить профиль' : 'Complete profile'}
+                            </Link>
+                          )}
+
+                          {eventFormMissing.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              {eventFormMissing.map(field => (
+                                <label key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: 5, color: 'var(--color-text-primary)', fontWeight: 700, fontSize: '0.86rem' }}>
+                                  {fieldLabel(field)}
+                                  <textarea
+                                    className="input-field"
+                                    value={eventAnswers[field.key] ?? ''}
+                                    onChange={e => setEventAnswers(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                    rows={2}
+                                    style={{ minHeight: 72, resize: 'vertical', background: '#fff' }}
+                                  />
+                                </label>
+                              ))}
+                              <button onClick={handleSaveRegistrationAnswers} disabled={savingAnswers} className="btn btn-primary btn-sm">
+                                {savingAnswers
+                                  ? t('common.loading')
+                                  : (locale === 'ru' ? 'Сохранить анкету' : 'Save event form')}
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       )}
                       {regError && <p className="alert alert-danger" style={{ margin: 0 }}>{regError}</p>}
                     </>

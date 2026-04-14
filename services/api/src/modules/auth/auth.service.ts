@@ -3,6 +3,7 @@ import { hashPassword, verifyPassword } from '../../common/password.js';
 import { signAccessToken, signRefreshToken } from '../../common/jwt.js';
 import type { RegisterInput, LoginInput, UpdateProfileInput } from './auth.schemas.js';
 import type { AuthProvider } from '@prisma/client';
+import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 
 // Strip sensitive fields before sending user to client
 export function sanitizeUser(user: Record<string, unknown>) {
@@ -31,7 +32,7 @@ export async function registerWithEmail(input: RegisterInput) {
       data: {
         email: input.email,
         passwordHash,
-        name: input.name,
+        name: input.name ?? null,
         registeredAt: new Date(),
       },
     });
@@ -43,6 +44,13 @@ export async function registerWithEmail(input: RegisterInput) {
         providerAccountId: input.email,
         providerEmail: input.email,
       },
+    });
+
+    await trackAnalyticsEvent(tx, {
+      type: 'USER_REGISTER',
+      userId: created.id,
+      authProvider: 'EMAIL',
+      meta: { source: 'email_password' },
     });
 
     return created;
@@ -64,6 +72,12 @@ export async function loginWithEmail(input: LoginInput) {
   await prisma.user.update({
     where: { id: user.id },
     data: { lastLoginAt: new Date() },
+  });
+  await trackAnalyticsEvent(prisma, {
+    type: 'USER_LOGIN',
+    userId: user.id,
+    authProvider: 'EMAIL',
+    meta: { source: 'email_password' },
   });
 
   const tokens = issueTokens(user);
@@ -96,6 +110,17 @@ export async function loginWithProvider(
       where: { id: account.userId },
       data: { lastLoginAt: new Date() },
     });
+    await trackAnalyticsEvent(prisma, {
+      type: 'USER_LOGIN',
+      userId: account.userId,
+      authProvider: provider,
+      meta: { source: 'provider' },
+    });
+    await trackAnalyticsEvent(prisma, {
+      type: 'PROVIDER_USED',
+      userId: account.userId,
+      authProvider: provider,
+    });
     const tokens = issueTokens(account.user);
     return { user: sanitizeUser(account.user as any), ...tokens };
   }
@@ -105,12 +130,13 @@ export async function loginWithProvider(
     ? await prisma.user.findUnique({ where: { email: providerData.email } })
     : null;
 
+  const isNewUser = !user;
   if (!user) {
     // Create new user
     user = await prisma.user.create({
       data: {
         email: providerData.email ?? `${provider.toLowerCase()}_${providerAccountId}@noemail.local`,
-        name: providerData.username ?? 'User',
+        name: providerData.username ?? null,
         avatarUrl: providerData.avatarUrl,
         registeredAt: new Date(),
         lastLoginAt: new Date(),
@@ -130,6 +156,18 @@ export async function loginWithProvider(
       linkedAt: new Date(),
       lastUsedAt: new Date(),
     },
+  });
+
+  await trackAnalyticsEvent(prisma, {
+    type: isNewUser ? 'USER_REGISTER' : 'USER_LOGIN',
+    userId: user.id,
+    authProvider: provider,
+    meta: { source: 'provider' },
+  });
+  await trackAnalyticsEvent(prisma, {
+    type: 'PROVIDER_USED',
+    userId: user.id,
+    authProvider: provider,
   });
 
   const tokens = issueTokens(user);
@@ -161,10 +199,12 @@ export async function updateProfile(userId: string, input: UpdateProfileInput) {
   const user = await prisma.user.update({
     where: { id: userId },
     data: {
-      ...(input.name !== undefined && { name: input.name }),
+      ...(input.name !== undefined && { name: input.name || null }),
       ...(input.bio !== undefined && { bio: input.bio }),
       ...(input.city !== undefined && { city: input.city }),
       ...(input.phone !== undefined && { phone: input.phone }),
+      ...(input.telegram !== undefined && { telegram: input.telegram || null }),
+      ...(input.birthDate !== undefined && { birthDate: input.birthDate ? new Date(input.birthDate) : null }),
       ...(input.avatarUrl !== undefined && { avatarUrl: input.avatarUrl || null }),
     },
   });

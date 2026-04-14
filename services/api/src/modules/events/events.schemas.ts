@@ -21,12 +21,25 @@ export const createEventSchema = z.object({
   capacity: z.coerce.number().int().min(1).default(100),
   startsAt: z.string().min(1),
   endsAt: z.string().min(1),
+  registrationOpensAt: z.string().min(1).optional().or(z.literal('')),
   registrationDeadline: z.string().min(1).optional().or(z.literal('')),
   conditions: z.string().optional().or(z.literal('')),
   contactEmail: z.string().email().optional().or(z.literal('')),
   tags: z.array(z.string()).default([]),
   status: z.enum(['DRAFT', 'PUBLISHED', 'CANCELLED', 'COMPLETED']).default('DRAFT'),
   isFeatured: z.boolean().default(false),
+  isTeamBased: z.boolean().default(false),
+  minTeamSize: z.coerce.number().int().min(1).default(1),
+  maxTeamSize: z.coerce.number().int().min(1).default(1),
+  allowSoloParticipation: z.boolean().default(true),
+  teamJoinMode: z.enum(['OPEN', 'BY_CODE', 'BY_REQUEST']).default('OPEN'),
+  requireAdminApprovalForTeams: z.boolean().default(false),
+  requiredProfileFields: z.array(z.string()).default([]),
+  requiredEventFields: z.array(z.string()).default([]),
+});
+
+export const registrationAnswersSchema = z.object({
+  answers: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).default({}),
 });
 
 export const updateEventSchema = createEventSchema.partial();

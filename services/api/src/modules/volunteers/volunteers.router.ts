@@ -45,6 +45,8 @@ volunteersRouter.patch('/:id/assign', requirePlatformAdmin, async (req, res) => 
       assignedByUserId: actor.id,
       assignedAt: new Date(),
       approvedAt: new Date(),
+      rejectedAt: null,
+      removedAt: null,
     },
   });
 
@@ -60,7 +62,7 @@ volunteersRouter.patch('/:id/remove', requirePlatformAdmin, async (req, res) => 
 
   const membership = await prisma.eventMember.update({
     where: { eventId_userId_role: { eventId: String(eventId), userId: String(req.params['id']), role: 'VOLUNTEER' } },
-    data: { status: 'REMOVED' },
+    data: { status: 'REMOVED', removedAt: new Date() },
   });
 
   res.json({ membership });

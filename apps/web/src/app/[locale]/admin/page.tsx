@@ -10,7 +10,7 @@ import { useRouteLocale } from '../../../hooks/useRouteParams';
 
 export default function AdminPage() {
   const t = useTranslations();
-  const { user, loading, isAdmin, isPlatformAdmin } = useAuth();
+  const { user, loading, isAdmin, isPlatformAdmin, isSuperAdmin } = useAuth();
   const router = useRouter();
   const locale = useRouteLocale();
 
@@ -62,6 +62,7 @@ export default function AdminPage() {
   const navItems = [
     { href: `/${locale}/admin/events`,    label: t('admin.events'),    icon: '🎪', color: 'var(--color-primary-subtle)',   accent: 'var(--color-primary)' },
     ...(isPlatformAdmin ? [{ href: `/${locale}/admin/users`, label: t('admin.users'), icon: '👥', color: 'rgba(168,85,247,0.08)', accent: '#a855f7' }] : []),
+    ...(isSuperAdmin ? [{ href: `/${locale}/admin/admins`, label: t('admin.admins'), icon: '🛡️', color: 'var(--color-primary-subtle)', accent: 'var(--color-primary)' }] : []),
     { href: `/${locale}/admin/volunteers`, label: t('admin.volunteers'), icon: '🙋', color: 'var(--color-success-subtle)',  accent: 'var(--color-success)' },
     { href: `/${locale}/admin/analytics`, label: t('admin.analytics'), icon: '📊', color: 'var(--color-warning-subtle)',   accent: 'var(--color-warning)' },
   ];

@@ -65,14 +65,11 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
     setActionLoading(true);
     setTeamError('');
     try {
-      const res = await eventsApi.listTeams(event.id);
-      const team = res.teams.find((t: any) => t.joinCode === joinCode);
-      if (!team) throw new Error('Неверный код или команда не найдена');
-      
-      await eventsApi.joinTeam(event.id, team.id, joinCode);
+      const { member } = await eventsApi.joinTeamByCode(event.id, joinCode);
+      const { team } = await eventsApi.getTeam(event.id, member.teamId);
       setEvent((prev: any) => ({
         ...prev,
-        teamMembership: { team, role: 'MEMBER', status: 'ACTIVE' }
+        teamMembership: { team, role: 'MEMBER', status: member.status }
       }));
       setTeamState('IDLE');
     } catch (err: any) {

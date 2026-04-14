@@ -58,6 +58,7 @@ export function Navbar({ locale }: NavbarProps) {
 
   const otherLocale = locale === 'en' ? 'ru' : 'en';
   const nextPath = switchLocalePath(pathname, locale, otherLocale);
+  const displayName = user?.name || user?.email || '';
 
   return (
     <>
@@ -90,14 +91,14 @@ export function Navbar({ locale }: NavbarProps) {
 
             {user ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Link href={`/${locale}/cabinet/profile`} className="user-chip">
+                <Link href={`/${locale}/cabinet`} className="user-chip">
                   <span className="avatar">
                     {user.avatarUrl
                       ? <img src={user.avatarUrl} alt="" />
-                      : user.name.charAt(0).toUpperCase()}
+                      : displayName.charAt(0).toUpperCase()}
                   </span>
                   <span style={{ maxWidth: 96, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {user.name}
+                    {displayName}
                   </span>
                 </Link>
                 <button onClick={handleLogout} className="btn btn-ghost btn-sm">
@@ -145,8 +146,8 @@ export function Navbar({ locale }: NavbarProps) {
 
         {user ? (
           <>
-            <Link href={`/${locale}/cabinet/profile`} className="mobile-link">
-              👤 {user.name}
+            <Link href={`/${locale}/cabinet`} className="mobile-link">
+              👤 {displayName}
             </Link>
             <button
               onClick={handleLogout}

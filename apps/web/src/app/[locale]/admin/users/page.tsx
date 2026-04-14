@@ -9,7 +9,7 @@ import { useRouteLocale } from '../../../../hooks/useRouteParams';
 
 export default function AdminUsersPage() {
   const t = useTranslations();
-  const { user, loading, isAdmin } = useAuth();
+  const { user, loading, isPlatformAdmin } = useAuth();
   const router = useRouter();
   const locale = useRouteLocale();
 
@@ -18,8 +18,8 @@ export default function AdminUsersPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!loading && (!user || !isAdmin)) router.push(`/${locale}`);
-  }, [user, loading, isAdmin, router, locale]);
+    if (!loading && (!user || !isPlatformAdmin)) router.push(`/${locale}`);
+  }, [user, loading, isPlatformAdmin, router, locale]);
 
   const loadUsers = () => {
     setUsersLoading(true);
@@ -30,8 +30,8 @@ export default function AdminUsersPage() {
   };
 
   useEffect(() => {
-    if (user && isAdmin) loadUsers();
-  }, [user, isAdmin]);
+    if (user && isPlatformAdmin) loadUsers();
+  }, [user, isPlatformAdmin]);
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     setUpdatingId(userId);
@@ -51,7 +51,7 @@ export default function AdminUsersPage() {
     USER: '#6b7280',
   };
 
-  if (loading || !user || !isAdmin) return (
+  if (loading || !user || !isPlatformAdmin) return (
     <div style={{ minHeight: 'calc(100vh - 60px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
     </div>

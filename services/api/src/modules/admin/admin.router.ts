@@ -3,6 +3,7 @@ import type { EventMemberStatus, User } from '@prisma/client';
 import { canManageEvent, requireAuth, requirePlatformAdmin, requireSuperAdmin } from '../../common/middleware.js';
 import { prisma } from '../../db/prisma.js';
 import { createEventSchema, updateEventSchema } from '../events/events.schemas.js';
+import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 
 export const adminRouter = Router();
 
@@ -37,20 +38,29 @@ async function assertCanManageEvent(user: User, eventId: string, res: any) {
   return false;
 }
 
+function normalizeStringArray(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.map(item => String(item).trim()).filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return value.split(',').map(item => item.trim()).filter(Boolean);
+  }
+  return [];
+}
+
 function normalizeEventBody(body: any) {
   return {
     ...body,
     fullDescription: body.fullDescription ?? body.description,
     coverImageUrl: body.coverImageUrl || '',
-    tags: Array.isArray(body.tags)
-      ? body.tags
-      : typeof body.tags === 'string'
-        ? body.tags.split(',').map((tag: string) => tag.trim()).filter(Boolean)
-        : [],
+    tags: normalizeStringArray(body.tags),
+    requiredProfileFields: normalizeStringArray(body.requiredProfileFields),
+    requiredEventFields: normalizeStringArray(body.requiredEventFields),
   };
 }
 
 function toDate(value: string | undefined) {
+  if (value === '') return null;
   if (!value) return undefined;
   return new Date(value);
 }
@@ -69,6 +79,71 @@ async function participantCounts(eventIds: string[]) {
   });
 
   return new Map(rows.map(row => [row.eventId, row._count]));
+}
+
+function volunteerDecisionData(status: EventMemberStatus, notes?: string) {
+  return {
+    status,
+    approvedAt: ['APPROVED', 'ACTIVE'].includes(status) ? new Date() : null,
+    rejectedAt: status === 'REJECTED' ? new Date() : null,
+    removedAt: status === 'REMOVED' ? new Date() : null,
+    notes: notes ?? undefined,
+  };
+}
+
+async function listEventAdmins(eventId: string) {
+  return prisma.eventMember.findMany({
+    where: { eventId, role: 'EVENT_ADMIN', status: { in: [...ACTIVE_MEMBER_STATUSES] } },
+    include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+    orderBy: { assignedAt: 'desc' },
+  });
+}
+
+async function assignEventAdminToEvent(
+  eventId: string,
+  actor: User,
+  input: { userId?: string; email?: string; notes?: string }
+) {
+  const { userId, email, notes } = input;
+  const targetUser = userId
+    ? await prisma.user.findUnique({ where: { id: String(userId) } })
+    : await prisma.user.findUnique({ where: { email: String(email) } });
+
+  if (!targetUser) throw new Error('USER_NOT_FOUND');
+
+  return prisma.$transaction(async (tx) => {
+    const membership = await tx.eventMember.upsert({
+      where: { eventId_userId_role: { eventId, userId: targetUser.id, role: 'EVENT_ADMIN' } },
+      create: {
+        eventId,
+        userId: targetUser.id,
+        role: 'EVENT_ADMIN',
+        status: 'ACTIVE',
+        assignedByUserId: actor.id,
+        approvedAt: new Date(),
+        notes: notes ?? null,
+      },
+      update: {
+        status: 'ACTIVE',
+        assignedByUserId: actor.id,
+        assignedAt: new Date(),
+        approvedAt: new Date(),
+        rejectedAt: null,
+        removedAt: null,
+        notes: notes ?? null,
+      },
+      include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+    });
+
+    await trackAnalyticsEvent(tx, {
+      type: 'EVENT_ADMIN_ASSIGNED',
+      userId: targetUser.id,
+      eventId,
+      meta: { assignedByUserId: actor.id },
+    });
+
+    return membership;
+  });
 }
 
 adminRouter.get('/events', async (req, res) => {
@@ -130,6 +205,7 @@ adminRouter.post('/events', requirePlatformAdmin, async (req, res) => {
         ...parsed.data,
         startsAt: new Date(parsed.data.startsAt),
         endsAt: new Date(parsed.data.endsAt),
+        registrationOpensAt: toDate(parsed.data.registrationOpensAt),
         registrationDeadline: toDate(parsed.data.registrationDeadline),
         coverImageUrl: parsed.data.coverImageUrl || null,
         conditions: parsed.data.conditions || null,
@@ -169,6 +245,7 @@ adminRouter.patch('/events/:id', async (req, res) => {
   const data: Record<string, unknown> = { ...parsed.data };
   if (parsed.data.startsAt) data['startsAt'] = new Date(parsed.data.startsAt);
   if (parsed.data.endsAt) data['endsAt'] = new Date(parsed.data.endsAt);
+  if (parsed.data.registrationOpensAt !== undefined) data['registrationOpensAt'] = toDate(parsed.data.registrationOpensAt);
   if (parsed.data.registrationDeadline !== undefined) data['registrationDeadline'] = toDate(parsed.data.registrationDeadline);
   if (parsed.data.coverImageUrl !== undefined) data['coverImageUrl'] = parsed.data.coverImageUrl || null;
   if (parsed.data.conditions !== undefined) data['conditions'] = parsed.data.conditions || null;
@@ -195,6 +272,22 @@ adminRouter.get('/events/:id/participants', async (req, res) => {
     orderBy: { assignedAt: 'desc' },
   });
   res.json({ participants });
+});
+
+adminRouter.get('/events/:id/members', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await assertCanManageEvent(user, eventId, res))) return;
+
+  const members = await prisma.eventMember.findMany({
+    where: { eventId, status: { not: 'REMOVED' } },
+    include: {
+      user: { select: { id: true, name: true, email: true, avatarUrl: true, city: true } },
+      assignedByUser: { select: { id: true, name: true, email: true } },
+    },
+    orderBy: [{ role: 'asc' }, { assignedAt: 'desc' }],
+  });
+  res.json({ members });
 });
 
 // Backwards-compatible endpoint name used by the current web admin table.
@@ -236,49 +329,49 @@ adminRouter.get('/events/:id/event-admins', async (req, res) => {
   const eventId = req.params['id']!;
   if (!(await assertCanManageEvent(user, eventId, res))) return;
 
-  const eventAdmins = await prisma.eventMember.findMany({
-    where: { eventId, role: 'EVENT_ADMIN', status: { in: [...ACTIVE_MEMBER_STATUSES] } },
-    include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
-    orderBy: { assignedAt: 'desc' },
-  });
+  const eventAdmins = await listEventAdmins(eventId);
   res.json({ eventAdmins });
+});
+
+// URL from the MVP spec.
+adminRouter.get('/events/:id/admins', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await assertCanManageEvent(user, eventId, res))) return;
+
+  const eventAdmins = await listEventAdmins(eventId);
+  res.json({ eventAdmins, admins: eventAdmins });
 });
 
 adminRouter.post('/events/:id/event-admins', requirePlatformAdmin, async (req, res) => {
   const eventId = String(req.params['id']);
   const actor = (req as any).user as User;
-  const { userId, email, notes } = req.body;
-  const targetUser = userId
-    ? await prisma.user.findUnique({ where: { id: String(userId) } })
-    : await prisma.user.findUnique({ where: { email: String(email) } });
-
-  if (!targetUser) {
-    res.status(404).json({ error: 'User not found' });
-    return;
+  try {
+    const membership = await assignEventAdminToEvent(eventId, actor, req.body);
+    res.status(201).json({ membership });
+  } catch (error: any) {
+    if (error.message === 'USER_NOT_FOUND') {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    throw error;
   }
+});
 
-  const membership = await prisma.eventMember.upsert({
-    where: { eventId_userId_role: { eventId, userId: targetUser.id, role: 'EVENT_ADMIN' } },
-    create: {
-      eventId,
-      userId: targetUser.id,
-      role: 'EVENT_ADMIN',
-      status: 'ACTIVE',
-      assignedByUserId: actor.id,
-      approvedAt: new Date(),
-      notes: notes ?? null,
-    },
-    update: {
-      status: 'ACTIVE',
-      assignedByUserId: actor.id,
-      assignedAt: new Date(),
-      approvedAt: new Date(),
-      notes: notes ?? null,
-    },
-    include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
-  });
-
-  res.status(201).json({ membership });
+// URL from the MVP spec.
+adminRouter.post('/events/:id/admins', requirePlatformAdmin, async (req, res) => {
+  const eventId = String(req.params['id']);
+  const actor = (req as any).user as User;
+  try {
+    const membership = await assignEventAdminToEvent(eventId, actor, req.body);
+    res.status(201).json({ membership });
+  } catch (error: any) {
+    if (error.message === 'USER_NOT_FOUND') {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    throw error;
+  }
 });
 
 adminRouter.delete('/events/:id/event-admins/:userId', requirePlatformAdmin, async (req, res) => {
@@ -296,7 +389,29 @@ adminRouter.delete('/events/:id/event-admins/:userId', requirePlatformAdmin, asy
 
   await prisma.eventMember.update({
     where: { id: membership.id },
-    data: { status: 'REMOVED' }
+    data: { status: 'REMOVED', removedAt: new Date() }
+  });
+
+  res.json({ ok: true });
+});
+
+// URL from the MVP spec.
+adminRouter.delete('/events/:id/admins/:userId', requirePlatformAdmin, async (req, res) => {
+  const eventId = String(req.params['id']);
+  const userId = String(req.params['userId']);
+
+  const membership = await prisma.eventMember.findUnique({
+    where: { eventId_userId_role: { eventId, userId, role: 'EVENT_ADMIN' } }
+  });
+
+  if (!membership) {
+    res.status(404).json({ error: 'Event admin not found' });
+    return;
+  }
+
+  await prisma.eventMember.update({
+    where: { id: membership.id },
+    data: { status: 'REMOVED', removedAt: new Date() }
   });
 
   res.json({ ok: true });
@@ -323,6 +438,28 @@ adminRouter.get('/events/:id/volunteers', async (req, res) => {
   res.json({ volunteers });
 });
 
+// URL from the MVP spec.
+adminRouter.get('/events/:id/volunteer-applications', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await assertCanManageEvent(user, eventId, res))) return;
+
+  const status = req.query['status'] as EventMemberStatus | undefined;
+  const volunteerApplications = await prisma.eventMember.findMany({
+    where: {
+      eventId,
+      role: 'VOLUNTEER',
+      ...(status ? { status } : {}),
+    },
+    include: {
+      user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+      assignedByUser: { select: { id: true, name: true, email: true } },
+    },
+    orderBy: { assignedAt: 'desc' },
+  });
+  res.json({ volunteerApplications, volunteers: volunteerApplications });
+});
+
 adminRouter.patch('/events/:id/volunteers/:memberId', async (req, res) => {
   const user = (req as any).user as User;
   const eventId = req.params['id']!;
@@ -335,17 +472,78 @@ adminRouter.patch('/events/:id/volunteers/:memberId', async (req, res) => {
     return;
   }
 
-  const membership = await prisma.eventMember.update({
-    where: { id: memberId },
-    data: {
-      status,
-      approvedAt: ['APPROVED', 'ACTIVE'].includes(status) ? new Date() : null,
-      notes: req.body?.notes ?? undefined,
-    },
-    include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+  const membership = await prisma.$transaction(async (tx) => {
+    const updated = await tx.eventMember.update({
+      where: { id: memberId },
+      data: volunteerDecisionData(status, req.body?.notes),
+      include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+    });
+
+    if (status === 'APPROVED' || status === 'ACTIVE') {
+      await trackAnalyticsEvent(tx, {
+        type: 'VOLUNTEER_APPLICATION_APPROVED',
+        userId: updated.userId,
+        eventId,
+        meta: { decidedByUserId: user.id },
+      });
+    }
+    if (status === 'REJECTED') {
+      await trackAnalyticsEvent(tx, {
+        type: 'VOLUNTEER_APPLICATION_REJECTED',
+        userId: updated.userId,
+        eventId,
+        meta: { decidedByUserId: user.id },
+      });
+    }
+
+    return updated;
   });
 
   res.json({ membership });
+});
+
+async function decideVolunteerByUserId(req: any, res: any, status: 'APPROVED' | 'REJECTED') {
+  const user = req.user as User;
+  const eventId = String(req.params['id']);
+  const targetUserId = String(req.params['userId']);
+  if (!(await assertCanManageEvent(user, eventId, res))) return;
+
+  const existing = await prisma.eventMember.findUnique({
+    where: { eventId_userId_role: { eventId, userId: targetUserId, role: 'VOLUNTEER' } },
+  });
+  if (!existing) {
+    res.status(404).json({ error: 'Volunteer application not found' });
+    return;
+  }
+
+  const membership = await prisma.$transaction(async (tx) => {
+    const updated = await tx.eventMember.update({
+      where: { id: existing.id },
+      data: volunteerDecisionData(status, req.body?.notes),
+      include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+    });
+
+    await trackAnalyticsEvent(tx, {
+      type: status === 'APPROVED'
+        ? 'VOLUNTEER_APPLICATION_APPROVED'
+        : 'VOLUNTEER_APPLICATION_REJECTED',
+      userId: targetUserId,
+      eventId,
+      meta: { decidedByUserId: user.id },
+    });
+
+    return updated;
+  });
+
+  res.json({ membership });
+}
+
+adminRouter.post('/events/:id/volunteer-applications/:userId/approve', async (req, res) => {
+  await decideVolunteerByUserId(req as any, res as any, 'APPROVED');
+});
+
+adminRouter.post('/events/:id/volunteer-applications/:userId/reject', async (req, res) => {
+  await decideVolunteerByUserId(req as any, res as any, 'REJECTED');
 });
 
 adminRouter.get('/events/:id/analytics', async (req, res) => {
@@ -397,6 +595,7 @@ adminRouter.get('/users', requirePlatformAdmin, async (req, res) => {
         avatarUrl: true,
         city: true,
         registeredAt: true,
+        createdAt: true,
         lastLoginAt: true,
         accounts: { select: { id: true, provider: true } },
         _count: { select: { eventMemberships: true } },
@@ -437,12 +636,24 @@ adminRouter.patch('/users/:id/role', requireSuperAdmin, async (req, res) => {
 });
 
 adminRouter.get('/admins', requireSuperAdmin, async (_req, res) => {
-  const admins = await prisma.user.findMany({
-    where: { role: { in: ['PLATFORM_ADMIN', 'SUPER_ADMIN'] } },
-    select: { id: true, email: true, name: true, role: true, isActive: true, registeredAt: true },
-    orderBy: { registeredAt: 'desc' },
-  });
-  res.json({ admins });
+  const [admins, eventAdmins] = await Promise.all([
+    prisma.user.findMany({
+      where: { role: { in: ['PLATFORM_ADMIN', 'SUPER_ADMIN'] } },
+      select: { id: true, email: true, name: true, avatarUrl: true, role: true, isActive: true, registeredAt: true },
+      orderBy: { registeredAt: 'desc' },
+    }),
+    prisma.eventMember.findMany({
+      where: { role: 'EVENT_ADMIN', status: { in: [...ACTIVE_MEMBER_STATUSES] } },
+      include: {
+        user: { select: { id: true, email: true, name: true, avatarUrl: true, isActive: true } },
+        event: { select: { id: true, slug: true, title: true, status: true } },
+        assignedByUser: { select: { id: true, email: true, name: true } },
+      },
+      orderBy: { assignedAt: 'desc' },
+    }),
+  ]);
+
+  res.json({ admins, platformAdmins: admins, eventAdmins });
 });
 
 adminRouter.get('/volunteers', requirePlatformAdmin, async (_req, res) => {
@@ -535,6 +746,7 @@ adminRouter.get('/analytics', requirePlatformAdmin, async (_req, res) => {
     totalEvents,
     totalRegistrations,
     totalEventViews: totalViews,
+    conversionViewToRegistration: totalViews > 0 ? totalRegistrations / totalViews : 0,
     registrationsByProvider: providerCounts(registrationsByProvider),
     loginsByProvider: providerCounts(loginsByProvider),
     topViewedEvents,

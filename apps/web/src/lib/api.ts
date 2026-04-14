@@ -62,7 +62,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export const authApi = {
-  register: (body: { email: string; password: string; name: string }) =>
+  register: (body: { email: string; password: string; name?: string }) =>
     request<{ user: any; accessToken: string }>('/api/auth/register', { method: 'POST', body }),
 
   login: (body: { email: string; password: string }) =>
@@ -77,7 +77,7 @@ export const authApi = {
   me: () =>
     request<{ user: any }>('/api/auth/me', { auth: true }),
 
-  updateProfile: (body: { name?: string; bio?: string; city?: string; phone?: string; avatarUrl?: string }) =>
+  updateProfile: (body: { name?: string; bio?: string; city?: string; phone?: string; telegram?: string; birthDate?: string; avatarUrl?: string }) =>
     request<{ user: any }>('/api/auth/profile', { method: 'PATCH', auth: true, body }),
 
   loginWithGoogle: (payload: { providerAccountId: string; providerEmail?: string; providerUsername?: string }) =>
@@ -101,23 +101,50 @@ export const eventsApi = {
   get: (slug: string) =>
     request<{ event: any }>(`/api/events/${slug}`, { auth: true }),
 
-  register: (eventId: string) =>
-    request<{ registration: any }>(`/api/events/${eventId}/register`, { method: 'POST', auth: true }),
+  register: (eventId: string, answers?: Record<string, unknown>) =>
+    request<{ registration: any }>(`/api/events/${eventId}/register`, { method: 'POST', auth: true, body: { answers: answers ?? {} } }),
+
+  registrationPrecheck: (eventId: string, answers?: Record<string, unknown>) =>
+    request<{ precheck: any }>(`/api/events/${eventId}/registration/precheck`, { method: 'POST', auth: true, body: { answers: answers ?? {} } }),
+
+  saveRegistrationAnswers: (eventId: string, answers: Record<string, unknown>) =>
+    request<{ answers: any }>(`/api/events/${eventId}/registration-answers`, { method: 'PATCH', auth: true, body: { answers } }),
+
+  unregister: (eventId: string) =>
+    request<{ membership: any }>(`/api/events/${eventId}/register`, { method: 'DELETE', auth: true }),
+
+  membership: (eventId: string) =>
+    request<{ membership: any }>(`/api/events/${eventId}/membership`, { auth: true }),
 
   applyVolunteer: (eventId: string, notes?: string) =>
-    request<{ membership: any }>(`/api/events/${eventId}/volunteer/apply`, { method: 'POST', auth: true, body: { notes } }),
+    request<{ membership: any }>(`/api/events/${eventId}/volunteer-application`, { method: 'POST', auth: true, body: { notes } }),
+
+  myVolunteerApplication: (eventId: string) =>
+    request<{ volunteerApplication: any }>(`/api/events/${eventId}/volunteer-application/me`, { auth: true }),
 
   listTeams: (eventId: string) =>
     request<{ teams: any[] }>(`/api/events/${eventId}/teams`, { auth: true }),
 
-  createTeam: (eventId: string, body: { name: string; description?: string }) =>
+  getTeam: (eventId: string, teamId: string) =>
+    request<{ team: any }>(`/api/events/${eventId}/teams/${teamId}`, { auth: true }),
+
+  createTeam: (eventId: string, body: { name: string; description?: string; answers?: Record<string, unknown> }) =>
     request<{ team: any }>(`/api/events/${eventId}/teams`, { method: 'POST', auth: true, body }),
 
-  joinTeam: (eventId: string, teamId: string, code?: string) =>
-    request<{ member: any }>(`/api/events/${eventId}/teams/${teamId}/join`, { method: 'POST', auth: true, body: { code } }),
+  joinTeam: (eventId: string, teamId: string, code?: string, answers?: Record<string, unknown>) =>
+    request<{ member: any }>(`/api/events/${eventId}/teams/${teamId}/join`, { method: 'POST', auth: true, body: { code, answers: answers ?? {} } }),
+
+  joinTeamByCode: (eventId: string, code: string, answers?: Record<string, unknown>) =>
+    request<{ member: any }>(`/api/events/${eventId}/teams/join-by-code`, { method: 'POST', auth: true, body: { code, answers: answers ?? {} } }),
 
   myEvents: () =>
     request<{ events: any[] }>('/api/me/events', { auth: true }),
+
+  myTeams: () =>
+    request<{ teams: any[] }>('/api/me/teams', { auth: true }),
+
+  myVolunteerApplications: () =>
+    request<{ applications: any[] }>('/api/me/volunteer-applications', { auth: true }),
 };
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
@@ -138,13 +165,13 @@ export const adminApi = {
     request<{ ok: boolean }>(`/api/admin/events/${id}`, { method: 'DELETE', auth: true }),
 
   listEventAdmins: (eventId: string) =>
-    request<{ eventAdmins: any[] }>(`/api/admin/events/${eventId}/event-admins`, { auth: true }),
+    request<{ eventAdmins: any[] }>(`/api/admin/events/${eventId}/admins`, { auth: true }),
 
   assignEventAdmin: (eventId: string, body: { userId?: string; email?: string; notes?: string }) =>
-    request<{ membership: any }>(`/api/admin/events/${eventId}/event-admins`, { method: 'POST', auth: true, body }),
+    request<{ membership: any }>(`/api/admin/events/${eventId}/admins`, { method: 'POST', auth: true, body }),
 
   removeEventAdmin: (eventId: string, userId: string) =>
-    request<{ ok: boolean }>(`/api/admin/events/${eventId}/event-admins/${userId}`, { method: 'DELETE', auth: true }),
+    request<{ ok: boolean }>(`/api/admin/events/${eventId}/admins/${userId}`, { method: 'DELETE', auth: true }),
 
   listEventVolunteers: (eventId: string, status?: string) => {
     const qs = status ? '?' + new URLSearchParams({ status }).toString() : '';
@@ -156,6 +183,9 @@ export const adminApi = {
 
   listEventParticipants: (eventId: string) =>
     request<{ participants: any[] }>(`/api/admin/events/${eventId}/participants`, { auth: true }),
+
+  listEventMembers: (eventId: string) =>
+    request<{ members: any[] }>(`/api/admin/events/${eventId}/members`, { auth: true }),
 
   listEventTeams: (eventId: string) =>
     request<{ teams: any[] }>(`/api/admin/events/${eventId}/teams`, { auth: true }),
@@ -172,7 +202,7 @@ export const adminApi = {
     request<{ user: any }>(`/api/admin/users/${id}/role`, { method: 'PATCH', auth: true, body: { role } }),
 
   listAdmins: () =>
-    request<{ admins: any[] }>('/api/admin/admins', { auth: true }),
+    request<{ admins: any[]; platformAdmins: any[]; eventAdmins: any[] }>('/api/admin/admins', { auth: true }),
 
   listVolunteers: () =>
     request<{ volunteers: any[] }>('/api/admin/volunteers', { auth: true }),
@@ -187,7 +217,10 @@ export const analyticsApi = {
   track: (type: string, payload?: Record<string, unknown>) =>
     fetch(`${BASE_URL}/api/analytics/track`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(_accessToken ? { Authorization: `Bearer ${_accessToken}` } : {}),
+      },
       credentials: 'include',
       body: JSON.stringify({ type, ...payload }),
     }).catch(() => {}), // fire-and-forget, never throw

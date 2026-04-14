@@ -27,7 +27,9 @@ async function main() {
     logger.info('Database connected successfully', { action: 'database_connected' });
   } catch (error) {
     logger.error('Database connection failed', error, { action: 'database_failed' });
-    throw error;
+    logger.warn('Starting API in degraded mode; /ready will return 503 until the database is reachable', {
+      action: 'database_degraded_startup',
+    });
   }
 
   const app = createApp();

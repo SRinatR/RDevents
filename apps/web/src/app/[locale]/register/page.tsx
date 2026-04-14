@@ -8,9 +8,9 @@ import { useAuth } from '../../../hooks/useAuth';
 import { ApiError } from '../../../lib/api';
 import { useRouteLocale } from '../../../hooks/useRouteParams';
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2;
 
-const TOTAL_STEPS = 3;
+const TOTAL_STEPS = 2;
 
 export default function RegisterPage() {
   const t = useTranslations();
@@ -19,7 +19,6 @@ export default function RegisterPage() {
   const locale = useRouteLocale();
 
   const [step, setStep]         = useState<Step>(1);
-  const [name, setName]         = useState('');
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -30,11 +29,9 @@ export default function RegisterPage() {
 
   /* ── Step validation ── */
   function validateStep(): string {
-    if (step === 1 && name.trim().length < 2)
-      return isRu ? 'Имя должно быть не короче 2 символов' : 'Name must be at least 2 characters';
-    if (step === 2 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    if (step === 1 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
       return isRu ? 'Введите корректный email' : 'Please enter a valid email';
-    if (step === 3 && password.length < 8)
+    if (step === 2 && password.length < 8)
       return isRu ? 'Пароль должен быть не короче 8 символов' : 'Password must be at least 8 characters';
     return '';
   }
@@ -58,7 +55,7 @@ export default function RegisterPage() {
     setError('');
     setLoading(true);
     try {
-      await register(email, password, name);
+      await register(email, password);
       router.push(`/${locale}/cabinet`);
     } catch (err) {
       if (err instanceof ApiError) {
@@ -84,8 +81,8 @@ export default function RegisterPage() {
 
   /* ── Step meta ── */
   const steps = isRu
-    ? [{ label: 'Имя', icon: '👤' }, { label: 'Email', icon: '📧' }, { label: 'Пароль', icon: '🔒' }]
-    : [{ label: 'Name', icon: '👤' }, { label: 'Email', icon: '📧' }, { label: 'Password', icon: '🔒' }];
+    ? [{ label: 'Email', icon: '📧' }, { label: 'Пароль', icon: '🔒' }]
+    : [{ label: 'Email', icon: '📧' }, { label: 'Password', icon: '🔒' }];
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
@@ -222,38 +219,20 @@ export default function RegisterPage() {
           {/* Step title */}
           <div style={{ marginBottom: 28 }}>
             <h1 style={{ margin: '0 0 6px', fontSize: '1.75rem', fontWeight: 900, letterSpacing: '-0.03em', color: '#0f0f1a' }}>
-              {step === 1 && (isRu ? 'Как вас зовут?' : 'What\'s your name?')}
-              {step === 2 && (isRu ? 'Ваш email' : 'Your email')}
-              {step === 3 && (isRu ? 'Создайте пароль' : 'Create a password')}
+              {step === 1 && (isRu ? 'Ваш email' : 'Your email')}
+              {step === 2 && (isRu ? 'Создайте пароль' : 'Create a password')}
             </h1>
             <p style={{ margin: 0, fontSize: '0.92rem', color: '#6b6b8d' }}>
-              {step === 1 && (isRu ? 'Это имя будет отображаться на вашем профиле' : 'This name will be shown on your profile')}
-              {step === 2 && (isRu ? 'Мы никогда не передаём данные третьим лицам' : 'We never share your data with third parties')}
-              {step === 3 && (isRu ? 'Минимум 8 символов. Советуем смешать буквы и цифры' : 'At least 8 characters. Mix letters and numbers')}
+              {step === 1 && (isRu ? 'Создадим лёгкий аккаунт без длинной анкеты' : 'Create a lightweight account without a long form')}
+              {step === 2 && (isRu ? 'Минимум 8 символов. Профиль можно заполнить позже' : 'At least 8 characters. You can complete your profile later')}
             </p>
           </div>
 
           <form onSubmit={step < TOTAL_STEPS ? (e) => { e.preventDefault(); handleNext(); } : handleSubmit}
             style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-            {/* ── Step 1: Name ── */}
+            {/* ── Step 1: Email ── */}
             {step === 1 && (
-              <div>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder={isRu ? 'Александр Иванов' : 'Alex Johnson'}
-                  autoFocus
-                  style={inputStyle}
-                  onFocus={e => { e.target.style.borderColor = '#6366f1'; e.target.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.15)'; }}
-                  onBlur={e  => { e.target.style.borderColor = '#e4e4f0'; e.target.style.boxShadow = 'none'; }}
-                />
-              </div>
-            )}
-
-            {/* ── Step 2: Email ── */}
-            {step === 2 && (
               <div>
                 <input
                   type="email"
@@ -268,8 +247,8 @@ export default function RegisterPage() {
               </div>
             )}
 
-            {/* ── Step 3: Password ── */}
-            {step === 3 && (
+            {/* ── Step 2: Password ── */}
+            {step === 2 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ position: 'relative' }}>
                   <input
@@ -384,13 +363,7 @@ export default function RegisterPage() {
               fontSize: '0.85rem',
               color: '#6b6b8d',
             }}>
-              {step >= 2 && name && (
-                <div style={{ display: 'flex', gap: 8, marginBottom: step >= 3 && email ? 6 : 0 }}>
-                  <span>👤</span>
-                  <span style={{ fontWeight: 600, color: '#3d3d5c' }}>{name}</span>
-                </div>
-              )}
-              {step >= 3 && email && (
+              {email && (
                 <div style={{ display: 'flex', gap: 8 }}>
                   <span>📧</span>
                   <span style={{ fontWeight: 600, color: '#3d3d5c' }}>{email}</span>
