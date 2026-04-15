@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../../hooks/useAuth';
 import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
+import { EmptyState, FieldSelect, LoadingLines, Notice, PageHeader, Panel, SectionHeader, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
 
 const STATUS_FILTERS = ['PENDING', 'ACTIVE', 'REJECTED', 'REMOVED'] as const;
 
@@ -31,7 +32,7 @@ export default function AdminVolunteersPage() {
     if (!user || !isAdmin) return;
     setLoadingData(true);
     adminApi.listEvents({ limit: 100 })
-      .then(result => {
+      .then((result) => {
         setEvents(result.data);
         setSelectedEventId(result.data[0]?.id ?? '');
       })
@@ -43,7 +44,7 @@ export default function AdminVolunteersPage() {
     if (!selectedEventId) return;
     setLoadingVolunteers(true);
     adminApi.listEventVolunteers(selectedEventId, status)
-      .then(result => setVolunteers(result.volunteers))
+      .then((result) => setVolunteers(result.volunteers))
       .catch(() => setVolunteers([]))
       .finally(() => setLoadingVolunteers(false));
   }, [selectedEventId, status]);
@@ -62,98 +63,68 @@ export default function AdminVolunteersPage() {
     }
   }
 
-  if (loading || !user || !isAdmin) return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
-    </div>
-  );
+  if (loading || !user || !isAdmin) return <div className="admin-loading-screen"><div className="spinner" /></div>;
 
   return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', padding: '40px 0 60px' }}>
-      <div className="container">
-        <div style={{ marginBottom: 32 }}>
-          <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(1.8rem, 4vw, 2.4rem)', fontWeight: 900, letterSpacing: 0 }}>
-            {t('admin.volunteers')}
-          </h1>
-          <p style={{ margin: 0, color: 'var(--color-text-muted)' }}>
-            Review volunteer applications for events you manage.
-          </p>
-        </div>
+    <div className="signal-page-shell">
+      <PageHeader title={t('admin.volunteers')} subtitle={locale === 'ru' ? 'Модерация заявок волонтёров по событиям' : 'Volunteer moderation by event scope'} />
 
-        {loadingData ? (
-          <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
-        ) : events.length === 0 ? (
-          <div style={{ padding: 48, borderRadius: 'var(--radius-2xl)', border: '1px dashed var(--color-border)', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-            No manageable events yet.
-          </div>
+      <Panel>
+        <SectionHeader title={locale === 'ru' ? 'Очередь модерации' : 'Moderation queue'} subtitle={locale === 'ru' ? 'Фильтрация по событию и статусу' : 'Filter by event and status'} />
+
+        {loadingData ? <LoadingLines rows={4} /> : events.length === 0 ? (
+          <EmptyState title={locale === 'ru' ? 'Нет событий для модерации' : 'No manageable events yet'} description={locale === 'ru' ? 'После создания события здесь появится очередь волонтёров.' : 'Volunteer queue appears once events are available.'} />
         ) : (
           <>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
-              <select
-                value={selectedEventId}
-                onChange={event => setSelectedEventId(event.target.value)}
-                style={{ minWidth: 280, height: 42, padding: '0 14px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', background: 'white', fontWeight: 700 }}
-              >
-                {events.map(event => (
+            <ToolbarRow>
+              <FieldSelect value={selectedEventId} onChange={(event) => setSelectedEventId(event.target.value)} style={{ minWidth: 260 }}>
+                {events.map((event) => (
                   <option key={event.id} value={event.id}>{event.title}</option>
                 ))}
-              </select>
+              </FieldSelect>
+              <FieldSelect value={status} onChange={(event) => setStatus(event.target.value)} style={{ width: 180 }}>
+                {STATUS_FILTERS.map((item) => <option key={item} value={item}>{item}</option>)}
+              </FieldSelect>
+              {selectedEventId ? <Link href={`/${locale}/admin/events/${selectedEventId}/edit`} className="btn btn-secondary btn-sm">{t('common.edit')} event</Link> : null}
+              <StatusBadge tone="info">{volunteers.length} records</StatusBadge>
+            </ToolbarRow>
 
-              <select
-                value={status}
-                onChange={event => setStatus(event.target.value)}
-                style={{ height: 42, padding: '0 14px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', background: 'white', fontWeight: 700 }}
-              >
-                {STATUS_FILTERS.map(item => <option key={item} value={item}>{item}</option>)}
-              </select>
-
-              {selectedEventId && (
-                <Link href={`/${locale}/admin/events/${selectedEventId}/edit`} style={{ display: 'inline-flex', alignItems: 'center', height: 42, padding: '0 16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', fontWeight: 700 }}>
-                  {t('common.edit')} event
-                </Link>
-              )}
-            </div>
-
-            {loadingVolunteers ? (
-              <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
-            ) : volunteers.length === 0 ? (
-              <div style={{ padding: 40, borderRadius: 'var(--radius-2xl)', border: '1px dashed var(--color-border)', color: 'var(--color-text-muted)', textAlign: 'center' }}>
-                No volunteer requests with status {status}.
-              </div>
+            {loadingVolunteers ? <LoadingLines rows={5} /> : volunteers.length === 0 ? (
+              <EmptyState title={locale === 'ru' ? 'Очередь пуста' : 'Queue is empty'} description={locale === 'ru' ? `Нет заявок со статусом ${status}.` : `No volunteer entries with status ${status}.`} />
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div className="signal-stack">
                 {volunteers.map((membership: any) => (
-                  <article key={membership.id} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 18, borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
-                    <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--color-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, flexShrink: 0 }}>
-                      {membership.user?.avatarUrl ? <img src={membership.user.avatarUrl} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : membership.user?.name?.charAt(0)?.toUpperCase()}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                        <strong>{membership.user?.name}</strong>
-                        <span style={{ padding: '2px 8px', borderRadius: 'var(--radius-lg)', background: 'rgba(28,100,242,0.08)', color: 'var(--color-primary)', fontSize: '0.75rem', fontWeight: 800 }}>
-                          {membership.status}
-                        </span>
+                  <article key={membership.id} className="signal-ranked-item">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span className="signal-avatar">
+                        {membership.user?.avatarUrl ? <img src={membership.user.avatarUrl} alt="" /> : (membership.user?.name || membership.user?.email || '?').charAt(0).toUpperCase()}
+                      </span>
+                      <div>
+                        <strong>{membership.user?.name || membership.user?.email}</strong>
+                        <div className="signal-muted">{membership.user?.email}</div>
+                        {membership.notes ? <div className="signal-muted">{membership.notes}</div> : null}
                       </div>
-                      <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>{membership.user?.email}</div>
-                      {membership.notes && <p style={{ margin: '8px 0 0', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>{membership.notes}</p>}
                     </div>
-                    {membership.status === 'PENDING' && (
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button onClick={() => updateStatus(membership.id, 'ACTIVE')} disabled={actionId === membership.id} style={{ padding: '8px 14px', borderRadius: 'var(--radius-lg)', border: '1px solid #16a34a', background: '#16a34a', color: '#fff', fontWeight: 800, cursor: 'pointer', opacity: actionId === membership.id ? 0.6 : 1 }}>
-                          Approve
-                        </button>
-                        <button onClick={() => updateStatus(membership.id, 'REJECTED')} disabled={actionId === membership.id} style={{ padding: '8px 14px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-danger)', background: 'white', color: 'var(--color-danger)', fontWeight: 800, cursor: 'pointer', opacity: actionId === membership.id ? 0.6 : 1 }}>
-                          Reject
-                        </button>
-                      </div>
-                    )}
+                    <ToolbarRow>
+                      <StatusBadge tone={membership.status === 'ACTIVE' ? 'success' : membership.status === 'REJECTED' ? 'danger' : membership.status === 'PENDING' ? 'warning' : 'neutral'}>{membership.status}</StatusBadge>
+                      {membership.status === 'PENDING' ? (
+                        <>
+                          <button onClick={() => updateStatus(membership.id, 'ACTIVE')} disabled={actionId === membership.id} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Одобрить' : 'Approve'}</button>
+                          <button onClick={() => updateStatus(membership.id, 'REJECTED')} disabled={actionId === membership.id} className="btn btn-danger btn-sm">{locale === 'ru' ? 'Отклонить' : 'Reject'}</button>
+                        </>
+                      ) : null}
+                    </ToolbarRow>
                   </article>
                 ))}
               </div>
             )}
           </>
         )}
-      </div>
+      </Panel>
+
+      <Notice tone="info">
+        {locale === 'ru' ? 'Страница использует текущие API-статусы и не имитирует дополнительные backend-состояния.' : 'This module uses current API statuses and does not simulate unsupported backend states.'}
+      </Notice>
     </div>
   );
 }

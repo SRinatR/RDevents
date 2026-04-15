@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../../hooks/useAuth';
 import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, Notice, PageHeader, Panel, SectionHeader, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
 
 export default function AdminAdminsPage() {
   const t = useTranslations();
@@ -39,7 +40,7 @@ export default function AdminAdminsPage() {
       setPlatformAdmins(adminsResult.platformAdmins ?? adminsResult.admins ?? []);
       setEventAdmins(adminsResult.eventAdmins ?? []);
       setEvents(eventsResult.data);
-      setSelectedEventId(current => current || eventsResult.data[0]?.id || '');
+      setSelectedEventId((current) => current || eventsResult.data[0]?.id || '');
     } catch (err: any) {
       setError(err.message || 'Failed to load admins');
     } finally {
@@ -51,8 +52,8 @@ export default function AdminAdminsPage() {
     if (user && isSuperAdmin) loadData();
   }, [user, isSuperAdmin]);
 
-  async function handleAssign(e: FormEvent) {
-    e.preventDefault();
+  async function handleAssign(event: FormEvent) {
+    event.preventDefault();
     if (!selectedEventId || !email.trim()) return;
     setActionId('assign');
     setError('');
@@ -61,7 +62,7 @@ export default function AdminAdminsPage() {
       await adminApi.assignEventAdmin(selectedEventId, { email: email.trim(), notes: notes.trim() || undefined });
       setEmail('');
       setNotes('');
-      setSuccess('Event admin assigned');
+      setSuccess(locale === 'ru' ? 'Назначение выполнено' : 'Event admin assigned');
       await loadData();
     } catch (err: any) {
       setError(err.message || 'Failed to assign event admin');
@@ -71,12 +72,13 @@ export default function AdminAdminsPage() {
   }
 
   async function handleRemoveEventAdmin(membership: any) {
-    if (!confirm('Remove this event admin assignment?')) return;
+    if (!confirm(locale === 'ru' ? 'Удалить назначение администратора события?' : 'Remove this event admin assignment?')) return;
     setActionId(membership.id);
     setError('');
     try {
       await adminApi.removeEventAdmin(membership.eventId, membership.userId);
-      setEventAdmins(prev => prev.filter(item => item.id !== membership.id));
+      setEventAdmins((previous) => previous.filter((entry) => entry.id !== membership.id));
+      setSuccess(locale === 'ru' ? 'Назначение удалено' : 'Assignment removed');
     } catch (err: any) {
       setError(err.message || 'Failed to remove event admin');
     } finally {
@@ -85,12 +87,13 @@ export default function AdminAdminsPage() {
   }
 
   async function handleRemovePlatformAdmin(userId: string) {
-    if (!confirm('Remove platform admin role from this user?')) return;
+    if (!confirm(locale === 'ru' ? 'Снять роль platform admin у пользователя?' : 'Remove platform admin role from this user?')) return;
     setActionId(userId);
     setError('');
     try {
       await adminApi.updateUserRole(userId, 'USER');
-      setPlatformAdmins(prev => prev.filter(admin => admin.id !== userId));
+      setPlatformAdmins((previous) => previous.filter((admin) => admin.id !== userId));
+      setSuccess(locale === 'ru' ? 'Роль обновлена' : 'Role updated');
     } catch (err: any) {
       setError(err.message || 'Failed to update role');
     } finally {
@@ -98,125 +101,80 @@ export default function AdminAdminsPage() {
     }
   }
 
-  if (loading || !user || !isSuperAdmin) return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
-    </div>
-  );
+  if (loading || !user || !isSuperAdmin) return <div className="admin-loading-screen"><div className="spinner" /></div>;
 
   return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', padding: '40px 0 60px' }}>
-      <div className="container">
-        <div style={{ marginBottom: 32 }}>
-          <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(1.8rem, 4vw, 2.4rem)', fontWeight: 900, letterSpacing: 0 }}>
-            {t('admin.admins')}
-          </h1>
-          <p style={{ margin: 0, color: 'var(--color-text-muted)' }}>
-            Event-scoped admins and platform admins
-          </p>
-        </div>
+    <div className="signal-page-shell">
+      <PageHeader title={t('admin.admins')} subtitle={locale === 'ru' ? 'Управление доступом и зонами ответственности' : 'Access control and responsibility scopes'} />
 
-        {error && <div className="alert alert-danger" style={{ marginBottom: 16 }}>{error}</div>}
-        {success && <div className="alert alert-success" style={{ marginBottom: 16 }}>{success}</div>}
+      {error ? <Notice tone="danger">{error}</Notice> : null}
+      {success ? <Notice tone="success">{success}</Notice> : null}
 
-        {loadingData ? (
-          <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
-        ) : (
-          <div style={{ display: 'grid', gap: 32 }}>
-            <section style={{ padding: 22, borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
-              <h2 style={{ margin: '0 0 16px', fontSize: '1.15rem', fontWeight: 800 }}>Assign event admin</h2>
-              <form onSubmit={handleAssign} style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.2fr) minmax(220px, 1fr)', gap: 12 }}>
-                <select
-                  value={selectedEventId}
-                  onChange={event => setSelectedEventId(event.target.value)}
-                  className="input-field"
-                  disabled={events.length === 0}
-                >
-                  {events.map(event => <option key={event.id} value={event.id}>{event.title}</option>)}
-                </select>
-                <input
-                  value={email}
-                  onChange={event => setEmail(event.target.value)}
-                  type="email"
-                  className="input-field"
-                  placeholder="organizer@example.com"
-                />
-                <input
-                  value={notes}
-                  onChange={event => setNotes(event.target.value)}
-                  className="input-field"
-                  placeholder="Internal note"
-                />
-                <button type="submit" disabled={actionId === 'assign' || !selectedEventId || !email.trim()} className="btn btn-primary">
-                  {actionId === 'assign' ? 'Assigning...' : 'Assign event admin'}
-                </button>
-              </form>
-            </section>
+      <div className="signal-two-col">
+        <Panel>
+          <SectionHeader title={locale === 'ru' ? 'Назначить администратора события' : 'Assign event admin'} subtitle={locale === 'ru' ? 'Назначение по email в выбранное событие' : 'Assign by email into selected event scope'} />
+          {loadingData ? <LoadingLines rows={4} /> : (
+            <form onSubmit={handleAssign} className="signal-stack">
+              <FieldSelect value={selectedEventId} onChange={(event) => setSelectedEventId(event.target.value)} disabled={events.length === 0}>
+                {events.length === 0 ? <option value="">No events available</option> : events.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+              </FieldSelect>
+              <FieldInput value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="organizer@example.com" />
+              <FieldInput value={notes} onChange={(event) => setNotes(event.target.value)} placeholder={locale === 'ru' ? 'Внутренняя заметка (необязательно)' : 'Internal note (optional)'} />
+              <ToolbarRow>
+                <button type="submit" disabled={actionId === 'assign' || !selectedEventId || !email.trim()} className="btn btn-primary btn-sm">{actionId === 'assign' ? '...' : locale === 'ru' ? 'Назначить' : 'Assign'}</button>
+                <StatusBadge tone="info">{eventAdmins.length} event admins</StatusBadge>
+              </ToolbarRow>
+            </form>
+          )}
+        </Panel>
 
-            <section>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>Event admins</h2>
-                <span className="badge badge-primary">{eventAdmins.length}</span>
-              </div>
-              {eventAdmins.length === 0 ? (
-                <div className="empty-state" style={{ padding: 36 }}>No event admins assigned yet.</div>
-              ) : (
-                <div style={{ display: 'grid', gap: 10 }}>
-                  {eventAdmins.map(membership => (
-                    <div key={membership.id} className="table-row">
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 800 }}>{membership.user?.name}</div>
-                        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.86rem' }}>{membership.user?.email}</div>
-                        <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.86rem', marginTop: 4 }}>
-                          {membership.event?.title}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleRemoveEventAdmin(membership)}
-                        disabled={actionId === membership.id}
-                        className="btn btn-ghost btn-sm"
-                        style={{ color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}
-                      >
-                        {actionId === membership.id ? '...' : 'Remove'}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>Platform admins</h2>
-                <span className="badge badge-primary">{platformAdmins.length}</span>
-              </div>
-              <div style={{ display: 'grid', gap: 10 }}>
-                {platformAdmins.map(admin => (
-                  <div key={admin.id} className="table-row">
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 800 }}>{admin.name}</div>
-                      <div style={{ color: 'var(--color-text-muted)', fontSize: '0.86rem' }}>{admin.email}</div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span className="badge badge-primary">{admin.role}</span>
-                      {admin.id !== user.id && admin.role !== 'SUPER_ADMIN' && (
-                        <button
-                          onClick={() => handleRemovePlatformAdmin(admin.id)}
-                          disabled={actionId === admin.id}
-                          className="btn btn-ghost btn-sm"
-                          style={{ color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}
-                        >
-                          {actionId === admin.id ? '...' : 'Remove'}
-                        </button>
-                      )}
-                    </div>
+        <Panel>
+          <SectionHeader title={locale === 'ru' ? 'Администраторы платформы' : 'Platform admins'} subtitle={locale === 'ru' ? 'Глобальные административные роли' : 'Global administrative roles'} />
+          {loadingData ? <LoadingLines rows={4} /> : platformAdmins.length === 0 ? (
+            <EmptyState title={locale === 'ru' ? 'Нет администраторов платформы' : 'No platform admins'} description={locale === 'ru' ? 'Пока нет назначенных пользователей.' : 'No users assigned yet.'} />
+          ) : (
+            <div className="signal-stack">
+              {platformAdmins.map((admin) => (
+                <div key={admin.id} className="signal-ranked-item">
+                  <div>
+                    <strong>{admin.name || admin.email}</strong>
+                    <div className="signal-muted">{admin.email}</div>
                   </div>
-                ))}
+                  <ToolbarRow>
+                    <StatusBadge tone={admin.role === 'SUPER_ADMIN' ? 'warning' : 'info'}>{admin.role}</StatusBadge>
+                    {admin.id !== user.id && admin.role !== 'SUPER_ADMIN' ? (
+                      <button onClick={() => handleRemovePlatformAdmin(admin.id)} className="btn btn-danger btn-sm" disabled={actionId === admin.id}>{actionId === admin.id ? '...' : locale === 'ru' ? 'Снять роль' : 'Remove role'}</button>
+                    ) : null}
+                  </ToolbarRow>
+                </div>
+              ))}
+            </div>
+          )}
+        </Panel>
+      </div>
+
+      <Panel>
+        <SectionHeader title={locale === 'ru' ? 'Администраторы событий' : 'Event admins'} subtitle={locale === 'ru' ? 'Назначения по конкретным мероприятиям' : 'Assignments tied to specific events'} actions={<StatusBadge tone="neutral">{eventAdmins.length}</StatusBadge>} />
+        {loadingData ? <LoadingLines rows={5} /> : eventAdmins.length === 0 ? (
+          <EmptyState title={locale === 'ru' ? 'Нет назначений' : 'No assignments'} description={locale === 'ru' ? 'Назначения появятся после первой выдачи роли event admin.' : 'Assignments appear after first event-admin grant.'} />
+        ) : (
+          <div className="signal-stack">
+            {eventAdmins.map((membership) => (
+              <div key={membership.id} className="signal-ranked-item">
+                <div>
+                  <strong>{membership.user?.name || membership.user?.email}</strong>
+                  <div className="signal-muted">{membership.user?.email}</div>
+                  <div className="signal-muted">{membership.event?.title || 'Unknown event'}</div>
+                </div>
+                <ToolbarRow>
+                  <StatusBadge tone="info">{membership.event?.status || 'Scoped'}</StatusBadge>
+                  <button onClick={() => handleRemoveEventAdmin(membership)} className="btn btn-danger btn-sm" disabled={actionId === membership.id}>{actionId === membership.id ? '...' : locale === 'ru' ? 'Удалить' : 'Remove'}</button>
+                </ToolbarRow>
               </div>
-            </section>
+            ))}
           </div>
         )}
-      </div>
+      </Panel>
     </div>
   );
 }

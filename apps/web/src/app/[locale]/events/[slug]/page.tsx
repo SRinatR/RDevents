@@ -6,6 +6,8 @@ import { useTranslations } from 'next-intl';
 import { eventsApi, analyticsApi, ApiError } from '../../../../lib/api';
 import { useAuth } from '../../../../hooks/useAuth';
 import { useRouteParams } from '../../../../hooks/useRouteParams';
+import { EmptyState, FieldTextarea, LoadingLines, Notice, Panel, SectionHeader, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
+import { PublicFooter } from '../../../../components/layout/PublicFooter';
 
 type MissingField = {
   key: string;
@@ -62,14 +64,14 @@ export default function EventDetailPage() {
     if (!slug) return;
     setLoading(true);
     eventsApi.get(slug)
-      .then(({ event: e }) => {
-        setEvent(e);
-        setIsRegistered(e.isRegistered ?? false);
-        setMyTeam(e.teamMembership?.team ?? null);
-        setEventAnswers(e.registrationAnswers ?? {});
-        const vm = e.memberships?.find((m: any) => m.role === 'VOLUNTEER');
+      .then(({ event: currentEvent }) => {
+        setEvent(currentEvent);
+        setIsRegistered(currentEvent.isRegistered ?? false);
+        setMyTeam(currentEvent.teamMembership?.team ?? null);
+        setEventAnswers(currentEvent.registrationAnswers ?? {});
+        const vm = currentEvent.memberships?.find((membership: any) => membership.role === 'VOLUNTEER');
         setVolunteerStatus(vm?.status ?? null);
-        analyticsApi.track('EVENT_DETAIL_VIEW', { eventId: e.id, locale });
+        analyticsApi.track('EVENT_DETAIL_VIEW', { eventId: currentEvent.id, locale });
       })
       .catch(() => setError('Event not found'))
       .finally(() => setLoading(false));
@@ -84,7 +86,7 @@ export default function EventDetailPage() {
       await eventsApi.register(event.id, eventAnswers);
       setIsRegistered(true);
       setMissingFields([]);
-      setEvent((prev: any) => prev ? { ...prev, registrationsCount: prev.registrationsCount + 1 } : prev);
+      setEvent((previous: any) => previous ? { ...previous, registrationsCount: previous.registrationsCount + 1 } : previous);
       analyticsApi.track('EVENT_REGISTRATION', { eventId: event.id });
     } catch (err) {
       handleRegistrationError(err, setRegError);
@@ -98,13 +100,13 @@ export default function EventDetailPage() {
     setRegistering(true);
     setTeamError('');
     try {
-      const res = await eventsApi.createTeam(event.id, { name: teamName, answers: eventAnswers });
-      setMyTeam(res.team);
-      setIsRegistered(res.team.status === 'ACTIVE');
+      const result = await eventsApi.createTeam(event.id, { name: teamName, answers: eventAnswers });
+      setMyTeam(result.team);
+      setIsRegistered(result.team.status === 'ACTIVE');
       setMissingFields([]);
       setTeamState('IDLE');
-      if (res.team.status === 'ACTIVE') {
-        setEvent((prev: any) => prev ? { ...prev, registrationsCount: prev.registrationsCount + 1 } : prev);
+      if (result.team.status === 'ACTIVE') {
+        setEvent((previous: any) => previous ? { ...previous, registrationsCount: previous.registrationsCount + 1 } : previous);
       }
     } catch (err) {
       handleRegistrationError(err, setTeamError);
@@ -125,7 +127,7 @@ export default function EventDetailPage() {
       setMissingFields([]);
       setTeamState('IDLE');
       if (member.status === 'ACTIVE') {
-        setEvent((prev: any) => prev ? { ...prev, registrationsCount: prev.registrationsCount + 1 } : prev);
+        setEvent((previous: any) => previous ? { ...previous, registrationsCount: previous.registrationsCount + 1 } : previous);
       }
     } catch (err: any) {
       handleRegistrationError(err, setTeamError);
@@ -167,7 +169,6 @@ export default function EventDetailPage() {
     }
   }
 
-
   async function handleVolunteerApply() {
     if (!user || !event) return;
     setVolunteering(true);
@@ -201,36 +202,40 @@ export default function EventDetailPage() {
     });
   }
 
-  if (loading) return (
-    <div className="loading-center">
-      <div className="spinner" />
-      <span>{t('common.loading')}</span>
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="public-page-shell">
+        <main className="public-main">
+          <section className="public-section"><div className="container"><LoadingLines rows={8} /></div></section>
+        </main>
+      </div>
+    );
+  }
 
-  if (error || !event) return (
-    <div className="loading-center">
-      <div style={{ fontSize: '3.5rem' }}>😕</div>
-      <h2 style={{ fontWeight: 800 }}>{error || 'Event not found'}</h2>
-      <p style={{ color: 'var(--color-text-muted)' }}>
-        {locale === 'ru' ? 'Попробуйте вернуться к списку событий.' : 'Try going back to the event list.'}
-      </p>
-      <Link href={`/${locale}/events`} className="btn btn-primary" style={{ marginTop: 8 }}>
-        ← {t('common.back')}
-      </Link>
-    </div>
-  );
+  if (error || !event) {
+    return (
+      <div className="public-page-shell">
+        <main className="public-main">
+          <section className="public-section">
+            <div className="container">
+              <EmptyState title={error || 'Event not found'} description={locale === 'ru' ? 'Попробуйте вернуться к списку событий.' : 'Try going back to the event list.'} actions={<Link href={`/${locale}/events`} className="btn btn-primary btn-sm">{t('common.back')}</Link>} />
+            </div>
+          </section>
+        </main>
+      </div>
+    );
+  }
 
   const capacityPct = event.capacity > 0
     ? Math.min((event.registrationsCount / event.capacity) * 100, 100)
     : 0;
   const isFull = event.registrationsCount >= event.capacity;
   const hasActiveVolunteer = ['PENDING', 'APPROVED', 'ACTIVE'].includes(volunteerStatus ?? '');
-  const profileMissing = missingFields.filter(field => field.scope === 'PROFILE');
-  const eventFormMissing = missingFields.filter(field => field.scope === 'EVENT_FORM');
+  const profileMissing = missingFields.filter((field) => field.scope === 'PROFILE');
+  const eventFormMissing = missingFields.filter((field) => field.scope === 'EVENT_FORM');
   const profileLink = profileMissing.length > 0
     ? `/${locale}/cabinet?${new URLSearchParams({
-        required: profileMissing.map(field => field.key).join(','),
+        required: profileMissing.map((field) => field.key).join(','),
         event: event.title,
       }).toString()}`
     : '';
@@ -239,394 +244,125 @@ export default function EventDetailPage() {
     : field.label;
 
   return (
-    <div style={{ minHeight: 'calc(100vh - 64px)', paddingBottom: 80 }}>
-
-      {/* Cover image */}
-      {event.coverImageUrl ? (
-        <div style={{ width: '100%', height: 360, overflow: 'hidden', position: 'relative' }}>
-          <img
-            src={event.coverImageUrl}
-            alt={event.title}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          />
-          <div style={{
-            position: 'absolute', inset: 0,
-            background: 'linear-gradient(to bottom, rgba(0,0,0,0) 30%, rgba(0,0,0,0.55) 100%)',
-          }} />
-        </div>
-      ) : (
-        <div style={{
-          width: '100%',
-          height: 200,
-          background: 'linear-gradient(135deg, var(--color-primary-subtle) 0%, rgba(168,85,247,0.08) 100%)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '4rem',
-        }}>
-          🎪
-        </div>
-      )}
-
-      <div className="container" style={{ paddingTop: 36 }}>
-
-        {/* Breadcrumb */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-          <Link href={`/${locale}`} style={{ color: 'var(--color-text-muted)', transition: 'color var(--transition-fast)' }}
-            onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-primary)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-text-muted)')}
-          >
-            {locale === 'ru' ? 'Главная' : 'Home'}
-          </Link>
-          <span>›</span>
-          <Link href={`/${locale}/events`} style={{ color: 'var(--color-text-muted)', transition: 'color var(--transition-fast)' }}
-            onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-primary)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-text-muted)')}
-          >
-            {t('events.title')}
-          </Link>
-          <span>›</span>
-          <span style={{ color: 'var(--color-text-secondary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>
-            {event.title}
-          </span>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 350px', gap: 48, alignItems: 'start' }}>
-
-          {/* ── Main content ─────────────────────── */}
-          <div style={{ animation: 'fadeIn 0.4s ease both' }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
-              <span className="badge badge-primary">{event.category}</span>
-              {event.isFeatured && (
-                <span className="badge" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>
-                  ★ Featured
-                </span>
-              )}
-              <span className={`badge ${event.status === 'PUBLISHED' ? 'badge-success' : event.status === 'CANCELLED' ? 'badge-danger' : 'badge-muted'}`}>
-                {event.status}
-              </span>
+    <div className="public-page-shell">
+      <main className="public-main">
+        <section className="public-event-hero">
+          <div className="container">
+            <div className="public-event-cover">
+              {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
             </div>
 
-            <h1 style={{
-              margin: '0 0 16px',
-              fontSize: 'clamp(1.8rem, 4vw, 2.9rem)',
-              fontWeight: 900,
-              letterSpacing: '-0.03em',
-              lineHeight: 1.08,
-              color: 'var(--color-text-primary)',
-            }}>
-              {event.title}
-            </h1>
-
-            <p style={{ margin: '0 0 36px', fontSize: '1.1rem', color: 'var(--color-text-secondary)', lineHeight: 1.65 }}>
-              {event.shortDescription}
-            </p>
-
-            {/* Info pills (mobile-friendly) */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 36 }}>
-              {[
-                { icon: '📅', label: formatDate(event.startsAt) },
-                { icon: '🕐', label: `${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}` },
-                { icon: '📍', label: event.location },
-                { icon: '👥', label: `${event.registrationsCount} / ${event.capacity}` },
-              ].map(({ icon, label }) => (
-                <div key={label} style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 14px',
-                  borderRadius: 'var(--radius-full)',
-                  border: '1.5px solid var(--color-border)',
-                  background: 'var(--color-surface-strong)',
-                  fontSize: '0.875rem',
-                  color: 'var(--color-text-secondary)',
-                  fontWeight: 500,
-                  boxShadow: 'var(--shadow-xs)',
-                }}>
-                  <span>{icon}</span>
-                  <span>{label}</span>
+            <div className="public-event-layout">
+              <div>
+                <div className="public-meta-row" style={{ marginBottom: 10 }}>
+                  <StatusBadge tone="neutral">{event.category}</StatusBadge>
+                  <StatusBadge tone={event.status === 'PUBLISHED' ? 'success' : event.status === 'CANCELLED' ? 'danger' : 'warning'}>{event.status}</StatusBadge>
+                  {event.isFeatured ? <StatusBadge tone="info">Featured</StatusBadge> : null}
                 </div>
-              ))}
-            </div>
+                <h1 className="signal-page-title" style={{ marginBottom: 8 }}>{event.title}</h1>
+                <p className="signal-page-subtitle" style={{ marginBottom: 14 }}>{event.shortDescription}</p>
 
-            <div style={{ height: 1, background: 'var(--color-border)', marginBottom: 32 }} />
+                <div className="public-meta-row" style={{ marginBottom: 14 }}>
+                  <span>{formatDate(event.startsAt)}</span>
+                  <span>{formatTime(event.startsAt)} – {formatTime(event.endsAt)}</span>
+                  <span>{event.location}</span>
+                </div>
 
-            <h2 style={{ margin: '0 0 16px', fontSize: '1.25rem', fontWeight: 800, color: 'var(--color-text-primary)' }}>
-              {t('events.description')}
-            </h2>
-            <div style={{
-              color: 'var(--color-text-secondary)',
-              lineHeight: 1.85,
-              whiteSpace: 'pre-wrap',
-              fontSize: '0.97rem',
-            }}>
-              {event.fullDescription}
+                <Panel>
+                  <SectionHeader title={t('events.description')} />
+                  <div style={{ whiteSpace: 'pre-wrap', color: 'var(--color-text-secondary)', lineHeight: 1.75 }}>
+                    {event.fullDescription}
+                  </div>
+                </Panel>
+              </div>
+
+              <aside className="public-sticky-panel">
+                <Panel>
+                  <SectionHeader title={locale === 'ru' ? 'Участие' : 'Participation'} />
+                  <div className="progress-bar" style={{ marginBottom: 8 }}><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
+                  <div className="signal-muted" style={{ marginBottom: 12 }}>{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : ''}</div>
+
+                  {myTeam ? <Notice tone="success">{locale === 'ru' ? 'Вы состоите в команде' : 'You are in team'}: {myTeam.name}</Notice>
+                    : isRegistered ? <Notice tone="success">{t('events.registered')}</Notice>
+                    : user ? (
+                      <div className="signal-stack">
+                        {event.isTeamBased ? (
+                          <>
+                            {teamState === 'IDLE' ? (
+                              <ToolbarRow>
+                                <button onClick={() => setTeamState('CREATING')} disabled={isFull} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Создать команду' : 'Create team'}</button>
+                                <button onClick={() => setTeamState('JOINING')} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Вступить по коду' : 'Join by code'}</button>
+                                {event.allowSoloParticipation ? <button onClick={handleRegister} disabled={registering || isFull} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Участвовать одному' : 'Participate solo'}</button> : null}
+                              </ToolbarRow>
+                            ) : null}
+
+                            {teamState === 'CREATING' ? (
+                              <div className="signal-stack">
+                                <input className="signal-field" placeholder={locale === 'ru' ? 'Название команды' : 'Team name'} value={teamName} onChange={(event) => setTeamName(event.target.value)} />
+                                <ToolbarRow>
+                                  <button onClick={handleCreateTeam} disabled={registering || !teamName} className="btn btn-primary btn-sm">{t('common.save')}</button>
+                                  <button onClick={() => setTeamState('IDLE')} className="btn btn-secondary btn-sm">{t('common.cancel')}</button>
+                                </ToolbarRow>
+                              </div>
+                            ) : null}
+
+                            {teamState === 'JOINING' ? (
+                              <div className="signal-stack">
+                                <input className="signal-field" placeholder={locale === 'ru' ? 'Код приглашения' : 'Join code'} value={joinCode} onChange={(event) => setJoinCode(event.target.value)} />
+                                <ToolbarRow>
+                                  <button onClick={handleJoinTeam} disabled={registering || !joinCode} className="btn btn-primary btn-sm">{t('events.join')}</button>
+                                  <button onClick={() => setTeamState('IDLE')} className="btn btn-secondary btn-sm">{t('common.cancel')}</button>
+                                </ToolbarRow>
+                              </div>
+                            ) : null}
+                          </>
+                        ) : (
+                          <button onClick={handleRegister} disabled={registering || isFull} className="btn btn-primary">
+                            {registering ? t('common.loading') : isFull ? (locale === 'ru' ? 'Мест нет' : 'No spots left') : t('events.join')}
+                          </button>
+                        )}
+
+                        {teamError ? <Notice tone="danger">{teamError}</Notice> : null}
+                        {regError ? <Notice tone="danger">{regError}</Notice> : null}
+                      </div>
+                    ) : <Link href={`/${locale}/login`} className="btn btn-primary">{t('events.loginToJoin')}</Link>}
+
+                  {missingFields.length > 0 ? (
+                    <Panel>
+                      <SectionHeader title={locale === 'ru' ? 'Требуются дополнительные поля' : 'Additional fields required'} subtitle={locale === 'ru' ? 'Заполните профиль и анкету события' : 'Complete profile and event form fields'} />
+                      <div className="signal-stack">
+                        {missingFields.map((field) => (
+                          <div key={`${field.scope}-${field.key}`} className="signal-ranked-item"><span>{fieldLabel(field)}</span><StatusBadge tone="neutral">{field.scope}</StatusBadge></div>
+                        ))}
+                        {profileMissing.length > 0 ? <Link href={profileLink} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Заполнить профиль' : 'Complete profile'}</Link> : null}
+                        {eventFormMissing.length > 0 ? eventFormMissing.map((field) => (
+                          <label key={field.key} className="signal-stack">
+                            <span className="signal-muted">{fieldLabel(field)}</span>
+                            <FieldTextarea value={eventAnswers[field.key] ?? ''} onChange={(event) => setEventAnswers((previous) => ({ ...previous, [field.key]: event.target.value }))} rows={2} />
+                          </label>
+                        )) : null}
+                        {eventFormMissing.length > 0 ? <button onClick={handleSaveRegistrationAnswers} disabled={savingAnswers} className="btn btn-primary btn-sm">{savingAnswers ? t('common.loading') : locale === 'ru' ? 'Сохранить анкету' : 'Save event form'}</button> : null}
+                      </div>
+                    </Panel>
+                  ) : null}
+
+                  {hasActiveVolunteer
+                    ? <Notice tone="info">{locale === 'ru' ? 'Заявка волонтёра' : 'Volunteer request'}: {volunteerStatus}</Notice>
+                    : user
+                      ? <button onClick={handleVolunteerApply} disabled={volunteering} className="btn btn-secondary btn-sm">{volunteering ? t('common.loading') : locale === 'ru' ? 'Подать заявку волонтёра' : 'Apply as volunteer'}</button>
+                      : <Link href={`/${locale}/login`} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Войти для волонтёрства' : 'Login to volunteer'}</Link>}
+
+                  {volunteerError ? <Notice tone="danger">{volunteerError}</Notice> : null}
+
+                  <button onClick={handleCopyLink} className="btn btn-ghost btn-sm">{copied ? (locale === 'ru' ? 'Ссылка скопирована' : 'Link copied') : t('events.copyLink')}</button>
+                </Panel>
+              </aside>
             </div>
           </div>
+        </section>
+      </main>
 
-          {/* ── Sidebar ───────────────────────────── */}
-          <div style={{ position: 'sticky', top: 84, animation: 'slideUp 0.4s ease both' }}>
-            <div style={{
-              padding: 28,
-              borderRadius: 'var(--radius-2xl)',
-              border: '1.5px solid var(--color-border)',
-              background: 'var(--color-surface-strong)',
-              boxShadow: 'var(--shadow-md)',
-            }}>
-
-              {/* Capacity bar */}
-              <div style={{ marginBottom: 24 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: '0.85rem' }}>
-                  <span style={{ fontWeight: 700, color: 'var(--color-text-secondary)' }}>
-                    👥 {event.registrationsCount} / {event.capacity}
-                  </span>
-                  <span style={{ color: isFull ? 'var(--color-danger)' : 'var(--color-success)', fontWeight: 700 }}>
-                    {isFull
-                      ? (locale === 'ru' ? 'Мест нет' : 'Full')
-                      : `${Math.round(capacityPct)}%`}
-                  </span>
-                </div>
-                <div className="progress-bar">
-                  <div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} />
-                </div>
-              </div>
-
-              {/* Info rows */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
-                <InfoRow icon="📅" label={t('events.date')} value={formatDate(event.startsAt)} />
-                <InfoRow icon="🕐" label={t('events.time')} value={`${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}`} />
-                <InfoRow icon="📍" label={t('events.location')} value={event.location} />
-              </div>
-
-              <div style={{ height: 1, background: 'var(--color-border)', marginBottom: 20 }} />
-
-              {/* Register section */}
-              {event.status === 'PUBLISHED' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {myTeam ? (
-                    <div className="alert alert-success" style={{ textAlign: 'center', fontWeight: 700, fontSize: '0.90rem' }}>
-                      ✓ {locale === 'ru' ? 'Вы в команде:' : 'In team:'} {myTeam.name}
-                    </div>
-                  ) : isRegistered ? (
-                    <div className="alert alert-success" style={{ textAlign: 'center', fontWeight: 700, fontSize: '0.95rem' }}>
-                      ✓ {t('events.registered')}
-                    </div>
-                  ) : user ? (
-                    <>
-                      {event.isTeamBased ? (
-                        <>
-                          {teamState === 'IDLE' && (
-                            <>
-                              <button onClick={() => setTeamState('CREATING')} disabled={isFull} className="btn btn-primary" style={{ height: 46 }}>
-                                🛡️ {locale === 'ru' ? 'Создать команду' : 'Create Team'}
-                              </button>
-                              <button onClick={() => setTeamState('JOINING')} className="btn btn-secondary" style={{ height: 46 }}>
-                                🤝 {locale === 'ru' ? 'Вступить в команду' : 'Join Team'}
-                              </button>
-                              {event.allowSoloParticipation && (
-                                <button onClick={handleRegister} disabled={registering || isFull} className="btn btn-ghost" style={{ height: 40, marginTop: 4 }}>
-                                  {locale === 'ru' ? 'Участвовать одному' : 'Participate solo'}
-                                </button>
-                              )}
-                            </>
-                          )}
-
-                          {teamState === 'CREATING' && (
-                            <div style={{ padding: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' }}>
-                              <input 
-                                className="input-field" 
-                                placeholder={locale === 'ru' ? 'Название команды' : 'Team Name'} 
-                                value={teamName} onChange={e => setTeamName(e.target.value)} 
-                                style={{ height: 40, marginBottom: 8 }} 
-                              />
-                              <div style={{ display: 'flex', gap: 8 }}>
-                                <button onClick={handleCreateTeam} disabled={registering || !teamName} className="btn btn-primary btn-sm" style={{ flex: 1 }}>{t('common.save')}</button>
-                                <button onClick={() => setTeamState('IDLE')} className="btn btn-ghost btn-sm">{t('common.cancel')}</button>
-                              </div>
-                            </div>
-                          )}
-
-                          {teamState === 'JOINING' && (
-                            <div style={{ padding: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' }}>
-                              <input 
-                                className="input-field" 
-                                placeholder={locale === 'ru' ? 'Код приглашения' : 'Join Code'} 
-                                value={joinCode} onChange={e => setJoinCode(e.target.value)} 
-                                style={{ height: 40, marginBottom: 8 }} 
-                              />
-                              <div style={{ display: 'flex', gap: 8 }}>
-                                <button onClick={handleJoinTeam} disabled={registering || !joinCode} className="btn btn-primary btn-sm" style={{ flex: 1 }}>{t('events.join')}</button>
-                                <button onClick={() => setTeamState('IDLE')} className="btn btn-ghost btn-sm">{t('common.cancel')}</button>
-                              </div>
-                            </div>
-                          )}
-                          
-                          {teamError && <p className="alert alert-danger" style={{ margin: 0, marginTop: 8 }}>{teamError}</p>}
-                        </>
-                      ) : (
-                        <button
-                          onClick={handleRegister}
-                          disabled={registering || isFull}
-                          className="btn btn-primary"
-                          style={{ width: '100%', height: 52, fontSize: '1rem', borderRadius: 'var(--radius-xl)' }}
-                        >
-                          {registering
-                            ? t('common.loading')
-                            : isFull
-                            ? (locale === 'ru' ? 'Мест нет' : 'No spots left')
-                            : t('events.join')}
-                        </button>
-                      )}
-                      {missingFields.length > 0 && (
-                        <div className="alert" style={{
-                          margin: 0,
-                          padding: 14,
-                          background: 'var(--color-primary-subtle)',
-                          border: '1px solid var(--color-primary-glow)',
-                          color: 'var(--color-primary)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 10,
-                        }}>
-                          <div style={{ fontWeight: 800, lineHeight: 1.4 }}>
-                            {locale === 'ru'
-                              ? `Чтобы участвовать, нужно заполнить ещё ${missingFields.length} обязательн${missingFields.length === 1 ? 'ое поле' : 'ых поля'}.`
-                              : `Complete ${missingFields.length} required field${missingFields.length === 1 ? '' : 's'} to join.`}
-                          </div>
-
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.88rem', color: 'var(--color-text-secondary)' }}>
-                            {missingFields.map(field => (
-                              <div key={`${field.scope}-${field.key}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                                <span style={{ fontWeight: 700 }}>{fieldLabel(field)}</span>
-                                <span>{field.scope === 'PROFILE' ? (locale === 'ru' ? 'Профиль' : 'Profile') : (locale === 'ru' ? 'Анкета мероприятия' : 'Event form')}</span>
-                              </div>
-                            ))}
-                          </div>
-
-                          {profileMissing.length > 0 && (
-                            <Link href={profileLink} className="btn btn-secondary btn-sm" style={{ justifyContent: 'center' }}>
-                              {locale === 'ru' ? 'Заполнить профиль' : 'Complete profile'}
-                            </Link>
-                          )}
-
-                          {eventFormMissing.length > 0 && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                              {eventFormMissing.map(field => (
-                                <label key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: 5, color: 'var(--color-text-primary)', fontWeight: 700, fontSize: '0.86rem' }}>
-                                  {fieldLabel(field)}
-                                  <textarea
-                                    className="input-field"
-                                    value={eventAnswers[field.key] ?? ''}
-                                    onChange={e => setEventAnswers(prev => ({ ...prev, [field.key]: e.target.value }))}
-                                    rows={2}
-                                    style={{ minHeight: 72, resize: 'vertical', background: '#fff' }}
-                                  />
-                                </label>
-                              ))}
-                              <button onClick={handleSaveRegistrationAnswers} disabled={savingAnswers} className="btn btn-primary btn-sm">
-                                {savingAnswers
-                                  ? t('common.loading')
-                                  : (locale === 'ru' ? 'Сохранить анкету' : 'Save event form')}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      {regError && <p className="alert alert-danger" style={{ margin: 0 }}>{regError}</p>}
-                    </>
-                  ) : (
-                    <Link
-                      href={`/${locale}/login`}
-                      className="btn btn-primary"
-                      style={{ width: '100%', height: 52, fontSize: '1rem', borderRadius: 'var(--radius-xl)', justifyContent: 'center' }}
-                    >
-                      🔐 {t('events.loginToJoin')}
-                    </Link>
-                  )}
-
-                  {/* Volunteer */}
-                  {hasActiveVolunteer ? (
-                    <div className="alert" style={{
-                      background: 'var(--color-primary-subtle)',
-                      color: 'var(--color-primary)',
-                      border: '1px solid var(--color-primary-glow)',
-                      textAlign: 'center',
-                      fontWeight: 700,
-                      fontSize: '0.88rem',
-                    }}>
-                      🙋 {locale === 'ru' ? 'Заявка волонтёра:' : 'Volunteer request:'} {volunteerStatus}
-                    </div>
-                  ) : user ? (
-                    <>
-                      <button
-                        onClick={handleVolunteerApply}
-                        disabled={volunteering}
-                        className="btn btn-ghost"
-                        style={{ width: '100%', height: 46 }}
-                      >
-                        {volunteering
-                          ? t('common.loading')
-                          : volunteerStatus === 'REJECTED'
-                          ? (locale === 'ru' ? 'Подать заявку снова' : 'Apply again')
-                          : (locale === 'ru' ? '🙋 Стать волонтёром' : '🙋 Apply as volunteer')}
-                      </button>
-                      {volunteerError && <p className="alert alert-danger" style={{ margin: 0 }}>{volunteerError}</p>}
-                    </>
-                  ) : (
-                    <Link
-                      href={`/${locale}/login`}
-                      className="btn btn-ghost"
-                      style={{ width: '100%', height: 46, justifyContent: 'center' }}
-                    >
-                      {locale === 'ru' ? 'Войти как волонтёр' : 'Login to volunteer'}
-                    </Link>
-                  )}
-                </div>
-              )}
-
-              {/* Share */}
-              <div style={{ marginTop: 16 }}>
-                <button
-                  onClick={handleCopyLink}
-                  className="btn btn-ghost"
-                  style={{ width: '100%', height: 40, fontSize: '0.875rem' }}
-                >
-                  {copied ? '✓ Copied!' : `🔗 ${t('events.copyLink')}`}
-                </button>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
-  return (
-    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-      <span style={{
-        width: 34,
-        height: 34,
-        borderRadius: 'var(--radius-md)',
-        background: 'var(--color-primary-subtle)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: '0.95rem',
-        flexShrink: 0,
-      }}>
-        {icon}
-      </span>
-      <div>
-        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
-          {label}
-        </div>
-        <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-text-primary)', lineHeight: 1.4 }}>
-          {value}
-        </div>
-      </div>
+      <PublicFooter locale={locale} />
     </div>
   );
 }

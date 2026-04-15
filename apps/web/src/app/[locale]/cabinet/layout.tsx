@@ -18,30 +18,17 @@ export default function CabinetLayout({ children }: { children: ReactNode }) {
   }, [loading, user, router, locale]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FAF8F7]">
-        <div className="spinner" />
-      </div>
-    );
+    return <div className="admin-loading-screen"><div className="spinner" /></div>;
   }
 
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-[#FAF8F7]">
-      <div className="max-w-[1400px] mx-auto px-6 py-8">
-        <div className="flex gap-8">
-          <Sidebar 
-            locale={locale}
-            userName={user.name}
-            userEmail={user.email}
-            userAvatar={user.avatarUrl}
-          />
-          <div className="flex-1">
-            {children}
-          </div>
+    <div className="cabinet-shell">
+      <div className="container">
+        <div className="cabinet-layout-grid">
+          <Sidebar locale={locale} userName={user.name} userEmail={user.email} userAvatar={user.avatarUrl} />
+          <div className="cabinet-content-area">{children}</div>
         </div>
       </div>
     </div>
