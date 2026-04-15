@@ -247,15 +247,15 @@ export default function EventDetailPage() {
   const spotsLeft = Math.max((event.capacity ?? 0) - (event.registrationsCount ?? 0), 0);
 
   return (
-    <div className="public-page-shell route-shell route-event-detail">
+    <div className="public-page-shell route-shell route-event-detail route-event-detail-rebuilt">
       <main className="public-main">
-        <section className="public-event-hero public-event-hero-immersive motion-fade-up">
+        <section className="public-event-hero public-event-cinematic-hero motion-fade-up">
           <div className="container">
-            <div className="public-event-masthead">
-              <div className="public-event-cover public-event-detail-cover public-event-cover-stage">
+            <div className="public-event-cinematic-masthead">
+              <div className="public-event-cover public-event-detail-cover public-event-cover-stage public-event-cover-cinematic">
                 {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
                 <div className="public-event-detail-cover-overlay" />
-                <div className="public-event-cover-story">
+                <div className="public-event-cover-story public-event-cover-story-cinematic">
                   <div className="public-meta-row public-gap-after-xs public-event-meta-top">
                     <StatusBadge tone="neutral">{event.category}</StatusBadge>
                     <StatusBadge tone={statusTone}>{event.status}</StatusBadge>
@@ -270,7 +270,7 @@ export default function EventDetailPage() {
                 </div>
               </div>
 
-              <div className="public-event-facts-strip">
+              <div className="public-event-facts-strip public-event-facts-strip-cinematic">
                 <div className="public-event-fact">
                   <small>{locale === 'ru' ? 'Дата и время' : 'Date & time'}</small>
                   <strong>{eventDateRange}</strong>
@@ -290,7 +290,7 @@ export default function EventDetailPage() {
               </div>
             </div>
 
-            <div className="public-event-layout public-event-layout-premium public-event-layout-editorial">
+            <div className="public-event-layout public-event-layout-cinematic">
               <div className="public-event-story-column motion-stagger">
                 <Panel className="public-event-story-summary public-event-story-summary-premium">
                   <div className="public-meta-row public-event-meta-grid">
@@ -300,27 +300,27 @@ export default function EventDetailPage() {
                   </div>
                 </Panel>
 
-                <Panel className="public-event-description-panel public-event-description-panel-premium">
-                  <SectionHeader title={t('events.description')} subtitle={locale === 'ru' ? 'Описание и детали события' : 'Event overview and details'} />
+                <Panel className="public-event-description-panel public-event-description-panel-premium public-event-story-panel">
+                  <SectionHeader title={t('events.description')} subtitle={locale === 'ru' ? 'История события и ключевой контекст' : 'Event story and key context'} />
                   <div className="signal-prose-copy">
                     {event.fullDescription}
                   </div>
                 </Panel>
 
-                <Panel className="public-event-support-panel">
-                  <SectionHeader title={locale === 'ru' ? 'Ключевые параметры участия' : 'Participation essentials'} subtitle={locale === 'ru' ? 'Что важно перед подачей заявки' : 'What to check before joining'} />
+                <Panel className="public-event-support-panel public-event-story-panel">
+                  <SectionHeader title={locale === 'ru' ? 'Параметры участия' : 'Participation essentials'} subtitle={locale === 'ru' ? 'Проверьте условия перед подачей заявки' : 'Review entry conditions before joining'} />
                   <div className="public-event-support-grid">
                     <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Категория' : 'Category'}</span><strong>{event.category}</strong></div>
                     <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Статус события' : 'Event status'}</span><StatusBadge tone={statusTone}>{event.status}</StatusBadge></div>
                     <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Режим' : 'Mode'}</span><strong>{event.isTeamBased ? (locale === 'ru' ? 'Командный набор' : 'Team onboarding') : (locale === 'ru' ? 'Индивидуальный набор' : 'Individual onboarding')}</strong></div>
-                    <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Волонтёрство' : 'Volunteer track'}</span><strong>{locale === 'ru' ? 'Доступно из панели участия' : 'Available in participation panel'}</strong></div>
+                    <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Волонтёрство' : 'Volunteer track'}</span><strong>{locale === 'ru' ? 'Доступно в правой панели' : 'Available in the action rail'}</strong></div>
                   </div>
                 </Panel>
               </div>
 
               <aside className="public-sticky-panel public-event-action-rail motion-fade-up-fast">
-                <Panel id="event-participation" className="public-participation-panel public-participation-panel-premium">
-                  <SectionHeader title={locale === 'ru' ? 'Участие' : 'Participation'} subtitle={locale === 'ru' ? 'Доступные действия и текущий статус' : 'Available actions and current status'} />
+                <Panel id="event-participation" className="public-participation-panel public-participation-panel-premium public-participation-panel-cinematic">
+                  <SectionHeader title={locale === 'ru' ? 'Участие' : 'Participation'} subtitle={locale === 'ru' ? 'Действия и текущий статус' : 'Actions and current status'} />
                   <div className="progress-bar signal-gap-after-2xs public-participation-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
                   <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div>
 

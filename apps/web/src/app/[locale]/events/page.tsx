@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { eventsApi } from '../../../lib/api';
 import { analyticsApi } from '../../../lib/api';
 import { useRouteLocale } from '../../../hooks/useRouteParams';
-import { EmptyState, FieldInput, FieldSelect, LoadingLines, Notice, PageHeader, Panel, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, Notice, Panel, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
 import { PublicFooter } from '../../../components/layout/PublicFooter';
 
 const CATEGORIES = ['Tech', 'Community', 'Business', 'Design', 'Arts & Culture', 'Sports'];
@@ -73,61 +73,45 @@ export default function EventsPage() {
     if (isLimited) {
       return { key: 'limited', label: locale === 'ru' ? 'Почти заполнено' : 'Limited spots', tone: 'warning' as const };
     }
-    if (event.isFeatured) {
-      return { key: 'featured', label: locale === 'ru' ? 'Рекомендуемое' : 'Featured', tone: 'info' as const };
-    }
     if (isUpcoming) {
       return { key: 'upcoming', label: locale === 'ru' ? 'Скоро' : 'Upcoming', tone: 'info' as const };
     }
     return { key: 'normal', label: locale === 'ru' ? 'Открыто' : 'Open', tone: 'success' as const };
   }
 
-  const headlineEvent = events[0];
-  const tailEvents = events.slice(1);
+  const dominantEvent = events[0];
+  const secondaryLead = events[1];
+  const remainingEvents = events.slice(2);
   const hasActiveFilters = Boolean(search || category);
   const activeFilterCount = Number(Boolean(search)) + Number(Boolean(category));
 
   return (
-    <div className="public-page-shell route-shell route-events-catalog">
+    <div className="public-page-shell route-shell route-events-catalog route-events-catalog-rebuilt">
       <main className="public-main">
-        <section className="public-section public-events-catalog-shell catalog-shell motion-fade-up">
+        <section className="public-section public-events-catalog-shell catalog-shell catalog-shell-rebuilt motion-fade-up">
           <div className="container">
-            <div className="catalog-intro-band motion-fade-up-fast">
-              <PageHeader
-                title={t('events.title')}
-                subtitle={t('events.subtitle')}
-                actions={<StatusBadge tone="info">{events.length} {locale === 'ru' ? 'на странице' : 'on page'}</StatusBadge>}
-              />
-              <div className="catalog-intro-meta">
-                <div className="catalog-intro-pill">
-                  <small>{locale === 'ru' ? 'Режим просмотра' : 'View mode'}</small>
-                  <strong>{locale === 'ru' ? 'Кураторская лента' : 'Curated stream'}</strong>
-                </div>
-                <div className="catalog-intro-pill">
-                  <small>{locale === 'ru' ? 'Активные фильтры' : 'Active filters'}</small>
-                  <strong>{activeFilterCount}</strong>
-                </div>
-                <div className="catalog-intro-pill">
-                  <small>{locale === 'ru' ? 'Всего страниц' : 'Total pages'}</small>
-                  <strong>{meta?.pages ?? 1}</strong>
-                </div>
+            <div className="catalog-cinematic-header motion-fade-up-fast">
+              <div>
+                <span className="catalog-kicker">{locale === 'ru' ? 'Event stream' : 'Event stream'}</span>
+                <h1>{t('events.title')}</h1>
+                <p>{locale === 'ru' ? 'Сильная лента событий с кураторской первой линией и быстрым входом в участие.' : 'A stronger event stream with a curated first line and quick entry to participation.'}</p>
+              </div>
+              <div className="catalog-header-stats">
+                <article><small>{locale === 'ru' ? 'На странице' : 'On page'}</small><strong>{events.length}</strong></article>
+                <article><small>{locale === 'ru' ? 'Фильтры' : 'Filters'}</small><strong>{activeFilterCount}</strong></article>
+                <article><small>{locale === 'ru' ? 'Страницы' : 'Pages'}</small><strong>{meta?.pages ?? 1}</strong></article>
               </div>
             </div>
 
-            <Panel variant="elevated" className="catalog-toolbar-shell">
-              <div className="catalog-toolbar-top">
-                <ToolbarRow>
-                  <FieldInput value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={t('events.searchPlaceholder')} className="public-events-search-input catalog-search-input" />
-                  <FieldSelect value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }} className="public-events-category-select catalog-category-select">
-                    <option value="">{t('events.category')}: {t('common.filters')}</option>
-                    {CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
-                  </FieldSelect>
-                  {hasActiveFilters ? <button onClick={() => { setSearch(''); setCategory(''); setPage(1); }} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Сбросить' : 'Reset'}</button> : null}
-                </ToolbarRow>
-                <div className="catalog-toolbar-note">
-                  {locale === 'ru' ? 'Используйте поиск для названия и фильтр категории для быстрой навигации по ленте.' : 'Use title search and category filter to navigate the stream quickly.'}
-                </div>
-              </div>
+            <Panel variant="elevated" className="catalog-toolbar-shell catalog-toolbar-shell-rebuilt">
+              <ToolbarRow>
+                <FieldInput value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={t('events.searchPlaceholder')} className="public-events-search-input catalog-search-input" />
+                <FieldSelect value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }} className="public-events-category-select catalog-category-select">
+                  <option value="">{t('events.category')}: {t('common.filters')}</option>
+                  {CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
+                </FieldSelect>
+                {hasActiveFilters ? <button onClick={() => { setSearch(''); setCategory(''); setPage(1); }} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Сбросить' : 'Reset'}</button> : null}
+              </ToolbarRow>
 
               <div className="public-events-filter-chips public-events-filter-chips-stage catalog-filter-chips">
                 <button className={`signal-chip-link ${category === '' ? 'active' : ''}`} onClick={() => { setCategory(''); setPage(1); }}>{locale === 'ru' ? 'Все' : 'All'}</button>
@@ -136,15 +120,6 @@ export default function EventsPage() {
                 ))}
               </div>
             </Panel>
-
-            <div className="catalog-results-head">
-              <span>{locale === 'ru' ? `Показано: ${events.length}` : `Showing: ${events.length}`}</span>
-              {hasActiveFilters ? (
-                <span>{locale === 'ru' ? `Фильтров выбрано: ${activeFilterCount}` : `Filters selected: ${activeFilterCount}`}</span>
-              ) : (
-                <span>{locale === 'ru' ? 'Без фильтрации' : 'No filters applied'}</span>
-              )}
-            </div>
 
             {loading ? <LoadingLines rows={8} /> : null}
 
@@ -165,29 +140,41 @@ export default function EventsPage() {
             ) : null}
 
             {!loading && !error && events.length > 0 ? (
-              <div className="public-events-catalog-grid motion-stagger">
-                {headlineEvent ? (
-                  <Link href={`/${locale}/events/${headlineEvent.slug}`} className="public-event-card public-event-card-headline catalog-headline-card">
+              <div className="catalog-curated-grid motion-stagger">
+                {dominantEvent ? (
+                  <Link href={`/${locale}/events/${dominantEvent.slug}`} className="public-event-card catalog-dominant-card">
                     <div className="public-event-cover">
-                      {headlineEvent.coverImageUrl ? <img src={headlineEvent.coverImageUrl} alt={headlineEvent.title} /> : <div className="cover-fallback"><span>{headlineEvent.title.slice(0, 2).toUpperCase()}</span></div>}
+                      {dominantEvent.coverImageUrl ? <img src={dominantEvent.coverImageUrl} alt={dominantEvent.title} /> : <div className="cover-fallback"><span>{dominantEvent.title.slice(0, 2).toUpperCase()}</span></div>}
                       <div className="public-event-cover-overlay" />
                     </div>
-                    <div className="public-event-body public-event-body-headline">
-                      <StatusBadge tone="info">{locale === 'ru' ? 'Главный выбор' : 'Editor’s pick'}</StatusBadge>
-                      <h3>{headlineEvent.title}</h3>
-                      <p>{headlineEvent.shortDescription || (locale === 'ru' ? 'Откройте карточку, чтобы посмотреть детали и условия участия.' : 'Open event details to view info and participation options.')}</p>
-                      <div className="public-meta-row catalog-meta-row"><span>{formatDate(headlineEvent.startsAt)}</span><span>{headlineEvent.location}</span></div>
+                    <div className="public-event-body">
+                      <h3>{dominantEvent.title}</h3>
+                      <p>{dominantEvent.shortDescription || (locale === 'ru' ? 'Откройте карточку, чтобы посмотреть детали и условия участия.' : 'Open event details to view info and participation options.')}</p>
+                      <div className="public-meta-row catalog-meta-row"><span>{formatDate(dominantEvent.startsAt)}</span><span>{dominantEvent.location}</span></div>
                       <div className="public-event-card-footer catalog-card-footer">
-                        <StatusBadge tone={STATUS_TONE[headlineEvent.status] ?? 'neutral'}>{headlineEvent.status}</StatusBadge>
-                        <StatusBadge tone="neutral">{headlineEvent.category}</StatusBadge>
-                        <span className="catalog-open-link">{locale === 'ru' ? 'Смотреть детали' : 'Open details'}</span>
+                        <StatusBadge tone={STATUS_TONE[dominantEvent.status] ?? 'neutral'}>{dominantEvent.status}</StatusBadge>
+                        <StatusBadge tone="neutral">{dominantEvent.category}</StatusBadge>
+                        {dominantEvent.isFeatured ? <StatusBadge tone="info">{locale === 'ru' ? 'В фокусе' : 'Featured'}</StatusBadge> : null}
                       </div>
                     </div>
                   </Link>
                 ) : null}
 
-                <div className="public-events-grid public-events-grid-secondary">
-                  {tailEvents.map((event) => {
+                {secondaryLead ? (
+                  <Link href={`/${locale}/events/${secondaryLead.slug}`} className="public-event-card catalog-secondary-lead-card">
+                    <div className="public-event-cover">
+                      {secondaryLead.coverImageUrl ? <img src={secondaryLead.coverImageUrl} alt={secondaryLead.title} /> : <div className="cover-fallback"><span>{secondaryLead.title.slice(0, 2).toUpperCase()}</span></div>}
+                      <div className="public-event-cover-overlay" />
+                    </div>
+                    <div className="public-event-body">
+                      <h3>{secondaryLead.title}</h3>
+                      <div className="public-meta-row catalog-meta-row"><span>{formatDate(secondaryLead.startsAt)}</span><span>{secondaryLead.location}</span></div>
+                    </div>
+                  </Link>
+                ) : null}
+
+                <div className="public-events-grid public-events-grid-secondary catalog-stack-grid">
+                  {remainingEvents.map((event) => {
                     const capacityPct = event.capacity > 0
                       ? Math.min((event.registrationsCount / event.capacity) * 100, 100)
                       : 0;
@@ -213,7 +200,6 @@ export default function EventsPage() {
                             <span className="catalog-open-link">{locale === 'ru' ? 'Открыть' : 'Open'}</span>
                           </div>
                           <div className="progress-bar public-event-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
-                          <div className="signal-muted public-event-capacity-note">{isFull ? (locale === 'ru' ? 'Лимит мест достигнут' : 'Capacity reached') : (locale === 'ru' ? 'Регистрация активна' : 'Registration active')}</div>
                         </div>
                       </Link>
                     );

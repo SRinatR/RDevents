@@ -23,203 +23,170 @@ export default async function HomePage({ params }: HomePageProps) {
   const previewEvents = await getPreviewEvents();
   const t = await getTranslations();
   const leadEvent = previewEvents[0];
-  const nextEvent = previewEvents[1];
+  const sideEvent = previewEvents[1];
+  const tailEvents = previewEvents.slice(2);
 
   return (
-    <div className="public-page-shell route-shell route-home">
-      <main className="public-main">
-        <section className="home-hero motion-fade-up">
+    <div className="public-page-shell route-shell route-home route-home-rebuilt">
+      <main className="public-main home-main-rebuilt">
+        <section className="home-cinematic-hero motion-fade-up">
           <div className="container">
-            <div className="home-hero-layout">
-              <div className="home-hero-story">
-                <span className="home-kicker">{locale === 'ru' ? 'Операционная платформа мероприятий' : 'Event operations platform'}</span>
-                <h1 className="home-hero-title">
+            <div className="home-hero-canvas">
+              <div className="home-dominant-stage">
+                <span className="home-stage-kicker">{locale === 'ru' ? 'Event operations suite' : 'Event operations suite'}</span>
+                <h1>
                   {locale === 'ru'
-                    ? 'Проводите события как единый продукт: витрина, кабинет, команды, админ-контроль.'
-                    : 'Run events as one product: showcase, workspace, teams, and admin control.'}
+                    ? 'Публичная витрина, где каждое событие ощущается как релиз продукта.'
+                    : 'A public destination where every event feels like a product release.'}
                 </h1>
-                <p className="home-hero-lead">
+                <p>
                   {locale === 'ru'
-                    ? 'От первого знакомства с событием до управляемой регистрации и аналитики. Структурированные сценарии участия без хаоса в инструментах.'
-                    : 'From first event discovery to controlled registration and analytics. Structured participation workflows without tool chaos.'}
+                    ? 'Сильная подача, управляемая регистрация и понятный переход в рабочие сценарии — без перегруженного интерфейса и случайной структуры.'
+                    : 'Stronger storytelling, controlled registration, and a clean transition into operational flows without noisy, template-like layout.'}
                 </p>
 
-                <div className="home-hero-actions">
-                  <Link href={`/${locale}/events`} className="btn btn-primary">{t('events.title')}</Link>
+                <div className="home-stage-actions">
+                  <Link href={`/${locale}/events`} className="btn btn-primary">{locale === 'ru' ? 'Смотреть каталог' : 'Browse events'}</Link>
                   <Link href={`/${locale}/register`} className="btn btn-secondary">{locale === 'ru' ? 'Создать аккаунт' : 'Create account'}</Link>
                   <Link href={leadEvent ? `/${locale}/events/${leadEvent.slug}` : `/${locale}/events`} className="btn btn-ghost">
-                    {locale === 'ru' ? 'Смотреть фокус-событие' : 'View focus event'}
+                    {locale === 'ru' ? 'Открыть ближайшее событие' : 'Open nearest event'}
                   </Link>
                 </div>
 
-                <div className="home-intent-row">
-                  <Link href={`/${locale}/events`} className="home-intent-chip">{locale === 'ru' ? 'Найти событие' : 'Find an event'}</Link>
-                  <Link href={`/${locale}/cabinet`} className="home-intent-chip">{locale === 'ru' ? 'Мой кабинет' : 'My workspace'}</Link>
-                  <Link href={`/${locale}/admin`} className="home-intent-chip">{locale === 'ru' ? 'Открыть контроль' : 'Open control center'}</Link>
+                <div className="home-stage-strip">
+                  <div>
+                    <small>{locale === 'ru' ? 'Витрина' : 'Public surface'}</small>
+                    <strong>{locale === 'ru' ? 'Каталог с фокусом' : 'Focused catalog'}</strong>
+                  </div>
+                  <div>
+                    <small>{locale === 'ru' ? 'Участие' : 'Participation'}</small>
+                    <strong>{locale === 'ru' ? 'Соло и команды' : 'Solo and teams'}</strong>
+                  </div>
+                  <div>
+                    <small>{locale === 'ru' ? 'Темп' : 'Cadence'}</small>
+                    <strong>{previewEvents.length} {locale === 'ru' ? 'активных слотов' : 'active slots'}</strong>
+                  </div>
                 </div>
               </div>
 
-              <aside className="home-hero-focus">
-                <div className="home-hero-focus-head">
-                  <small>{locale === 'ru' ? 'Сейчас в фокусе' : 'Now in focus'}</small>
-                  <span>{locale === 'ru' ? `${previewEvents.length} события в обзоре` : `${previewEvents.length} events in preview`}</span>
-                </div>
-                <Link href={leadEvent ? `/${locale}/events/${leadEvent.slug}` : `/${locale}/events`} className="home-focal-event">
-                  <div className="home-focal-cover">
-                    {leadEvent?.coverImageUrl ? <img src={leadEvent.coverImageUrl} alt={leadEvent.title} /> : <CoverFallback title={leadEvent?.title ?? 'EP'} />}
-                  </div>
-                  <div className="home-focal-body">
-                    <h2>{leadEvent?.title ?? (locale === 'ru' ? 'Каталог обновляется' : 'Catalog is updating')}</h2>
-                    <p>{locale === 'ru' ? 'Кинематографичная карточка ключевого события с прямым переходом в детали.' : 'Cinematic highlight card with direct path to event details.'}</p>
-                    {leadEvent ? (
+              <aside className="home-support-rail">
+                {leadEvent ? (
+                  <Link href={`/${locale}/events/${leadEvent.slug}`} className="home-rail-primary">
+                    <div className="home-rail-cover">
+                      {leadEvent.coverImageUrl ? <img src={leadEvent.coverImageUrl} alt={leadEvent.title} /> : <CoverFallback title={leadEvent.title} />}
+                    </div>
+                    <div className="home-rail-body">
+                      <span>{locale === 'ru' ? 'Ближайший запуск' : 'Nearest launch'}</span>
+                      <h2>{leadEvent.title}</h2>
                       <div className="home-meta-row">
                         <span>{formatPreviewDate(leadEvent.startsAt, locale)}</span>
                         <span>{leadEvent.location}</span>
                         <span>{leadEvent.category}</span>
                       </div>
-                    ) : null}
+                    </div>
+                  </Link>
+                ) : (
+                  <div className="home-rail-primary home-rail-fallback">
+                    <div className="home-fallback-orbit" />
+                    <h2>{locale === 'ru' ? 'Сцена подготовки открыта' : 'The launch stage is open'}</h2>
+                    <p>
+                      {locale === 'ru'
+                        ? 'Новые события публикуются после модерации. Откройте каталог и следите за стартом регистрации.'
+                        : 'New events appear after moderation. Open the catalog to monitor upcoming registrations.'}
+                    </p>
+                    <Link href={`/${locale}/events`} className="signal-chip-link">{t('events.title')}</Link>
                   </div>
-                </Link>
-                <div className="home-proof-strip">
-                  <div><small>{locale === 'ru' ? 'Слои продукта' : 'Product layers'}</small><strong>Public / Workspace / Admin</strong></div>
-                  <div><small>{locale === 'ru' ? 'Сценарий участия' : 'Participation model'}</small><strong>{locale === 'ru' ? 'Соло · Команды · Волонтёры' : 'Solo · Teams · Volunteers'}</strong></div>
+                )}
+
+                <div className="home-rail-stack">
+                  <article>
+                    <small>{locale === 'ru' ? 'Операционный контур' : 'Operations loop'}</small>
+                    <strong>{locale === 'ru' ? 'Discovery → Join → Execute' : 'Discovery → Join → Execute'}</strong>
+                  </article>
+                  <article>
+                    <small>{locale === 'ru' ? 'Архитектура роли' : 'Role architecture'}</small>
+                    <strong>{locale === 'ru' ? 'Участник / Команда / Волонтёр' : 'Participant / Team / Volunteer'}</strong>
+                  </article>
+                  {sideEvent ? (
+                    <Link href={`/${locale}/events/${sideEvent.slug}`} className="home-side-event-link">
+                      <small>{locale === 'ru' ? 'Следующий в очереди' : 'Next in queue'}</small>
+                      <strong>{sideEvent.title}</strong>
+                    </Link>
+                  ) : null}
                 </div>
               </aside>
             </div>
           </div>
         </section>
 
-        <section className="home-section home-discovery motion-fade-up-fast">
+        <section className="home-section home-section-rebuilt home-event-flow motion-fade-up-fast">
           <div className="container">
-            <div className="home-section-head">
-              <h2>{locale === 'ru' ? 'Выберите путь входа' : 'Choose your entry path'}</h2>
-              <p>{locale === 'ru' ? 'Три роли, один продуктовый контур и связанная логика данных.' : 'Three roles, one product surface, and connected data logic.'}</p>
-            </div>
-            <div className="home-intent-grid motion-stagger">
-              <article className="home-intent-card">
-                <h3>{locale === 'ru' ? 'Участнику' : 'For participants'}</h3>
-                <p>{locale === 'ru' ? 'Найдите событие, подайте заявку, управляйте участием в кабинете.' : 'Find events, submit applications, and manage participation in workspace.'}</p>
-                <Link href={`/${locale}/events`} className="signal-chip-link">{locale === 'ru' ? 'Открыть каталог' : 'Open catalog'}</Link>
+            <div className="home-flow-grid motion-stagger">
+              <article>
+                <h3>{locale === 'ru' ? 'Открыть каталог' : 'Open catalog'}</h3>
+                <p>{locale === 'ru' ? 'Быстрая навигация по событиям, где важные слоты выделены масштабом и ритмом.' : 'Browse events through a stronger hierarchy where important slots lead visually.'}</p>
               </article>
-              <article className="home-intent-card">
-                <h3>{locale === 'ru' ? 'Организатору' : 'For organizers'}</h3>
-                <p>{locale === 'ru' ? 'Запускайте события и управляйте регистрацией с контролем статусов.' : 'Launch events and control registration flows with clear statuses.'}</p>
-                <Link href={`/${locale}/admin/events/new`} className="signal-chip-link">{locale === 'ru' ? 'Создать событие' : 'Create event'}</Link>
+              <article>
+                <h3>{locale === 'ru' ? 'Подать участие' : 'Apply to participate'}</h3>
+                <p>{locale === 'ru' ? 'Понятный вход в соло/командные сценарии и прозрачный статус регистрации.' : 'Clear entry into solo/team scenarios with transparent registration states.'}</p>
               </article>
-              <article className="home-intent-card">
-                <h3>{locale === 'ru' ? 'Операционной команде' : 'For operations teams'}</h3>
-                <p>{locale === 'ru' ? 'Контролируйте качество процесса через аналитические и админ-разделы.' : 'Control execution quality through analytics and admin sections.'}</p>
-                <Link href={`/${locale}/admin`} className="signal-chip-link">{locale === 'ru' ? 'Открыть админ-панель' : 'Open admin panel'}</Link>
+              <article>
+                <h3>{locale === 'ru' ? 'Управлять исполнением' : 'Run execution'}</h3>
+                <p>{locale === 'ru' ? 'Переход в кабинет поддерживает реальный рабочий цикл, а не декоративный UI.' : 'Transition into workspace supports a real operating loop, not decorative UI.'}</p>
               </article>
             </div>
           </div>
         </section>
 
-        {leadEvent ? (
-          <section className="home-section home-featured motion-fade-up-fast">
-            <div className="container">
-              <div className="home-featured-layout">
-                <article className="home-featured-main">
-                  <div className="home-featured-copy">
-                    <span className="signal-status-badge tone-info">{locale === 'ru' ? 'Фокус-событие недели' : 'Focus event of the week'}</span>
-                    <h2>{leadEvent.title}</h2>
-                    <p>{locale === 'ru' ? 'Сильная точка входа: событие с открытой регистрацией и полным контуром участия.' : 'Strong entry point: an event with open registration and a complete participation flow.'}</p>
-                    <div className="home-meta-row">
-                      <span>{formatPreviewDate(leadEvent.startsAt, locale)}</span>
-                      <span>{leadEvent.location}</span>
-                      <span>{leadEvent.category}</span>
-                    </div>
-                    <div className="home-featured-actions">
-                      <Link href={`/${locale}/events/${leadEvent.slug}`} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Открыть событие' : 'Open event'}</Link>
-                      <Link href={`/${locale}/events`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Смотреть весь каталог' : 'Browse catalog'}</Link>
-                    </div>
-                  </div>
-                  <div className="home-featured-cover">
-                    {leadEvent.coverImageUrl ? <img src={leadEvent.coverImageUrl} alt={leadEvent.title} /> : <CoverFallback title={leadEvent.title} />}
-                  </div>
-                </article>
-                <div className="home-story-stack">
-                  <article className="home-story-card">
-                    <h3>{locale === 'ru' ? 'Планирование → запуск' : 'Planning → launch'}</h3>
-                    <p>{locale === 'ru' ? 'Сценарии регистрации и ролей задаются до старта и исполняются без ручной фрагментации.' : 'Registration and role scenarios are designed upfront and executed without manual fragmentation.'}</p>
-                  </article>
-                  <article className="home-story-card">
-                    <h3>{locale === 'ru' ? 'Участие → контроль' : 'Participation → control'}</h3>
-                    <p>{locale === 'ru' ? 'Кабинет и админ работают в одной модели данных: меньше дублей, выше прозрачность.' : 'Workspace and admin run on one data model: fewer duplicates, higher transparency.'}</p>
-                  </article>
-                  {nextEvent ? (
-                    <article className="home-story-card">
-                      <h3>{locale === 'ru' ? 'Следующий слот' : 'Next slot'}</h3>
-                      <p>{nextEvent.title}</p>
-                    </article>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          </section>
-        ) : null}
-
-        <section className="home-section home-capabilities motion-fade-up-fast">
-          <div className="container">
-            <div className="home-section-head">
-              <h2>{locale === 'ru' ? 'Что делает платформу цельной' : 'What makes the platform coherent'}</h2>
-              <p>{locale === 'ru' ? 'Не набор страниц, а продуктовый контур со связанной операционной логикой.' : 'Not a set of pages, but one product loop with connected operational logic.'}</p>
-            </div>
-            <div className="home-capability-grid motion-stagger">
-              <article><h3>{locale === 'ru' ? 'Каталог с фокусом' : 'Focused discovery catalog'}</h3><p>{locale === 'ru' ? 'Публичная витрина отдает релевантные сценарии участия, а не информационный шум.' : 'The public catalog prioritizes relevant participation paths over noise.'}</p></article>
-              <article><h3>{locale === 'ru' ? 'Рабочий кабинет' : 'Operational workspace'}</h3><p>{locale === 'ru' ? 'Профиль, заявки, команды и статусы соединены в единый пользовательский контур.' : 'Profile, applications, teams, and statuses are unified in one user workspace.'}</p></article>
-              <article><h3>{locale === 'ru' ? 'Контрольный центр' : 'Command center'}</h3><p>{locale === 'ru' ? 'Админ-панель поддерживает управляемый запуск, модерацию и видимость метрик.' : 'Admin supports controlled launch, moderation, and metric visibility.'}</p></article>
-            </div>
-          </div>
-        </section>
-
-        <section className="home-section home-catalog motion-fade-up-fast">
+        <section className="home-section home-section-rebuilt home-catalog-showcase motion-fade-up-fast">
           <div className="container">
             <div className="home-section-head home-section-head-wide">
               <div>
-                <h2>{locale === 'ru' ? 'Актуальные события' : 'Current events'} </h2>
-                <p>{locale === 'ru' ? 'Быстрый просмотр каталога с прямым переходом в регистрацию.' : 'Fast catalog preview with direct path to registration details.'}</p>
+                <h2>{locale === 'ru' ? 'Живой каталог событий' : 'Live event catalog'}</h2>
+                <p>{locale === 'ru' ? 'Первые позиции получают больший вес, остальные поддерживают ритм ленты.' : 'Top entries carry stronger visual weight while the rest build a curated rhythm.'}</p>
               </div>
-              <Link href={`/${locale}/events`} className="signal-chip-link">{locale === 'ru' ? 'Открыть весь каталог' : 'Open full catalog'}</Link>
+              <Link href={`/${locale}/events`} className="signal-chip-link">{locale === 'ru' ? 'Открыть все события' : 'Open all events'}</Link>
             </div>
 
             {previewEvents.length === 0 ? (
               <div className="signal-empty-state">
                 <h3>{locale === 'ru' ? 'События появятся скоро' : 'Events will appear soon'}</h3>
-                <p>{locale === 'ru' ? 'Пока здесь пусто. Новые события появятся после публикации.' : 'Nothing here yet. New events will appear after publishing.'}</p>
+                <p>{locale === 'ru' ? 'Пока активных публикаций нет. Каталог обновится после следующего релиза.' : 'No active publications yet. The catalog updates on the next release cycle.'}</p>
               </div>
             ) : (
-              <div className="home-catalog-grid motion-stagger">
-                {previewEvents.map((event, index) => (
-                  <Link key={event.id} href={`/${locale}/events/${event.slug}`} className={`home-catalog-card ${index === 0 ? 'spotlight' : ''}`}>
-                    <div className="home-catalog-cover">{event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <CoverFallback title={event.title} />}</div>
-                    <div className="home-catalog-body">
-                      <div className="home-meta-row"><span>{formatPreviewDate(event.startsAt, locale)}</span><span>{event.location}</span></div>
-                      <h3>{event.title}</h3>
-                      <div className="home-catalog-footer">
-                        <span className="signal-status-badge tone-neutral">{event.category}</span>
-                        <span className="signal-chip-link">{locale === 'ru' ? 'Открыть' : 'Open'}</span>
-                      </div>
+              <div className="home-showcase-grid motion-stagger">
+                <Link href={`/${locale}/events/${leadEvent ? leadEvent.slug : ''}`} className="home-showcase-lead">
+                  <div className="home-showcase-cover">
+                    {leadEvent?.coverImageUrl ? <img src={leadEvent.coverImageUrl} alt={leadEvent.title} /> : <CoverFallback title={leadEvent?.title ?? 'EP'} />}
+                  </div>
+                  <div className="home-showcase-copy">
+                    <h3>{leadEvent?.title}</h3>
+                    <div className="home-meta-row">
+                      <span>{leadEvent ? formatPreviewDate(leadEvent.startsAt, locale) : ''}</span>
+                      <span>{leadEvent?.location}</span>
+                      <span>{leadEvent?.category}</span>
                     </div>
-                  </Link>
-                ))}
+                  </div>
+                </Link>
+
+                <div className="home-showcase-stack">
+                  {(sideEvent ? [sideEvent, ...tailEvents] : tailEvents).map((event) => (
+                    <Link key={event.id} href={`/${locale}/events/${event.slug}`} className="home-showcase-item">
+                      <div className="home-showcase-item-cover">
+                        {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <CoverFallback title={event.title} />}
+                      </div>
+                      <div>
+                        <h4>{event.title}</h4>
+                        <div className="home-meta-row">
+                          <span>{formatPreviewDate(event.startsAt, locale)}</span>
+                          <span>{event.location}</span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
               </div>
             )}
-          </div>
-        </section>
-
-        <section className="home-section home-cta motion-fade-up-fast">
-          <div className="container">
-            <div className="home-cta-panel">
-              <div>
-                <h2>{locale === 'ru' ? 'Запустите следующий сезон событий как единый продукт' : 'Run your next event season as one product'}</h2>
-                <p>{locale === 'ru' ? 'Откройте каталог, подключите команду и выстройте управляемый контур от первого клика до аналитики.' : 'Open discovery, onboard your team, and run a controlled loop from first click to analytics.'}</p>
-              </div>
-              <div className="home-cta-actions">
-                <Link href={`/${locale}/events`} className="btn btn-primary">{locale === 'ru' ? 'Перейти к событиям' : 'Go to events'}</Link>
-                <Link href={`/${locale}/register`} className="btn btn-secondary">{locale === 'ru' ? 'Начать работу' : 'Start now'}</Link>
-              </div>
-            </div>
           </div>
         </section>
       </main>
@@ -240,7 +207,7 @@ async function getPreviewEvents(): Promise<PreviewEvent[]> {
     'http://localhost:4000';
 
   try {
-    const response = await fetch(`${baseUrl}/api/events?limit=3`, {
+    const response = await fetch(`${baseUrl}/api/events?limit=4`, {
       next: { revalidate: 60 },
     });
     if (!response.ok) return [];
