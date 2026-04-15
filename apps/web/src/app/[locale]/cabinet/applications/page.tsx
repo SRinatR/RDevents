@@ -41,22 +41,26 @@ export default function CabinetApplicationsPage() {
   const toneByStatus: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> = { ACTIVE: 'success', PENDING: 'warning', REJECTED: 'danger', ACCEPTED: 'success' };
 
   return (
-    <div className="signal-page-shell cabinet-workspace-page">
-      <PageHeader title={locale === 'ru' ? 'Мои заявки' : 'My applications'} subtitle={locale === 'ru' ? 'Команды и волонтёрские статусы' : 'Team and volunteer statuses'} />
-      <div className="cabinet-workspace-intro">
-        <strong>{locale === 'ru' ? 'Мои заявки' : 'My applications'}</strong>
-        <span>{locale === 'ru' ? 'Здесь собраны статусы по командам и волонтёрству.' : 'Track team and volunteer statuses in one place.'}</span>
+    <div className="signal-page-shell cabinet-workspace-page workspace-page-v2">
+      <PageHeader title={locale === 'ru' ? 'Заявки и статусы' : 'Applications and statuses'} subtitle={locale === 'ru' ? 'Командные и волонтёрские треки в едином рабочем виде' : 'Team and volunteer tracks in one operational view'} />
+
+      <div className="workspace-command-row">
+        <Link href={`/${locale}/cabinet/events`} className="signal-chip-link">{locale === 'ru' ? 'Открыть каталог событий' : 'Open event catalog'}</Link>
+        <Link href={`/${locale}/cabinet/my-events`} className="signal-chip-link">{locale === 'ru' ? 'Перейти к моим событиям' : 'Go to my events'}</Link>
       </div>
-      <div className="workspace-status-strip">
+
+      <div className="workspace-status-strip workspace-status-strip-v2">
         <div className="workspace-status-card"><small>{locale === 'ru' ? 'Командные заявки' : 'Team statuses'}</small><strong>{teams.length}</strong></div>
         <div className="workspace-status-card"><small>{locale === 'ru' ? 'Волонтёрские заявки' : 'Volunteer statuses'}</small><strong>{volunteerApplications.length}</strong></div>
+        <div className="workspace-status-card"><small>{locale === 'ru' ? 'Рабочий контур' : 'Operational loop'}</small><strong>{locale === 'ru' ? 'Отслеживание в одном месте' : 'Tracking in one place'}</strong></div>
       </div>
+
       {loadingData ? <LoadingLines rows={8} /> : null}
       {error ? <Notice tone="danger">{error}</Notice> : null}
 
       {!loadingData && !error ? (
-        <>
-          <Panel variant="elevated" className="cabinet-workspace-panel">
+        <div className="workspace-board-grid">
+          <Panel variant="elevated" className="cabinet-workspace-panel workspace-board-column">
             <SectionHeader title={locale === 'ru' ? 'Командные заявки' : 'Team memberships'} actions={<StatusBadge tone="info">{teams.length}</StatusBadge>} />
             {teams.length === 0 ? <EmptyState title={locale === 'ru' ? 'Команд пока нет' : 'No teams yet'} description={locale === 'ru' ? 'После вступления в команду статус появится здесь.' : 'After joining a team, status will appear here.'} /> : (
               <div className="signal-stack cabinet-list-stack cabinet-list-stack-premium">
@@ -73,7 +77,7 @@ export default function CabinetApplicationsPage() {
             )}
           </Panel>
 
-          <Panel variant="elevated" className="cabinet-workspace-panel">
+          <Panel variant="elevated" className="cabinet-workspace-panel workspace-board-column">
             <SectionHeader title={locale === 'ru' ? 'Волонтёрские заявки' : 'Volunteer applications'} actions={<StatusBadge tone="info">{volunteerApplications.length}</StatusBadge>} />
             {volunteerApplications.length === 0 ? <EmptyState title={locale === 'ru' ? 'Заявки отсутствуют' : 'No applications'} description={locale === 'ru' ? 'Статусы волонтёрства появятся здесь после подачи.' : 'Volunteer statuses appear here after applying.'} /> : (
               <div className="signal-stack cabinet-list-stack cabinet-list-stack-premium">
@@ -89,7 +93,7 @@ export default function CabinetApplicationsPage() {
               </div>
             )}
           </Panel>
-        </>
+        </div>
       ) : null}
     </div>
   );

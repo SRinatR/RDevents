@@ -76,21 +76,23 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
   }
 
   return (
-    <div className="signal-page-shell cabinet-workspace-page">
-      <PageHeader title={event.title} subtitle={locale === 'ru' ? 'Карточка участия в мероприятии' : 'Participation workspace'} actions={<Link href={`/${locale}/cabinet/my-events`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Назад' : 'Back'}</Link>} />
-      <div className="workspace-status-strip">
+    <div className="signal-page-shell cabinet-workspace-page workspace-page-v2">
+      <PageHeader title={event.title} subtitle={locale === 'ru' ? 'Персональное рабочее пространство события' : 'Personal event workspace'} actions={<Link href={`/${locale}/cabinet/my-events`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Назад' : 'Back'}</Link>} />
+
+      <div className="workspace-status-strip workspace-status-strip-v2">
         <div className="workspace-status-card"><small>{locale === 'ru' ? 'Статус участия' : 'Participation status'}</small><strong>{isActiveParticipation ? (locale === 'ru' ? 'Активно' : 'Active') : (locale === 'ru' ? 'Ожидает действий' : 'Action required')}</strong></div>
         <div className="workspace-status-card"><small>{locale === 'ru' ? 'Командный модуль' : 'Team module'}</small><strong>{event.isTeamBased ? (locale === 'ru' ? 'Включён' : 'Enabled') : (locale === 'ru' ? 'Не требуется' : 'Not required')}</strong></div>
+        <div className="workspace-status-card"><small>{locale === 'ru' ? 'Волонтёрский трек' : 'Volunteer track'}</small><strong>{isVolunteer ? isVolunteer.status : (locale === 'ru' ? 'Не активирован' : 'Not active')}</strong></div>
       </div>
 
-      <ToolbarRow>
-        <button onClick={() => setActiveTab('info')} className={`signal-chip-link ${activeTab === 'info' ? 'active' : ''}`}>{locale === 'ru' ? 'Инфо' : 'Info'}</button>
+      <div className="workspace-tab-row">
+        <button onClick={() => setActiveTab('info')} className={`signal-chip-link ${activeTab === 'info' ? 'active' : ''}`}>{locale === 'ru' ? 'Обзор' : 'Overview'}</button>
         {event.isTeamBased ? <button onClick={() => setActiveTab('team')} className={`signal-chip-link ${activeTab === 'team' ? 'active' : ''}`}>{locale === 'ru' ? 'Команда' : 'Team'}</button> : null}
         <button onClick={() => setActiveTab('volunteer')} className={`signal-chip-link ${activeTab === 'volunteer' ? 'active' : ''}`}>{locale === 'ru' ? 'Волонтёрство' : 'Volunteer'}</button>
-      </ToolbarRow>
+      </div>
 
       {activeTab === 'info' ? (
-        <Panel variant="elevated">
+        <Panel variant="elevated" className="workspace-event-panel">
           <SectionHeader title={locale === 'ru' ? 'Описание и параметры' : 'Description and parameters'} />
           <p className="signal-muted cabinet-info-copy">{event.fullDescription || event.shortDescription}</p>
           <div className="signal-two-col">
@@ -101,7 +103,7 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
       ) : null}
 
       {activeTab === 'team' && event.isTeamBased ? (
-        <Panel variant="elevated">
+        <Panel variant="elevated" className="workspace-event-panel">
           <SectionHeader title={locale === 'ru' ? 'Командный модуль' : 'Team module'} />
           {myTeam ? (
             <div className="signal-stack">
@@ -144,7 +146,7 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
       ) : null}
 
       {activeTab === 'volunteer' ? (
-        <Panel variant="elevated">
+        <Panel variant="elevated" className="workspace-event-panel">
           <SectionHeader title={locale === 'ru' ? 'Волонтёрский статус' : 'Volunteer status'} />
           {isVolunteer ? (
             <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Текущий статус' : 'Current status'}</span><StatusBadge tone={isVolunteer.status === 'PENDING' ? 'warning' : isVolunteer.status === 'ACTIVE' || isVolunteer.status === 'APPROVED' ? 'success' : 'danger'}>{isVolunteer.status}</StatusBadge></div>

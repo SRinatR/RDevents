@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../../hooks/useAuth';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import Link from 'next/link';
 import { FieldInput, FieldTextarea, Notice, PageHeader, Panel, SectionHeader, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
 
 export default function ProfilePage() {
@@ -104,6 +105,11 @@ export default function ProfilePage() {
     <div className="signal-page-shell">
       <PageHeader title={locale === 'ru' ? 'Профиль' : 'Profile'} subtitle={locale === 'ru' ? 'Личные данные и модули участия' : 'Personal data and participation modules'} />
 
+      <div className="workspace-command-row">
+        <Link href={`/${locale}/cabinet/applications`} className="signal-chip-link">{locale === 'ru' ? 'Открыть заявки' : 'Open applications'}</Link>
+        <Link href={`/${locale}/cabinet/my-events`} className="signal-chip-link">{locale === 'ru' ? 'Перейти к участию' : 'Go to participations'}</Link>
+      </div>
+
       {requiredFields.length > 0 ? (
         <Notice tone="warning">
           {locale === 'ru'
@@ -115,7 +121,7 @@ export default function ProfilePage() {
       {error ? <Notice tone="danger">{error}</Notice> : null}
       {success ? <Notice tone="success">{locale === 'ru' ? 'Профиль обновлён.' : 'Profile updated.'}</Notice> : null}
 
-      <div className="workspace-status-strip">
+      <div className="workspace-status-strip workspace-status-strip-v2">
         <div className="workspace-status-card">
           <small>{locale === 'ru' ? 'Профиль' : 'Profile'}</small>
           <strong>{requiredFields.length > 0 ? (locale === 'ru' ? 'Требует дополнения' : 'Needs completion') : (locale === 'ru' ? 'Готов к участию' : 'Participation-ready')}</strong>
@@ -123,6 +129,10 @@ export default function ProfilePage() {
         <div className="workspace-status-card">
           <small>{locale === 'ru' ? 'Контур данных' : 'Data surface'}</small>
           <strong>{locale === 'ru' ? 'Регистрация · Контакты · Активность' : 'Registration · Contacts · Activity'}</strong>
+        </div>
+        <div className="workspace-status-card">
+          <small>{locale === 'ru' ? 'Следующий шаг' : 'Next step'}</small>
+          <strong>{requiredFields.length > 0 ? (locale === 'ru' ? 'Закрыть обязательные поля' : 'Close required fields') : (locale === 'ru' ? 'Перейти к событиям' : 'Proceed to events')}</strong>
         </div>
       </div>
 
