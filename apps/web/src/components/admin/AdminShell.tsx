@@ -60,7 +60,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <div className="admin-brand-mark">EP</div>
           <div>
             <div className="admin-brand-title">EventPlatform</div>
-            <div className="admin-brand-subtitle">Control Center</div>
+            <div className="admin-brand-subtitle">{locale === 'ru' ? 'Панель управления' : 'Control center'}</div>
           </div>
         </div>
 
@@ -88,17 +88,17 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <MenuIcon />
           </button>
           <div className="admin-topbar-title-wrap">
-            <div className="admin-topbar-title">{locale === 'ru' ? 'Командный центр' : 'Command center'}</div>
+            <div className="admin-topbar-title">{locale === 'ru' ? 'Панель администратора' : 'Admin panel'}</div>
             <div className="admin-topbar-subtitle">{user.name || user.email}</div>
           </div>
-          <div className="admin-topbar-chip">{isSuperAdmin ? 'Super' : isPlatformAdmin ? 'Platform' : 'Event'} admin</div>
+          <div className="admin-topbar-chip">{isSuperAdmin ? 'Super admin' : isPlatformAdmin ? 'Platform admin' : 'Event admin'}</div>
           <Link href={`/${locale}/admin/events/new`} className="btn btn-primary btn-sm admin-topbar-action">
             {t('admin.createEvent')}
           </Link>
         </header>
         <div className="admin-command-strip">
-          <span>{locale === "ru" ? "Операционный контур" : "Operational contour"}</span>
-          <span>{locale === "ru" ? "События, волонтёры, аналитика, доступ" : "Events, volunteers, analytics, access"}</span>
+          <span>{locale === "ru" ? "Рабочие разделы" : "Work areas"}</span>
+          <span>{locale === "ru" ? "События, волонтёры, аналитика и доступ" : "Events, volunteers, analytics, and access"}</span>
         </div>
         <main className="admin-main">{children}</main>
       </div>

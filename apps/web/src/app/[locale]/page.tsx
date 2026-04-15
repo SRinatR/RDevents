@@ -31,12 +31,12 @@ export default async function HomePage({ params }: HomePageProps) {
         <section className="public-hero public-hero-stage">
           <div className="container public-hero-grid public-hero-grid-stage">
             <div className="public-hero-content public-hero-content-stage">
-              <span className="public-kicker">{locale === 'ru' ? 'Операционный стандарт мероприятий' : 'Operational-grade event platform'}</span>
-              <h1>{locale === 'ru' ? 'Платформа, которая превращает события в управляемый продукт.' : 'The platform that turns events into an orchestrated product.'}</h1>
+              <span className="public-kicker">{locale === 'ru' ? 'Платформа для современных мероприятий' : 'Modern event platform'}</span>
+              <h1>{locale === 'ru' ? 'Управляйте событиями, командами и заявками в одном месте.' : 'Manage events, teams, and applications in one place.'}</h1>
               <p>
                 {locale === 'ru'
-                  ? 'Единый контур для организаторов, участников и волонтёров: структурированный каталог, предсказуемые сценарии участия и прозрачная административная аналитика.'
-                  : 'One surface for organizers, participants, and volunteers: structured catalog browsing, predictable participation flows, and transparent admin analytics.'}
+                  ? 'Единое пространство для организаторов, участников и волонтёров: каталог событий, понятные сценарии участия и рабочая админ-панель.'
+                  : 'One workspace for organizers, participants, and volunteers: event catalog, clear participation flows, and a practical admin panel.'}
               </p>
               <div className="public-hero-actions">
                 <Link href={`/${locale}/events`} className="btn btn-primary">{t('events.title')}</Link>
@@ -53,12 +53,12 @@ export default async function HomePage({ params }: HomePageProps) {
             </div>
 
             <aside className="public-hero-panel public-hero-panel-stage">
-              <h3>{locale === 'ru' ? 'Операционный пульс продукта' : 'Operational product pulse'}</h3>
+              <h3>{locale === 'ru' ? 'Обзор платформы' : 'Platform overview'}</h3>
               <div className="signal-stack">
                 <div className="signal-ranked-item"><span>{locale === 'ru' ? 'События в предпросмотре' : 'Preview events'}</span><strong>{previewEvents.length}</strong></div>
                 <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Режимы работы' : 'Modes'}</span><strong>{locale === 'ru' ? 'Публичный, кабинет, админ' : 'Public, cabinet, admin'}</strong></div>
                 <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Архитектура участия' : 'Participation model'}</span><strong>{locale === 'ru' ? 'Соло, команды, волонтёры' : 'Solo, teams, volunteers'}</strong></div>
-                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Текущее главное событие' : 'Current lead event'}</span><strong>{leadEvent ? leadEvent.title : (locale === 'ru' ? 'Каталог обновляется' : 'Catalog refresh in progress')}</strong></div>
+                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Главное событие сейчас' : 'Current featured event'}</span><strong>{leadEvent ? leadEvent.title : (locale === 'ru' ? 'Список обновляется' : 'List is updating')}</strong></div>
               </div>
               {leadEvent ? (
                 <Link href={`/${locale}/events/${leadEvent.slug}`} className="public-hero-panel-preview">
@@ -89,8 +89,8 @@ export default async function HomePage({ params }: HomePageProps) {
                 <strong>Public / Cabinet / Admin</strong>
               </div>
               <div className="public-proof-card">
-                <small>{locale === 'ru' ? 'Презентационный статус' : 'Presentation status'}</small>
-                <strong>{locale === 'ru' ? 'Investor-ready' : 'Investor-ready'}</strong>
+                <small>{locale === 'ru' ? 'Текущий релиз' : 'Current release'}</small>
+                <strong>{locale === 'ru' ? 'Фаза 2' : 'Phase 2'}</strong>
               </div>
             </div>
           </div>
@@ -104,7 +104,7 @@ export default async function HomePage({ params }: HomePageProps) {
                   <div className="public-featured-content">
                     <span className="signal-status-badge tone-info">{locale === 'ru' ? 'Рекомендуемое событие' : 'Featured event'}</span>
                     <h2>{leadEvent.title}</h2>
-                    <p>{locale === 'ru' ? 'Ближайшее событие с активной регистрацией и рабочим контуром участия.' : 'Nearest event with open registration and a complete participation workflow.'}</p>
+                    <p>{locale === 'ru' ? 'Ближайшее событие с открытой регистрацией.' : 'The nearest event with registration currently open.'}</p>
                     <div className="public-meta-row">
                       <span>{formatPreviewDate(leadEvent.startsAt, locale)}</span>
                       <span>{leadEvent.location}</span>
@@ -116,7 +116,7 @@ export default async function HomePage({ params }: HomePageProps) {
                     </div>
                     {nextEvent ? (
                       <div className="public-featured-next">
-                        <small>{locale === 'ru' ? 'Следующее событие' : 'Next event in queue'}</small>
+                        <small>{locale === 'ru' ? 'Следующее событие' : 'Up next'}</small>
                         <strong>{nextEvent.title}</strong>
                       </div>
                     ) : null}
@@ -129,15 +129,15 @@ export default async function HomePage({ params }: HomePageProps) {
                 <div className="public-narrative-stack">
                   <article className="public-narrative-card">
                     <h3>{locale === 'ru' ? 'Планирование и запуск' : 'Planning and launch'}</h3>
-                    <p>{locale === 'ru' ? 'Команда создает событие и режимы регистрации в едином цикле публикации.' : 'Teams build event setup and registration modes in one publishing cycle.'}</p>
+                    <p>{locale === 'ru' ? 'Организаторы настраивают событие и параметры регистрации в одном процессе.' : 'Organizers set up events and registration modes in one flow.'}</p>
                   </article>
                   <article className="public-narrative-card">
                     <h3>{locale === 'ru' ? 'Участие и команды' : 'Participation and teams'}</h3>
-                    <p>{locale === 'ru' ? 'Соло-формат, команды и код-вступление объединены в понятный пользовательский поток.' : 'Solo mode, teams, and join-by-code are aligned into one user flow.'}</p>
+                    <p>{locale === 'ru' ? 'Индивидуальное участие, команды и вход по коду собраны в единый сценарий.' : 'Solo participation, teams, and join-by-code are combined into one flow.'}</p>
                   </article>
                   <article className="public-narrative-card">
                     <h3>{locale === 'ru' ? 'Контроль и аналитика' : 'Control and analytics'}</h3>
-                    <p>{locale === 'ru' ? 'Админ-панель поддерживает операционный контроль, приоритезацию и аналитический обзор.' : 'Admin command center supports operational control, prioritization, and analytics visibility.'}</p>
+                    <p>{locale === 'ru' ? 'Админ-панель помогает отслеживать приоритеты и ключевые показатели.' : 'The admin panel keeps priorities and key metrics visible.'}</p>
                   </article>
                 </div>
               </div>
@@ -150,7 +150,7 @@ export default async function HomePage({ params }: HomePageProps) {
             <div className="public-section-head public-section-head-wide">
               <div>
                 <h2>{locale === 'ru' ? 'Каталог событий' : 'Event catalog preview'}</h2>
-                <p>{locale === 'ru' ? 'Быстрый вход в активные события с приоритетом на самое важное.' : 'Fast entry into active events, prioritizing the highest-impact one.'}</p>
+                <p>{locale === 'ru' ? 'Быстрый доступ к активным событиям и текущим регистрациям.' : 'Quick access to active events and current registrations.'}</p>
               </div>
               <Link href={`/${locale}/events`} className="signal-chip-link">{locale === 'ru' ? 'Открыть полный каталог' : 'Open full catalog'}</Link>
             </div>
@@ -158,7 +158,7 @@ export default async function HomePage({ params }: HomePageProps) {
             {previewEvents.length === 0 ? (
               <div className="signal-empty-state">
                 <h3>{locale === 'ru' ? 'События появятся скоро' : 'Events will appear soon'}</h3>
-                <p>{locale === 'ru' ? 'Каталог готов к публикации данных и отображает структурированное пустое состояние.' : 'Catalog is ready for published data and currently shows a structured empty state.'}</p>
+                <p>{locale === 'ru' ? 'Пока здесь пусто. Новые события появятся после публикации.' : 'Nothing here yet. New events will appear after publishing.'}</p>
               </div>
             ) : (
               <div className="public-events-grid public-events-preview-grid">

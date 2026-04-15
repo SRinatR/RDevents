@@ -255,7 +255,7 @@ export default function EventDetailPage() {
                 <div className="public-meta-row public-gap-after-xs public-event-meta-top">
                   <StatusBadge tone="neutral">{event.category}</StatusBadge>
                   <StatusBadge tone={event.status === 'PUBLISHED' ? 'success' : event.status === 'CANCELLED' ? 'danger' : 'warning'}>{event.status}</StatusBadge>
-                  {event.isFeatured ? <StatusBadge tone="info">Featured</StatusBadge> : null}
+                  {event.isFeatured ? <StatusBadge tone="info">{locale === 'ru' ? 'Рекомендуемое' : 'Featured'}</StatusBadge> : null}
                 </div>
                 <h1 className="signal-page-title public-gap-after-2xs">{event.title}</h1>
                 <p className="signal-page-subtitle public-gap-after-sm">{event.shortDescription}</p>
@@ -273,7 +273,7 @@ export default function EventDetailPage() {
                 </Panel>
 
                 <Panel className="public-event-description-panel public-event-description-panel-premium">
-                  <SectionHeader title={t('events.description')} subtitle={locale === 'ru' ? 'Редакционная версия содержания события.' : 'Editorial event story and context.'} />
+                  <SectionHeader title={t('events.description')} subtitle={locale === 'ru' ? 'Описание и детали события' : 'Event overview and details'} />
                   <div className="signal-prose-copy">
                     {event.fullDescription}
                   </div>
@@ -282,11 +282,11 @@ export default function EventDetailPage() {
 
               <aside className="public-sticky-panel public-event-action-rail">
                 <Panel className="public-participation-panel public-participation-panel-premium">
-                  <SectionHeader title={locale === 'ru' ? 'Участие' : 'Participation'} subtitle={locale === 'ru' ? 'Действия участия и статусы' : 'Participation actions and statuses'} />
+                  <SectionHeader title={locale === 'ru' ? 'Участие' : 'Participation'} subtitle={locale === 'ru' ? 'Доступные действия и текущий статус' : 'Available actions and current status'} />
                   <div className="progress-bar signal-gap-after-2xs public-participation-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
                   <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div>
 
-                  {myTeam ? <Notice tone="success">{locale === 'ru' ? 'Вы состоите в команде' : 'You are in team'}: {myTeam.name}</Notice>
+                  {myTeam ? <Notice tone="success">{locale === 'ru' ? 'Вы состоите в команде' : 'You are on team'}: {myTeam.name}</Notice>
                     : isRegistered ? <Notice tone="success">{t('events.registered')}</Notice>
                     : user ? (
                       <div className="signal-stack">
@@ -353,7 +353,7 @@ export default function EventDetailPage() {
                   {hasActiveVolunteer
                     ? <Notice tone="info">{locale === 'ru' ? 'Заявка волонтёра' : 'Volunteer request'}: {volunteerStatus}</Notice>
                     : user
-                      ? <button onClick={handleVolunteerApply} disabled={volunteering} className="btn btn-secondary btn-sm">{volunteering ? t('common.loading') : locale === 'ru' ? 'Подать заявку волонтёра' : 'Apply as volunteer'}</button>
+                      ? <button onClick={handleVolunteerApply} disabled={volunteering} className="btn btn-secondary btn-sm">{volunteering ? t('common.loading') : locale === 'ru' ? 'Откликнуться как волонтёр' : 'Apply as volunteer'}</button>
                       : <Link href={`/${locale}/login`} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Войти для волонтёрства' : 'Login to volunteer'}</Link>}
 
                   {volunteerError ? <Notice tone="danger">{volunteerError}</Notice> : null}

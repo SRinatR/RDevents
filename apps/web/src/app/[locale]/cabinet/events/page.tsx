@@ -35,8 +35,8 @@ export default function CabinetAllEventsPage() {
     <div className="signal-page-shell cabinet-workspace-page">
       <PageHeader title={locale === 'ru' ? 'Каталог мероприятий' : 'Event catalog'} subtitle={locale === 'ru' ? 'Доступные события для участия' : 'Available events for participation'} />
       <div className="cabinet-workspace-intro">
-        <strong>{locale === 'ru' ? 'Навигация по активным событиям' : 'Navigate active events'}</strong>
-        <span>{locale === 'ru' ? 'Каталог синхронизирован с публичной витриной и сохраняет текущую логику участия.' : 'Catalog stays synchronized with the public layer while keeping existing participation logic.'}</span>
+        <strong>{locale === 'ru' ? 'Активные события' : 'Active events'}</strong>
+        <span>{locale === 'ru' ? 'Выберите событие, чтобы открыть карточку и подать заявку.' : 'Choose an event to open details and join.'}</span>
       </div>
       <ToolbarRow>
         <Link href={`/${locale}/cabinet/my-events`} className="signal-chip-link">{locale === 'ru' ? 'Мои мероприятия' : 'My events'}</Link>
@@ -70,7 +70,7 @@ export default function CabinetAllEventsPage() {
         )}
       </Panel>
 
-      <Notice tone="info">{locale === 'ru' ? 'Эта страница сохраняет текущую логику eventsApi.list без изменений backend-поведения.' : 'This page keeps existing eventsApi.list logic without backend behavior changes.'}</Notice>
+      <Notice tone="info">{locale === 'ru' ? 'Список обновляется автоматически по мере публикации новых событий.' : 'This list updates automatically as new events are published.'}</Notice>
     </div>
   );
 }
