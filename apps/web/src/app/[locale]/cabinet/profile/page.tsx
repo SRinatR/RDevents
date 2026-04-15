@@ -87,12 +87,12 @@ export default function ProfilePage() {
   }
 
   const isRequired = (field: string) => requiredFields.includes(field);
-  const fieldTone = (field: string) => isRequired(field) ? { borderColor: 'rgba(31, 95, 224, 0.42)', background: 'rgba(31, 95, 224, 0.06)' } : undefined;
+  const fieldToneClass = (field: string) => isRequired(field) ? 'signal-field-required' : '';
 
   const requiredHint = (field: string) => {
     if (!isRequired(field)) return null;
     return (
-      <div className="signal-muted" style={{ color: 'var(--color-primary)' }}>
+      <div className="signal-muted signal-required-hint">
         {locale === 'ru'
           ? `Поле обязательно${requiredEventTitle ? ` для события "${requiredEventTitle}"` : ''}.`
           : `This field is required${requiredEventTitle ? ` for "${requiredEventTitle}"` : ''}.`}
@@ -115,6 +115,16 @@ export default function ProfilePage() {
       {error ? <Notice tone="danger">{error}</Notice> : null}
       {success ? <Notice tone="success">{locale === 'ru' ? 'Профиль обновлён.' : 'Profile updated.'}</Notice> : null}
 
+      <div className="cabinet-profile-top-grid">
+        <Panel className="cabinet-profile-summary">
+          <SectionHeader title={locale === 'ru' ? 'Профиль участника' : 'Participant profile'} subtitle={locale === 'ru' ? 'Базовая готовность к участию в событиях' : 'Core readiness for event participation'} />
+          <div className="cabinet-profile-summary-metrics">
+            <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Обязательные поля' : 'Required fields'}</span><strong>{requiredFields.length}</strong></div>
+            <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Текущий email' : 'Current email'}</span><strong>{email || '—'}</strong></div>
+          </div>
+        </Panel>
+      </div>
+
       <Panel>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="cabinet-tabs-list">
@@ -130,11 +140,11 @@ export default function ProfilePage() {
             <form onSubmit={handleSave} className="signal-stack">
               <div className="signal-two-col">
                 <FieldBlock label="Email" required><FieldInput value={email} disabled /></FieldBlock>
-                <FieldBlock label={locale === 'ru' ? 'Телефон' : 'Phone'} required><FieldInput value={phone} onChange={(event) => setPhone(event.target.value)} style={fieldTone('phone')} />{requiredHint('phone')}</FieldBlock>
+                <FieldBlock label={locale === 'ru' ? 'Телефон' : 'Phone'} required><FieldInput value={phone} onChange={(event) => setPhone(event.target.value)} className={fieldToneClass('phone')} />{requiredHint('phone')}</FieldBlock>
               </div>
 
               <div className="signal-two-col">
-                <FieldBlock label={locale === 'ru' ? 'Имя (RU)' : 'Name (RU)'} required><FieldInput value={nameRu} onChange={(event) => setNameRu(event.target.value)} style={fieldTone('name')} />{requiredHint('name')}</FieldBlock>
+                <FieldBlock label={locale === 'ru' ? 'Имя (RU)' : 'Name (RU)'} required><FieldInput value={nameRu} onChange={(event) => setNameRu(event.target.value)} className={fieldToneClass('name')} />{requiredHint('name')}</FieldBlock>
                 <FieldBlock label={locale === 'ru' ? 'Имя (EN)' : 'Name (EN)'}><FieldInput value={nameEn} onChange={(event) => setNameEn(event.target.value)} /></FieldBlock>
               </div>
 
@@ -149,7 +159,7 @@ export default function ProfilePage() {
               </div>
 
               <FieldBlock label={locale === 'ru' ? 'Дата рождения' : 'Birth date'} required>
-                <FieldInput value={birthDate} onChange={(event) => setBirthDate(event.target.value)} placeholder={locale === 'ru' ? 'ДД.ММ.ГГГГ' : 'DD.MM.YYYY'} style={fieldTone('birthDate')} />
+                <FieldInput value={birthDate} onChange={(event) => setBirthDate(event.target.value)} placeholder={locale === 'ru' ? 'ДД.ММ.ГГГГ' : 'DD.MM.YYYY'} className={fieldToneClass('birthDate')} />
                 {requiredHint('birthDate')}
               </FieldBlock>
 
@@ -161,18 +171,18 @@ export default function ProfilePage() {
             <SectionHeader title={locale === 'ru' ? 'Общие данные профиля' : 'General profile data'} subtitle={locale === 'ru' ? 'Публичные и контактные атрибуты' : 'Public and contact attributes'} />
             <div className="signal-stack">
               <div className="signal-two-col">
-                <FieldBlock label={locale === 'ru' ? 'Город' : 'City'}><FieldInput value={city} onChange={(event) => setCity(event.target.value)} style={fieldTone('city')} />{requiredHint('city')}</FieldBlock>
+                <FieldBlock label={locale === 'ru' ? 'Город' : 'City'}><FieldInput value={city} onChange={(event) => setCity(event.target.value)} className={fieldToneClass('city')} />{requiredHint('city')}</FieldBlock>
                 <FieldBlock label={locale === 'ru' ? 'Страна' : 'Country'}><FieldInput value={country} onChange={(event) => setCountry(event.target.value)} /></FieldBlock>
               </div>
 
-              <FieldBlock label={locale === 'ru' ? 'Ссылка на фото' : 'Avatar URL'}><FieldInput value={avatarUrl} onChange={(event) => setAvatarUrl(event.target.value)} style={fieldTone('avatarUrl')} placeholder="https://..." />{requiredHint('avatarUrl')}</FieldBlock>
-              <FieldBlock label={locale === 'ru' ? 'О себе' : 'About'}><FieldTextarea value={bio} onChange={(event) => setBio(event.target.value)} style={fieldTone('bio')} />{requiredHint('bio')}</FieldBlock>
+              <FieldBlock label={locale === 'ru' ? 'Ссылка на фото' : 'Avatar URL'}><FieldInput value={avatarUrl} onChange={(event) => setAvatarUrl(event.target.value)} className={fieldToneClass('avatarUrl')} placeholder="https://..." />{requiredHint('avatarUrl')}</FieldBlock>
+              <FieldBlock label={locale === 'ru' ? 'О себе' : 'About'}><FieldTextarea value={bio} onChange={(event) => setBio(event.target.value)} className={fieldToneClass('bio')} />{requiredHint('bio')}</FieldBlock>
               <button onClick={handleSave} disabled={saving} className="btn btn-primary btn-sm">{saving ? (locale === 'ru' ? 'Сохранение...' : 'Saving...') : (locale === 'ru' ? 'Сохранить' : 'Save')}</button>
             </div>
           </TabsContent>
 
           <TabsContent value="documents" className="cabinet-tab-content">
-            <Panel>
+            <Panel className="cabinet-module-panel">
               <SectionHeader title={locale === 'ru' ? 'Модуль документов' : 'Documents module'} subtitle={locale === 'ru' ? 'Секция готова к подключению верификационных файлов.' : 'Section is ready for verification file integrations.'} actions={<StatusBadge tone="neutral">Coming next</StatusBadge>} />
               <EmptyModule locale={locale} textRu="После включения document-flow здесь появятся загруженные и проверенные документы." textEn="Uploaded and verified files will appear here once document-flow is enabled." />
             </Panel>
@@ -180,14 +190,14 @@ export default function ProfilePage() {
 
           <TabsContent value="contacts" className="cabinet-tab-content">
             <div className="signal-stack">
-              <FieldBlock label="Telegram"><FieldInput value={telegram} onChange={(event) => setTelegram(event.target.value)} placeholder="@username" style={fieldTone('telegram')} />{requiredHint('telegram')}</FieldBlock>
+              <FieldBlock label="Telegram"><FieldInput value={telegram} onChange={(event) => setTelegram(event.target.value)} placeholder="@username" className={fieldToneClass('telegram')} />{requiredHint('telegram')}</FieldBlock>
               <FieldBlock label={locale === 'ru' ? 'Телефон' : 'Phone'}><FieldInput value={phone} onChange={(event) => setPhone(event.target.value)} /></FieldBlock>
               <button onClick={handleSave} disabled={saving} className="btn btn-primary btn-sm">{saving ? (locale === 'ru' ? 'Сохранение...' : 'Saving...') : (locale === 'ru' ? 'Сохранить' : 'Save')}</button>
             </div>
           </TabsContent>
 
           <TabsContent value="activity" className="cabinet-tab-content">
-            <Panel>
+            <Panel className="cabinet-module-panel">
               <SectionHeader title={locale === 'ru' ? 'Модуль активности' : 'Activity module'} subtitle={locale === 'ru' ? 'История участия и персональные показатели будут отображаться здесь.' : 'Participation history and personal indicators will be displayed here.'} actions={<StatusBadge tone="info">Planned</StatusBadge>} />
               <EmptyModule locale={locale} textRu="Текущий релиз сохраняет структуру и готовит интерфейс под будущую аналитику активности." textEn="Current release preserves structure and prepares UI for future activity analytics." />
             </Panel>
@@ -200,9 +210,9 @@ export default function ProfilePage() {
 
 function FieldBlock({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
-    <label className="signal-stack" style={{ gap: 6 }}>
-      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-text-secondary)' }}>
-        {label} {required ? <span style={{ color: 'var(--color-danger)' }}>*</span> : null}
+    <label className="signal-stack cabinet-field-block">
+      <span className="cabinet-field-label">
+        {label} {required ? <span className="cabinet-field-required">*</span> : null}
       </span>
       {children}
     </label>

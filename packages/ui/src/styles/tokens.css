@@ -8,63 +8,63 @@
     'Segoe UI',
     sans-serif;
 
-  --color-bg: #f5f7fa;
-  --color-bg-soft: #eef2f7;
-  --color-bg-subtle: #e7ecf3;
+  --color-bg: #f2f5fb;
+  --color-bg-soft: #eaf0f8;
+  --color-bg-subtle: #e2e9f3;
 
   --color-surface: #ffffff;
   --color-surface-strong: #ffffff;
-  --color-surface-elevated: #f8fafc;
-  --color-surface-table: #fbfdff;
-  --color-surface-action: #eef4ff;
+  --color-surface-elevated: #f7faff;
+  --color-surface-table: #fbfcff;
+  --color-surface-action: #edf3ff;
 
-  --color-text-primary: #161c28;
-  --color-text-secondary: #2f394c;
-  --color-text-muted: #5c667b;
-  --color-text-faint: #8a94a8;
+  --color-text-primary: #131b2b;
+  --color-text-secondary: #29354a;
+  --color-text-muted: #57647b;
+  --color-text-faint: #7f8ba0;
 
-  --color-primary: #1f5fe0;
-  --color-primary-hover: #1a4fc0;
-  --color-primary-active: #143f9f;
-  --color-primary-subtle: rgba(31, 95, 224, 0.12);
-  --color-primary-glow: rgba(31, 95, 224, 0.24);
+  --color-primary: #1e56d9;
+  --color-primary-hover: #1a4bc0;
+  --color-primary-active: #153d9a;
+  --color-primary-subtle: rgba(30, 86, 217, 0.12);
+  --color-primary-glow: rgba(30, 86, 217, 0.22);
 
-  --color-accent: #d73a49;
-  --color-accent-hover: #ba2f3e;
-  --color-accent-subtle: rgba(215, 58, 73, 0.12);
+  --color-accent: #cb3349;
+  --color-accent-hover: #b52a3e;
+  --color-accent-subtle: rgba(203, 51, 73, 0.12);
 
-  --color-info: #2563eb;
-  --color-info-subtle: rgba(37, 99, 235, 0.11);
-  --color-success: #0f766e;
-  --color-success-subtle: rgba(15, 118, 110, 0.12);
-  --color-warning: #b45309;
-  --color-warning-subtle: rgba(180, 83, 9, 0.12);
-  --color-danger: #c62828;
-  --color-danger-subtle: rgba(198, 40, 40, 0.12);
+  --color-info: #245fd6;
+  --color-info-subtle: rgba(36, 95, 214, 0.11);
+  --color-success: #0d7468;
+  --color-success-subtle: rgba(13, 116, 104, 0.11);
+  --color-warning: #a75a0f;
+  --color-warning-subtle: rgba(167, 90, 15, 0.12);
+  --color-danger: #be2d2d;
+  --color-danger-subtle: rgba(190, 45, 45, 0.11);
 
-  --color-border: #d5dce7;
-  --color-border-strong: #bcc6d6;
-  --color-border-focus: rgba(31, 95, 224, 0.45);
+  --color-border: #d1daea;
+  --color-border-strong: #b9c5da;
+  --color-border-focus: rgba(30, 86, 217, 0.35);
 
-  --shadow-xs: 0 1px 2px rgba(17, 24, 39, 0.05);
-  --shadow-sm: 0 3px 10px rgba(17, 24, 39, 0.07);
-  --shadow-md: 0 10px 26px rgba(17, 24, 39, 0.11);
-  --shadow-lg: 0 20px 40px rgba(17, 24, 39, 0.14);
-  --shadow-primary: 0 10px 30px rgba(31, 95, 224, 0.28);
-  --shadow-primary-lg: 0 14px 42px rgba(31, 95, 224, 0.34);
+  --shadow-xs: 0 1px 2px rgba(11, 19, 38, 0.05), 0 0 0 1px rgba(11, 19, 38, 0.02);
+  --shadow-sm: 0 6px 18px rgba(11, 19, 38, 0.07), 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+  --shadow-md: 0 14px 34px rgba(11, 19, 38, 0.11), 0 2px 10px rgba(11, 19, 38, 0.04);
+  --shadow-lg: 0 26px 56px rgba(11, 19, 38, 0.16), 0 6px 20px rgba(11, 19, 38, 0.07);
+  --shadow-primary: 0 10px 24px rgba(30, 86, 217, 0.24);
+  --shadow-primary-lg: 0 16px 42px rgba(30, 86, 217, 0.3);
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 18px;
-  --radius-2xl: 24px;
-  --radius-3xl: 32px;
+  --radius-sm: 7px;
+  --radius-md: 11px;
+  --radius-lg: 16px;
+  --radius-xl: 21px;
+  --radius-2xl: 28px;
+  --radius-3xl: 36px;
   --radius-full: 9999px;
 
-  --transition-fast: 140ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-base: 220ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-slow: 320ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-spring: 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --transition-fast: 140ms cubic-bezier(0.32, 0.72, 0, 1);
+  --transition-base: 230ms cubic-bezier(0.3, 0.7, 0.2, 1);
+  --transition-slow: 340ms cubic-bezier(0.23, 1, 0.32, 1);
+  --transition-spring: 300ms cubic-bezier(0.22, 1, 0.36, 1);
 
   --z-navbar: 100;
   --z-overlay: 200;

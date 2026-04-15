@@ -110,8 +110,8 @@ export default function AdminAdminsPage() {
       {error ? <Notice tone="danger">{error}</Notice> : null}
       {success ? <Notice tone="success">{success}</Notice> : null}
 
-      <div className="signal-two-col">
-        <Panel>
+      <div className="signal-two-col admin-dashboard-grid">
+        <Panel className="admin-command-panel">
           <SectionHeader title={locale === 'ru' ? 'Назначить администратора события' : 'Assign event admin'} subtitle={locale === 'ru' ? 'Назначение по email в выбранное событие' : 'Assign by email into selected event scope'} />
           {loadingData ? <LoadingLines rows={4} /> : (
             <form onSubmit={handleAssign} className="signal-stack">
@@ -128,14 +128,14 @@ export default function AdminAdminsPage() {
           )}
         </Panel>
 
-        <Panel>
+        <Panel className="admin-command-panel">
           <SectionHeader title={locale === 'ru' ? 'Администраторы платформы' : 'Platform admins'} subtitle={locale === 'ru' ? 'Глобальные административные роли' : 'Global administrative roles'} />
           {loadingData ? <LoadingLines rows={4} /> : platformAdmins.length === 0 ? (
             <EmptyState title={locale === 'ru' ? 'Нет администраторов платформы' : 'No platform admins'} description={locale === 'ru' ? 'Пока нет назначенных пользователей.' : 'No users assigned yet.'} />
           ) : (
             <div className="signal-stack">
               {platformAdmins.map((admin) => (
-                <div key={admin.id} className="signal-ranked-item">
+                <div key={admin.id} className="signal-ranked-item admin-list-item">
                   <div>
                     <strong>{admin.name || admin.email}</strong>
                     <div className="signal-muted">{admin.email}</div>
@@ -153,14 +153,14 @@ export default function AdminAdminsPage() {
         </Panel>
       </div>
 
-      <Panel>
+      <Panel className="admin-command-panel">
         <SectionHeader title={locale === 'ru' ? 'Администраторы событий' : 'Event admins'} subtitle={locale === 'ru' ? 'Назначения по конкретным мероприятиям' : 'Assignments tied to specific events'} actions={<StatusBadge tone="neutral">{eventAdmins.length}</StatusBadge>} />
         {loadingData ? <LoadingLines rows={5} /> : eventAdmins.length === 0 ? (
           <EmptyState title={locale === 'ru' ? 'Нет назначений' : 'No assignments'} description={locale === 'ru' ? 'Назначения появятся после первой выдачи роли event admin.' : 'Assignments appear after first event-admin grant.'} />
         ) : (
           <div className="signal-stack">
             {eventAdmins.map((membership) => (
-              <div key={membership.id} className="signal-ranked-item">
+              <div key={membership.id} className="signal-ranked-item admin-list-item">
                 <div>
                   <strong>{membership.user?.name || membership.user?.email}</strong>
                   <div className="signal-muted">{membership.user?.email}</div>

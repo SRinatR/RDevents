@@ -74,9 +74,14 @@ export default function LoginPage() {
           <span className="public-logo-mark">EP</span>
           <span className="public-logo-text">EventPlatform</span>
         </Link>
-        <div>
+        <div className="auth-brand-content">
           <h1>{locale === 'ru' ? 'Вход в рабочее пространство' : 'Access your workspace'}</h1>
           <p>{locale === 'ru' ? 'Операционный доступ к событиям, заявкам и участию.' : 'Operational access to events, applications, and participation.'}</p>
+          <div className="auth-brand-badges">
+            <span>{locale === 'ru' ? 'События' : 'Events'}</span>
+            <span>{locale === 'ru' ? 'Команды' : 'Teams'}</span>
+            <span>{locale === 'ru' ? 'Волонтёрство' : 'Volunteer'}</span>
+          </div>
         </div>
       </div>
 
@@ -93,7 +98,7 @@ export default function LoginPage() {
               <input type={showPass ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} required className="signal-field signal-field-with-action" placeholder={t('auth.password')} />
               <button type="button" onClick={() => setShowPass((value) => !value)} className="auth-eye-toggle">{showPass ? 'Hide' : 'Show'}</button>
             </div>
-            {error ? <div className="signal-notice tone-danger">{error}</div> : null}
+            {error ? <div className="signal-notice tone-danger auth-inline-notice">{error}</div> : null}
             <button type="submit" disabled={loading} className="btn btn-primary">{loading ? '...' : (locale === 'ru' ? 'Войти' : 'Sign in')}</button>
           </form>
 

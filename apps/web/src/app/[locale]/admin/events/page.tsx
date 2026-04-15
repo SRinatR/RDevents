@@ -93,15 +93,15 @@ export default function AdminEventsPage() {
         <SectionHeader title={locale === 'ru' ? 'Управление мероприятиями' : 'Event management workspace'} subtitle={locale === 'ru' ? 'Поиск, фильтрация и действия в едином реестре' : 'Search, filtering, and actions in one registry'} />
 
         <ToolbarRow>
-          <FieldInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder={locale === 'ru' ? 'Поиск по названию, категории или slug' : 'Search by title, category, or slug'} style={{ minWidth: 280 }} />
-          <FieldSelect value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={{ width: 180 }}>
+          <FieldInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder={locale === 'ru' ? 'Поиск по названию, категории или slug' : 'Search by title, category, or slug'} className="admin-filter-search" />
+          <FieldSelect value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="admin-filter-select">
             <option value="ALL">All statuses</option>
             <option value="PUBLISHED">Published</option>
             <option value="DRAFT">Draft</option>
             <option value="CANCELLED">Cancelled</option>
             <option value="COMPLETED">Completed</option>
           </FieldSelect>
-          <FieldSelect value={sortMode} onChange={(event) => setSortMode(event.target.value as 'date_desc' | 'date_asc' | 'title')} style={{ width: 210 }}>
+          <FieldSelect value={sortMode} onChange={(event) => setSortMode(event.target.value as 'date_desc' | 'date_asc' | 'title')} className="admin-filter-sort">
             <option value="date_desc">Newest first</option>
             <option value="date_asc">Oldest first</option>
             <option value="title">Title A-Z</option>
@@ -134,8 +134,10 @@ export default function AdminEventsPage() {
                 {filteredEvents.map((event: any) => (
                   <tr key={event.id}>
                     <td>
-                      <strong>{event.title}</strong>
-                      <div className="signal-muted">/{event.slug}</div>
+                      <div className="admin-table-primary">
+                        <strong>{event.title}</strong>
+                        <div className="signal-muted">/{event.slug}</div>
+                      </div>
                     </td>
                     <td>{event.category}</td>
                     <td><StatusBadge tone={toneByStatus[event.status] ?? 'info'}>{event.status}</StatusBadge></td>
@@ -161,7 +163,7 @@ export default function AdminEventsPage() {
       </Panel>
 
       {pendingDeleteEvent && (
-        <Panel className="signal-danger-zone">
+        <Panel className="signal-danger-zone admin-danger-panel">
           <SectionHeader title={locale === 'ru' ? 'Подтверждение удаления' : 'Deletion confirmation'} subtitle={pendingDeleteEvent.title} />
           <ToolbarRow>
             <button onClick={handleDelete} className="btn btn-danger btn-sm" disabled={Boolean(deletingId)}>{locale === 'ru' ? 'Подтвердить удаление' : 'Confirm delete'}</button>

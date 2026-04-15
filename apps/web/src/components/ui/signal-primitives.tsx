@@ -74,7 +74,7 @@ export function LoadingLines({ rows = 4 }: { rows?: number }) {
   return (
     <div className="signal-loading-lines">
       {Array.from({ length: rows }).map((_, index) => (
-        <div key={index} className="skeleton" style={{ height: 20 }} />
+        <div key={index} className="signal-loading-line" />
       ))}
     </div>
   );

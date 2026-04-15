@@ -37,13 +37,14 @@ export default function Sidebar({ locale, userName, userEmail, userAvatar }: Sid
         <div className="signal-avatar cabinet-avatar">
           {userAvatar ? <img src={userAvatar} alt="" /> : initials}
         </div>
-        <div>
+        <div className="cabinet-user-content">
           <h2>{userName || displayName}</h2>
           {userEmail ? <p>{userEmail}</p> : null}
+          <span className="cabinet-user-pill">{locale === 'ru' ? 'Рабочее пространство участника' : 'Participant workspace'}</span>
         </div>
       </div>
 
-      <Link href={`/${locale}/cabinet`} className="btn btn-secondary btn-sm btn-block-center">
+      <Link href={`/${locale}/cabinet`} className="btn btn-secondary btn-sm btn-block-center cabinet-profile-action">
         {locale === 'ru' ? 'Редактировать профиль' : 'Edit profile'}
       </Link>
 

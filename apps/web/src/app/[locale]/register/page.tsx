@@ -80,9 +80,14 @@ export default function RegisterPage() {
           <span className="public-logo-mark">EP</span>
           <span className="public-logo-text">EventPlatform</span>
         </Link>
-        <div>
+        <div className="auth-brand-content">
           <h1>{isRu ? 'Создайте аккаунт участника' : 'Create your participant account'}</h1>
           <p>{isRu ? 'Быстрая регистрация. Полный профиль можно заполнить позже в кабинете.' : 'Fast signup. Full profile can be completed later in cabinet.'}</p>
+          <div className="auth-brand-badges">
+            <span>{isRu ? 'Быстрый старт' : 'Quick start'}</span>
+            <span>{isRu ? 'Гибкий профиль' : 'Flexible profile'}</span>
+            <span>{isRu ? 'Рабочий кабинет' : 'Workspace ready'}</span>
+          </div>
         </div>
       </div>
 
@@ -109,7 +114,7 @@ export default function RegisterPage() {
               </>
             )}
 
-            {error ? <div className="signal-notice tone-danger">{error}</div> : null}
+            {error ? <div className="signal-notice tone-danger auth-inline-notice">{error}</div> : null}
 
             <Toolbar step={step} onBack={handleBack} loading={loading} isRu={isRu} />
           </form>

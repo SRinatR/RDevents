@@ -87,7 +87,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <button className="admin-menu-button" onClick={() => setSidebarOpen((value) => !value)} type="button" aria-label="Toggle navigation">
             <MenuIcon />
           </button>
-          <div className="admin-topbar-title">{t('admin.title')}</div>
+          <div className="admin-topbar-title-wrap">
+            <div className="admin-topbar-title">{t('admin.title')}</div>
+            <div className="admin-topbar-subtitle">{user.name || user.email}</div>
+          </div>
+          <Link href={`/${locale}/admin/events/new`} className="btn btn-primary btn-sm admin-topbar-action">
+            {t('admin.createEvent')}
+          </Link>
         </header>
         <main className="admin-main">{children}</main>
       </div>

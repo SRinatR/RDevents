@@ -83,8 +83,8 @@ export default function AdminPage() {
         ))}
       </ToolbarRow>
 
-      <div className="signal-two-col">
-        <Panel>
+      <div className="signal-two-col admin-dashboard-grid">
+        <Panel className="admin-command-panel">
           <SectionHeader title={locale === 'ru' ? 'Ключевые показатели' : 'Key operational KPIs'} subtitle={locale === 'ru' ? 'Текущая операционная сводка' : 'Current operational summary'} />
           {statsLoading ? (
             <LoadingLines rows={5} />
@@ -100,7 +100,7 @@ export default function AdminPage() {
           )}
         </Panel>
 
-        <Panel>
+        <Panel className="admin-command-panel">
           <SectionHeader title={locale === 'ru' ? 'Операционная очередь' : 'Operational queue'} subtitle={locale === 'ru' ? 'Приоритеты по модулям' : 'Module-level priorities'} />
           <div className="signal-stack">
             <div className="signal-ranked-item"><span>{locale === 'ru' ? 'События в работе' : 'Active event workflows'}</span><StatusBadge tone="info">{stats?.totalEvents ?? 0}</StatusBadge></div>
@@ -111,8 +111,8 @@ export default function AdminPage() {
         </Panel>
       </div>
 
-      <div className="signal-two-col">
-        <Panel>
+      <div className="signal-two-col admin-dashboard-grid">
+        <Panel className="admin-command-panel">
           <SectionHeader title={t('analytics.topViewedEvents')} subtitle={locale === 'ru' ? 'Лидеры по интересу аудитории' : 'Highest audience attention'} />
           {statsLoading ? <LoadingLines rows={4} /> : stats?.topViewedEvents?.length ? (
             <div className="signal-ranked-list">
@@ -127,7 +127,7 @@ export default function AdminPage() {
           ) : <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Список появится после первых просмотров.' : 'List appears after first page views.'} />}
         </Panel>
 
-        <Panel>
+        <Panel className="admin-command-panel">
           <SectionHeader title={t('analytics.topRegisteredEvents')} subtitle={locale === 'ru' ? 'Лидеры по заявкам' : 'Highest registration demand'} />
           {statsLoading ? <LoadingLines rows={4} /> : stats?.topRegisteredEvents?.length ? (
             <div className="signal-ranked-list">

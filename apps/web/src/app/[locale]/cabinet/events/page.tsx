@@ -43,13 +43,13 @@ export default function CabinetAllEventsPage() {
         {eventsLoading ? <LoadingLines rows={6} /> : events.length === 0 ? (
           <EmptyState title={locale === 'ru' ? 'События пока отсутствуют' : 'No events yet'} description={locale === 'ru' ? 'Каталог пуст. Возвращайтесь позже или проверьте фильтры на публичной странице событий.' : 'Catalog is empty. Check back later or review filters on the public events page.'} />
         ) : (
-          <div className="signal-stack">
+          <div className="signal-stack cabinet-list-stack">
             {events.map((event: any) => {
               const isOpen = new Date(event.registrationDeadline) > new Date();
               return (
-                <div key={event.id} className="signal-ranked-item">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div className="signal-avatar" style={{ borderRadius: 10 }}>{event.coverImageUrl ? <img src={event.coverImageUrl} alt="" /> : event.title?.slice(0, 2).toUpperCase()}</div>
+                <div key={event.id} className="signal-ranked-item cabinet-list-item">
+                  <div className="cabinet-list-item-main">
+                    <div className="signal-avatar cabinet-list-avatar">{event.coverImageUrl ? <img src={event.coverImageUrl} alt="" /> : event.title?.slice(0, 2).toUpperCase()}</div>
                     <div>
                       <strong>{event.title}</strong>
                       <div className="signal-muted">{event.location} · {formatDate(event.startsAt)} — {formatDate(event.endsAt)}</div>

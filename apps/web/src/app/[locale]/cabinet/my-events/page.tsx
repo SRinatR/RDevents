@@ -44,12 +44,12 @@ export default function MyEventsPage() {
         {eventsLoading ? <LoadingLines rows={6} /> : error ? <Notice tone="danger">{error}</Notice> : events.length === 0 ? (
           <EmptyState title={locale === 'ru' ? 'Участий пока нет' : 'No participations yet'} description={locale === 'ru' ? 'Выберите событие из каталога, чтобы начать участие.' : 'Choose an event from catalog to start participating.'} actions={<Link href={`/${locale}/cabinet/events`} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Смотреть события' : 'View events'}</Link>} />
         ) : (
-          <div className="signal-stack">
+          <div className="signal-stack cabinet-list-stack">
             {events.map((registration: any) => {
               const event = registration.event ?? registration;
               const href = event.slug ? `/${locale}/cabinet/my-events/${event.slug}` : `/${locale}/cabinet/my-events`;
               return (
-                <Link key={registration.registrationId ?? registration.id ?? event.id} href={href} className="signal-ranked-item">
+                <Link key={registration.registrationId ?? registration.id ?? event.id} href={href} className="signal-ranked-item cabinet-list-item">
                   <div>
                     <strong>{event.title}</strong>
                     <div className="signal-muted">{event.location ? `${event.location} · ` : ''}{event.startsAt && event.endsAt ? `${formatDate(event.startsAt)} — ${formatDate(event.endsAt)}` : ''}</div>

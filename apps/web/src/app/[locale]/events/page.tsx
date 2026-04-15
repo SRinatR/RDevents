@@ -56,6 +56,32 @@ export default function EventsPage() {
     });
   }
 
+  function getEventVisualState(event: any) {
+    const capacity = Number(event.capacity ?? 0);
+    const registrations = Number(event.registrationsCount ?? 0);
+    const isFull = capacity > 0 && registrations >= capacity;
+    const capacityRatio = capacity > 0 ? registrations / capacity : 0;
+    const isLimited = !isFull && capacity > 0 && capacityRatio >= 0.75;
+    const isUpcoming = new Date(event.startsAt).getTime() > Date.now();
+
+    if (event.status === 'CANCELLED') {
+      return { key: 'cancelled', label: locale === 'ru' ? 'Отменено' : 'Cancelled', tone: 'danger' as const };
+    }
+    if (isFull) {
+      return { key: 'full', label: locale === 'ru' ? 'Мест нет' : 'Full', tone: 'warning' as const };
+    }
+    if (isLimited) {
+      return { key: 'limited', label: locale === 'ru' ? 'Почти заполнено' : 'Limited spots', tone: 'warning' as const };
+    }
+    if (event.isFeatured) {
+      return { key: 'featured', label: locale === 'ru' ? 'Рекомендуемое' : 'Featured', tone: 'info' as const };
+    }
+    if (isUpcoming) {
+      return { key: 'upcoming', label: locale === 'ru' ? 'Скоро' : 'Upcoming', tone: 'info' as const };
+    }
+    return { key: 'normal', label: locale === 'ru' ? 'Открыто' : 'Open', tone: 'success' as const };
+  }
+
   return (
     <div className="public-page-shell">
       <main className="public-main">
@@ -63,17 +89,17 @@ export default function EventsPage() {
           <div className="container">
             <PageHeader title={t('events.title')} subtitle={t('events.subtitle')} actions={<StatusBadge tone="info">{events.length} {locale === 'ru' ? 'на странице' : 'on page'}</StatusBadge>} />
 
-            <Panel>
+            <Panel className="public-events-toolbar-panel">
               <ToolbarRow>
-                <FieldInput value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={t('events.searchPlaceholder')} style={{ minWidth: 260 }} />
-                <FieldSelect value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }} style={{ width: 220 }}>
+                <FieldInput value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={t('events.searchPlaceholder')} className="public-events-search-input" />
+                <FieldSelect value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }} className="public-events-category-select">
                   <option value="">{t('events.category')}: {t('common.filters')}</option>
                   {CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
                 </FieldSelect>
                 {(search || category) ? <button onClick={() => { setSearch(''); setCategory(''); setPage(1); }} className="btn btn-ghost btn-sm">Reset</button> : null}
               </ToolbarRow>
 
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <div className="public-events-filter-chips">
                 <button className="signal-chip-link" onClick={() => { setCategory(''); setPage(1); }}>{locale === 'ru' ? 'Все' : 'All'}</button>
                 {CATEGORIES.map((item) => (
                   <button key={item} className="signal-chip-link" onClick={() => { setCategory(item); setPage(1); }}>{item}</button>
@@ -92,27 +118,33 @@ export default function EventsPage() {
             ) : null}
 
             {!loading && !error && events.length > 0 ? (
-              <div className="public-events-grid" style={{ marginTop: 14 }}>
+              <div className="public-events-grid public-events-grid-spaced">
                 {events.map((event) => {
                   const capacityPct = event.capacity > 0
                     ? Math.min((event.registrationsCount / event.capacity) * 100, 100)
                     : 0;
                   const isFull = event.registrationsCount >= event.capacity;
+                  const visualState = getEventVisualState(event);
 
                   return (
-                    <Link key={event.id} href={`/${locale}/events/${event.slug}`} className="public-event-card">
+                    <Link key={event.id} href={`/${locale}/events/${event.slug}`} className={`public-event-card public-event-card-${visualState.key}`}>
                       <div className="public-event-cover">
                         {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
+                        <div className="public-event-cover-overlay" />
                       </div>
                       <div className="public-event-body">
                         <div className="public-meta-row"><span>{formatDate(event.startsAt)}</span><span>{event.location}</span></div>
                         <h3>{event.title}</h3>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                          <StatusBadge tone="neutral">{event.category}</StatusBadge>
+                        <div className="public-event-badges">
+                          <StatusBadge tone={visualState.tone}>{visualState.label}</StatusBadge>
                           <StatusBadge tone={STATUS_TONE[event.status] ?? 'neutral'}>{event.status}</StatusBadge>
                         </div>
-                        <div className="progress-bar" style={{ marginTop: 10 }}><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
-                        <div className="signal-muted" style={{ marginTop: 8 }}>{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : ''}</div>
+                        <div className="public-event-card-footer">
+                          <StatusBadge tone="neutral">{event.category}</StatusBadge>
+                          <span className="signal-muted">{event.registrationsCount}/{event.capacity}</span>
+                        </div>
+                        <div className="progress-bar public-event-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
+                        <div className="signal-muted public-event-capacity-note">{isFull ? (locale === 'ru' ? 'Лимит мест достигнут' : 'Capacity reached') : (locale === 'ru' ? 'Регистрация активна' : 'Registration active')}</div>
                       </div>
                     </Link>
                   );
@@ -121,7 +153,7 @@ export default function EventsPage() {
             ) : null}
 
             {meta && meta.pages > 1 ? (
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 24 }}>
+              <div className="public-pagination">
                 <button onClick={() => setPage((value) => Math.max(value - 1, 1))} disabled={page === 1} className="btn btn-ghost btn-sm">Prev</button>
                 {Array.from({ length: meta.pages }, (_, index) => index + 1).map((item) => (
                   <button key={item} onClick={() => setPage(item)} className={`btn btn-sm ${item === page ? 'btn-primary' : 'btn-secondary'}`}>{item}</button>

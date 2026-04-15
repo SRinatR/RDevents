@@ -75,8 +75,8 @@ export default function AdminUsersPage() {
       <Panel>
         <SectionHeader title={locale === 'ru' ? 'Операции с пользователями' : 'User operations'} subtitle={locale === 'ru' ? 'Управление ролями и учётными записями' : 'Role and account management'} />
         <ToolbarRow>
-          <FieldInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder={locale === 'ru' ? 'Поиск по имени, email или городу' : 'Search by name, email, or city'} style={{ minWidth: 280 }} />
-          <FieldSelect value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} style={{ width: 210 }}>
+          <FieldInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder={locale === 'ru' ? 'Поиск по имени, email или городу' : 'Search by name, email, or city'} className="admin-filter-search" />
+          <FieldSelect value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="admin-filter-sort">
             <option value="ALL">All roles</option>
             <option value="USER">User</option>
             <option value="PLATFORM_ADMIN">Platform Admin</option>
@@ -107,7 +107,7 @@ export default function AdminUsersPage() {
                 {filteredUsers.map((entry: any) => (
                   <tr key={entry.id}>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div className="admin-user-cell">
                         <span className="signal-avatar">
                           {entry.avatarUrl ? <img src={entry.avatarUrl} alt="" /> : (entry.name || entry.email || '?').charAt(0).toUpperCase()}
                         </span>
@@ -122,7 +122,7 @@ export default function AdminUsersPage() {
                     <td>{entry.createdAt ? new Date(entry.createdAt).toLocaleDateString() : '—'}</td>
                     <td>{entry.lastLoginAt ? new Date(entry.lastLoginAt).toLocaleDateString() : '—'}</td>
                     <td>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      <div className="admin-provider-list">
                         {entry.accounts?.length
                           ? entry.accounts.map((account: any) => <StatusBadge key={account.id} tone="neutral">{account.provider}</StatusBadge>)
                           : <span className="signal-muted">No linked providers</span>}
