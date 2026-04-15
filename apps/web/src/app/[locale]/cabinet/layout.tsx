@@ -30,11 +30,11 @@ export default function CabinetLayout({ children }: { children: ReactNode }) {
           <header className="cabinet-shell-topbar">
             <div>
               <small>{locale === 'ru' ? 'Рабочая среда участника' : 'Participant workspace'}</small>
-              <strong>{locale === 'ru' ? 'Кабинет управления участием' : 'Participation command workspace'}</strong>
+              <strong>{locale === 'ru' ? 'Кабинет участника' : 'Participant cabinet'}</strong>
             </div>
             <div className="cabinet-shell-user-meta">
               <span>{user.name || user.email}</span>
-              <span>{locale === 'ru' ? 'Сквозной профиль и заявки' : 'Unified profile and applications'}</span>
+              <span>{locale === 'ru' ? 'Профиль, события и заявки' : 'Profile, events, and applications'}</span>
             </div>
           </header>
 

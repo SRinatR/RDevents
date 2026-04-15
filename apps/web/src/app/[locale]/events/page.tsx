@@ -100,7 +100,7 @@ export default function EventsPage() {
                     <option value="">{t('events.category')}: {t('common.filters')}</option>
                     {CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
                   </FieldSelect>
-                  {(search || category) ? <button onClick={() => { setSearch(''); setCategory(''); setPage(1); }} className="btn btn-ghost btn-sm">Reset</button> : null}
+                  {(search || category) ? <button onClick={() => { setSearch(''); setCategory(''); setPage(1); }} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Сбросить' : 'Reset'}</button> : null}
                 </ToolbarRow>
 
                 <div className="public-events-filter-chips public-events-filter-chips-stage">
@@ -131,9 +131,9 @@ export default function EventsPage() {
                       <div className="public-event-cover-overlay" />
                     </div>
                     <div className="public-event-body public-event-body-headline">
-                      <StatusBadge tone="info">{locale === 'ru' ? 'Главный фокус каталога' : 'Catalog spotlight'}</StatusBadge>
+                      <StatusBadge tone="info">{locale === 'ru' ? 'Рекомендуемое событие' : 'Featured event'}</StatusBadge>
                       <h3>{headlineEvent.title}</h3>
-                      <p>{headlineEvent.shortDescription || (locale === 'ru' ? 'Откройте карточку события для полной информации и участия.' : 'Open event details for full story and participation actions.')}</p>
+                      <p>{headlineEvent.shortDescription || (locale === 'ru' ? 'Откройте карточку, чтобы посмотреть детали и условия участия.' : 'Open event details to view info and participation options.')}</p>
                       <div className="public-meta-row"><span>{formatDate(headlineEvent.startsAt)}</span><span>{headlineEvent.location}</span></div>
                       <div className="public-event-card-footer">
                         <StatusBadge tone={STATUS_TONE[headlineEvent.status] ?? 'neutral'}>{headlineEvent.status}</StatusBadge>
@@ -180,16 +180,16 @@ export default function EventsPage() {
 
             {meta && meta.pages > 1 ? (
               <div className="public-pagination">
-                <button onClick={() => setPage((value) => Math.max(value - 1, 1))} disabled={page === 1} className="btn btn-ghost btn-sm">Prev</button>
+                <button onClick={() => setPage((value) => Math.max(value - 1, 1))} disabled={page === 1} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Назад' : 'Prev'}</button>
                 {Array.from({ length: meta.pages }, (_, index) => index + 1).map((item) => (
                   <button key={item} onClick={() => setPage(item)} className={`btn btn-sm ${item === page ? 'btn-primary' : 'btn-secondary'}`}>{item}</button>
                 ))}
-                <button onClick={() => setPage((value) => Math.min(value + 1, meta.pages))} disabled={page === meta.pages} className="btn btn-ghost btn-sm">Next</button>
+                <button onClick={() => setPage((value) => Math.min(value + 1, meta.pages))} disabled={page === meta.pages} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Далее' : 'Next'}</button>
               </div>
             ) : null}
 
             <Notice tone="info">
-              {locale === 'ru' ? 'Список сохраняет текущую логику поиска, фильтрации и пагинации через eventsApi.' : 'The list keeps existing eventsApi-based search, filtering, and pagination logic.'}
+              {locale === 'ru' ? 'Используйте поиск и фильтры, чтобы быстрее найти подходящее событие.' : 'Use search and filters to find relevant events faster.'}
             </Notice>
           </div>
         </section>

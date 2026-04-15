@@ -44,8 +44,8 @@ export default function CabinetApplicationsPage() {
     <div className="signal-page-shell cabinet-workspace-page">
       <PageHeader title={locale === 'ru' ? 'Мои заявки' : 'My applications'} subtitle={locale === 'ru' ? 'Команды и волонтёрские статусы' : 'Team and volunteer statuses'} />
       <div className="cabinet-workspace-intro">
-        <strong>{locale === 'ru' ? 'Единый журнал заявок' : 'Unified application journal'}</strong>
-        <span>{locale === 'ru' ? 'Командные и волонтёрские треки собраны в единое рабочее представление.' : 'Team and volunteer tracks are grouped into one operational view.'}</span>
+        <strong>{locale === 'ru' ? 'Мои заявки' : 'My applications'}</strong>
+        <span>{locale === 'ru' ? 'Здесь собраны статусы по командам и волонтёрству.' : 'Track team and volunteer statuses in one place.'}</span>
       </div>
       {loadingData ? <LoadingLines rows={8} /> : null}
       {error ? <Notice tone="danger">{error}</Notice> : null}

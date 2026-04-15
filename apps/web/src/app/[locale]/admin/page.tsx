@@ -62,7 +62,7 @@ export default function AdminPage() {
 
   if (loading || !user || !isAdmin) return <div className="admin-loading-screen"><div className="spinner" /></div>;
 
-  const scope = stats?.eventScope ? 'Event Scope' : 'Platform Scope';
+  const scope = stats?.eventScope ? 'Event scope' : 'Platform scope';
 
   const quickActions = [
     { href: `/${locale}/admin/events/new`, label: t('admin.createEvent'), enabled: isPlatformAdmin },
@@ -78,8 +78,8 @@ export default function AdminPage() {
       <div className="admin-dashboard-hero">
         <PageHeader title={t('admin.title')} subtitle={t('admin.subtitle')} actions={<StatusBadge tone="info">{scope}</StatusBadge>} />
         <div className="admin-dashboard-hero-note">
-          <strong>{locale === 'ru' ? 'Контрольная поверхность платформы' : 'Platform control surface'}</strong>
-          <span>{locale === 'ru' ? 'Быстрый доступ к модулям управления и операционным приоритетам.' : 'Fast access to management modules and operational priorities.'}</span>
+          <strong>{locale === 'ru' ? 'Рабочая панель платформы' : 'Platform workspace'}</strong>
+          <span>{locale === 'ru' ? 'Быстрый доступ к событиям, пользователям, волонтёрам и аналитике.' : 'Quick access to events, users, volunteers, and analytics.'}</span>
         </div>
       </div>
 
@@ -91,7 +91,7 @@ export default function AdminPage() {
 
       <div className="signal-two-col admin-dashboard-grid admin-dashboard-grid-top">
         <Panel className="admin-command-panel">
-          <SectionHeader title={locale === 'ru' ? 'Ключевые показатели' : 'Key operational KPIs'} subtitle={locale === 'ru' ? 'Текущая операционная сводка' : 'Current operational summary'} />
+          <SectionHeader title={locale === 'ru' ? 'Ключевые показатели' : 'Key metrics'} subtitle={locale === 'ru' ? 'Текущая сводка по системе' : 'Current system summary'} />
           {statsLoading ? (
             <LoadingLines rows={5} />
           ) : stats ? (
@@ -102,12 +102,12 @@ export default function AdminPage() {
               <MetricCard tone="danger" label={locale === 'ru' ? 'В ожидании волонтёров' : 'Volunteers pending'} value={stats.volunteersPending ?? 0} />
             </div>
           ) : (
-            <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Панель активируется после появления данных по событиям.' : 'Dashboard widgets activate once event data is available.'} />
+            <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Данные появятся после первых событий и регистраций.' : 'Data will appear after the first events and registrations.'} />
           )}
         </Panel>
 
         <Panel className="admin-command-panel">
-          <SectionHeader title={locale === 'ru' ? 'Операционная очередь' : 'Operational queue'} subtitle={locale === 'ru' ? 'Приоритеты по модулям' : 'Module-level priorities'} />
+          <SectionHeader title={locale === 'ru' ? 'Рабочая очередь' : 'Work queue'} subtitle={locale === 'ru' ? 'Приоритеты по разделам' : 'Priorities by section'} />
           <div className="signal-stack">
             <div className="signal-ranked-item"><span>{locale === 'ru' ? 'События в работе' : 'Active event workflows'}</span><StatusBadge tone="info">{stats?.totalEvents ?? 0}</StatusBadge></div>
             <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Новые регистрации' : 'Incoming registrations'}</span><StatusBadge tone="success">{stats?.totalRegistrations ?? 0}</StatusBadge></div>
@@ -150,7 +150,7 @@ export default function AdminPage() {
       </div>
 
       <Notice tone="warning">
-        {locale === 'ru' ? 'Модули расширенной аналитики и автоматизации очередей запланированы следующими фазами, но структура уже готова для интеграции.' : 'Advanced analytics and queue automation modules are planned for next phases, with structure already prepared for integration.'}
+        {locale === 'ru' ? 'Расширенная аналитика и автоматизация очередей будут добавлены на следующих этапах.' : 'Advanced analytics and queue automation are planned for upcoming phases.'}
       </Notice>
     </div>
   );
