@@ -89,8 +89,8 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="signal-stack">
             <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required className="signal-field" placeholder={t('auth.email')} />
-            <div style={{ position: 'relative' }}>
-              <input type={showPass ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} required className="signal-field" placeholder={t('auth.password')} style={{ paddingRight: 40 }} />
+            <div className="signal-field-wrap">
+              <input type={showPass ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} required className="signal-field signal-field-with-action" placeholder={t('auth.password')} />
               <button type="button" onClick={() => setShowPass((value) => !value)} className="auth-eye-toggle">{showPass ? 'Hide' : 'Show'}</button>
             </div>
             {error ? <div className="signal-notice tone-danger">{error}</div> : null}

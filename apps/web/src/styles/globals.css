@@ -482,6 +482,11 @@ img { display: block; max-width: 100%; }
 
 .mobile-link:hover, .mobile-link.active { background: var(--color-primary-subtle); color: var(--color-primary); }
 
+.btn-block-center {
+  width: 100%;
+  justify-content: center;
+}
+
 /* Legacy pre-Signal marketing/admin utility blocks were removed.
    The active Signal/public/admin/cabinet/auth systems start below. */
 
@@ -804,6 +809,11 @@ img { display: block; max-width: 100%; }
 .signal-three-col { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .signal-stack { display: grid; gap: 12px; }
 .signal-muted { color: var(--color-text-muted); font-size: 0.84rem; }
+.signal-gap-after-2xs { margin-bottom: 8px; }
+.signal-gap-after-sm { margin-bottom: 12px; }
+.signal-prose-copy { white-space: pre-wrap; color: var(--color-text-secondary); line-height: 1.75; }
+.signal-field-wrap { position: relative; }
+.signal-field-with-action { padding-right: 40px; }
 .signal-table td strong { font-weight: 650; letter-spacing: -0.01em; }
 .signal-table tbody tr:last-child td { border-bottom: none; }
 
@@ -878,9 +888,12 @@ img { display: block; max-width: 100%; }
 .public-nav-actions { display: inline-flex; align-items: center; gap: 8px; }
 .public-user-chip { display: inline-flex; align-items: center; gap: 8px; padding: 3px 8px 3px 3px; border: 1px solid var(--color-border); border-radius: var(--radius-full); }
 .public-user-name { font-size: 0.82rem; color: var(--color-text-secondary); max-width: 170px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.public-menu-trigger { display: none; border: 1px solid var(--color-border); background: #fff; width: 34px; height: 34px; border-radius: var(--radius-sm); }
+.public-menu-trigger { display: none; border: 1px solid var(--color-border); background: #fff; width: 34px; height: 34px; border-radius: var(--radius-sm); align-items: center; justify-content: center; }
 .public-menu-trigger span { display: block; width: 16px; height: 2px; background: var(--color-text-secondary); margin: 3px auto; }
 .public-mobile-actions { display: grid; gap: 8px; margin-top: 8px; }
+.public-gap-after-2xs { margin-bottom: 8px; }
+.public-gap-after-xs { margin-bottom: 10px; }
+.public-gap-after-sm { margin-bottom: 14px; }
 
 .public-hero { padding: 48px 0 32px; }
 .public-hero-grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 18px; align-items: stretch; }
@@ -928,6 +941,7 @@ img { display: block; max-width: 100%; }
 .public-footer-brand { display: flex; align-items: center; gap: 10px; }
 .public-footer-title { font-weight: 700; color: var(--color-text-primary); }
 .public-footer-subtitle { font-size: 0.84rem; color: var(--color-text-muted); }
+.public-footer-feedback { margin-top: 14px; }
 .public-footer-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .public-footer-links h4 { margin: 0 0 8px; font-size: 0.82rem; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .public-footer-links a { display: block; margin: 5px 0; color: var(--color-text-secondary); font-size: 0.88rem; }
@@ -991,14 +1005,19 @@ img { display: block; max-width: 100%; }
 .auth-card h2 { margin: 0; font-size: 1.55rem; }
 .auth-card p { margin: 0; font-size: 0.88rem; color: var(--color-text-muted); }
 .auth-card p a { color: var(--color-primary); font-weight: 700; }
-.auth-eye-toggle { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); border: none; background: transparent; color: var(--color-text-muted); font-size: 0.72rem; font-weight: 700; }
+.auth-eye-toggle { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); border: none; background: transparent; color: var(--color-text-muted); font-size: 0.72rem; font-weight: 700; cursor: pointer; padding: 3px; border-radius: var(--radius-sm); }
+.auth-eye-toggle:hover { color: var(--color-text-secondary); background: var(--color-bg-soft); }
 .auth-divider { display: flex; align-items: center; justify-content: center; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted); margin: 2px 0; }
 .auth-social-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.auth-social-btn { border: 1px solid var(--color-border); background: #fff; border-radius: var(--radius-md); min-height: 42px; display: grid; place-items: center; gap: 0; }
+.auth-social-btn { border: 1px solid var(--color-border); background: #fff; border-radius: var(--radius-md); min-height: 42px; display: grid; place-items: center; gap: 0; cursor: pointer; transition: border-color var(--transition-fast), background var(--transition-fast), transform var(--transition-fast); }
+.auth-social-btn:hover:enabled { border-color: var(--color-border-strong); background: var(--color-surface-elevated); }
+.auth-social-btn:active:enabled { transform: scale(0.98); }
+.auth-social-btn:disabled { cursor: not-allowed; opacity: 0.62; }
 .auth-social-btn span { font-size: 0.84rem; font-weight: 800; color: var(--color-primary); }
 .auth-social-btn small { font-size: 0.65rem; color: var(--color-text-muted); }
 .auth-progress-top { display: grid; gap: 8px; font-size: 0.78rem; color: var(--color-text-muted); }
 .auth-actions-row { display: flex; gap: 8px; }
+.auth-primary-action { flex: 1; }
 
 @media (max-width: 1024px) {
   .cabinet-layout-grid { grid-template-columns: 1fr; }

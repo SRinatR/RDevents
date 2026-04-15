@@ -108,7 +108,7 @@ export function Navbar({ locale }: NavbarProps) {
           {user ? (
             <button onClick={handleLogout} className="btn btn-secondary">{t('nav.logout') || 'Logout'}</button>
           ) : (
-            <Link href={`/${locale}/login`} className="btn btn-primary" style={{ justifyContent: 'center' }}>{t('nav.login') || 'Login'}</Link>
+            <Link href={`/${locale}/login`} className="btn btn-primary btn-block-center">{t('nav.login') || 'Login'}</Link>
           )}
           <Link href={nextPath} className="locale-switcher">{otherLocale.toUpperCase()}</Link>
         </div>

@@ -254,15 +254,15 @@ export default function EventDetailPage() {
 
             <div className="public-event-layout">
               <div>
-                <div className="public-meta-row" style={{ marginBottom: 10 }}>
+                <div className="public-meta-row public-gap-after-xs">
                   <StatusBadge tone="neutral">{event.category}</StatusBadge>
                   <StatusBadge tone={event.status === 'PUBLISHED' ? 'success' : event.status === 'CANCELLED' ? 'danger' : 'warning'}>{event.status}</StatusBadge>
                   {event.isFeatured ? <StatusBadge tone="info">Featured</StatusBadge> : null}
                 </div>
-                <h1 className="signal-page-title" style={{ marginBottom: 8 }}>{event.title}</h1>
-                <p className="signal-page-subtitle" style={{ marginBottom: 14 }}>{event.shortDescription}</p>
+                <h1 className="signal-page-title public-gap-after-2xs">{event.title}</h1>
+                <p className="signal-page-subtitle public-gap-after-sm">{event.shortDescription}</p>
 
-                <div className="public-meta-row" style={{ marginBottom: 14 }}>
+                <div className="public-meta-row public-gap-after-sm">
                   <span>{formatDate(event.startsAt)}</span>
                   <span>{formatTime(event.startsAt)} – {formatTime(event.endsAt)}</span>
                   <span>{event.location}</span>
@@ -270,7 +270,7 @@ export default function EventDetailPage() {
 
                 <Panel>
                   <SectionHeader title={t('events.description')} />
-                  <div style={{ whiteSpace: 'pre-wrap', color: 'var(--color-text-secondary)', lineHeight: 1.75 }}>
+                  <div className="signal-prose-copy">
                     {event.fullDescription}
                   </div>
                 </Panel>
@@ -279,8 +279,8 @@ export default function EventDetailPage() {
               <aside className="public-sticky-panel">
                 <Panel>
                   <SectionHeader title={locale === 'ru' ? 'Участие' : 'Participation'} />
-                  <div className="progress-bar" style={{ marginBottom: 8 }}><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
-                  <div className="signal-muted" style={{ marginBottom: 12 }}>{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : ''}</div>
+                  <div className="progress-bar signal-gap-after-2xs"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
+                  <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : ''}</div>
 
                   {myTeam ? <Notice tone="success">{locale === 'ru' ? 'Вы состоите в команде' : 'You are in team'}: {myTeam.name}</Notice>
                     : isRegistered ? <Notice tone="success">{t('events.registered')}</Notice>

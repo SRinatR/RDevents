@@ -101,8 +101,8 @@ export default function RegisterPage() {
               <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" className="signal-field" autoFocus />
             ) : (
               <>
-                <div style={{ position: 'relative' }}>
-                  <input type={showPass ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={t('auth.password')} className="signal-field" autoFocus style={{ paddingRight: 40 }} />
+                <div className="signal-field-wrap">
+                  <input type={showPass ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={t('auth.password')} className="signal-field signal-field-with-action" autoFocus />
                   <button type="button" onClick={() => setShowPass((value) => !value)} className="auth-eye-toggle">{showPass ? 'Hide' : 'Show'}</button>
                 </div>
                 <div className="signal-muted">{isRu ? 'Сложность пароля' : 'Password strength'}: {['', 'Weak', 'Fair', 'Good', 'Strong'][strength]}</div>
@@ -123,7 +123,7 @@ function Toolbar({ step, onBack, loading, isRu }: { step: Step; onBack: () => vo
   return (
     <div className="auth-actions-row">
       {step > 1 ? <button type="button" onClick={onBack} className="btn btn-secondary btn-sm">{isRu ? 'Назад' : 'Back'}</button> : null}
-      <button type="submit" disabled={loading} className="btn btn-primary btn-sm" style={{ flex: 1 }}>
+      <button type="submit" disabled={loading} className="btn btn-primary btn-sm auth-primary-action">
         {loading ? '...' : step < TOTAL_STEPS ? (isRu ? 'Далее' : 'Next') : (isRu ? 'Создать аккаунт' : 'Create account')}
       </button>
     </div>

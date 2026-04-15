@@ -15,7 +15,7 @@ export function PublicFooter({ locale }: { locale: string }) {
                 </div>
               </div>
             </div>
-            <a href="mailto:support@eventplatform.local" className="btn btn-secondary btn-sm" style={{ marginTop: 14 }}>
+            <a href="mailto:support@eventplatform.local" className="btn btn-secondary btn-sm public-footer-feedback">
               {locale === 'ru' ? 'Обратная связь' : 'Feedback'}
             </a>
           </div>
