@@ -74,16 +74,22 @@ export default function AdminPage() {
   ].filter((item) => item.enabled);
 
   return (
-    <div className="signal-page-shell">
-      <PageHeader title={t('admin.title')} subtitle={t('admin.subtitle')} actions={<StatusBadge tone="info">{scope}</StatusBadge>} />
+    <div className="signal-page-shell admin-dashboard-shell">
+      <div className="admin-dashboard-hero">
+        <PageHeader title={t('admin.title')} subtitle={t('admin.subtitle')} actions={<StatusBadge tone="info">{scope}</StatusBadge>} />
+        <div className="admin-dashboard-hero-note">
+          <strong>{locale === 'ru' ? 'Контрольная поверхность платформы' : 'Platform control surface'}</strong>
+          <span>{locale === 'ru' ? 'Быстрый доступ к модулям управления и операционным приоритетам.' : 'Fast access to management modules and operational priorities.'}</span>
+        </div>
+      </div>
 
-      <ToolbarRow>
+      <div className="admin-quick-actions-row"><ToolbarRow>
         {quickActions.map((item) => (
           <Link key={item.href} href={item.href} className="signal-chip-link">{item.label}</Link>
         ))}
-      </ToolbarRow>
+      </ToolbarRow></div>
 
-      <div className="signal-two-col admin-dashboard-grid">
+      <div className="signal-two-col admin-dashboard-grid admin-dashboard-grid-top">
         <Panel className="admin-command-panel">
           <SectionHeader title={locale === 'ru' ? 'Ключевые показатели' : 'Key operational KPIs'} subtitle={locale === 'ru' ? 'Текущая операционная сводка' : 'Current operational summary'} />
           {statsLoading ? (
