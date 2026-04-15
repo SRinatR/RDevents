@@ -23,13 +23,14 @@ export default async function HomePage({ params }: HomePageProps) {
   const previewEvents = await getPreviewEvents();
   const t = await getTranslations();
   const leadEvent = previewEvents[0];
+  const nextEvent = previewEvents[1];
 
   return (
     <div className="public-page-shell">
       <main className="public-main">
         <section className="public-hero">
           <div className="container public-hero-grid">
-            <div>
+            <div className="public-hero-content">
               <span className="public-kicker">{locale === 'ru' ? 'Операционный стандарт мероприятий' : 'Operational-grade event platform'}</span>
               <h1>{locale === 'ru' ? 'Платформа для управляемых событий, команд и участия.' : 'A platform for managed events, teams, and participation.'}</h1>
               <p>
@@ -40,15 +41,24 @@ export default async function HomePage({ params }: HomePageProps) {
               <div className="public-hero-actions">
                 <Link href={`/${locale}/events`} className="btn btn-primary">{t('events.title')}</Link>
                 <Link href={`/${locale}/register`} className="btn btn-secondary">{locale === 'ru' ? 'Создать аккаунт' : 'Create account'}</Link>
+                <Link href={leadEvent ? `/${locale}/events/${leadEvent.slug}` : `/${locale}/events`} className="btn btn-ghost">
+                  {locale === 'ru' ? 'Смотреть главное событие' : 'View lead event'}
+                </Link>
+              </div>
+              <div className="public-hero-points">
+                <div>{locale === 'ru' ? 'Роли, команды и волонтёрство в одном контуре' : 'Roles, teams, and volunteering in one workflow'}</div>
+                <div>{locale === 'ru' ? 'Публичный контур + кабинет + админ управление' : 'Public + cabinet + admin control surface'}</div>
+                <div>{locale === 'ru' ? 'Чёткие статусы и контролируемые формы участия' : 'Clear status model and controlled participation forms'}</div>
               </div>
             </div>
 
             <aside className="public-hero-panel">
-              <h3>{locale === 'ru' ? 'Платформа в цифрах' : 'Platform snapshot'}</h3>
+              <h3>{locale === 'ru' ? 'Платформа в фокусе' : 'Platform in focus'}</h3>
               <div className="signal-stack">
                 <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Предпросмотр событий' : 'Preview events'}</span><strong>{previewEvents.length}</strong></div>
                 <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Модули' : 'Modules'}</span><strong>{locale === 'ru' ? 'События, команды, волонтёры' : 'Events, teams, volunteers'}</strong></div>
                 <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Режим доступа' : 'Access model'}</span><strong>{locale === 'ru' ? 'Публичный + кабинет + админ' : 'Public + cabinet + admin'}</strong></div>
+                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Текущий фокус' : 'Current focus'}</span><strong>{leadEvent ? leadEvent.title : (locale === 'ru' ? 'Каталог обновляется' : 'Catalog refresh in progress')}</strong></div>
               </div>
             </aside>
           </div>
@@ -67,7 +77,16 @@ export default async function HomePage({ params }: HomePageProps) {
                     <span>{leadEvent.location}</span>
                     <span>{leadEvent.category}</span>
                   </div>
-                  <Link href={`/${locale}/events/${leadEvent.slug}`} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Открыть событие' : 'Open event'}</Link>
+                  <div className="public-featured-actions">
+                    <Link href={`/${locale}/events/${leadEvent.slug}`} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Открыть событие' : 'Open event'}</Link>
+                    <Link href={`/${locale}/events`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Смотреть весь каталог' : 'See full catalog'}</Link>
+                  </div>
+                  {nextEvent ? (
+                    <div className="public-featured-next">
+                      <small>{locale === 'ru' ? 'Далее в очереди' : 'Next in line'}</small>
+                      <strong>{nextEvent.title}</strong>
+                    </div>
+                  ) : null}
                 </div>
                 <div className="public-featured-cover">
                   {leadEvent.coverImageUrl ? <img src={leadEvent.coverImageUrl} alt={leadEvent.title} /> : <CoverFallback title={leadEvent.title} />}
@@ -76,6 +95,23 @@ export default async function HomePage({ params }: HomePageProps) {
             </div>
           </section>
         ) : null}
+
+        <section className="public-narrative-section">
+          <div className="container public-narrative-grid">
+            <article className="public-narrative-card">
+              <h3>{locale === 'ru' ? 'Планирование и публикация' : 'Planning and publishing'}</h3>
+              <p>{locale === 'ru' ? 'Команда формирует событие, статусы и параметры регистрации в одном управляемом цикле.' : 'Teams shape events, statuses, and registration parameters in one controlled cycle.'}</p>
+            </article>
+            <article className="public-narrative-card">
+              <h3>{locale === 'ru' ? 'Участники и команды' : 'Participants and teams'}</h3>
+              <p>{locale === 'ru' ? 'Одиночное участие, командные сценарии и вступление по коду работают как единый продуктовый поток.' : 'Solo participation, team scenarios, and join-by-code work as one cohesive product flow.'}</p>
+            </article>
+            <article className="public-narrative-card">
+              <h3>{locale === 'ru' ? 'Волонтёрский контур' : 'Volunteer workflow'}</h3>
+              <p>{locale === 'ru' ? 'Заявки, роли и подтверждения проходят через прозрачные статусы без ручного хаоса.' : 'Applications, roles, and approvals run through transparent statuses without operational chaos.'}</p>
+            </article>
+          </div>
+        </section>
 
         <section className="public-section">
           <div className="container">

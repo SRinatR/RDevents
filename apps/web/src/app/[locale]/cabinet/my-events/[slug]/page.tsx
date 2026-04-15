@@ -87,7 +87,7 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
       {activeTab === 'info' ? (
         <Panel>
           <SectionHeader title={locale === 'ru' ? 'Описание и параметры' : 'Description and parameters'} />
-          <p className="signal-muted" style={{ marginBottom: 10 }}>{event.fullDescription || event.shortDescription}</p>
+          <p className="signal-muted cabinet-info-copy">{event.fullDescription || event.shortDescription}</p>
           <div className="signal-two-col">
             <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Дата' : 'Date'}</span><strong>{new Date(event.startsAt).toLocaleDateString()}</strong></div>
             <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Локация' : 'Location'}</span><strong>{event.location}</strong></div>

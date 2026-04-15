@@ -51,9 +51,9 @@ export default function CabinetApplicationsPage() {
           <Panel>
             <SectionHeader title={locale === 'ru' ? 'Командные заявки' : 'Team memberships'} actions={<StatusBadge tone="info">{teams.length}</StatusBadge>} />
             {teams.length === 0 ? <EmptyState title={locale === 'ru' ? 'Команд пока нет' : 'No teams yet'} description={locale === 'ru' ? 'После вступления в команду статус появится здесь.' : 'After joining a team, status will appear here.'} /> : (
-              <div className="signal-stack">
+              <div className="signal-stack cabinet-list-stack">
                 {teams.map((membership: any) => (
-                  <Link key={membership.id} href={`/${locale}/events/${membership.team?.event?.slug || ''}`} className="signal-ranked-item">
+                  <Link key={membership.id} href={`/${locale}/events/${membership.team?.event?.slug || ''}`} className="signal-ranked-item cabinet-list-item">
                     <div>
                       <strong>{membership.team?.name || 'Team'}</strong>
                       <div className="signal-muted">{membership.team?.event?.title || 'Event'} · {membership.role || 'Member'}</div>
@@ -68,9 +68,9 @@ export default function CabinetApplicationsPage() {
           <Panel>
             <SectionHeader title={locale === 'ru' ? 'Волонтёрские заявки' : 'Volunteer applications'} actions={<StatusBadge tone="info">{volunteerApplications.length}</StatusBadge>} />
             {volunteerApplications.length === 0 ? <EmptyState title={locale === 'ru' ? 'Заявки отсутствуют' : 'No applications'} description={locale === 'ru' ? 'Статусы волонтёрства появятся здесь после подачи.' : 'Volunteer statuses appear here after applying.'} /> : (
-              <div className="signal-stack">
+              <div className="signal-stack cabinet-list-stack">
                 {volunteerApplications.map((application: any) => (
-                  <Link key={application.id} href={`/${locale}/events/${application.event?.slug || ''}`} className="signal-ranked-item">
+                  <Link key={application.id} href={`/${locale}/events/${application.event?.slug || ''}`} className="signal-ranked-item cabinet-list-item">
                     <div>
                       <strong>{application.event?.title || 'Event'}</strong>
                       <div className="signal-muted">{application.event?.location || 'Location'} · {formatDate(application.assignedAt || new Date().toISOString())}</div>

@@ -77,12 +77,12 @@ export default function AdminVolunteersPage() {
         ) : (
           <>
             <ToolbarRow>
-              <FieldSelect value={selectedEventId} onChange={(event) => setSelectedEventId(event.target.value)} style={{ minWidth: 260 }}>
+              <FieldSelect value={selectedEventId} onChange={(event) => setSelectedEventId(event.target.value)} className="admin-filter-search">
                 {events.map((event) => (
                   <option key={event.id} value={event.id}>{event.title}</option>
                 ))}
               </FieldSelect>
-              <FieldSelect value={status} onChange={(event) => setStatus(event.target.value)} style={{ width: 180 }}>
+              <FieldSelect value={status} onChange={(event) => setStatus(event.target.value)} className="admin-filter-select">
                 {STATUS_FILTERS.map((item) => <option key={item} value={item}>{item}</option>)}
               </FieldSelect>
               {selectedEventId ? <Link href={`/${locale}/admin/events/${selectedEventId}/edit`} className="btn btn-secondary btn-sm">{t('common.edit')} event</Link> : null}
@@ -94,8 +94,8 @@ export default function AdminVolunteersPage() {
             ) : (
               <div className="signal-stack">
                 {volunteers.map((membership: any) => (
-                  <article key={membership.id} className="signal-ranked-item">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <article key={membership.id} className="signal-ranked-item admin-volunteer-item">
+                    <div className="admin-user-cell">
                       <span className="signal-avatar">
                         {membership.user?.avatarUrl ? <img src={membership.user.avatarUrl} alt="" /> : (membership.user?.name || membership.user?.email || '?').charAt(0).toUpperCase()}
                       </span>

@@ -248,13 +248,14 @@ export default function EventDetailPage() {
       <main className="public-main">
         <section className="public-event-hero">
           <div className="container">
-            <div className="public-event-cover">
+            <div className="public-event-cover public-event-detail-cover">
               {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
+              <div className="public-event-detail-cover-overlay" />
             </div>
 
             <div className="public-event-layout">
               <div>
-                <div className="public-meta-row public-gap-after-xs">
+                <div className="public-meta-row public-gap-after-xs public-event-meta-top">
                   <StatusBadge tone="neutral">{event.category}</StatusBadge>
                   <StatusBadge tone={event.status === 'PUBLISHED' ? 'success' : event.status === 'CANCELLED' ? 'danger' : 'warning'}>{event.status}</StatusBadge>
                   {event.isFeatured ? <StatusBadge tone="info">Featured</StatusBadge> : null}
@@ -262,13 +263,13 @@ export default function EventDetailPage() {
                 <h1 className="signal-page-title public-gap-after-2xs">{event.title}</h1>
                 <p className="signal-page-subtitle public-gap-after-sm">{event.shortDescription}</p>
 
-                <div className="public-meta-row public-gap-after-sm">
+                <div className="public-meta-row public-gap-after-sm public-event-meta-grid">
                   <span>{formatDate(event.startsAt)}</span>
                   <span>{formatTime(event.startsAt)} – {formatTime(event.endsAt)}</span>
                   <span>{event.location}</span>
                 </div>
 
-                <Panel>
+                <Panel className="public-event-description-panel">
                   <SectionHeader title={t('events.description')} />
                   <div className="signal-prose-copy">
                     {event.fullDescription}
@@ -277,10 +278,10 @@ export default function EventDetailPage() {
               </div>
 
               <aside className="public-sticky-panel">
-                <Panel>
+                <Panel className="public-participation-panel">
                   <SectionHeader title={locale === 'ru' ? 'Участие' : 'Participation'} />
-                  <div className="progress-bar signal-gap-after-2xs"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
-                  <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : ''}</div>
+                  <div className="progress-bar signal-gap-after-2xs public-participation-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
+                  <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div>
 
                   {myTeam ? <Notice tone="success">{locale === 'ru' ? 'Вы состоите в команде' : 'You are in team'}: {myTeam.name}</Notice>
                     : isRegistered ? <Notice tone="success">{t('events.registered')}</Notice>
@@ -297,7 +298,7 @@ export default function EventDetailPage() {
                             ) : null}
 
                             {teamState === 'CREATING' ? (
-                              <div className="signal-stack">
+                              <div className="signal-stack public-participation-state">
                                 <input className="signal-field" placeholder={locale === 'ru' ? 'Название команды' : 'Team name'} value={teamName} onChange={(event) => setTeamName(event.target.value)} />
                                 <ToolbarRow>
                                   <button onClick={handleCreateTeam} disabled={registering || !teamName} className="btn btn-primary btn-sm">{t('common.save')}</button>
@@ -307,7 +308,7 @@ export default function EventDetailPage() {
                             ) : null}
 
                             {teamState === 'JOINING' ? (
-                              <div className="signal-stack">
+                              <div className="signal-stack public-participation-state">
                                 <input className="signal-field" placeholder={locale === 'ru' ? 'Код приглашения' : 'Join code'} value={joinCode} onChange={(event) => setJoinCode(event.target.value)} />
                                 <ToolbarRow>
                                   <button onClick={handleJoinTeam} disabled={registering || !joinCode} className="btn btn-primary btn-sm">{t('events.join')}</button>
@@ -328,7 +329,7 @@ export default function EventDetailPage() {
                     ) : <Link href={`/${locale}/login`} className="btn btn-primary">{t('events.loginToJoin')}</Link>}
 
                   {missingFields.length > 0 ? (
-                    <Panel>
+                    <Panel className="public-missing-fields-panel">
                       <SectionHeader title={locale === 'ru' ? 'Требуются дополнительные поля' : 'Additional fields required'} subtitle={locale === 'ru' ? 'Заполните профиль и анкету события' : 'Complete profile and event form fields'} />
                       <div className="signal-stack">
                         {missingFields.map((field) => (
