@@ -43,7 +43,7 @@ export default function Sidebar({ locale, userName, userEmail, userAvatar }: Sid
         </div>
       </div>
 
-      <Link href={`/${locale}/cabinet`} className="btn btn-secondary btn-sm" style={{ width: '100%', justifyContent: 'center' }}>
+      <Link href={`/${locale}/cabinet`} className="btn btn-secondary btn-sm btn-block-center">
         {locale === 'ru' ? 'Редактировать профиль' : 'Edit profile'}
       </Link>
 
