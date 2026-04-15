@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../../../hooks/useAuth';
 import { eventsApi } from '../../../../../lib/api';
 import { useRouteLocale } from '../../../../../hooks/useRouteParams';
+import { EmptyState, FieldInput, Notice, PageHeader, Panel, SectionHeader, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
 
 export default function CabinetEventDashboard({ params }: { params: Promise<{ slug: string }> }) {
   const { user, loading } = useAuth();
@@ -30,28 +31,25 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
   useEffect(() => {
     if (!user || !slug) return;
     eventsApi.get(slug)
-      .then(r => setEvent(r.event))
+      .then((response) => setEvent(response.event))
       .catch(() => router.push(`/${locale}/cabinet/my-events`))
       .finally(() => setEventLoading(false));
   }, [user, slug, router, locale]);
 
   if (loading || !user) return null;
-  if (eventLoading) return <div style={{ color: 'var(--color-text-muted)' }}>Загрузка мероприятия...</div>;
+  if (eventLoading) return <div className="signal-page-shell"><Panel><SectionHeader title={locale === 'ru' ? 'Загрузка мероприятия...' : 'Loading event...'} /></Panel></div>;
   if (!event) return null;
 
   const myTeam = event.teamMembership?.team;
-  const isVolunteer = event.memberships?.find((m: any) => m.role === 'VOLUNTEER');
+  const isVolunteer = event.memberships?.find((membership: any) => membership.role === 'VOLUNTEER');
 
   async function handleCreateTeam() {
     if (!user) return;
     setActionLoading(true);
     setTeamError('');
     try {
-      const res = await eventsApi.createTeam(event.id, { name: teamName });
-      setEvent((prev: any) => ({
-        ...prev,
-        teamMembership: { team: res.team, role: 'CAPTAIN', status: 'ACTIVE' }
-      }));
+      const result = await eventsApi.createTeam(event.id, { name: teamName });
+      setEvent((previous: any) => ({ ...previous, teamMembership: { team: result.team, role: 'CAPTAIN', status: 'ACTIVE' } }));
       setTeamState('IDLE');
     } catch (err: any) {
       setTeamError(err.message || 'Ошибка создания команды');
@@ -67,10 +65,7 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
     try {
       const { member } = await eventsApi.joinTeamByCode(event.id, joinCode);
       const { team } = await eventsApi.getTeam(event.id, member.teamId);
-      setEvent((prev: any) => ({
-        ...prev,
-        teamMembership: { team, role: 'MEMBER', status: member.status }
-      }));
+      setEvent((previous: any) => ({ ...previous, teamMembership: { team, role: 'MEMBER', status: member.status } }));
       setTeamState('IDLE');
     } catch (err: any) {
       setTeamError(err.message || 'Ошибка вступления');
@@ -80,118 +75,79 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
   }
 
   return (
-    <div>
-      <Link href={`/${locale}/cabinet/my-events`} style={{ color: 'var(--color-text-muted)', textDecoration: 'none', fontSize: '0.9rem', display: 'inline-block', marginBottom: 16 }}>
-        ← Назад к списку
-      </Link>
-      <h1 style={{ margin: '0 0 24px', fontSize: '1.8rem', fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
-        {event.title}
-      </h1>
+    <div className="signal-page-shell">
+      <PageHeader title={event.title} subtitle={locale === 'ru' ? 'Карточка участия в мероприятии' : 'Participation workspace'} actions={<Link href={`/${locale}/cabinet/my-events`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Назад' : 'Back'}</Link>} />
 
-      <div className="cabinet-tabs">
-        <button onClick={() => setActiveTab('info')} className={`cabinet-tab ${activeTab === 'info' ? 'active' : ''}`} style={{ background: 'none', border: 'none', borderBottom: '2px solid transparent', cursor: 'pointer', paddingBottom: 12 }}>
-          Инфо
-        </button>
-        {event.isTeamBased && (
-          <button onClick={() => setActiveTab('team')} className={`cabinet-tab ${activeTab === 'team' ? 'active' : ''}`} style={{ background: 'none', border: 'none', borderBottom: '2px solid transparent', cursor: 'pointer', paddingBottom: 12 }}>
-            Моя команда
-          </button>
-        )}
-        <button onClick={() => setActiveTab('volunteer')} className={`cabinet-tab ${activeTab === 'volunteer' ? 'active' : ''}`} style={{ background: 'none', border: 'none', borderBottom: '2px solid transparent', cursor: 'pointer', paddingBottom: 12 }}>
-          Волонтёрство
-        </button>
-      </div>
+      <ToolbarRow>
+        <button onClick={() => setActiveTab('info')} className={`signal-chip-link ${activeTab === 'info' ? 'active' : ''}`}>{locale === 'ru' ? 'Инфо' : 'Info'}</button>
+        {event.isTeamBased ? <button onClick={() => setActiveTab('team')} className={`signal-chip-link ${activeTab === 'team' ? 'active' : ''}`}>{locale === 'ru' ? 'Команда' : 'Team'}</button> : null}
+        <button onClick={() => setActiveTab('volunteer')} className={`signal-chip-link ${activeTab === 'volunteer' ? 'active' : ''}`}>{locale === 'ru' ? 'Волонтёрство' : 'Volunteer'}</button>
+      </ToolbarRow>
 
-      <div style={{ animation: 'fadeIn 0.3s ease' }}>
-        {activeTab === 'info' && (
-          <div>
-            <div style={{ fontSize: '0.95rem', color: 'var(--color-text-secondary)', marginBottom: 24, lineHeight: 1.6 }}>
-              {event.fullDescription || event.shortDescription}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-              <div style={{ padding: 16, borderRadius: 'var(--radius-lg)', background: 'var(--color-bg-subtle)' }}>
-                <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: 4 }}>Дата</div>
-                <div style={{ fontWeight: 700 }}>{new Date(event.startsAt).toLocaleDateString()}</div>
-              </div>
-              <div style={{ padding: 16, borderRadius: 'var(--radius-lg)', background: 'var(--color-bg-subtle)' }}>
-                <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: 4 }}>Локация</div>
-                <div style={{ fontWeight: 700 }}>{event.location}</div>
-              </div>
-              <div style={{ padding: 16, borderRadius: 'var(--radius-lg)', background: 'var(--color-bg-subtle)' }}>
-                <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: 4 }}>Статус регистрации</div>
-                <div style={{ fontWeight: 700, color: 'var(--color-success)' }}>Подтвержден</div>
-              </div>
-            </div>
+      {activeTab === 'info' ? (
+        <Panel>
+          <SectionHeader title={locale === 'ru' ? 'Описание и параметры' : 'Description and parameters'} />
+          <p className="signal-muted" style={{ marginBottom: 10 }}>{event.fullDescription || event.shortDescription}</p>
+          <div className="signal-two-col">
+            <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Дата' : 'Date'}</span><strong>{new Date(event.startsAt).toLocaleDateString()}</strong></div>
+            <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Локация' : 'Location'}</span><strong>{event.location}</strong></div>
           </div>
-        )}
+        </Panel>
+      ) : null}
 
-        {activeTab === 'team' && event.isTeamBased && (
-          <div>
-            {myTeam ? (
-              <div style={{ padding: 24, borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-success)', background: 'rgba(22,163,74,0.05)', textAlign: 'center' }}>
-                <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🛡️</div>
-                <h2 style={{ margin: '0 0 8px', fontSize: '1.4rem', fontWeight: 800 }}>Вы в команде: {myTeam.name}</h2>
-                <div style={{ padding: '8px 16px', background: '#fff', border: '1px dashed var(--color-primary)', display: 'inline-block', borderRadius: 'var(--radius-md)', fontWeight: 700, letterSpacing: 1 }}>
-                  Код приглашения: {myTeam.joinCode}
+      {activeTab === 'team' && event.isTeamBased ? (
+        <Panel>
+          <SectionHeader title={locale === 'ru' ? 'Командный модуль' : 'Team module'} />
+          {myTeam ? (
+            <div className="signal-stack">
+              <Notice tone="success">{locale === 'ru' ? 'Вы состоите в команде' : 'You are in team'}: {myTeam.name}</Notice>
+              <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Код приглашения' : 'Invite code'}</span><StatusBadge tone="info">{myTeam.joinCode}</StatusBadge></div>
+            </div>
+          ) : (
+            <div className="signal-stack">
+              {teamState === 'IDLE' ? (
+                <ToolbarRow>
+                  <button onClick={() => setTeamState('CREATING')} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Создать команду' : 'Create team'}</button>
+                  <button onClick={() => setTeamState('JOINING')} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Вступить по коду' : 'Join by code'}</button>
+                </ToolbarRow>
+              ) : null}
+
+              {teamState === 'CREATING' ? (
+                <div className="signal-stack">
+                  <FieldInput value={teamName} onChange={(event) => setTeamName(event.target.value)} placeholder={locale === 'ru' ? 'Название команды' : 'Team name'} />
+                  <ToolbarRow>
+                    <button onClick={handleCreateTeam} disabled={actionLoading || !teamName.trim()} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Создать' : 'Create'}</button>
+                    <button onClick={() => setTeamState('IDLE')} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Отмена' : 'Cancel'}</button>
+                  </ToolbarRow>
                 </div>
-                <p style={{ marginTop: 16, color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>Поделитесь этим кодом с друзьями, чтобы они могли вступить в вашу команду!</p>
-              </div>
-            ) : (
-              <div style={{ maxWidth: 400 }}>
-                {teamState === 'IDLE' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <p style={{ color: 'var(--color-text-muted)', margin: '0 0 8px' }}>Вам необходимо присоединиться к команде или создать новую.</p>
-                    <button onClick={() => setTeamState('CREATING')} className="btn btn-primary">Создать команду</button>
-                    <button onClick={() => setTeamState('JOINING')} className="btn btn-secondary">Вступить в готовую по коду</button>
-                  </div>
-                )}
+              ) : null}
 
-                {teamState === 'CREATING' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <input type="text" className="input-field" placeholder="Название команды" value={teamName} onChange={e => setTeamName(e.target.value)} />
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={handleCreateTeam} disabled={actionLoading || !teamName.trim()} className="btn btn-primary" style={{ flex: 1 }}>Создать</button>
-                      <button onClick={() => setTeamState('IDLE')} className="btn btn-ghost">Отмена</button>
-                    </div>
-                  </div>
-                )}
+              {teamState === 'JOINING' ? (
+                <div className="signal-stack">
+                  <FieldInput value={joinCode} onChange={(event) => setJoinCode(event.target.value)} placeholder={locale === 'ru' ? 'Код приглашения' : 'Join code'} />
+                  <ToolbarRow>
+                    <button onClick={handleJoinTeam} disabled={actionLoading || !joinCode.trim()} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Вступить' : 'Join'}</button>
+                    <button onClick={() => setTeamState('IDLE')} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Отмена' : 'Cancel'}</button>
+                  </ToolbarRow>
+                </div>
+              ) : null}
 
-                {teamState === 'JOINING' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <input type="text" className="input-field" placeholder="Код приглашения (например, T1T4N5)" value={joinCode} onChange={e => setJoinCode(e.target.value)} />
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={handleJoinTeam} disabled={actionLoading || !joinCode.trim()} className="btn btn-primary" style={{ flex: 1 }}>Вступить</button>
-                      <button onClick={() => setTeamState('IDLE')} className="btn btn-ghost">Отмена</button>
-                    </div>
-                  </div>
-                )}
+              {teamError ? <Notice tone="danger">{teamError}</Notice> : null}
+            </div>
+          )}
+        </Panel>
+      ) : null}
 
-                {teamError && <div style={{ color: 'var(--color-danger)', marginTop: 12, fontWeight: 600 }}>{teamError}</div>}
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'volunteer' && (
-          <div>
-            {isVolunteer ? (
-              <div style={{ padding: 24, borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-primary-glow)', background: 'var(--color-primary-subtle)', textAlign: 'center' }}>
-                <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🙋</div>
-                <h2 style={{ margin: '0 0 8px', fontSize: '1.2rem', fontWeight: 800 }}>Статус волонтерской заявки:</h2>
-                <span className={`badge ${isVolunteer.status === 'PENDING' ? 'badge-muted' : isVolunteer.status === 'ACTIVE' || isVolunteer.status === 'APPROVED' ? 'badge-success' : 'badge-danger'}`} style={{ fontSize: '1rem', padding: '6px 16px' }}>
-                  {isVolunteer.status}
-                </span>
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '40px 20px', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-xl)' }}>
-                <p style={{ margin: '0 0 16px', color: 'var(--color-text-muted)' }}>Вы не подавали заявку на волонтёрство для этого мероприятия.</p>
-                <Link href={`/${locale}/events/${event.slug}`} className="btn btn-ghost btn-sm">Перейти на страницу подачи заявки</Link>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
+      {activeTab === 'volunteer' ? (
+        <Panel>
+          <SectionHeader title={locale === 'ru' ? 'Волонтёрский статус' : 'Volunteer status'} />
+          {isVolunteer ? (
+            <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Текущий статус' : 'Current status'}</span><StatusBadge tone={isVolunteer.status === 'PENDING' ? 'warning' : isVolunteer.status === 'ACTIVE' || isVolunteer.status === 'APPROVED' ? 'success' : 'danger'}>{isVolunteer.status}</StatusBadge></div>
+          ) : (
+            <EmptyState title={locale === 'ru' ? 'Заявка не подана' : 'No volunteer request'} description={locale === 'ru' ? 'Подайте заявку на публичной странице мероприятия.' : 'Apply from the public event page.'} actions={<Link href={`/${locale}/events/${event.slug}`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Открыть страницу события' : 'Open event page'}</Link>} />
+          )}
+        </Panel>
+      ) : null}
     </div>
   );
 }

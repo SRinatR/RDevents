@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../../hooks/useAuth';
 import { eventsApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
-import { Button } from '@/components/ui/button';
+import { EmptyState, LoadingLines, Notice, PageHeader, Panel, SectionHeader, StatusBadge } from '@/components/ui/signal-primitives';
 
 export default function CabinetApplicationsPage() {
   const { user, loading } = useAuth();
@@ -26,10 +26,7 @@ export default function CabinetApplicationsPage() {
     if (!user) return;
     setLoadingData(true);
     setError('');
-    Promise.all([
-      eventsApi.myTeams(),
-      eventsApi.myVolunteerApplications(),
-    ])
+    Promise.all([eventsApi.myTeams(), eventsApi.myVolunteerApplications()])
       .then(([teamResult, volunteerResult]) => {
         setTeams(teamResult.teams || []);
         setVolunteerApplications(volunteerResult.applications || []);
@@ -40,155 +37,52 @@ export default function CabinetApplicationsPage() {
 
   if (loading || !user) return null;
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString(locale === 'ru' ? 'ru-RU' : 'en-US', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
-
-  const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
-      ACTIVE: { bg: 'bg-green-100', text: 'text-green-700', label: locale === 'ru' ? 'Активна' : 'Active' },
-      PENDING: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: locale === 'ru' ? 'На рассмотрении' : 'Pending' },
-      REJECTED: { bg: 'bg-red-100', text: 'text-red-700', label: locale === 'ru' ? 'Отклонена' : 'Rejected' },
-      ACCEPTED: { bg: 'bg-green-100', text: 'text-green-700', label: locale === 'ru' ? 'Принята' : 'Accepted' },
-    };
-    const config = statusConfig[status] || { bg: 'bg-gray-100', text: 'text-gray-700', label: status };
-    return (
-      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${config.bg} ${config.text}`}>
-        {config.label}
-      </span>
-    );
-  };
+  const formatDate = (date: string) => new Date(date).toLocaleDateString(locale === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+  const toneByStatus: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> = { ACTIVE: 'success', PENDING: 'warning', REJECTED: 'danger', ACCEPTED: 'success' };
 
   return (
-    <div className="bg-white rounded-2xl p-8 shadow-sm">
-      <h1 className="text-3xl font-bold mb-8 text-[#1a1a1a]">
-        {locale === 'ru' ? 'Мои заявки' : 'My Applications'}
-      </h1>
+    <div className="signal-page-shell">
+      <PageHeader title={locale === 'ru' ? 'Мои заявки' : 'My applications'} subtitle={locale === 'ru' ? 'Команды и волонтёрские статусы' : 'Team and volunteer statuses'} />
+      {loadingData ? <LoadingLines rows={8} /> : null}
+      {error ? <Notice tone="danger">{error}</Notice> : null}
 
-      {loadingData ? (
-        <div className="flex items-center justify-center py-16">
-          <div className="text-gray-600">
-            {locale === 'ru' ? 'Загрузка...' : 'Loading...'}
-          </div>
-        </div>
-      ) : error ? (
-        <div className="p-6 bg-red-50 border border-red-200 rounded-xl text-red-700 mb-6">
-          {error}
-        </div>
-      ) : (
-        <div className="space-y-10">
-          <section>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-[#1a1a1a]">
-                {locale === 'ru' ? 'Команды' : 'Teams'}
-              </h2>
-              <span className="bg-gradient-to-r from-[#E84393] to-[#E55C94] text-white px-4 py-1 rounded-full text-sm font-semibold">
-                {teams.length}
-              </span>
-            </div>
-
-            {teams.length === 0 ? (
-              <div className="bg-[#FAF8F7] rounded-2xl p-16 text-center border-2 border-dashed border-gray-200">
-                <div className="text-6xl mb-4">👥</div>
-                <p className="text-gray-600 mb-6">
-                  {locale === 'ru' ? 'Вы пока не состоите в командах.' : 'You are not part of any teams yet.'}
-                </p>
-                <Link href={`/${locale}/events`}>
-                  <Button className="bg-gradient-to-r from-[#E84393] to-[#E55C94] hover:opacity-90 text-white font-bold">
-                    {locale === 'ru' ? 'Найти командное событие' : 'Find Team Event'}
-                  </Button>
-                </Link>
-              </div>
-            ) : (
-              <div className="space-y-4">
+      {!loadingData && !error ? (
+        <>
+          <Panel>
+            <SectionHeader title={locale === 'ru' ? 'Командные заявки' : 'Team memberships'} actions={<StatusBadge tone="info">{teams.length}</StatusBadge>} />
+            {teams.length === 0 ? <EmptyState title={locale === 'ru' ? 'Команд пока нет' : 'No teams yet'} description={locale === 'ru' ? 'После вступления в команду статус появится здесь.' : 'After joining a team, status will appear here.'} /> : (
+              <div className="signal-stack">
                 {teams.map((membership: any) => (
-                  <Link
-                    key={membership.id}
-                    href={`/${locale}/events/${membership.team?.event?.slug || ''}`}
-                    className="block bg-white border border-gray-100 rounded-xl p-6 hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold mb-3 text-[#1a1a1a] leading-tight">
-                          {membership.team?.name || 'Team'}
-                        </h3>
-                        <div className="space-y-1 text-sm text-gray-600">
-                          <div className="flex items-center gap-2">
-                            <span>📅</span>
-                            <span>{membership.team?.event?.title || 'Event'} · {membership.role || 'Member'}</span>
-                          </div>
-                        </div>
-                      </div>
-                      {getStatusBadge(membership.status)}
+                  <Link key={membership.id} href={`/${locale}/events/${membership.team?.event?.slug || ''}`} className="signal-ranked-item">
+                    <div>
+                      <strong>{membership.team?.name || 'Team'}</strong>
+                      <div className="signal-muted">{membership.team?.event?.title || 'Event'} · {membership.role || 'Member'}</div>
                     </div>
+                    <StatusBadge tone={toneByStatus[membership.status] ?? 'neutral'}>{membership.status}</StatusBadge>
                   </Link>
                 ))}
               </div>
             )}
-          </section>
+          </Panel>
 
-          <section>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-[#1a1a1a]">
-                {locale === 'ru' ? 'Волонтёрство' : 'Volunteering'}
-              </h2>
-              <span className="bg-gradient-to-r from-[#E84393] to-[#E55C94] text-white px-4 py-1 rounded-full text-sm font-semibold">
-                {volunteerApplications.length}
-              </span>
-            </div>
-
-            {volunteerApplications.length === 0 ? (
-              <div className="bg-[#FAF8F7] rounded-2xl p-16 text-center border-2 border-dashed border-gray-200">
-                <div className="text-6xl mb-4">🎯</div>
-                <p className="text-gray-600 mb-6">
-                  {locale === 'ru' ? 'Заявок на волонтёрство пока нет.' : 'No volunteer applications yet.'}
-                </p>
-                <Link href={`/${locale}/events`}>
-                  <Button className="bg-gradient-to-r from-[#E84393] to-[#E55C94] hover:opacity-90 text-white font-bold">
-                    {locale === 'ru' ? 'Выбрать событие' : 'Choose Event'}
-                  </Button>
-                </Link>
-              </div>
-            ) : (
-              <div className="space-y-4">
+          <Panel>
+            <SectionHeader title={locale === 'ru' ? 'Волонтёрские заявки' : 'Volunteer applications'} actions={<StatusBadge tone="info">{volunteerApplications.length}</StatusBadge>} />
+            {volunteerApplications.length === 0 ? <EmptyState title={locale === 'ru' ? 'Заявки отсутствуют' : 'No applications'} description={locale === 'ru' ? 'Статусы волонтёрства появятся здесь после подачи.' : 'Volunteer statuses appear here after applying.'} /> : (
+              <div className="signal-stack">
                 {volunteerApplications.map((application: any) => (
-                  <Link
-                    key={application.id}
-                    href={`/${locale}/events/${application.event?.slug || ''}`}
-                    className="block bg-white border border-gray-100 rounded-xl p-6 hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold mb-3 text-[#1a1a1a] leading-tight">
-                          {application.event?.title || 'Event'}
-                        </h3>
-                        <div className="space-y-1 text-sm text-gray-600">
-                          <div className="flex items-center gap-2">
-                            <span>📍</span>
-                            <span>{application.event?.location || 'Location'}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span>📅</span>
-                            <span>{formatDate(application.assignedAt || new Date().toISOString())}</span>
-                          </div>
-                          {application.notes && (
-                            <p className="text-gray-500 text-sm mt-2">{application.notes}</p>
-                          )}
-                        </div>
-                      </div>
-                      {getStatusBadge(application.status)}
+                  <Link key={application.id} href={`/${locale}/events/${application.event?.slug || ''}`} className="signal-ranked-item">
+                    <div>
+                      <strong>{application.event?.title || 'Event'}</strong>
+                      <div className="signal-muted">{application.event?.location || 'Location'} · {formatDate(application.assignedAt || new Date().toISOString())}</div>
                     </div>
+                    <StatusBadge tone={toneByStatus[application.status] ?? 'neutral'}>{application.status}</StatusBadge>
                   </Link>
                 ))}
               </div>
             )}
-          </section>
-        </div>
-      )}
+          </Panel>
+        </>
+      ) : null}
     </div>
   );
 }

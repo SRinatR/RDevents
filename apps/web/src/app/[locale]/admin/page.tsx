@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../hooks/useAuth';
 import { adminApi } from '../../../lib/api';
 import { useRouteLocale } from '../../../hooks/useRouteParams';
+import { EmptyState, LoadingLines, MetricCard, Notice, PageHeader, Panel, SectionHeader, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
 
 export default function AdminPage() {
   const t = useTranslations();
@@ -59,182 +60,92 @@ export default function AdminPage() {
     return () => { active = false; };
   }, [user, isAdmin, isPlatformAdmin]);
 
-  const navItems = [
-    { href: `/${locale}/admin/events`,    label: t('admin.events'),    icon: '🎪', color: 'var(--color-primary-subtle)',   accent: 'var(--color-primary)' },
-    ...(isPlatformAdmin ? [{ href: `/${locale}/admin/users`, label: t('admin.users'), icon: '👥', color: 'rgba(168,85,247,0.08)', accent: '#a855f7' }] : []),
-    ...(isSuperAdmin ? [{ href: `/${locale}/admin/admins`, label: t('admin.admins'), icon: '🛡️', color: 'var(--color-primary-subtle)', accent: 'var(--color-primary)' }] : []),
-    { href: `/${locale}/admin/volunteers`, label: t('admin.volunteers'), icon: '🙋', color: 'var(--color-success-subtle)',  accent: 'var(--color-success)' },
-    { href: `/${locale}/admin/analytics`, label: t('admin.analytics'), icon: '📊', color: 'var(--color-warning-subtle)',   accent: 'var(--color-warning)' },
-  ];
+  if (loading || !user || !isAdmin) return <div className="admin-loading-screen"><div className="spinner" /></div>;
 
-  const summaryCards = stats?.eventScope
-    ? [
-        { label: locale === 'ru' ? 'Управляемых событий' : 'Managed events', value: stats.totalEvents ?? 0, icon: '🎪', color: 'var(--color-primary-subtle)', accent: 'var(--color-primary)' },
-        { label: locale === 'ru' ? 'Участников' : 'Participants',           value: stats.participants ?? 0, icon: '📝', color: 'rgba(168,85,247,0.08)', accent: '#a855f7' },
-        { label: locale === 'ru' ? 'Заявок волонтёров' : 'Pending volunteers', value: stats.volunteersPending ?? 0, icon: '🙋', color: 'var(--color-success-subtle)', accent: 'var(--color-success)' },
-        { label: locale === 'ru' ? 'Просмотров события' : 'Event views',    value: stats.views ?? 0,        icon: '👁️', color: 'var(--color-warning-subtle)', accent: 'var(--color-warning)' },
-      ]
-    : [
-        { label: t('analytics.totalUsers'),         value: stats?.totalUsers ?? 0,         icon: '👥', color: 'var(--color-primary-subtle)', accent: 'var(--color-primary)' },
-        { label: t('analytics.totalEvents'),        value: stats?.totalEvents ?? 0,        icon: '🎪', color: 'rgba(168,85,247,0.08)', accent: '#a855f7' },
-        { label: t('analytics.totalRegistrations'), value: stats?.totalRegistrations ?? 0, icon: '📝', color: 'var(--color-success-subtle)', accent: 'var(--color-success)' },
-        { label: t('analytics.totalEventViews'),    value: stats?.totalEventViews ?? 0,    icon: '👁️', color: 'var(--color-warning-subtle)', accent: 'var(--color-warning)' },
-      ];
+  const scope = stats?.eventScope ? 'Event Scope' : 'Platform Scope';
 
-  if (loading || !user || !isAdmin) return (
-    <div className="loading-center">
-      <div className="spinner" />
-    </div>
-  );
+  const quickActions = [
+    { href: `/${locale}/admin/events/new`, label: t('admin.createEvent'), enabled: isPlatformAdmin },
+    { href: `/${locale}/admin/events`, label: t('admin.events'), enabled: true },
+    { href: `/${locale}/admin/volunteers`, label: t('admin.volunteers'), enabled: true },
+    { href: `/${locale}/admin/analytics`, label: t('admin.analytics'), enabled: true },
+    { href: `/${locale}/admin/users`, label: t('admin.users'), enabled: isPlatformAdmin },
+    { href: `/${locale}/admin/admins`, label: t('admin.admins'), enabled: isSuperAdmin },
+  ].filter((item) => item.enabled);
 
   return (
-    <div style={{ minHeight: 'calc(100vh - 64px)', padding: '48px 0 80px' }}>
-      <div className="container">
+    <div className="signal-page-shell">
+      <PageHeader title={t('admin.title')} subtitle={t('admin.subtitle')} actions={<StatusBadge tone="info">{scope}</StatusBadge>} />
 
-        {/* Header */}
-        <div style={{ marginBottom: 36, animation: 'fadeIn 0.4s ease both' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-            <div style={{
-              width: 42, height: 42, borderRadius: 'var(--radius-lg)',
-              background: 'linear-gradient(135deg, var(--color-primary), #a855f7)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '1.1rem', boxShadow: 'var(--shadow-primary)',
-            }}>
-              ⚙️
+      <ToolbarRow>
+        {quickActions.map((item) => (
+          <Link key={item.href} href={item.href} className="signal-chip-link">{item.label}</Link>
+        ))}
+      </ToolbarRow>
+
+      <div className="signal-two-col">
+        <Panel>
+          <SectionHeader title={locale === 'ru' ? 'Ключевые показатели' : 'Key operational KPIs'} subtitle={locale === 'ru' ? 'Текущая операционная сводка' : 'Current operational summary'} />
+          {statsLoading ? (
+            <LoadingLines rows={5} />
+          ) : stats ? (
+            <div className="signal-kpi-grid">
+              <MetricCard tone="info" label={t('analytics.totalEvents')} value={stats.totalEvents ?? 0} />
+              <MetricCard tone="success" label={t('analytics.totalRegistrations')} value={stats.totalRegistrations ?? 0} />
+              <MetricCard tone="warning" label={t('analytics.totalEventViews')} value={stats.totalEventViews ?? 0} />
+              <MetricCard tone="danger" label={locale === 'ru' ? 'В ожидании волонтёров' : 'Volunteers pending'} value={stats.volunteersPending ?? 0} />
             </div>
-            <h1 style={{ margin: 0, fontSize: 'clamp(1.8rem, 4vw, 2.4rem)', fontWeight: 900, letterSpacing: '-0.03em' }}>
-              {t('admin.title')}
-            </h1>
+          ) : (
+            <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Панель активируется после появления данных по событиям.' : 'Dashboard widgets activate once event data is available.'} />
+          )}
+        </Panel>
+
+        <Panel>
+          <SectionHeader title={locale === 'ru' ? 'Операционная очередь' : 'Operational queue'} subtitle={locale === 'ru' ? 'Приоритеты по модулям' : 'Module-level priorities'} />
+          <div className="signal-stack">
+            <div className="signal-ranked-item"><span>{locale === 'ru' ? 'События в работе' : 'Active event workflows'}</span><StatusBadge tone="info">{stats?.totalEvents ?? 0}</StatusBadge></div>
+            <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Новые регистрации' : 'Incoming registrations'}</span><StatusBadge tone="success">{stats?.totalRegistrations ?? 0}</StatusBadge></div>
+            <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Запросы волонтёров' : 'Volunteer requests'}</span><StatusBadge tone="warning">{stats?.volunteersPending ?? 0}</StatusBadge></div>
+            <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Просмотры витрины' : 'Event catalog views'}</span><StatusBadge tone="neutral">{stats?.totalEventViews ?? 0}</StatusBadge></div>
           </div>
-          <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: '1rem' }}>
-            {t('admin.subtitle')}
-          </p>
-        </div>
+        </Panel>
+      </div>
 
-        {/* Quick nav */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 44 }}>
-          {navItems.map(({ href, label, icon }) => (
-            <Link key={href} href={href} className="nav-chip">
-              {icon} {label}
-            </Link>
-          ))}
-        </div>
-
-        {/* Stats section */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>
-            📊 {t('admin.analytics')}
-          </h2>
-        </div>
-
-        {statsLoading ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 36 }}>
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} className="skeleton" style={{ height: 120, borderRadius: 'var(--radius-2xl)' }} />
-            ))}
-          </div>
-        ) : stats ? (
-          <>
-            {/* KPI grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 40 }}>
-              {summaryCards.map(({ label, value, icon, color, accent }, i) => (
-                <div
-                  key={label}
-                  className="stat-card"
-                  style={{ animationDelay: `${i * 0.07}s`, animation: 'slideUp 0.4s ease both' }}
-                >
-                  <div className="stat-card-icon" style={{ background: color }}>
-                    <span style={{ fontSize: '1.1rem' }}>{icon}</span>
-                  </div>
-                  <div className="stat-card-value" style={{ color: accent }}>
-                    {typeof value === 'number' ? Number(value).toLocaleString() : value}
-                  </div>
-                  <div className="stat-card-label">{label}</div>
+      <div className="signal-two-col">
+        <Panel>
+          <SectionHeader title={t('analytics.topViewedEvents')} subtitle={locale === 'ru' ? 'Лидеры по интересу аудитории' : 'Highest audience attention'} />
+          {statsLoading ? <LoadingLines rows={4} /> : stats?.topViewedEvents?.length ? (
+            <div className="signal-ranked-list">
+              {stats.topViewedEvents.slice(0, 6).map((event: any, index: number) => (
+                <div className="signal-ranked-item" key={event.eventId ?? `${event.title}-${index}`}>
+                  <span className="signal-rank">{index + 1}</span>
+                  <span>{event.title}</span>
+                  <StatusBadge tone="info">{event.viewCount} {locale === 'ru' ? 'просм.' : 'views'}</StatusBadge>
                 </div>
               ))}
             </div>
+          ) : <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Список появится после первых просмотров.' : 'List appears after first page views.'} />}
+        </Panel>
 
-            {/* Top viewed */}
-            {stats.topViewedEvents?.length > 0 && (
-              <div style={{ marginBottom: 32 }}>
-                <h3 style={{ margin: '0 0 14px', fontSize: '1.05rem', fontWeight: 800, color: 'var(--color-text-primary)' }}>
-                  👁️ {t('analytics.topViewedEvents')}
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {stats.topViewedEvents.slice(0, 5).map((e: any, index: number) => (
-                    <div
-                      key={e.eventId ?? e.slug ?? `${e.title}-${index}`}
-                      className="table-row"
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <span style={{
-                          width: 28, height: 28, borderRadius: 'var(--radius-md)',
-                          background: 'var(--color-primary-subtle)',
-                          color: 'var(--color-primary)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '0.78rem', fontWeight: 800, flexShrink: 0,
-                        }}>
-                          {index + 1}
-                        </span>
-                        <span style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                          {e.title}
-                        </span>
-                      </div>
-                      <span className="badge badge-primary">
-                        {e.viewCount} {locale === 'ru' ? 'просм.' : 'views'}
-                      </span>
-                    </div>
-                  ))}
+        <Panel>
+          <SectionHeader title={t('analytics.topRegisteredEvents')} subtitle={locale === 'ru' ? 'Лидеры по заявкам' : 'Highest registration demand'} />
+          {statsLoading ? <LoadingLines rows={4} /> : stats?.topRegisteredEvents?.length ? (
+            <div className="signal-ranked-list">
+              {stats.topRegisteredEvents.slice(0, 6).map((event: any, index: number) => (
+                <div className="signal-ranked-item" key={event.eventId ?? `${event.title}-${index}`}>
+                  <span className="signal-rank">{index + 1}</span>
+                  <span>{event.title}</span>
+                  <StatusBadge tone="success">{event.registrationCount} {locale === 'ru' ? 'рег.' : 'registered'}</StatusBadge>
                 </div>
-              </div>
-            )}
-
-            {/* Top registered */}
-            {stats.topRegisteredEvents?.length > 0 && (
-              <div style={{ marginBottom: 32 }}>
-                <h3 style={{ margin: '0 0 14px', fontSize: '1.05rem', fontWeight: 800, color: 'var(--color-text-primary)' }}>
-                  📝 {t('analytics.topRegisteredEvents')}
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {stats.topRegisteredEvents.slice(0, 5).map((e: any, index: number) => (
-                    <div
-                      key={e.eventId ?? e.slug ?? `${e.title}-${index}`}
-                      className="table-row"
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <span style={{
-                          width: 28, height: 28, borderRadius: 'var(--radius-md)',
-                          background: 'var(--color-success-subtle)',
-                          color: 'var(--color-success)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '0.78rem', fontWeight: 800, flexShrink: 0,
-                        }}>
-                          {index + 1}
-                        </span>
-                        <span style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                          {e.title}
-                        </span>
-                      </div>
-                      <span className="badge badge-success">
-                        {e.registrationCount} {locale === 'ru' ? 'регистр.' : 'registered'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="empty-state">
-            <div className="empty-state-icon">📊</div>
-            <h3 className="empty-state-title">{t('common.noData')}</h3>
-            <p className="empty-state-text">
-              {locale === 'ru' ? 'Данные аналитики появятся после первых событий.' : 'Analytics data will appear after the first events.'}
-            </p>
-          </div>
-        )}
-
+              ))}
+            </div>
+          ) : <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Список будет показан при накоплении регистраций.' : 'List is shown once registrations accumulate.'} />}
+        </Panel>
       </div>
+
+      <Notice tone="warning">
+        {locale === 'ru' ? 'Модули расширенной аналитики и автоматизации очередей запланированы следующими фазами, но структура уже готова для интеграции.' : 'Advanced analytics and queue automation modules are planned for next phases, with structure already prepared for integration.'}
+      </Notice>
     </div>
   );
 }
