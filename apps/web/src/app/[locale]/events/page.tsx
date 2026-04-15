@@ -84,32 +84,66 @@ export default function EventsPage() {
 
   const headlineEvent = events[0];
   const tailEvents = events.slice(1);
+  const hasActiveFilters = Boolean(search || category);
+  const activeFilterCount = Number(Boolean(search)) + Number(Boolean(category));
 
   return (
-    <div className="public-page-shell">
+    <div className="public-page-shell route-shell route-events-catalog">
       <main className="public-main">
-        <section className="public-section public-events-catalog-shell">
+        <section className="public-section public-events-catalog-shell catalog-shell motion-fade-up">
           <div className="container">
-            <div className="public-events-catalog-stage">
-              <PageHeader title={t('events.title')} subtitle={t('events.subtitle')} actions={<StatusBadge tone="info">{events.length} {locale === 'ru' ? 'на странице' : 'on page'}</StatusBadge>} />
+            <div className="catalog-intro-band motion-fade-up-fast">
+              <PageHeader
+                title={t('events.title')}
+                subtitle={t('events.subtitle')}
+                actions={<StatusBadge tone="info">{events.length} {locale === 'ru' ? 'на странице' : 'on page'}</StatusBadge>}
+              />
+              <div className="catalog-intro-meta">
+                <div className="catalog-intro-pill">
+                  <small>{locale === 'ru' ? 'Режим просмотра' : 'View mode'}</small>
+                  <strong>{locale === 'ru' ? 'Кураторская лента' : 'Curated stream'}</strong>
+                </div>
+                <div className="catalog-intro-pill">
+                  <small>{locale === 'ru' ? 'Активные фильтры' : 'Active filters'}</small>
+                  <strong>{activeFilterCount}</strong>
+                </div>
+                <div className="catalog-intro-pill">
+                  <small>{locale === 'ru' ? 'Всего страниц' : 'Total pages'}</small>
+                  <strong>{meta?.pages ?? 1}</strong>
+                </div>
+              </div>
+            </div>
 
-              <Panel className="public-events-toolbar-panel public-elevated-toolbar public-events-toolbar-layout">
+            <Panel variant="elevated" className="catalog-toolbar-shell">
+              <div className="catalog-toolbar-top">
                 <ToolbarRow>
-                  <FieldInput value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={t('events.searchPlaceholder')} className="public-events-search-input" />
-                  <FieldSelect value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }} className="public-events-category-select">
+                  <FieldInput value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={t('events.searchPlaceholder')} className="public-events-search-input catalog-search-input" />
+                  <FieldSelect value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }} className="public-events-category-select catalog-category-select">
                     <option value="">{t('events.category')}: {t('common.filters')}</option>
                     {CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
                   </FieldSelect>
-                  {(search || category) ? <button onClick={() => { setSearch(''); setCategory(''); setPage(1); }} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Сбросить' : 'Reset'}</button> : null}
+                  {hasActiveFilters ? <button onClick={() => { setSearch(''); setCategory(''); setPage(1); }} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Сбросить' : 'Reset'}</button> : null}
                 </ToolbarRow>
-
-                <div className="public-events-filter-chips public-events-filter-chips-stage">
-                  <button className={`signal-chip-link ${category === '' ? 'active' : ''}`} onClick={() => { setCategory(''); setPage(1); }}>{locale === 'ru' ? 'Все' : 'All'}</button>
-                  {CATEGORIES.map((item) => (
-                    <button key={item} className={`signal-chip-link ${category === item ? 'active' : ''}`} onClick={() => { setCategory(item); setPage(1); }}>{item}</button>
-                  ))}
+                <div className="catalog-toolbar-note">
+                  {locale === 'ru' ? 'Используйте поиск для названия и фильтр категории для быстрой навигации по ленте.' : 'Use title search and category filter to navigate the stream quickly.'}
                 </div>
-              </Panel>
+              </div>
+
+              <div className="public-events-filter-chips public-events-filter-chips-stage catalog-filter-chips">
+                <button className={`signal-chip-link ${category === '' ? 'active' : ''}`} onClick={() => { setCategory(''); setPage(1); }}>{locale === 'ru' ? 'Все' : 'All'}</button>
+                {CATEGORIES.map((item) => (
+                  <button key={item} className={`signal-chip-link ${category === item ? 'active' : ''}`} onClick={() => { setCategory(item); setPage(1); }}>{item}</button>
+                ))}
+              </div>
+            </Panel>
+
+            <div className="catalog-results-head">
+              <span>{locale === 'ru' ? `Показано: ${events.length}` : `Showing: ${events.length}`}</span>
+              {hasActiveFilters ? (
+                <span>{locale === 'ru' ? `Фильтров выбрано: ${activeFilterCount}` : `Filters selected: ${activeFilterCount}`}</span>
+              ) : (
+                <span>{locale === 'ru' ? 'Без фильтрации' : 'No filters applied'}</span>
+              )}
             </div>
 
             {loading ? <LoadingLines rows={8} /> : null}
@@ -119,25 +153,34 @@ export default function EventsPage() {
             ) : null}
 
             {!loading && !error && events.length === 0 ? (
-              <EmptyState title={t('events.emptyTitle')} description={t('events.emptySubtitle')} />
+              <EmptyState
+                title={t('events.emptyTitle')}
+                description={hasActiveFilters
+                  ? (locale === 'ru' ? 'По этим фильтрам ничего не найдено. Сбросьте фильтры и попробуйте снова.' : 'No events matched these filters. Reset and try a broader query.')
+                  : t('events.emptySubtitle')}
+                actions={hasActiveFilters
+                  ? <button onClick={() => { setSearch(''); setCategory(''); setPage(1); }} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Сбросить фильтры' : 'Reset filters'}</button>
+                  : undefined}
+              />
             ) : null}
 
             {!loading && !error && events.length > 0 ? (
-              <div className="public-events-catalog-grid">
+              <div className="public-events-catalog-grid motion-stagger">
                 {headlineEvent ? (
-                  <Link href={`/${locale}/events/${headlineEvent.slug}`} className="public-event-card public-event-card-headline">
+                  <Link href={`/${locale}/events/${headlineEvent.slug}`} className="public-event-card public-event-card-headline catalog-headline-card">
                     <div className="public-event-cover">
                       {headlineEvent.coverImageUrl ? <img src={headlineEvent.coverImageUrl} alt={headlineEvent.title} /> : <div className="cover-fallback"><span>{headlineEvent.title.slice(0, 2).toUpperCase()}</span></div>}
                       <div className="public-event-cover-overlay" />
                     </div>
                     <div className="public-event-body public-event-body-headline">
-                      <StatusBadge tone="info">{locale === 'ru' ? 'Рекомендуемое событие' : 'Featured event'}</StatusBadge>
+                      <StatusBadge tone="info">{locale === 'ru' ? 'Главный выбор' : 'Editor’s pick'}</StatusBadge>
                       <h3>{headlineEvent.title}</h3>
                       <p>{headlineEvent.shortDescription || (locale === 'ru' ? 'Откройте карточку, чтобы посмотреть детали и условия участия.' : 'Open event details to view info and participation options.')}</p>
-                      <div className="public-meta-row"><span>{formatDate(headlineEvent.startsAt)}</span><span>{headlineEvent.location}</span></div>
-                      <div className="public-event-card-footer">
+                      <div className="public-meta-row catalog-meta-row"><span>{formatDate(headlineEvent.startsAt)}</span><span>{headlineEvent.location}</span></div>
+                      <div className="public-event-card-footer catalog-card-footer">
                         <StatusBadge tone={STATUS_TONE[headlineEvent.status] ?? 'neutral'}>{headlineEvent.status}</StatusBadge>
                         <StatusBadge tone="neutral">{headlineEvent.category}</StatusBadge>
+                        <span className="catalog-open-link">{locale === 'ru' ? 'Смотреть детали' : 'Open details'}</span>
                       </div>
                     </div>
                   </Link>
@@ -152,21 +195,22 @@ export default function EventsPage() {
                     const visualState = getEventVisualState(event);
 
                     return (
-                      <Link key={event.id} href={`/${locale}/events/${event.slug}`} className={`public-event-card public-event-card-${visualState.key}`}>
+                      <Link key={event.id} href={`/${locale}/events/${event.slug}`} className={`public-event-card public-event-card-${visualState.key} catalog-list-card`}>
                         <div className="public-event-cover">
                           {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
                           <div className="public-event-cover-overlay" />
                         </div>
                         <div className="public-event-body">
-                          <div className="public-meta-row"><span>{formatDate(event.startsAt)}</span><span>{event.location}</span></div>
+                          <div className="public-meta-row catalog-meta-row"><span>{formatDate(event.startsAt)}</span><span>{event.location}</span></div>
                           <h3>{event.title}</h3>
                           <div className="public-event-badges">
-                            <StatusBadge tone={visualState.tone}>{visualState.label}</StatusBadge>
+                            <StatusBadge tone={visualState.tone} size="sm">{visualState.label}</StatusBadge>
                             <StatusBadge tone={STATUS_TONE[event.status] ?? 'neutral'}>{event.status}</StatusBadge>
                           </div>
-                          <div className="public-event-card-footer">
+                          <div className="public-event-card-footer catalog-card-footer">
                             <StatusBadge tone="neutral">{event.category}</StatusBadge>
                             <span className="signal-muted">{event.registrationsCount}/{event.capacity}</span>
+                            <span className="catalog-open-link">{locale === 'ru' ? 'Открыть' : 'Open'}</span>
                           </div>
                           <div className="progress-bar public-event-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
                           <div className="signal-muted public-event-capacity-note">{isFull ? (locale === 'ru' ? 'Лимит мест достигнут' : 'Capacity reached') : (locale === 'ru' ? 'Регистрация активна' : 'Registration active')}</div>
@@ -179,7 +223,7 @@ export default function EventsPage() {
             ) : null}
 
             {meta && meta.pages > 1 ? (
-              <div className="public-pagination">
+              <div className="public-pagination catalog-pagination">
                 <button onClick={() => setPage((value) => Math.max(value - 1, 1))} disabled={page === 1} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Назад' : 'Prev'}</button>
                 {Array.from({ length: meta.pages }, (_, index) => index + 1).map((item) => (
                   <button key={item} onClick={() => setPage(item)} className={`btn btn-sm ${item === page ? 'btn-primary' : 'btn-secondary'}`}>{item}</button>

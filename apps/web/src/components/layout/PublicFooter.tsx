@@ -2,8 +2,8 @@ import Link from 'next/link';
 
 export function PublicFooter({ locale }: { locale: string }) {
   return (
-    <footer className="public-footer">
-      <div className="container">
+    <footer className="public-footer public-shell-footer">
+      <div className="container public-footer-shell-inner">
         <div className="public-footer-grid">
           <div>
             <div className="public-footer-brand">

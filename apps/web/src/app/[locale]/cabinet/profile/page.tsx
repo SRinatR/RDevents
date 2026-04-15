@@ -115,8 +115,19 @@ export default function ProfilePage() {
       {error ? <Notice tone="danger">{error}</Notice> : null}
       {success ? <Notice tone="success">{locale === 'ru' ? 'Профиль обновлён.' : 'Profile updated.'}</Notice> : null}
 
+      <div className="workspace-status-strip">
+        <div className="workspace-status-card">
+          <small>{locale === 'ru' ? 'Профиль' : 'Profile'}</small>
+          <strong>{requiredFields.length > 0 ? (locale === 'ru' ? 'Требует дополнения' : 'Needs completion') : (locale === 'ru' ? 'Готов к участию' : 'Participation-ready')}</strong>
+        </div>
+        <div className="workspace-status-card">
+          <small>{locale === 'ru' ? 'Контур данных' : 'Data surface'}</small>
+          <strong>{locale === 'ru' ? 'Регистрация · Контакты · Активность' : 'Registration · Contacts · Activity'}</strong>
+        </div>
+      </div>
+
       <div className="cabinet-profile-top-grid">
-        <Panel className="cabinet-profile-summary">
+        <Panel variant="elevated" className="cabinet-profile-summary">
           <SectionHeader title={locale === 'ru' ? 'Профиль участника' : 'Participant profile'} subtitle={locale === 'ru' ? 'Базовая готовность к участию в событиях' : 'Core readiness for event participation'} />
           <div className="cabinet-profile-summary-metrics">
             <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Обязательные поля' : 'Required fields'}</span><strong>{requiredFields.length}</strong></div>
@@ -125,7 +136,7 @@ export default function ProfilePage() {
         </Panel>
       </div>
 
-      <Panel>
+      <Panel variant="elevated">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="cabinet-tabs-list">
             <TabsTrigger value="registration">{locale === 'ru' ? 'Регистрационные данные' : 'Registration'}</TabsTrigger>

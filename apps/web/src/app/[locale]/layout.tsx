@@ -26,8 +26,10 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>
       <AuthProvider>
-        <Navbar locale={locale} />
-        {children}
+        <div className="app-shell app-shell-public" data-shell="public">
+          <Navbar locale={locale} />
+          <div className="app-shell-main app-shell-main-public">{children}</div>
+        </div>
       </AuthProvider>
     </NextIntlClientProvider>
   );

@@ -38,12 +38,16 @@ export default function CabinetAllEventsPage() {
         <strong>{locale === 'ru' ? 'Активные события' : 'Active events'}</strong>
         <span>{locale === 'ru' ? 'Выберите событие, чтобы открыть карточку и подать заявку.' : 'Choose an event to open details and join.'}</span>
       </div>
+      <div className="workspace-status-strip">
+        <div className="workspace-status-card"><small>{locale === 'ru' ? 'Доступно сейчас' : 'Available now'}</small><strong>{events.length}</strong></div>
+        <div className="workspace-status-card"><small>{locale === 'ru' ? 'Фокус' : 'Focus'}</small><strong>{locale === 'ru' ? 'Подборка участия' : 'Participation selection'}</strong></div>
+      </div>
       <ToolbarRow>
         <Link href={`/${locale}/cabinet/my-events`} className="signal-chip-link">{locale === 'ru' ? 'Мои мероприятия' : 'My events'}</Link>
         <StatusBadge tone="info">{events.length} {locale === 'ru' ? 'событий' : 'events'}</StatusBadge>
       </ToolbarRow>
 
-      <Panel>
+      <Panel variant="elevated">
         {eventsLoading ? <LoadingLines rows={6} /> : events.length === 0 ? (
           <EmptyState title={locale === 'ru' ? 'События пока отсутствуют' : 'No events yet'} description={locale === 'ru' ? 'Каталог пуст. Возвращайтесь позже или проверьте фильтры на публичной странице событий.' : 'Catalog is empty. Check back later or review filters on the public events page.'} />
         ) : (

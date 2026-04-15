@@ -104,14 +104,19 @@ export default function AdminAdminsPage() {
   if (loading || !user || !isSuperAdmin) return <div className="admin-loading-screen"><div className="spinner" /></div>;
 
   return (
-    <div className="signal-page-shell">
+    <div className="signal-page-shell admin-control-page">
       <PageHeader title={t('admin.admins')} subtitle={locale === 'ru' ? 'Управление доступом и зонами ответственности' : 'Access control and responsibility scopes'} />
 
       {error ? <Notice tone="danger">{error}</Notice> : null}
       {success ? <Notice tone="success">{success}</Notice> : null}
 
+      <div className="admin-control-strip">
+        <div className="admin-control-card"><small>{locale === 'ru' ? 'Платформа' : 'Platform'}</small><strong>{platformAdmins.length} {locale === 'ru' ? 'админов' : 'admins'}</strong></div>
+        <div className="admin-control-card"><small>{locale === 'ru' ? 'События' : 'Events'}</small><strong>{eventAdmins.length} {locale === 'ru' ? 'назначений' : 'assignments'}</strong></div>
+      </div>
+
       <div className="signal-two-col admin-dashboard-grid">
-        <Panel className="admin-command-panel">
+        <Panel variant="elevated" className="admin-command-panel admin-data-panel">
           <SectionHeader title={locale === 'ru' ? 'Назначить администратора события' : 'Assign event admin'} subtitle={locale === 'ru' ? 'Назначение по email в выбранное событие' : 'Assign by email into selected event scope'} />
           {loadingData ? <LoadingLines rows={4} /> : (
             <form onSubmit={handleAssign} className="signal-stack">
@@ -128,7 +133,7 @@ export default function AdminAdminsPage() {
           )}
         </Panel>
 
-        <Panel className="admin-command-panel">
+        <Panel variant="elevated" className="admin-command-panel admin-data-panel">
           <SectionHeader title={locale === 'ru' ? 'Администраторы платформы' : 'Platform admins'} subtitle={locale === 'ru' ? 'Глобальные административные роли' : 'Global administrative roles'} />
           {loadingData ? <LoadingLines rows={4} /> : platformAdmins.length === 0 ? (
             <EmptyState title={locale === 'ru' ? 'Нет администраторов платформы' : 'No platform admins'} description={locale === 'ru' ? 'Пока нет назначенных пользователей.' : 'No users assigned yet.'} />
@@ -153,7 +158,7 @@ export default function AdminAdminsPage() {
         </Panel>
       </div>
 
-      <Panel className="admin-command-panel">
+      <Panel variant="elevated" className="admin-command-panel admin-data-panel">
         <SectionHeader title={locale === 'ru' ? 'Администраторы событий' : 'Event admins'} subtitle={locale === 'ru' ? 'Назначения по конкретным мероприятиям' : 'Assignments tied to specific events'} actions={<StatusBadge tone="neutral">{eventAdmins.length}</StatusBadge>} />
         {loadingData ? <LoadingLines rows={5} /> : eventAdmins.length === 0 ? (
           <EmptyState title={locale === 'ru' ? 'Нет назначений' : 'No assignments'} description={locale === 'ru' ? 'Назначения появятся после первой выдачи роли event admin.' : 'Assignments appear after first event-admin grant.'} />

@@ -69,10 +69,15 @@ export default function AdminUsersPage() {
   if (loading || !user || !isPlatformAdmin) return <div className="admin-loading-screen"><div className="spinner" /></div>;
 
   return (
-    <div className="signal-page-shell">
+    <div className="signal-page-shell admin-control-page">
       <PageHeader title={t('admin.users')} subtitle={`${users.length} users total`} />
 
-      <Panel>
+      <div className="admin-control-strip">
+        <div className="admin-control-card"><small>{locale === 'ru' ? 'Каталог' : 'Directory'}</small><strong>{locale === 'ru' ? 'Пользователи и роли' : 'Users and roles'}</strong></div>
+        <div className="admin-control-card"><small>{locale === 'ru' ? 'Фильтр' : 'Filter'}</small><strong>{roleFilter === 'ALL' ? (locale === 'ru' ? 'Все роли' : 'All roles') : roleFilter}</strong></div>
+      </div>
+
+      <Panel variant="elevated" className="admin-command-panel admin-data-panel">
         <SectionHeader title={locale === 'ru' ? 'Операции с пользователями' : 'User operations'} subtitle={locale === 'ru' ? 'Управление ролями и учётными записями' : 'Role and account management'} />
         <ToolbarRow>
           <FieldInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder={locale === 'ru' ? 'Поиск по имени, email или городу' : 'Search by name, email, or city'} className="admin-filter-search" />

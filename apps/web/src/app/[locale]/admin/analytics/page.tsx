@@ -73,14 +73,19 @@ export default function AdminAnalyticsPage() {
     : null;
 
   return (
-    <div className="signal-page-shell">
+    <div className="signal-page-shell admin-control-page">
       <PageHeader
         title={t('admin.analytics')}
         subtitle={isPlatformAdmin ? 'Platform performance overview' : 'Event performance overview'}
         actions={<StatusBadge tone="info">{stats?.eventScope ? 'Event scope' : 'Platform scope'}</StatusBadge>}
       />
 
-      <Panel className="admin-command-panel">
+      <div className="admin-control-strip">
+        <div className="admin-control-card"><small>{locale === 'ru' ? 'Аналитика' : 'Analytics'}</small><strong>{stats?.eventScope ? (locale === 'ru' ? 'Контур события' : 'Event scope') : (locale === 'ru' ? 'Контур платформы' : 'Platform scope')}</strong></div>
+        <div className="admin-control-card"><small>{locale === 'ru' ? 'Конверсия' : 'Conversion'}</small><strong>{conversion !== null ? `${conversion.toFixed(2)}%` : '—'}</strong></div>
+      </div>
+
+      <Panel variant="elevated" className="admin-command-panel admin-data-panel">
         <SectionHeader title={locale === 'ru' ? 'Сводные метрики' : 'Core metrics'} subtitle={locale === 'ru' ? 'Ключевые показатели конверсии и трафика' : 'Key conversion and traffic indicators'} />
         {statsLoading ? <LoadingLines rows={5} /> : !stats ? (
           <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Данные аналитики появятся после накопления активности.' : 'Analytics widgets appear after activity is accumulated.'} />
@@ -97,7 +102,7 @@ export default function AdminAnalyticsPage() {
       </Panel>
 
       <div className="signal-two-col admin-dashboard-grid">
-        <Panel className="admin-command-panel">
+        <Panel variant="elevated" className="admin-command-panel admin-data-panel">
           <SectionHeader title={t('analytics.registrationsByProvider')} subtitle={locale === 'ru' ? 'Каналы регистраций' : 'Registration channels'} />
           {statsLoading ? <LoadingLines rows={4} /> : stats?.registrationsByProvider && Object.keys(stats.registrationsByProvider).length > 0 ? (
             <div className="signal-stack">
@@ -111,7 +116,7 @@ export default function AdminAnalyticsPage() {
           ) : <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Нет данных по каналам регистрации.' : 'No provider registration breakdown yet.'} />}
         </Panel>
 
-        <Panel className="admin-command-panel">
+        <Panel variant="elevated" className="admin-command-panel admin-data-panel">
           <SectionHeader title={t('analytics.loginsByProvider')} subtitle={locale === 'ru' ? 'Каналы входа' : 'Login channels'} />
           {statsLoading ? <LoadingLines rows={4} /> : stats?.loginsByProvider && Object.keys(stats.loginsByProvider).length > 0 ? (
             <div className="signal-stack">
@@ -127,7 +132,7 @@ export default function AdminAnalyticsPage() {
       </div>
 
       <div className="signal-two-col admin-dashboard-grid">
-        <Panel className="admin-command-panel">
+        <Panel variant="elevated" className="admin-command-panel admin-data-panel">
           <SectionHeader title={t('analytics.topViewedEvents')} subtitle={locale === 'ru' ? 'Лидеры по просмотрам' : 'Most viewed events'} />
           {statsLoading ? <LoadingLines rows={5} /> : stats?.topViewedEvents?.length ? (
             <div className="signal-ranked-list">
@@ -142,7 +147,7 @@ export default function AdminAnalyticsPage() {
           ) : <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Нет лидеров по просмотрам.' : 'No top viewed events available.'} />}
         </Panel>
 
-        <Panel className="admin-command-panel">
+        <Panel variant="elevated" className="admin-command-panel admin-data-panel">
           <SectionHeader title={t('analytics.topRegisteredEvents')} subtitle={locale === 'ru' ? 'Лидеры по регистрациям' : 'Most registered events'} />
           {statsLoading ? <LoadingLines rows={5} /> : stats?.topRegisteredEvents?.length ? (
             <div className="signal-ranked-list">

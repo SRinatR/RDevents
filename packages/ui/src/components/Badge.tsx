@@ -9,12 +9,12 @@ interface BadgeProps {
 }
 
 const colors: Record<BadgeVariant, { bg: string; color: string }> = {
-  default: { bg: 'rgba(100,116,139,0.12)', color: 'var(--color-text-muted)' },
-  success: { bg: 'rgba(22,163,74,0.12)', color: 'var(--color-success)' },
-  warning: { bg: 'rgba(217,119,6,0.12)', color: 'var(--color-warning)' },
-  danger: { bg: 'rgba(220,38,38,0.12)', color: 'var(--color-danger)' },
-  info: { bg: 'rgba(2,132,199,0.12)', color: 'var(--color-info)' },
-  accent: { bg: 'rgba(28,100,242,0.1)', color: 'var(--color-primary)' },
+  default: { bg: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' },
+  success: { bg: 'var(--color-success-subtle)', color: 'var(--color-success)' },
+  warning: { bg: 'var(--color-warning-subtle)', color: 'var(--color-warning)' },
+  danger: { bg: 'var(--color-danger-subtle)', color: 'var(--color-danger)' },
+  info: { bg: 'var(--color-info-subtle)', color: 'var(--color-info)' },
+  accent: { bg: 'var(--color-primary-subtle)', color: 'var(--color-primary)' },
 };
 
 export function Badge({ children, variant = 'default', style }: BadgeProps) {
@@ -25,9 +25,10 @@ export function Badge({ children, variant = 'default', style }: BadgeProps) {
         display: 'inline-flex',
         alignItems: 'center',
         padding: '3px 10px',
-        borderRadius: 'var(--radius-lg)',
-        fontSize: '0.78rem',
-        fontWeight: 700,
+        borderRadius: 'var(--radius-full)',
+        border: '1px solid color-mix(in srgb, currentColor 18%, #ffffff 82%)',
+        fontSize: '0.74rem',
+        fontWeight: 680,
         letterSpacing: '0.02em',
         background: bg,
         color,
