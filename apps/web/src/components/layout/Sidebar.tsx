@@ -48,6 +48,11 @@ export default function Sidebar({ locale, userName, userEmail, userAvatar }: Sid
         {locale === 'ru' ? 'Редактировать профиль' : 'Edit profile'}
       </Link>
 
+      <div className="cabinet-quick-state">
+        <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Рабочий режим' : 'Workspace mode'}</span><strong>{locale === 'ru' ? 'Участник' : 'Participant'}</strong></div>
+        <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Основной поток' : 'Primary flow'}</span><strong>{locale === 'ru' ? 'Профиль → События → Заявки' : 'Profile → Events → Applications'}</strong></div>
+      </div>
+
       <nav className="cabinet-nav-list">
         <div className="cabinet-nav-label">{locale === 'ru' ? 'Навигация' : 'Navigation'}</div>
         {menuItems.map((item) => {
@@ -56,14 +61,14 @@ export default function Sidebar({ locale, userName, userEmail, userAvatar }: Sid
 
           return (
             <div key={item.href}>
-              <Link href={item.href} className={cn('cabinet-nav-link', (isActive || isParentActive) && 'active')}>
+              <Link href={item.href} className={cn('cabinet-nav-link', (isActive || isParentActive) && 'active')} aria-current={isActive || isParentActive ? 'page' : undefined}>
                 <span className="cabinet-nav-icon">{item.icon}</span>
                 <span>{item.label}</span>
               </Link>
               {item.submenu ? (
                 <div className="cabinet-subnav">
                   {item.submenu.map((subitem) => (
-                    <Link key={subitem.href} href={subitem.href} className={cn('cabinet-subnav-link', pathname === subitem.href && 'active')}>
+                    <Link key={subitem.href} href={subitem.href} className={cn('cabinet-subnav-link', pathname === subitem.href && 'active')} aria-current={pathname === subitem.href ? 'page' : undefined}>
                       {subitem.label}
                     </Link>
                   ))}

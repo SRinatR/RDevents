@@ -82,14 +82,19 @@ export default function AdminEventsPage() {
   if (loading || !user || !isAdmin) return <div className="admin-loading-screen"><div className="spinner" /></div>;
 
   return (
-    <div className="signal-page-shell">
+    <div className="signal-page-shell admin-control-page">
       <PageHeader
         title={t('admin.events')}
         subtitle={isPlatformAdmin ? `${events.length} events total` : `${events.length} managed events`}
         actions={isPlatformAdmin ? <Link href={`/${locale}/admin/events/new`} className="btn btn-primary">{t('admin.createEvent')}</Link> : null}
       />
 
-      <Panel>
+      <div className="admin-control-strip">
+        <div className="admin-control-card"><small>{locale === 'ru' ? 'Реестр' : 'Registry'}</small><strong>{locale === 'ru' ? 'Управление событиями' : 'Event command list'}</strong></div>
+        <div className="admin-control-card"><small>{locale === 'ru' ? 'Видимость' : 'Visibility'}</small><strong>{filteredEvents.length} {locale === 'ru' ? 'строк' : 'rows'}</strong></div>
+      </div>
+
+      <Panel variant="elevated" className="admin-command-panel admin-data-panel">
         <SectionHeader title={locale === 'ru' ? 'Управление мероприятиями' : 'Event management workspace'} subtitle={locale === 'ru' ? 'Поиск, фильтрация и действия в едином реестре' : 'Search, filtering, and actions in one registry'} />
 
         <ToolbarRow>
@@ -163,7 +168,7 @@ export default function AdminEventsPage() {
       </Panel>
 
       {pendingDeleteEvent && (
-        <Panel className="signal-danger-zone admin-danger-panel">
+        <Panel variant="elevated" className="signal-danger-zone admin-danger-panel">
           <SectionHeader title={locale === 'ru' ? 'Подтверждение удаления' : 'Deletion confirmation'} subtitle={pendingDeleteEvent.title} />
           <ToolbarRow>
             <button onClick={handleDelete} className="btn btn-danger btn-sm" disabled={Boolean(deletingId)}>{locale === 'ru' ? 'Подтвердить удаление' : 'Confirm delete'}</button>

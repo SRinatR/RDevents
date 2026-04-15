@@ -66,10 +66,15 @@ export default function AdminVolunteersPage() {
   if (loading || !user || !isAdmin) return <div className="admin-loading-screen"><div className="spinner" /></div>;
 
   return (
-    <div className="signal-page-shell">
+    <div className="signal-page-shell admin-control-page">
       <PageHeader title={t('admin.volunteers')} subtitle={locale === 'ru' ? 'Модерация заявок волонтёров по событиям' : 'Volunteer moderation by event scope'} />
 
-      <Panel>
+      <div className="admin-control-strip">
+        <div className="admin-control-card"><small>{locale === 'ru' ? 'Очередь' : 'Queue'}</small><strong>{locale === 'ru' ? 'Модерация волонтёров' : 'Volunteer moderation'}</strong></div>
+        <div className="admin-control-card"><small>{locale === 'ru' ? 'Статус' : 'Status'}</small><strong>{status}</strong></div>
+      </div>
+
+      <Panel variant="elevated" className="admin-command-panel admin-data-panel">
         <SectionHeader title={locale === 'ru' ? 'Очередь модерации' : 'Moderation queue'} subtitle={locale === 'ru' ? 'Фильтрация по событию и статусу' : 'Filter by event and status'} />
 
         {loadingData ? <LoadingLines rows={4} /> : events.length === 0 ? (

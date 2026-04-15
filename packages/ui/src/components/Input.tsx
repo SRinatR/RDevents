@@ -28,15 +28,16 @@ export function Input({ label, error, hint, id, style, ...rest }: InputProps) {
         {...rest}
         style={{
           width: '100%',
-          height: 44,
+          height: 46,
           padding: '0 14px',
           borderRadius: 'var(--radius-md)',
-          border: `1px solid ${error ? 'var(--color-danger)' : 'var(--color-border)'}`,
-          background: 'var(--color-surface-strong)',
+          border: `1px solid ${error ? 'var(--color-danger)' : 'var(--color-border-soft)'}`,
+          background: 'color-mix(in srgb, var(--color-surface) 96%, var(--color-bg-soft) 4%)',
           color: 'var(--color-text-primary)',
-          fontSize: '1rem',
+          fontSize: '0.94rem',
           outline: 'none',
-          transition: 'border-color var(--transition-fast)',
+          boxShadow: 'var(--shadow-xs)',
+          transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
           ...style,
         }}
       />

@@ -47,12 +47,16 @@ export default function CabinetApplicationsPage() {
         <strong>{locale === 'ru' ? 'Мои заявки' : 'My applications'}</strong>
         <span>{locale === 'ru' ? 'Здесь собраны статусы по командам и волонтёрству.' : 'Track team and volunteer statuses in one place.'}</span>
       </div>
+      <div className="workspace-status-strip">
+        <div className="workspace-status-card"><small>{locale === 'ru' ? 'Командные заявки' : 'Team statuses'}</small><strong>{teams.length}</strong></div>
+        <div className="workspace-status-card"><small>{locale === 'ru' ? 'Волонтёрские заявки' : 'Volunteer statuses'}</small><strong>{volunteerApplications.length}</strong></div>
+      </div>
       {loadingData ? <LoadingLines rows={8} /> : null}
       {error ? <Notice tone="danger">{error}</Notice> : null}
 
       {!loadingData && !error ? (
         <>
-          <Panel className="cabinet-workspace-panel">
+          <Panel variant="elevated" className="cabinet-workspace-panel">
             <SectionHeader title={locale === 'ru' ? 'Командные заявки' : 'Team memberships'} actions={<StatusBadge tone="info">{teams.length}</StatusBadge>} />
             {teams.length === 0 ? <EmptyState title={locale === 'ru' ? 'Команд пока нет' : 'No teams yet'} description={locale === 'ru' ? 'После вступления в команду статус появится здесь.' : 'After joining a team, status will appear here.'} /> : (
               <div className="signal-stack cabinet-list-stack cabinet-list-stack-premium">
@@ -69,7 +73,7 @@ export default function CabinetApplicationsPage() {
             )}
           </Panel>
 
-          <Panel className="cabinet-workspace-panel">
+          <Panel variant="elevated" className="cabinet-workspace-panel">
             <SectionHeader title={locale === 'ru' ? 'Волонтёрские заявки' : 'Volunteer applications'} actions={<StatusBadge tone="info">{volunteerApplications.length}</StatusBadge>} />
             {volunteerApplications.length === 0 ? <EmptyState title={locale === 'ru' ? 'Заявки отсутствуют' : 'No applications'} description={locale === 'ru' ? 'Статусы волонтёрства появятся здесь после подачи.' : 'Volunteer statuses appear here after applying.'} /> : (
               <div className="signal-stack cabinet-list-stack cabinet-list-stack-premium">

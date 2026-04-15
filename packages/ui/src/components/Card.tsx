@@ -22,8 +22,8 @@ export function Card({
       style={{
         padding,
         borderRadius: 'var(--radius-2xl)',
-        border: '1px solid var(--color-border)',
-        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border-soft)',
+        background: 'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,250,255,0.96))',
         boxShadow: 'var(--shadow-sm)',
         cursor: onClick ? 'pointer' : 'default',
         transition: hoverable ? 'transform 180ms ease, box-shadow 180ms ease' : undefined,

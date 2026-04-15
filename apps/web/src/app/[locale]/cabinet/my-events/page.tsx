@@ -38,9 +38,13 @@ export default function MyEventsPage() {
   return (
     <div className="signal-page-shell cabinet-workspace-page">
       <PageHeader title={locale === 'ru' ? 'Мои мероприятия' : 'My events'} subtitle={locale === 'ru' ? 'Текущие и завершённые участия' : 'Current and completed participations'} />
+      <div className="workspace-status-strip">
+        <div className="workspace-status-card"><small>{locale === 'ru' ? 'Всего участий' : 'Total participations'}</small><strong>{events.length}</strong></div>
+        <div className="workspace-status-card"><small>{locale === 'ru' ? 'Режим' : 'Mode'}</small><strong>{locale === 'ru' ? 'Личный трек' : 'Personal track'}</strong></div>
+      </div>
       <ToolbarRow><Link href={`/${locale}/cabinet/events`} className="signal-chip-link">{locale === 'ru' ? 'Открыть каталог' : 'Open catalog'}</Link></ToolbarRow>
 
-      <Panel className="cabinet-workspace-panel">
+      <Panel variant="elevated" className="cabinet-workspace-panel">
         {eventsLoading ? <LoadingLines rows={6} /> : error ? <Notice tone="danger">{error}</Notice> : events.length === 0 ? (
           <EmptyState title={locale === 'ru' ? 'Участий пока нет' : 'No participations yet'} description={locale === 'ru' ? 'Выберите событие из каталога, чтобы начать участие.' : 'Choose an event from catalog to start participating.'} actions={<Link href={`/${locale}/cabinet/events`} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Смотреть события' : 'View events'}</Link>} />
         ) : (

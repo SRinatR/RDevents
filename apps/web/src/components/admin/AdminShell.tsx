@@ -54,8 +54,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
   if (!user || !isAdmin) return null;
 
   return (
-    <div className="admin-app-shell">
-      <aside className={cn('admin-sidebar', sidebarOpen && 'open')}>
+    <div className="admin-app-shell app-shell app-shell-admin" data-shell="admin">
+      <aside className={cn('admin-sidebar admin-shell-sidebar admin-command-sidebar', sidebarOpen && 'open')}>
         <div className="admin-sidebar-brand">
           <div className="admin-brand-mark">EP</div>
           <div>
@@ -68,7 +68,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           {navItems.filter((item) => item.allow).map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
-              <Link key={item.href} href={item.href} className={cn('admin-nav-item', active && 'active')}>
+              <Link key={item.href} href={item.href} className={cn('admin-nav-item', active && 'active')} aria-current={active ? 'page' : undefined}>
                 <span className="admin-nav-icon">{item.icon}</span>
                 <span>{item.label}</span>
               </Link>
@@ -82,8 +82,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <div className="admin-content-shell">
-        <header className="admin-topbar admin-topbar-command">
+      <div className="admin-content-shell admin-shell-content admin-command-content">
+        <header className="admin-topbar admin-topbar-command admin-shell-topbar">
           <button className="admin-menu-button" onClick={() => setSidebarOpen((value) => !value)} type="button" aria-label="Toggle navigation">
             <MenuIcon />
           </button>
@@ -92,13 +92,17 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <div className="admin-topbar-subtitle">{user.name || user.email}</div>
           </div>
           <div className="admin-topbar-chip">{isSuperAdmin ? 'Super admin' : isPlatformAdmin ? 'Platform admin' : 'Event admin'}</div>
+          <div className="admin-topbar-signal-cluster">
+            <span className="signal-status-badge tone-info">{locale === 'ru' ? 'Контур управления' : 'Control surface'}</span>
+            <span className="signal-status-badge tone-neutral">{locale === 'ru' ? 'Операции · Очереди · Доступ' : 'Ops · Queues · Access'}</span>
+          </div>
           <Link href={`/${locale}/admin/events/new`} className="btn btn-primary btn-sm admin-topbar-action">
             {t('admin.createEvent')}
           </Link>
         </header>
-        <div className="admin-command-strip">
-          <span>{locale === "ru" ? "Рабочие разделы" : "Work areas"}</span>
-          <span>{locale === "ru" ? "События, волонтёры, аналитика и доступ" : "Events, volunteers, analytics, and access"}</span>
+        <div className="admin-command-strip admin-ops-strip">
+          <div><small>{locale === "ru" ? "Рабочие разделы" : "Work areas"}</small><strong>{locale === "ru" ? "События · Волонтёры · Аналитика · Доступ" : "Events · Volunteers · Analytics · Access"}</strong></div>
+          <div><small>{locale === "ru" ? "Оператор" : "Operator"}</small><strong>{user.name || user.email}</strong></div>
         </div>
         <main className="admin-main">{children}</main>
       </div>

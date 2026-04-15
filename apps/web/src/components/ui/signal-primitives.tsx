@@ -1,4 +1,4 @@
-import type { ReactNode, SelectHTMLAttributes, InputHTMLAttributes, TextareaHTMLAttributes } from 'react';
+import type { ReactNode, SelectHTMLAttributes, InputHTMLAttributes, TextareaHTMLAttributes, HTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 
 type HeaderProps = {
@@ -31,8 +31,17 @@ export function SectionHeader({ title, subtitle, actions }: HeaderProps) {
   );
 }
 
-export function Panel({ className, children }: { className?: string; children: ReactNode }) {
-  return <section className={cn('signal-panel', className)}>{children}</section>;
+export function Panel({
+  className,
+  children,
+  variant = 'default',
+  ...props
+}: {
+  className?: string;
+  children: ReactNode;
+  variant?: 'default' | 'elevated' | 'subtle';
+} & HTMLAttributes<HTMLElement>) {
+  return <section className={cn('signal-panel', `signal-panel-${variant}`, className)} {...props}>{children}</section>;
 }
 
 export function MetricCard({ label, value, tone = 'neutral' }: { label: string; value: string | number; tone?: 'neutral' | 'info' | 'success' | 'warning' | 'danger' }) {
@@ -46,8 +55,16 @@ export function MetricCard({ label, value, tone = 'neutral' }: { label: string; 
 
 type StatusTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
-export function StatusBadge({ children, tone = 'neutral' }: { children: ReactNode; tone?: StatusTone }) {
-  return <span className={cn('signal-status-badge', `tone-${tone}`)}>{children}</span>;
+export function StatusBadge({
+  children,
+  tone = 'neutral',
+  size = 'md',
+}: {
+  children: ReactNode;
+  tone?: StatusTone;
+  size?: 'sm' | 'md';
+}) {
+  return <span className={cn('signal-status-badge', `tone-${tone}`, `size-${size}`)}>{children}</span>;
 }
 
 export function ToolbarRow({ children }: { children: ReactNode }) {
@@ -72,7 +89,7 @@ export function TableShell({ children }: { children: ReactNode }) {
 
 export function LoadingLines({ rows = 4 }: { rows?: number }) {
   return (
-    <div className="signal-loading-lines">
+    <div className="signal-loading-lines motion-fade-up-fast" role="status" aria-live="polite" aria-label="Loading">
       {Array.from({ length: rows }).map((_, index) => (
         <div key={index} className="signal-loading-line" />
       ))}
@@ -82,7 +99,7 @@ export function LoadingLines({ rows = 4 }: { rows?: number }) {
 
 export function EmptyState({ title, description, actions }: { title: string; description: string; actions?: ReactNode }) {
   return (
-    <div className="signal-empty-state">
+    <div className="signal-empty-state motion-fade-up-fast">
       <h3>{title}</h3>
       <p>{description}</p>
       {actions ? <div className="signal-empty-actions">{actions}</div> : null}
@@ -91,5 +108,5 @@ export function EmptyState({ title, description, actions }: { title: string; des
 }
 
 export function Notice({ children, tone = 'info' }: { children: ReactNode; tone?: Exclude<StatusTone, 'neutral'> }) {
-  return <div className={cn('signal-notice', `tone-${tone}`)}>{children}</div>;
+  return <div className={cn('signal-notice motion-fade-up-fast', `tone-${tone}`)} role={tone === 'danger' ? 'alert' : 'status'}>{children}</div>;
 }

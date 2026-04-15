@@ -74,13 +74,17 @@ export default function AdminPage() {
   ].filter((item) => item.enabled);
 
   return (
-    <div className="signal-page-shell admin-dashboard-shell">
+    <div className="signal-page-shell admin-dashboard-shell route-shell route-admin-home admin-control-page">
       <div className="admin-dashboard-hero">
         <PageHeader title={t('admin.title')} subtitle={t('admin.subtitle')} actions={<StatusBadge tone="info">{scope}</StatusBadge>} />
         <div className="admin-dashboard-hero-note">
           <strong>{locale === 'ru' ? 'Рабочая панель платформы' : 'Platform workspace'}</strong>
           <span>{locale === 'ru' ? 'Быстрый доступ к событиям, пользователям, волонтёрам и аналитике.' : 'Quick access to events, users, volunteers, and analytics.'}</span>
         </div>
+      </div>
+      <div className="admin-control-strip motion-fade-up-fast">
+        <div className="admin-control-card"><small>{locale === 'ru' ? 'Сигнал сейчас' : 'Signal now'}</small><strong>{statsLoading ? (locale === 'ru' ? 'Обновление…' : 'Refreshing…') : (locale === 'ru' ? 'Операционный контур активен' : 'Operational surface active')}</strong></div>
+        <div className="admin-control-card"><small>{locale === 'ru' ? 'Приоритет' : 'Priority'}</small><strong>{locale === 'ru' ? 'Очереди и конверсия' : 'Queues and conversion'}</strong></div>
       </div>
 
       <div className="admin-quick-actions-row"><ToolbarRow>
@@ -89,8 +93,8 @@ export default function AdminPage() {
         ))}
       </ToolbarRow></div>
 
-      <div className="signal-two-col admin-dashboard-grid admin-dashboard-grid-top">
-        <Panel className="admin-command-panel">
+      <div className="signal-two-col admin-dashboard-grid admin-dashboard-grid-top motion-stagger">
+        <Panel variant="elevated" className="admin-command-panel">
           <SectionHeader title={locale === 'ru' ? 'Ключевые показатели' : 'Key metrics'} subtitle={locale === 'ru' ? 'Текущая сводка по системе' : 'Current system summary'} />
           {statsLoading ? (
             <LoadingLines rows={5} />
@@ -106,7 +110,7 @@ export default function AdminPage() {
           )}
         </Panel>
 
-        <Panel className="admin-command-panel">
+        <Panel variant="elevated" className="admin-command-panel">
           <SectionHeader title={locale === 'ru' ? 'Рабочая очередь' : 'Work queue'} subtitle={locale === 'ru' ? 'Приоритеты по разделам' : 'Priorities by section'} />
           <div className="signal-stack">
             <div className="signal-ranked-item"><span>{locale === 'ru' ? 'События в работе' : 'Active event workflows'}</span><StatusBadge tone="info">{stats?.totalEvents ?? 0}</StatusBadge></div>
@@ -117,8 +121,8 @@ export default function AdminPage() {
         </Panel>
       </div>
 
-      <div className="signal-two-col admin-dashboard-grid">
-        <Panel className="admin-command-panel">
+      <div className="signal-two-col admin-dashboard-grid motion-stagger">
+        <Panel variant="elevated" className="admin-command-panel">
           <SectionHeader title={t('analytics.topViewedEvents')} subtitle={locale === 'ru' ? 'Лидеры по интересу аудитории' : 'Highest audience attention'} />
           {statsLoading ? <LoadingLines rows={4} /> : stats?.topViewedEvents?.length ? (
             <div className="signal-ranked-list">
@@ -133,7 +137,7 @@ export default function AdminPage() {
           ) : <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Список появится после первых просмотров.' : 'List appears after first page views.'} />}
         </Panel>
 
-        <Panel className="admin-command-panel">
+        <Panel variant="elevated" className="admin-command-panel">
           <SectionHeader title={t('analytics.topRegisteredEvents')} subtitle={locale === 'ru' ? 'Лидеры по заявкам' : 'Highest registration demand'} />
           {statsLoading ? <LoadingLines rows={4} /> : stats?.topRegisteredEvents?.length ? (
             <div className="signal-ranked-list">

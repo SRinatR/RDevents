@@ -204,7 +204,7 @@ export default function EventDetailPage() {
 
   if (loading) {
     return (
-      <div className="public-page-shell">
+      <div className="public-page-shell route-shell route-event-detail">
         <main className="public-main">
           <section className="public-section"><div className="container"><LoadingLines rows={8} /></div></section>
         </main>
@@ -214,7 +214,7 @@ export default function EventDetailPage() {
 
   if (error || !event) {
     return (
-      <div className="public-page-shell">
+      <div className="public-page-shell route-shell route-event-detail">
         <main className="public-main">
           <section className="public-section">
             <div className="container">
@@ -242,33 +242,61 @@ export default function EventDetailPage() {
   const fieldLabel = (field: MissingField) => locale === 'ru'
     ? FIELD_LABELS_RU[field.key] ?? field.label
     : field.label;
+  const statusTone = event.status === 'PUBLISHED' ? 'success' : event.status === 'CANCELLED' ? 'danger' : 'warning';
+  const eventDateRange = `${formatDate(event.startsAt)} · ${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}`;
+  const spotsLeft = Math.max((event.capacity ?? 0) - (event.registrationsCount ?? 0), 0);
 
   return (
-    <div className="public-page-shell">
+    <div className="public-page-shell route-shell route-event-detail">
       <main className="public-main">
-        <section className="public-event-hero public-event-hero-immersive">
+        <section className="public-event-hero public-event-hero-immersive motion-fade-up">
           <div className="container">
-            <div className="public-event-cover public-event-detail-cover public-event-cover-stage">
-              {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
-              <div className="public-event-detail-cover-overlay" />
-              <div className="public-event-cover-story">
-                <div className="public-meta-row public-gap-after-xs public-event-meta-top">
-                  <StatusBadge tone="neutral">{event.category}</StatusBadge>
-                  <StatusBadge tone={event.status === 'PUBLISHED' ? 'success' : event.status === 'CANCELLED' ? 'danger' : 'warning'}>{event.status}</StatusBadge>
-                  {event.isFeatured ? <StatusBadge tone="info">{locale === 'ru' ? 'Рекомендуемое' : 'Featured'}</StatusBadge> : null}
+            <div className="public-event-masthead">
+              <div className="public-event-cover public-event-detail-cover public-event-cover-stage">
+                {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
+                <div className="public-event-detail-cover-overlay" />
+                <div className="public-event-cover-story">
+                  <div className="public-meta-row public-gap-after-xs public-event-meta-top">
+                    <StatusBadge tone="neutral">{event.category}</StatusBadge>
+                    <StatusBadge tone={statusTone}>{event.status}</StatusBadge>
+                    {event.isFeatured ? <StatusBadge tone="info">{locale === 'ru' ? 'Рекомендуемое' : 'Featured'}</StatusBadge> : null}
+                  </div>
+                  <h1 className="signal-page-title public-gap-after-2xs">{event.title}</h1>
+                  <p className="signal-page-subtitle public-gap-after-sm">{event.shortDescription}</p>
+                  <div className="public-event-masthead-actions">
+                    <a href="#event-participation" className="btn btn-primary btn-sm">{locale === 'ru' ? 'Перейти к участию' : 'Go to participation'}</a>
+                    <button onClick={handleCopyLink} className="btn btn-secondary btn-sm">{copied ? (locale === 'ru' ? 'Ссылка скопирована' : 'Link copied') : t('events.copyLink')}</button>
+                  </div>
                 </div>
-                <h1 className="signal-page-title public-gap-after-2xs">{event.title}</h1>
-                <p className="signal-page-subtitle public-gap-after-sm">{event.shortDescription}</p>
+              </div>
+
+              <div className="public-event-facts-strip">
+                <div className="public-event-fact">
+                  <small>{locale === 'ru' ? 'Дата и время' : 'Date & time'}</small>
+                  <strong>{eventDateRange}</strong>
+                </div>
+                <div className="public-event-fact">
+                  <small>{locale === 'ru' ? 'Локация' : 'Location'}</small>
+                  <strong>{event.location}</strong>
+                </div>
+                <div className="public-event-fact">
+                  <small>{locale === 'ru' ? 'Свободных мест' : 'Spots left'}</small>
+                  <strong>{isFull ? (locale === 'ru' ? 'Нет мест' : 'No spots left') : spotsLeft}</strong>
+                </div>
+                <div className="public-event-fact">
+                  <small>{locale === 'ru' ? 'Формат участия' : 'Participation format'}</small>
+                  <strong>{event.isTeamBased ? (locale === 'ru' ? 'Командный' : 'Team-based') : (locale === 'ru' ? 'Индивидуальный' : 'Individual')}</strong>
+                </div>
               </div>
             </div>
 
             <div className="public-event-layout public-event-layout-premium public-event-layout-editorial">
-              <div className="public-event-story-column">
-                <Panel className="public-event-story-summary">
+              <div className="public-event-story-column motion-stagger">
+                <Panel className="public-event-story-summary public-event-story-summary-premium">
                   <div className="public-meta-row public-event-meta-grid">
-                    <span>{formatDate(event.startsAt)}</span>
-                    <span>{formatTime(event.startsAt)} – {formatTime(event.endsAt)}</span>
+                    <span>{eventDateRange}</span>
                     <span>{event.location}</span>
+                    <span>{locale === 'ru' ? `Регистраций: ${event.registrationsCount}/${event.capacity}` : `Registrations: ${event.registrationsCount}/${event.capacity}`}</span>
                   </div>
                 </Panel>
 
@@ -278,10 +306,20 @@ export default function EventDetailPage() {
                     {event.fullDescription}
                   </div>
                 </Panel>
+
+                <Panel className="public-event-support-panel">
+                  <SectionHeader title={locale === 'ru' ? 'Ключевые параметры участия' : 'Participation essentials'} subtitle={locale === 'ru' ? 'Что важно перед подачей заявки' : 'What to check before joining'} />
+                  <div className="public-event-support-grid">
+                    <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Категория' : 'Category'}</span><strong>{event.category}</strong></div>
+                    <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Статус события' : 'Event status'}</span><StatusBadge tone={statusTone}>{event.status}</StatusBadge></div>
+                    <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Режим' : 'Mode'}</span><strong>{event.isTeamBased ? (locale === 'ru' ? 'Командный набор' : 'Team onboarding') : (locale === 'ru' ? 'Индивидуальный набор' : 'Individual onboarding')}</strong></div>
+                    <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Волонтёрство' : 'Volunteer track'}</span><strong>{locale === 'ru' ? 'Доступно из панели участия' : 'Available in participation panel'}</strong></div>
+                  </div>
+                </Panel>
               </div>
 
-              <aside className="public-sticky-panel public-event-action-rail">
-                <Panel className="public-participation-panel public-participation-panel-premium">
+              <aside className="public-sticky-panel public-event-action-rail motion-fade-up-fast">
+                <Panel id="event-participation" className="public-participation-panel public-participation-panel-premium">
                   <SectionHeader title={locale === 'ru' ? 'Участие' : 'Participation'} subtitle={locale === 'ru' ? 'Доступные действия и текущий статус' : 'Available actions and current status'} />
                   <div className="progress-bar signal-gap-after-2xs public-participation-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
                   <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div>
@@ -357,8 +395,6 @@ export default function EventDetailPage() {
                       : <Link href={`/${locale}/login`} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Войти для волонтёрства' : 'Login to volunteer'}</Link>}
 
                   {volunteerError ? <Notice tone="danger">{volunteerError}</Notice> : null}
-
-                  <button onClick={handleCopyLink} className="btn btn-ghost btn-sm">{copied ? (locale === 'ru' ? 'Ссылка скопирована' : 'Link copied') : t('events.copyLink')}</button>
                 </Panel>
               </aside>
             </div>

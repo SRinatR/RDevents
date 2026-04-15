@@ -38,6 +38,11 @@ export function Navbar({ locale }: NavbarProps) {
     return () => document.removeEventListener('mousedown', handler);
   }, [mobileOpen]);
 
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [mobileOpen]);
+
   async function handleLogout() {
     await logout();
     router.push(`/${locale}`);
@@ -60,7 +65,7 @@ export function Navbar({ locale }: NavbarProps) {
 
   return (
     <>
-      <header className={`public-navbar ${scrolled ? 'scrolled' : ''}`}>
+      <header className={`public-navbar public-shell-header ${scrolled ? 'scrolled' : ''}`} data-scrolled={scrolled ? 'true' : 'false'}>
         <div className="container public-navbar-inner">
           <Link href={`/${locale}`} className="public-logo">
             <span className="public-logo-mark">EP</span>
@@ -70,9 +75,9 @@ export function Navbar({ locale }: NavbarProps) {
             </span>
           </Link>
 
-          <nav className="public-nav-links">
+          <nav className="public-nav-links" aria-label={locale === 'ru' ? 'Основная навигация' : 'Primary navigation'}>
             {navLinks.map(({ href, label }) => (
-              <Link key={href} href={href} className={`public-nav-link ${isActive(href) ? 'active' : ''}`}>
+              <Link key={href} href={href} className={`public-nav-link ${isActive(href) ? 'active' : ''}`} aria-current={isActive(href) ? 'page' : undefined}>
                 {label}
               </Link>
             ))}
@@ -94,7 +99,7 @@ export function Navbar({ locale }: NavbarProps) {
               <Link href={`/${locale}/login`} className="btn btn-primary btn-sm">{t('nav.login') || 'Login'}</Link>
             )}
 
-            <button className="public-menu-trigger" onClick={() => setMobileOpen((value) => !value)} aria-label="Menu">
+            <button className="public-menu-trigger" onClick={() => setMobileOpen((value) => !value)} aria-expanded={mobileOpen} aria-label="Menu">
               <span />
               <span />
               <span />
@@ -103,9 +108,11 @@ export function Navbar({ locale }: NavbarProps) {
         </div>
       </header>
 
-      <div ref={mobileRef} className={`mobile-menu ${mobileOpen ? 'open' : ''}`}>
+      <button className={`mobile-menu-backdrop ${mobileOpen ? 'open' : ''}`} aria-hidden={!mobileOpen} tabIndex={-1} onClick={() => setMobileOpen(false)} />
+
+      <div ref={mobileRef} className={`mobile-menu ${mobileOpen ? 'open' : ''}`} role="dialog" aria-modal="true">
         {navLinks.map(({ href, label }) => (
-          <Link key={href} href={href} className={`mobile-link${isActive(href) ? ' active' : ''}`}>{label}</Link>
+          <Link key={href} href={href} className={`mobile-link${isActive(href) ? ' active' : ''}`} aria-current={isActive(href) ? 'page' : undefined}>{label}</Link>
         ))}
         <div className="public-mobile-actions">
           {user ? (

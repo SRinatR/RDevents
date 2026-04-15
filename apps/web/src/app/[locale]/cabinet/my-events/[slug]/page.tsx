@@ -42,6 +42,7 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
 
   const myTeam = event.teamMembership?.team;
   const isVolunteer = event.memberships?.find((membership: any) => membership.role === 'VOLUNTEER');
+  const isActiveParticipation = event.isRegistered || Boolean(myTeam);
 
   async function handleCreateTeam() {
     if (!user) return;
@@ -75,8 +76,12 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
   }
 
   return (
-    <div className="signal-page-shell">
+    <div className="signal-page-shell cabinet-workspace-page">
       <PageHeader title={event.title} subtitle={locale === 'ru' ? 'Карточка участия в мероприятии' : 'Participation workspace'} actions={<Link href={`/${locale}/cabinet/my-events`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Назад' : 'Back'}</Link>} />
+      <div className="workspace-status-strip">
+        <div className="workspace-status-card"><small>{locale === 'ru' ? 'Статус участия' : 'Participation status'}</small><strong>{isActiveParticipation ? (locale === 'ru' ? 'Активно' : 'Active') : (locale === 'ru' ? 'Ожидает действий' : 'Action required')}</strong></div>
+        <div className="workspace-status-card"><small>{locale === 'ru' ? 'Командный модуль' : 'Team module'}</small><strong>{event.isTeamBased ? (locale === 'ru' ? 'Включён' : 'Enabled') : (locale === 'ru' ? 'Не требуется' : 'Not required')}</strong></div>
+      </div>
 
       <ToolbarRow>
         <button onClick={() => setActiveTab('info')} className={`signal-chip-link ${activeTab === 'info' ? 'active' : ''}`}>{locale === 'ru' ? 'Инфо' : 'Info'}</button>
@@ -85,7 +90,7 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
       </ToolbarRow>
 
       {activeTab === 'info' ? (
-        <Panel>
+        <Panel variant="elevated">
           <SectionHeader title={locale === 'ru' ? 'Описание и параметры' : 'Description and parameters'} />
           <p className="signal-muted cabinet-info-copy">{event.fullDescription || event.shortDescription}</p>
           <div className="signal-two-col">
@@ -96,7 +101,7 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
       ) : null}
 
       {activeTab === 'team' && event.isTeamBased ? (
-        <Panel>
+        <Panel variant="elevated">
           <SectionHeader title={locale === 'ru' ? 'Командный модуль' : 'Team module'} />
           {myTeam ? (
             <div className="signal-stack">
@@ -139,7 +144,7 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
       ) : null}
 
       {activeTab === 'volunteer' ? (
-        <Panel>
+        <Panel variant="elevated">
           <SectionHeader title={locale === 'ru' ? 'Волонтёрский статус' : 'Volunteer status'} />
           {isVolunteer ? (
             <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Текущий статус' : 'Current status'}</span><StatusBadge tone={isVolunteer.status === 'PENDING' ? 'warning' : isVolunteer.status === 'ACTIVE' || isVolunteer.status === 'APPROVED' ? 'success' : 'danger'}>{isVolunteer.status}</StatusBadge></div>
