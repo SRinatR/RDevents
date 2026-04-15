@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../../hooks/useAuth';
 import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, Notice, PageHeader, Panel, SectionHeader, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 
 export default function AdminEventsPage() {
   const t = useTranslations();
@@ -17,6 +18,10 @@ export default function AdminEventsPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [sortMode, setSortMode] = useState<'date_desc' | 'date_asc' | 'title'>('date_desc');
+  const [pendingDeleteEvent, setPendingDeleteEvent] = useState<any | null>(null);
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) router.push(`/${locale}`);
@@ -25,7 +30,7 @@ export default function AdminEventsPage() {
   const loadEvents = () => {
     setEventsLoading(true);
     adminApi.listEvents({ limit: 100 })
-      .then(r => setEvents(r.data))
+      .then((r) => setEvents(r.data))
       .catch(() => {})
       .finally(() => setEventsLoading(false));
   };
@@ -34,13 +39,32 @@ export default function AdminEventsPage() {
     if (user && isAdmin) loadEvents();
   }, [user, isAdmin]);
 
-  const handleDelete = async (id: string) => {
-    if (!isPlatformAdmin) return;
-    if (!confirm('Are you sure you want to delete this event?')) return;
-    setDeletingId(id);
+  const filteredEvents = useMemo(() => {
+    const normalized = search.trim().toLowerCase();
+    const filtered = events.filter((event) => {
+      const statusPass = statusFilter === 'ALL' || event.status === statusFilter;
+      const searchPass = !normalized
+        || event.title?.toLowerCase().includes(normalized)
+        || event.category?.toLowerCase().includes(normalized)
+        || event.slug?.toLowerCase().includes(normalized);
+      return statusPass && searchPass;
+    });
+
+    return filtered.sort((left, right) => {
+      if (sortMode === 'title') return (left.title ?? '').localeCompare(right.title ?? '');
+      const leftDate = new Date(left.startsAt).getTime();
+      const rightDate = new Date(right.startsAt).getTime();
+      return sortMode === 'date_asc' ? leftDate - rightDate : rightDate - leftDate;
+    });
+  }, [events, search, statusFilter, sortMode]);
+
+  const handleDelete = async () => {
+    if (!isPlatformAdmin || !pendingDeleteEvent) return;
+    setDeletingId(pendingDeleteEvent.id);
     try {
-      await adminApi.deleteEvent(id);
-      setEvents(prev => prev.filter(e => e.id !== id));
+      await adminApi.deleteEvent(pendingDeleteEvent.id);
+      setEvents((prev) => prev.filter((event) => event.id !== pendingDeleteEvent.id));
+      setPendingDeleteEvent(null);
     } catch {
       alert('Failed to delete event');
     } finally {
@@ -48,90 +72,81 @@ export default function AdminEventsPage() {
     }
   };
 
-  const statusColors: Record<string, string> = {
-    PUBLISHED: '#22c55e',
-    DRAFT: '#f59e0b',
-    CANCELLED: '#ef4444',
-    COMPLETED: '#6366f1',
+  const toneByStatus: Record<string, 'success' | 'warning' | 'danger' | 'info'> = {
+    PUBLISHED: 'success',
+    DRAFT: 'warning',
+    CANCELLED: 'danger',
+    COMPLETED: 'info',
   };
 
-  if (loading || !user || !isAdmin) return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
-    </div>
-  );
+  if (loading || !user || !isAdmin) return <div className="admin-loading-screen"><div className="spinner" /></div>;
 
   return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', padding: '40px 0 60px' }}>
-      <div className="container">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 36, flexWrap: 'wrap', gap: 16 }}>
-          <div>
-            <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(1.8rem, 4vw, 2.4rem)', fontWeight: 900, letterSpacing: 0 }}>
-              {t('admin.events')}
-            </h1>
-            <p style={{ margin: 0, color: 'var(--color-text-muted)' }}>
-              {isPlatformAdmin ? `${events.length} events total` : `${events.length} managed events`}
-            </p>
-          </div>
-          {isPlatformAdmin && (
-            <Link href={`/${locale}/admin/events/new`} style={{ padding: '12px 24px', borderRadius: 'var(--radius-lg)', background: 'var(--color-primary)', color: '#fff', fontWeight: 700, textDecoration: 'none' }}>
-              + {t('admin.createEvent')}
-            </Link>
-          )}
-        </div>
+    <div className="signal-page-shell">
+      <PageHeader
+        title={t('admin.events')}
+        subtitle={isPlatformAdmin ? `${events.length} events total` : `${events.length} managed events`}
+        actions={isPlatformAdmin ? <Link href={`/${locale}/admin/events/new`} className="btn btn-primary">{t('admin.createEvent')}</Link> : null}
+      />
 
-        {/* Events table */}
+      <Panel>
+        <SectionHeader title={locale === 'ru' ? 'Управление мероприятиями' : 'Event management workspace'} subtitle={locale === 'ru' ? 'Поиск, фильтрация и действия в едином реестре' : 'Search, filtering, and actions in one registry'} />
+
+        <ToolbarRow>
+          <FieldInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder={locale === 'ru' ? 'Поиск по названию, категории или slug' : 'Search by title, category, or slug'} style={{ minWidth: 280 }} />
+          <FieldSelect value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={{ width: 180 }}>
+            <option value="ALL">All statuses</option>
+            <option value="PUBLISHED">Published</option>
+            <option value="DRAFT">Draft</option>
+            <option value="CANCELLED">Cancelled</option>
+            <option value="COMPLETED">Completed</option>
+          </FieldSelect>
+          <FieldSelect value={sortMode} onChange={(event) => setSortMode(event.target.value as 'date_desc' | 'date_asc' | 'title')} style={{ width: 210 }}>
+            <option value="date_desc">Newest first</option>
+            <option value="date_asc">Oldest first</option>
+            <option value="title">Title A-Z</option>
+          </FieldSelect>
+          <StatusBadge tone="info">{filteredEvents.length} visible</StatusBadge>
+        </ToolbarRow>
+
         {eventsLoading ? (
-          <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
-        ) : events.length === 0 ? (
-          <div style={{ padding: '48px', borderRadius: 'var(--radius-2xl)', border: '1px dashed var(--color-border)', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-            No events yet. Create your first event!
-          </div>
+          <LoadingLines rows={6} />
+        ) : filteredEvents.length === 0 ? (
+          <EmptyState
+            title={locale === 'ru' ? 'События не найдены' : 'No events found'}
+            description={locale === 'ru' ? 'Измените фильтры или создайте новое событие.' : 'Adjust filters or create a new event.'}
+            actions={isPlatformAdmin ? <Link href={`/${locale}/admin/events/new`} className="btn btn-secondary btn-sm">{t('admin.createEvent')}</Link> : undefined}
+          />
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', background: 'var(--color-surface)', borderRadius: 'var(--radius-xl)', overflow: 'hidden' }}>
+          <TableShell>
+            <table className="signal-table">
               <thead>
-                <tr style={{ background: 'var(--color-bg-subtle)' }}>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Title</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Category</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Status</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Date</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Registered</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Actions</th>
+                <tr>
+                  <th>Title</th>
+                  <th>Category</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                  <th>Registered</th>
+                  <th className="right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {events.map((event: any) => (
-                  <tr key={event.id} style={{ borderTop: '1px solid var(--color-border)' }}>
-                    <td style={{ padding: '14px 16px' }}>
-                      <div style={{ fontWeight: 600 }}>{event.title}</div>
+                {filteredEvents.map((event: any) => (
+                  <tr key={event.id}>
+                    <td>
+                      <strong>{event.title}</strong>
+                      <div className="signal-muted">/{event.slug}</div>
                     </td>
-                    <td style={{ padding: '14px 16px', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>{event.category}</td>
-                    <td style={{ padding: '14px 16px' }}>
-                      <span style={{ padding: '4px 10px', borderRadius: 'var(--radius-lg)', fontSize: '0.8rem', fontWeight: 700, background: statusColors[event.status] + '20', color: statusColors[event.status] }}>
-                        {event.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px 16px', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
-                      {new Date(event.startsAt).toLocaleDateString()}
-                    </td>
-                    <td style={{ padding: '14px 16px', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
-                      {event._count?.registrations ?? 0}
-                    </td>
-                    <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                        <Link href={`/${locale}/events/${event.slug}`} style={{ padding: '6px 12px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', fontSize: '0.8rem', color: 'var(--color-text-secondary)', textDecoration: 'none' }}>
-                          View
-                        </Link>
-                        <Link href={`/${locale}/admin/events/${event.id}/edit`} style={{ padding: '6px 12px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', fontSize: '0.8rem', color: 'var(--color-text-primary)', textDecoration: 'none' }}>
-                          {t('common.edit')}
-                        </Link>
+                    <td>{event.category}</td>
+                    <td><StatusBadge tone={toneByStatus[event.status] ?? 'info'}>{event.status}</StatusBadge></td>
+                    <td>{new Date(event.startsAt).toLocaleDateString()}</td>
+                    <td>{event._count?.registrations ?? 0}</td>
+                    <td className="right">
+                      <div className="signal-row-actions">
+                        <Link href={`/${locale}/events/${event.slug}`} className="btn btn-ghost btn-sm">View</Link>
+                        <Link href={`/${locale}/admin/events/${event.id}/edit`} className="btn btn-secondary btn-sm">{t('common.edit')}</Link>
                         {isPlatformAdmin && (
-                          <button
-                            onClick={() => handleDelete(event.id)}
-                            disabled={deletingId === event.id}
-                            style={{ padding: '6px 12px', borderRadius: 'var(--radius-lg)', border: '1px solid #ef4444', fontSize: '0.8rem', color: '#ef4444', background: 'transparent', cursor: 'pointer', opacity: deletingId === event.id ? 0.5 : 1 }}
-                          >
+                          <button onClick={() => setPendingDeleteEvent(event)} className="btn btn-danger btn-sm" disabled={deletingId === event.id}>
                             {deletingId === event.id ? '...' : t('common.delete')}
                           </button>
                         )}
@@ -141,9 +156,23 @@ export default function AdminEventsPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableShell>
         )}
-      </div>
+      </Panel>
+
+      {pendingDeleteEvent && (
+        <Panel className="signal-danger-zone">
+          <SectionHeader title={locale === 'ru' ? 'Подтверждение удаления' : 'Deletion confirmation'} subtitle={pendingDeleteEvent.title} />
+          <ToolbarRow>
+            <button onClick={handleDelete} className="btn btn-danger btn-sm" disabled={Boolean(deletingId)}>{locale === 'ru' ? 'Подтвердить удаление' : 'Confirm delete'}</button>
+            <button onClick={() => setPendingDeleteEvent(null)} className="btn btn-secondary btn-sm">{t('common.cancel')}</button>
+          </ToolbarRow>
+        </Panel>
+      )}
+
+      <Notice tone="info">
+        {locale === 'ru' ? 'Фильтры и сортировка выполняются в клиенте поверх текущего набора данных API без изменения серверной логики.' : 'Filters and sorting run client-side on the current API dataset without changing backend logic.'}
+      </Notice>
     </div>
   );
 }

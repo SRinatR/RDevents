@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../../hooks/useAuth';
 import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
+import { EmptyState, LoadingLines, MetricCard, Notice, PageHeader, Panel, SectionHeader, StatusBadge } from '@/components/ui/signal-primitives';
 
 export default function AdminAnalyticsPage() {
   const t = useTranslations();
@@ -65,153 +66,101 @@ export default function AdminAnalyticsPage() {
     };
   }, [user, isAdmin, isPlatformAdmin]);
 
-  const summaryCards = stats?.eventScope
-    ? [
-        { label: 'Managed events', value: stats.totalEvents ?? 0, icon: '🎪', color: '#2563eb' },
-        { label: 'Participants', value: stats.participants ?? 0, icon: '📝', color: '#0891b2' },
-        { label: 'Pending volunteers', value: stats.volunteersPending ?? 0, icon: '🙋', color: '#dc2626' },
-        { label: 'Event views', value: stats.views ?? 0, icon: '👁', color: '#16a34a' },
-      ]
-    : [
-        { label: t('analytics.totalUsers'), value: stats?.totalUsers ?? 0, icon: '👥', color: '#2563eb' },
-        { label: t('analytics.totalEvents'), value: stats?.totalEvents ?? 0, icon: '🎪', color: '#7c3aed' },
-        { label: t('analytics.totalRegistrations'), value: stats?.totalRegistrations ?? 0, icon: '📝', color: '#0891b2' },
-        { label: t('analytics.totalEventViews'), value: stats?.totalEventViews ?? 0, icon: '👁', color: '#16a34a' },
-      ];
+  if (loading || !user || !isAdmin) return <div className="admin-loading-screen"><div className="spinner" /></div>;
 
-  if (loading || !user || !isAdmin) return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
-    </div>
-  );
+  const conversion = stats?.totalEventViews > 0
+    ? ((stats.totalRegistrations / stats.totalEventViews) * 100)
+    : null;
 
   return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', padding: '40px 0 60px' }}>
-      <div className="container">
-        <div style={{ marginBottom: 36 }}>
-          <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(1.8rem, 4vw, 2.4rem)', fontWeight: 900, letterSpacing: 0 }}>
-            {t('admin.analytics')}
-          </h1>
-          <p style={{ margin: 0, color: 'var(--color-text-muted)' }}>
-            {isPlatformAdmin ? 'Platform performance overview' : 'Event performance overview'}
-          </p>
-        </div>
+    <div className="signal-page-shell">
+      <PageHeader
+        title={t('admin.analytics')}
+        subtitle={isPlatformAdmin ? 'Platform performance overview' : 'Event performance overview'}
+        actions={<StatusBadge tone="info">{stats?.eventScope ? 'Event scope' : 'Platform scope'}</StatusBadge>}
+      />
 
-        {statsLoading ? (
-          <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
-        ) : !stats ? (
-          <div style={{ color: 'var(--color-text-muted)' }}>{t('common.noData')}</div>
+      <Panel>
+        <SectionHeader title={locale === 'ru' ? 'Сводные метрики' : 'Core metrics'} subtitle={locale === 'ru' ? 'Ключевые показатели конверсии и трафика' : 'Key conversion and traffic indicators'} />
+        {statsLoading ? <LoadingLines rows={5} /> : !stats ? (
+          <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Данные аналитики появятся после накопления активности.' : 'Analytics widgets appear after activity is accumulated.'} />
         ) : (
-          <>
-            {/* Main stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16, marginBottom: 40 }}>
-              {summaryCards.map(({ label, value, icon, color }) => (
-                <div key={label} style={{ padding: 24, borderRadius: 'var(--radius-2xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', boxShadow: 'var(--shadow-sm)' }}>
-                  <div style={{ fontSize: '1.6rem', marginBottom: 10 }}>{icon}</div>
-                  <div style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: 0, color }}>{Number(value).toLocaleString()}</div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: 4 }}>{label}</div>
+          <div className="signal-kpi-grid">
+            <MetricCard tone="info" label={t('analytics.totalUsers')} value={stats.totalUsers ?? 0} />
+            <MetricCard tone="neutral" label={t('analytics.totalEvents')} value={stats.totalEvents ?? 0} />
+            <MetricCard tone="success" label={t('analytics.totalRegistrations')} value={stats.totalRegistrations ?? 0} />
+            <MetricCard tone="warning" label={t('analytics.totalEventViews')} value={stats.totalEventViews ?? 0} />
+            <MetricCard tone="danger" label={locale === 'ru' ? 'Волонтёры в очереди' : 'Volunteer queue'} value={stats.volunteersPending ?? 0} />
+            <MetricCard tone="info" label={locale === 'ru' ? 'Конверсия' : 'Conversion'} value={conversion !== null ? `${conversion.toFixed(2)}%` : '—'} />
+          </div>
+        )}
+      </Panel>
+
+      <div className="signal-two-col">
+        <Panel>
+          <SectionHeader title={t('analytics.registrationsByProvider')} subtitle={locale === 'ru' ? 'Каналы регистраций' : 'Registration channels'} />
+          {statsLoading ? <LoadingLines rows={4} /> : stats?.registrationsByProvider && Object.keys(stats.registrationsByProvider).length > 0 ? (
+            <div className="signal-stack">
+              {Object.entries(stats.registrationsByProvider).map(([provider, count]) => (
+                <div key={provider} className="signal-ranked-item">
+                  <span>{provider}</span>
+                  <StatusBadge tone="info">{Number(count).toLocaleString()}</StatusBadge>
                 </div>
               ))}
             </div>
+          ) : <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Нет данных по каналам регистрации.' : 'No provider registration breakdown yet.'} />}
+        </Panel>
 
-            {/* Registrations by provider */}
-            {stats.registrationsByProvider && Object.keys(stats.registrationsByProvider).length > 0 && (
-              <div style={{ marginBottom: 40 }}>
-                <h2 style={{ margin: '0 0 16px', fontSize: '1.3rem', fontWeight: 800 }}>{t('analytics.registrationsByProvider')}</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-                  {Object.entries(stats.registrationsByProvider).map(([provider, count]) => (
-                    <div key={provider} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
-                      <span style={{ fontWeight: 600 }}>{provider}</span>
-                      <span style={{ fontWeight: 900, fontSize: '1.1rem', color: 'var(--color-primary)' }}>{Number(count).toLocaleString()}</span>
-                    </div>
-                  ))}
+        <Panel>
+          <SectionHeader title={t('analytics.loginsByProvider')} subtitle={locale === 'ru' ? 'Каналы входа' : 'Login channels'} />
+          {statsLoading ? <LoadingLines rows={4} /> : stats?.loginsByProvider && Object.keys(stats.loginsByProvider).length > 0 ? (
+            <div className="signal-stack">
+              {Object.entries(stats.loginsByProvider).map(([provider, count]) => (
+                <div key={provider} className="signal-ranked-item">
+                  <span>{provider}</span>
+                  <StatusBadge tone="neutral">{Number(count).toLocaleString()}</StatusBadge>
                 </div>
-              </div>
-            )}
-
-            {/* Logins by provider */}
-            {stats.loginsByProvider && Object.keys(stats.loginsByProvider).length > 0 && (
-              <div style={{ marginBottom: 40 }}>
-                <h2 style={{ margin: '0 0 16px', fontSize: '1.3rem', fontWeight: 800 }}>{t('analytics.loginsByProvider')}</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-                  {Object.entries(stats.loginsByProvider).map(([provider, count]) => (
-                    <div key={provider} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
-                      <span style={{ fontWeight: 600 }}>{provider}</span>
-                      <span style={{ fontWeight: 900, fontSize: '1.1rem', color: 'var(--color-primary)' }}>{Number(count).toLocaleString()}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Top viewed events */}
-            {stats.topViewedEvents?.length > 0 && (
-              <div style={{ marginBottom: 40 }}>
-                <h2 style={{ margin: '0 0 16px', fontSize: '1.3rem', fontWeight: 800 }}>{t('analytics.topViewedEvents')}</h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {stats.topViewedEvents.map((e: any, i: number) => (
-                    <div key={e.eventId ?? e.slug ?? `${e.title}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px', borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: i === 0 ? '#f59e0b' : i === 1 ? '#6b7280' : i === 2 ? '#92400e' : 'var(--color-bg-subtle)', color: i < 3 ? '#fff' : 'var(--color-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.85rem', flexShrink: 0 }}>
-                        {i + 1}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700 }}>{e.title}</div>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>{e.category}</div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: 900, fontSize: '1.1rem' }}>{e.viewCount.toLocaleString()}</div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>views</div>
-                      </div>
-                      {stats.totalEventViews > 0 && (
-                        <div style={{ width: 80, height: 6, borderRadius: 'var(--radius-lg)', background: 'var(--color-bg-subtle)', overflow: 'hidden' }}>
-                          <div style={{ width: `${Math.min(100, (e.viewCount / (stats.topViewedEvents[0]?.viewCount || 1)) * 100)}%`, height: '100%', background: 'var(--color-primary)', borderRadius: 'var(--radius-lg)' }} />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Top registered events */}
-            {stats.topRegisteredEvents?.length > 0 && (
-              <div style={{ marginBottom: 40 }}>
-                <h2 style={{ margin: '0 0 16px', fontSize: '1.3rem', fontWeight: 800 }}>{t('analytics.topRegisteredEvents')}</h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {stats.topRegisteredEvents.map((e: any, i: number) => (
-                    <div key={e.eventId ?? e.slug ?? `${e.title}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px', borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: i === 0 ? '#22c55e' : i === 1 ? '#6b7280' : i === 2 ? '#16a34a' : 'var(--color-bg-subtle)', color: i < 3 ? '#fff' : 'var(--color-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.85rem', flexShrink: 0 }}>
-                        {i + 1}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700 }}>{e.title}</div>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>{e.category}</div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: 900, fontSize: '1.1rem' }}>{e.registrationCount.toLocaleString()}</div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>registered</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Conversion */}
-            {stats.totalEventViews > 0 && stats.totalRegistrations > 0 && (
-              <div style={{ padding: 24, borderRadius: 'var(--radius-2xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', maxWidth: 400 }}>
-                <h2 style={{ margin: '0 0 12px', fontSize: '1.1rem', fontWeight: 700 }}>{t('analytics.conversion')}</h2>
-                <div style={{ fontSize: '2.4rem', fontWeight: 900, color: 'var(--color-primary)', letterSpacing: 0 }}>
-                  {((stats.totalRegistrations / stats.totalEventViews) * 100).toFixed(2)}%
-                </div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: 4 }}>
-                  {stats.totalRegistrations.toLocaleString()} registrations from {stats.totalEventViews.toLocaleString()} views
-                </div>
-              </div>
-            )}
-          </>
-        )}
+              ))}
+            </div>
+          ) : <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Нет данных по каналам входа.' : 'No provider login breakdown yet.'} />}
+        </Panel>
       </div>
+
+      <div className="signal-two-col">
+        <Panel>
+          <SectionHeader title={t('analytics.topViewedEvents')} subtitle={locale === 'ru' ? 'Лидеры по просмотрам' : 'Most viewed events'} />
+          {statsLoading ? <LoadingLines rows={5} /> : stats?.topViewedEvents?.length ? (
+            <div className="signal-ranked-list">
+              {stats.topViewedEvents.map((event: any, index: number) => (
+                <div className="signal-ranked-item" key={event.eventId ?? `${event.title}-${index}`}>
+                  <span className="signal-rank">{index + 1}</span>
+                  <span>{event.title}</span>
+                  <StatusBadge tone="info">{Number(event.viewCount).toLocaleString()}</StatusBadge>
+                </div>
+              ))}
+            </div>
+          ) : <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Нет лидеров по просмотрам.' : 'No top viewed events available.'} />}
+        </Panel>
+
+        <Panel>
+          <SectionHeader title={t('analytics.topRegisteredEvents')} subtitle={locale === 'ru' ? 'Лидеры по регистрациям' : 'Most registered events'} />
+          {statsLoading ? <LoadingLines rows={5} /> : stats?.topRegisteredEvents?.length ? (
+            <div className="signal-ranked-list">
+              {stats.topRegisteredEvents.map((event: any, index: number) => (
+                <div className="signal-ranked-item" key={event.eventId ?? `${event.title}-${index}`}>
+                  <span className="signal-rank">{index + 1}</span>
+                  <span>{event.title}</span>
+                  <StatusBadge tone="success">{Number(event.registrationCount).toLocaleString()}</StatusBadge>
+                </div>
+              ))}
+            </div>
+          ) : <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Нет лидеров по регистрациям.' : 'No top registered events available.'} />}
+        </Panel>
+      </div>
+
+      <Notice tone="warning">
+        {locale === 'ru' ? 'Визуальная аналитическая структура готова к подключению расширенных метрик и графиков при появлении backend-возможностей.' : 'Analytics workspace structure is ready for expanded metrics and charts as backend capabilities grow.'}
+      </Notice>
     </div>
   );
 }

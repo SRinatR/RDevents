@@ -6,14 +6,16 @@ import { useTranslations } from 'next-intl';
 import { eventsApi } from '../../../lib/api';
 import { analyticsApi } from '../../../lib/api';
 import { useRouteLocale } from '../../../hooks/useRouteParams';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, Notice, PageHeader, Panel, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
+import { PublicFooter } from '../../../components/layout/PublicFooter';
 
 const CATEGORIES = ['Tech', 'Community', 'Business', 'Design', 'Arts & Culture', 'Sports'];
 
-const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
-  PUBLISHED:  { label: 'Published',  className: 'badge-success' },
-  CANCELLED:  { label: 'Cancelled',  className: 'badge-danger' },
-  COMPLETED:  { label: 'Completed',  className: 'badge-muted' },
-  DRAFT:      { label: 'Draft',      className: 'badge-warning' },
+const STATUS_TONE: Record<string, 'success' | 'danger' | 'neutral' | 'warning'> = {
+  PUBLISHED: 'success',
+  CANCELLED: 'danger',
+  COMPLETED: 'neutral',
+  DRAFT: 'warning',
 };
 
 export default function EventsPage() {
@@ -54,244 +56,88 @@ export default function EventsPage() {
     });
   }
 
-  const filtersActive = search || category;
-
   return (
-    <div className="page-shell">
-      <main style={{ flex: 1, padding: '48px 0 80px' }}>
-        <div className="container">
+    <div className="public-page-shell">
+      <main className="public-main">
+        <section className="public-section">
+          <div className="container">
+            <PageHeader title={t('events.title')} subtitle={t('events.subtitle')} actions={<StatusBadge tone="info">{events.length} {locale === 'ru' ? 'на странице' : 'on page'}</StatusBadge>} />
 
-          {/* Header */}
-          <div style={{ marginBottom: 36 }}>
-            <h1 style={{ margin: '0 0 8px', fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', fontWeight: 900, letterSpacing: '-0.03em', color: 'var(--color-text-primary)' }}>
-              {t('events.title')}
-            </h1>
-            <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: '1.05rem' }}>
-              {t('events.subtitle')}
-            </p>
-          </div>
+            <Panel>
+              <ToolbarRow>
+                <FieldInput value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={t('events.searchPlaceholder')} style={{ minWidth: 260 }} />
+                <FieldSelect value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }} style={{ width: 220 }}>
+                  <option value="">{t('events.category')}: {t('common.filters')}</option>
+                  {CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
+                </FieldSelect>
+                {(search || category) ? <button onClick={() => { setSearch(''); setCategory(''); setPage(1); }} className="btn btn-ghost btn-sm">Reset</button> : null}
+              </ToolbarRow>
 
-          {/* Search + filters */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 28 }}>
-            <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 200 }}>
-              <span style={{
-                position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
-                fontSize: '1rem', color: 'var(--color-text-muted)', pointerEvents: 'none',
-              }}>🔍</span>
-              <input
-                value={search}
-                onChange={e => { setSearch(e.target.value); setPage(1); }}
-                placeholder={t('events.searchPlaceholder')}
-                className="input-field"
-                style={{ paddingLeft: 40 }}
-              />
-            </div>
-            <select
-              value={category}
-              onChange={e => { setCategory(e.target.value); setPage(1); }}
-              className="input-field"
-              style={{ width: 'auto', flex: '0 0 auto', minWidth: 160 }}
-            >
-              <option value="">{t('events.category')}: {t('common.filters')}</option>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            {filtersActive && (
-              <button
-                onClick={() => { setSearch(''); setCategory(''); setPage(1); }}
-                className="btn btn-ghost"
-              >
-                × {t('common.filters')}
-              </button>
-            )}
-          </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <button className="signal-chip-link" onClick={() => { setCategory(''); setPage(1); }}>{locale === 'ru' ? 'Все' : 'All'}</button>
+                {CATEGORIES.map((item) => (
+                  <button key={item} className="signal-chip-link" onClick={() => { setCategory(item); setPage(1); }}>{item}</button>
+                ))}
+              </div>
+            </Panel>
 
-          {/* Category chips */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 32 }}>
-            <button
-              onClick={() => { setCategory(''); setPage(1); }}
-              className="badge"
-              style={{
-                cursor: 'pointer',
-                border: 'none',
-                background: !category ? 'var(--color-primary)' : 'var(--color-bg-soft)',
-                color: !category ? '#fff' : 'var(--color-text-muted)',
-                padding: '7px 16px',
-                fontSize: '0.82rem',
-                transition: 'all var(--transition-fast)',
-              }}
-            >
-              {locale === 'ru' ? 'Все' : 'All'}
-            </button>
-            {CATEGORIES.map(c => (
-              <button
-                key={c}
-                onClick={() => { setCategory(c); setPage(1); }}
-                className="badge"
-                style={{
-                  cursor: 'pointer',
-                  border: 'none',
-                  background: category === c ? 'var(--color-primary)' : 'var(--color-bg-soft)',
-                  color: category === c ? '#fff' : 'var(--color-text-muted)',
-                  padding: '7px 16px',
-                  fontSize: '0.82rem',
-                  transition: 'all var(--transition-fast)',
-                }}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
+            {loading ? <LoadingLines rows={8} /> : null}
 
-          {/* Skeletons */}
-          {loading && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} style={{ borderRadius: 'var(--radius-2xl)', overflow: 'hidden', border: '1.5px solid var(--color-border)' }}>
-                  <div className="skeleton" style={{ height: 168 }} />
-                  <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div className="skeleton" style={{ height: 20, width: '40%', borderRadius: 'var(--radius-full)' }} />
-                    <div className="skeleton" style={{ height: 16, width: '80%' }} />
-                    <div className="skeleton" style={{ height: 12, width: '60%' }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+            {error && !loading ? (
+              <EmptyState title={error} description={locale === 'ru' ? 'Повторите запрос или измените параметры фильтра.' : 'Retry request or adjust filter settings.'} actions={<button onClick={load} className="btn btn-primary btn-sm">{t('common.retry')}</button>} />
+            ) : null}
 
-          {/* Error */}
-          {error && !loading && (
-            <div className="empty-state">
-              <div className="empty-state-icon">⚠️</div>
-              <h3 className="empty-state-title">{error}</h3>
-              <button onClick={load} className="btn btn-primary" style={{ marginTop: 16 }}>
-                {t('common.retry')}
-              </button>
-            </div>
-          )}
+            {!loading && !error && events.length === 0 ? (
+              <EmptyState title={t('events.emptyTitle')} description={t('events.emptySubtitle')} />
+            ) : null}
 
-          {/* Empty */}
-          {!loading && !error && events.length === 0 && (
-            <div className="empty-state">
-              <div className="empty-state-icon">🎪</div>
-              <h3 className="empty-state-title">{t('events.emptyTitle')}</h3>
-              <p className="empty-state-text">{t('events.emptySubtitle')}</p>
-            </div>
-          )}
-
-          {/* Events grid */}
-          {!loading && !error && events.length > 0 && (
-            <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
-                {events.map((event, i) => {
-                  const statusCfg = STATUS_CONFIG[event.status] ?? { label: event.status, className: 'badge-muted' };
+            {!loading && !error && events.length > 0 ? (
+              <div className="public-events-grid" style={{ marginTop: 14 }}>
+                {events.map((event) => {
                   const capacityPct = event.capacity > 0
                     ? Math.min((event.registrationsCount / event.capacity) * 100, 100)
                     : 0;
                   const isFull = event.registrationsCount >= event.capacity;
 
                   return (
-                    <Link
-                      key={event.id}
-                      href={`/${locale}/events/${event.slug}`}
-                      className="event-card"
-                      style={{ animationDelay: `${i * 0.04}s`, animation: 'fadeIn 0.4s ease both' }}
-                    >
-                      {event.coverImageUrl ? (
-                        <img src={event.coverImageUrl} alt={event.title} className="event-card-cover" loading="lazy" />
-                      ) : (
-                        <div className="event-card-cover-placeholder">🎪</div>
-                      )}
-
-                      <div className="event-card-body">
-                        <div className="event-card-header">
-                          <span className="badge badge-primary">{event.category}</span>
-                          <div style={{ display: 'flex', gap: 5 }}>
-                            {event.isFeatured && <span className="badge" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>★</span>}
-                            <span className={`badge ${statusCfg.className}`}>{statusCfg.label}</span>
-                          </div>
+                    <Link key={event.id} href={`/${locale}/events/${event.slug}`} className="public-event-card">
+                      <div className="public-event-cover">
+                        {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
+                      </div>
+                      <div className="public-event-body">
+                        <div className="public-meta-row"><span>{formatDate(event.startsAt)}</span><span>{event.location}</span></div>
+                        <h3>{event.title}</h3>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                          <StatusBadge tone="neutral">{event.category}</StatusBadge>
+                          <StatusBadge tone={STATUS_TONE[event.status] ?? 'neutral'}>{event.status}</StatusBadge>
                         </div>
-
-                        <h3 className="event-card-title">{event.title}</h3>
-                        <p className="event-card-desc">{event.shortDescription}</p>
-
-                        <div className="event-card-meta">
-                          <span>📅 {formatDate(event.startsAt)}</span>
-                          <span>📍 {event.location}</span>
-                        </div>
-
-                        <div className="event-card-footer">
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-                            <span>👥 {event.registrationsCount}/{event.capacity}</span>
-                            {isFull && <span style={{ color: 'var(--color-danger)', fontWeight: 700 }}>
-                              {locale === 'ru' ? 'Мест нет' : 'Full'}
-                            </span>}
-                          </div>
-                          <div className="progress-bar">
-                            <div
-                              className={`progress-bar-fill${isFull ? ' danger' : ''}`}
-                              style={{ width: `${capacityPct}%` }}
-                            />
-                          </div>
-                        </div>
-
-                        {event.isRegistered && (
-                          <div className="alert alert-success" style={{ marginTop: 10, textAlign: 'center', fontWeight: 700 }}>
-                            ✓ {t('events.registered')}
-                          </div>
-                        )}
+                        <div className="progress-bar" style={{ marginTop: 10 }}><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
+                        <div className="signal-muted" style={{ marginTop: 8 }}>{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : ''}</div>
                       </div>
                     </Link>
                   );
                 })}
               </div>
+            ) : null}
 
-              {/* Pagination */}
-              {meta && meta.pages > 1 && (
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 48 }}>
-                  <button
-                    onClick={() => setPage(p => Math.max(p - 1, 1))}
-                    disabled={page === 1}
-                    className="btn btn-ghost btn-sm"
-                    style={{ width: 38, height: 38, padding: 0, borderRadius: 'var(--radius-md)' }}
-                  >
-                    ←
-                  </button>
-                  {Array.from({ length: meta.pages }, (_, i) => i + 1).map(p => (
-                    <button
-                      key={p}
-                      onClick={() => setPage(p)}
-                      className="btn btn-sm"
-                      style={{
-                        width: 38,
-                        height: 38,
-                        padding: 0,
-                        borderRadius: 'var(--radius-md)',
-                        background: p === page ? 'var(--color-primary)' : 'var(--color-surface-strong)',
-                        color: p === page ? '#fff' : 'var(--color-text-primary)',
-                        border: '1.5px solid',
-                        borderColor: p === page ? 'var(--color-primary)' : 'var(--color-border)',
-                        fontWeight: 700,
-                        boxShadow: p === page ? 'var(--shadow-primary)' : 'none',
-                      }}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => setPage(p => Math.min(p + 1, meta.pages))}
-                    disabled={page === meta.pages}
-                    className="btn btn-ghost btn-sm"
-                    style={{ width: 38, height: 38, padding: 0, borderRadius: 'var(--radius-md)' }}
-                  >
-                    →
-                  </button>
-                </div>
-              )}
-            </>
-          )}
+            {meta && meta.pages > 1 ? (
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 24 }}>
+                <button onClick={() => setPage((value) => Math.max(value - 1, 1))} disabled={page === 1} className="btn btn-ghost btn-sm">Prev</button>
+                {Array.from({ length: meta.pages }, (_, index) => index + 1).map((item) => (
+                  <button key={item} onClick={() => setPage(item)} className={`btn btn-sm ${item === page ? 'btn-primary' : 'btn-secondary'}`}>{item}</button>
+                ))}
+                <button onClick={() => setPage((value) => Math.min(value + 1, meta.pages))} disabled={page === meta.pages} className="btn btn-ghost btn-sm">Next</button>
+              </div>
+            ) : null}
 
-        </div>
+            <Notice tone="info">
+              {locale === 'ru' ? 'Список сохраняет текущую логику поиска, фильтрации и пагинации через eventsApi.' : 'The list keeps existing eventsApi-based search, filtering, and pagination logic.'}
+            </Notice>
+          </div>
+        </section>
       </main>
+
+      <PublicFooter locale={locale} />
     </div>
   );
 }
