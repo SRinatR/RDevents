@@ -89,7 +89,7 @@ export default function EventsPage() {
           <div className="container">
             <PageHeader title={t('events.title')} subtitle={t('events.subtitle')} actions={<StatusBadge tone="info">{events.length} {locale === 'ru' ? 'на странице' : 'on page'}</StatusBadge>} />
 
-            <Panel className="public-events-toolbar-panel">
+            <Panel className="public-events-toolbar-panel public-elevated-toolbar">
               <ToolbarRow>
                 <FieldInput value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={t('events.searchPlaceholder')} className="public-events-search-input" />
                 <FieldSelect value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }} className="public-events-category-select">

@@ -253,7 +253,7 @@ export default function EventDetailPage() {
               <div className="public-event-detail-cover-overlay" />
             </div>
 
-            <div className="public-event-layout">
+            <div className="public-event-layout public-event-layout-premium">
               <div>
                 <div className="public-meta-row public-gap-after-xs public-event-meta-top">
                   <StatusBadge tone="neutral">{event.category}</StatusBadge>
@@ -269,7 +269,7 @@ export default function EventDetailPage() {
                   <span>{event.location}</span>
                 </div>
 
-                <Panel className="public-event-description-panel">
+                <Panel className="public-event-description-panel public-event-description-panel-premium">
                   <SectionHeader title={t('events.description')} />
                   <div className="signal-prose-copy">
                     {event.fullDescription}
@@ -278,7 +278,7 @@ export default function EventDetailPage() {
               </div>
 
               <aside className="public-sticky-panel">
-                <Panel className="public-participation-panel">
+                <Panel className="public-participation-panel public-participation-panel-premium">
                   <SectionHeader title={locale === 'ru' ? 'Участие' : 'Participation'} />
                   <div className="progress-bar signal-gap-after-2xs public-participation-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
                   <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div>

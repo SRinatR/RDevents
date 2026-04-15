@@ -91,6 +91,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <div className="admin-topbar-title">{t('admin.title')}</div>
             <div className="admin-topbar-subtitle">{user.name || user.email}</div>
           </div>
+          <div className="admin-topbar-chip">{isSuperAdmin ? 'Super' : isPlatformAdmin ? 'Platform' : 'Event'} admin</div>
           <Link href={`/${locale}/admin/events/new`} className="btn btn-primary btn-sm admin-topbar-action">
             {t('admin.createEvent')}
           </Link>
