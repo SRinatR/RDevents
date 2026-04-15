@@ -6,6 +6,10 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../../hooks/useAuth';
 import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
+import { PageHeader } from '../../../../components/admin/PageHeader';
+import { MetricCard } from '../../../../components/admin/MetricCard';
+import { SectionHeader } from '../../../../components/admin/SectionHeader';
+import { EmptyState } from '../../../../components/admin/EmptyState';
 
 export default function AdminAnalyticsPage() {
   const t = useTranslations();
@@ -32,14 +36,9 @@ export default function AdminAnalyticsPage() {
           if (active) setStats(platformStats);
           return;
         }
-
         const eventsResult = await adminApi.listEvents({ limit: 1 });
         const firstEvent = eventsResult.data[0];
-        if (!firstEvent) {
-          if (active) setStats(null);
-          return;
-        }
-
+        if (!firstEvent) { if (active) setStats(null); return; }
         const eventStats = await adminApi.getEventAnalytics(firstEvent.id);
         if (active) {
           setStats({
@@ -60,69 +59,63 @@ export default function AdminAnalyticsPage() {
     }
 
     loadStats();
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [user, isAdmin, isPlatformAdmin]);
 
   const summaryCards = stats?.eventScope
     ? [
-        { label: 'Managed events', value: stats.totalEvents ?? 0, icon: '🎪', color: '#2563eb' },
-        { label: 'Participants', value: stats.participants ?? 0, icon: '📝', color: '#0891b2' },
-        { label: 'Pending volunteers', value: stats.volunteersPending ?? 0, icon: '🙋', color: '#dc2626' },
-        { label: 'Event views', value: stats.views ?? 0, icon: '👁', color: '#16a34a' },
+        { label: 'Managed events',     value: stats.totalEvents ?? 0 },
+        { label: 'Participants',        value: stats.participants ?? 0 },
+        { label: 'Pending volunteers',  value: stats.volunteersPending ?? 0 },
+        { label: 'Event views',         value: stats.views ?? 0 },
       ]
     : [
-        { label: t('analytics.totalUsers'), value: stats?.totalUsers ?? 0, icon: '👥', color: '#2563eb' },
-        { label: t('analytics.totalEvents'), value: stats?.totalEvents ?? 0, icon: '🎪', color: '#7c3aed' },
-        { label: t('analytics.totalRegistrations'), value: stats?.totalRegistrations ?? 0, icon: '📝', color: '#0891b2' },
-        { label: t('analytics.totalEventViews'), value: stats?.totalEventViews ?? 0, icon: '👁', color: '#16a34a' },
+        { label: t('analytics.totalUsers'),         value: stats?.totalUsers ?? 0 },
+        { label: t('analytics.totalEvents'),        value: stats?.totalEvents ?? 0 },
+        { label: t('analytics.totalRegistrations'), value: stats?.totalRegistrations ?? 0 },
+        { label: t('analytics.totalEventViews'),    value: stats?.totalEventViews ?? 0 },
       ];
 
   if (loading || !user || !isAdmin) return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
+    <div className="loading-center">
+      <div className="spinner" />
     </div>
   );
 
+  const scopeDesc = isPlatformAdmin ? 'Platform performance overview' : 'Event performance overview';
+
   return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', padding: '40px 0 60px' }}>
-      <div className="container">
-        <div style={{ marginBottom: 36 }}>
-          <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(1.8rem, 4vw, 2.4rem)', fontWeight: 900, letterSpacing: 0 }}>
-            {t('admin.analytics')}
-          </h1>
-          <p style={{ margin: 0, color: 'var(--color-text-muted)' }}>
-            {isPlatformAdmin ? 'Platform performance overview' : 'Event performance overview'}
-          </p>
-        </div>
+    <div className="admin-page">
+      <PageHeader title={t('admin.analytics')} description={scopeDesc} />
+
+      <div className="admin-page-body">
 
         {statsLoading ? (
-          <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
+          <div className="metrics-grid" style={{ marginBottom: 32 }}>
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="admin-skeleton" style={{ height: 80 }} />
+            ))}
+          </div>
         ) : !stats ? (
-          <div style={{ color: 'var(--color-text-muted)' }}>{t('common.noData')}</div>
+          <EmptyState title={t('common.noData')} description="No analytics data available yet." />
         ) : (
           <>
-            {/* Main stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16, marginBottom: 40 }}>
-              {summaryCards.map(({ label, value, icon, color }) => (
-                <div key={label} style={{ padding: 24, borderRadius: 'var(--radius-2xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', boxShadow: 'var(--shadow-sm)' }}>
-                  <div style={{ fontSize: '1.6rem', marginBottom: 10 }}>{icon}</div>
-                  <div style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: 0, color }}>{Number(value).toLocaleString()}</div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: 4 }}>{label}</div>
-                </div>
+            {/* KPIs */}
+            <div className="metrics-grid" style={{ marginBottom: 36 }}>
+              {summaryCards.map(({ label, value }) => (
+                <MetricCard key={label} label={label} value={value} />
               ))}
             </div>
 
             {/* Registrations by provider */}
             {stats.registrationsByProvider && Object.keys(stats.registrationsByProvider).length > 0 && (
-              <div style={{ marginBottom: 40 }}>
-                <h2 style={{ margin: '0 0 16px', fontSize: '1.3rem', fontWeight: 800 }}>{t('analytics.registrationsByProvider')}</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+              <div style={{ marginBottom: 36 }}>
+                <SectionHeader title={t('analytics.registrationsByProvider')} />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
                   {Object.entries(stats.registrationsByProvider).map(([provider, count]) => (
-                    <div key={provider} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
-                      <span style={{ fontWeight: 600 }}>{provider}</span>
-                      <span style={{ fontWeight: 900, fontSize: '1.1rem', color: 'var(--color-primary)' }}>{Number(count).toLocaleString()}</span>
+                    <div key={provider} className="metric-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>{provider}</span>
+                      <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--color-text-primary)' }}>{Number(count).toLocaleString()}</span>
                     </div>
                   ))}
                 </div>
@@ -131,81 +124,98 @@ export default function AdminAnalyticsPage() {
 
             {/* Logins by provider */}
             {stats.loginsByProvider && Object.keys(stats.loginsByProvider).length > 0 && (
-              <div style={{ marginBottom: 40 }}>
-                <h2 style={{ margin: '0 0 16px', fontSize: '1.3rem', fontWeight: 800 }}>{t('analytics.loginsByProvider')}</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+              <div style={{ marginBottom: 36 }}>
+                <SectionHeader title={t('analytics.loginsByProvider')} />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
                   {Object.entries(stats.loginsByProvider).map(([provider, count]) => (
-                    <div key={provider} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
-                      <span style={{ fontWeight: 600 }}>{provider}</span>
-                      <span style={{ fontWeight: 900, fontSize: '1.1rem', color: 'var(--color-primary)' }}>{Number(count).toLocaleString()}</span>
+                    <div key={provider} className="metric-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>{provider}</span>
+                      <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--color-text-primary)' }}>{Number(count).toLocaleString()}</span>
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Top viewed events */}
+            {/* Top viewed */}
             {stats.topViewedEvents?.length > 0 && (
-              <div style={{ marginBottom: 40 }}>
-                <h2 style={{ margin: '0 0 16px', fontSize: '1.3rem', fontWeight: 800 }}>{t('analytics.topViewedEvents')}</h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {stats.topViewedEvents.map((e: any, i: number) => (
-                    <div key={e.eventId ?? e.slug ?? `${e.title}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px', borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: i === 0 ? '#f59e0b' : i === 1 ? '#6b7280' : i === 2 ? '#92400e' : 'var(--color-bg-subtle)', color: i < 3 ? '#fff' : 'var(--color-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.85rem', flexShrink: 0 }}>
-                        {i + 1}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700 }}>{e.title}</div>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>{e.category}</div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: 900, fontSize: '1.1rem' }}>{e.viewCount.toLocaleString()}</div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>views</div>
-                      </div>
-                      {stats.totalEventViews > 0 && (
-                        <div style={{ width: 80, height: 6, borderRadius: 'var(--radius-lg)', background: 'var(--color-bg-subtle)', overflow: 'hidden' }}>
-                          <div style={{ width: `${Math.min(100, (e.viewCount / (stats.topViewedEvents[0]?.viewCount || 1)) * 100)}%`, height: '100%', background: 'var(--color-primary)', borderRadius: 'var(--radius-lg)' }} />
-                        </div>
-                      )}
-                    </div>
-                  ))}
+              <div style={{ marginBottom: 36 }}>
+                <SectionHeader title={t('analytics.topViewedEvents')} />
+                <div className="data-table-wrap">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: 40 }}>#</th>
+                        <th>Event</th>
+                        <th>Category</th>
+                        <th style={{ textAlign: 'right' }}>Views</th>
+                        <th style={{ width: 120 }}>Share</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stats.topViewedEvents.map((e: any, i: number) => {
+                        const maxViews = stats.topViewedEvents[0]?.viewCount || 1;
+                        const pct = Math.min(100, Math.round((e.viewCount / maxViews) * 100));
+                        return (
+                          <tr key={e.eventId ?? `${e.title}-${i}`}>
+                            <td style={{ color: 'var(--color-text-faint)', fontWeight: 600, fontSize: '0.8rem' }}>{i + 1}</td>
+                            <td style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{e.title}</td>
+                            <td style={{ fontSize: '0.82rem' }}>{e.category ?? '—'}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--color-text-primary)' }}>{e.viewCount.toLocaleString()}</td>
+                            <td>
+                              <div style={{ height: 4, background: 'var(--color-bg-subtle)', borderRadius: 2, overflow: 'hidden' }}>
+                                <div style={{ width: `${pct}%`, height: '100%', background: 'var(--color-primary)', borderRadius: 2 }} />
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
 
-            {/* Top registered events */}
+            {/* Top registered */}
             {stats.topRegisteredEvents?.length > 0 && (
-              <div style={{ marginBottom: 40 }}>
-                <h2 style={{ margin: '0 0 16px', fontSize: '1.3rem', fontWeight: 800 }}>{t('analytics.topRegisteredEvents')}</h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {stats.topRegisteredEvents.map((e: any, i: number) => (
-                    <div key={e.eventId ?? e.slug ?? `${e.title}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px', borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: i === 0 ? '#22c55e' : i === 1 ? '#6b7280' : i === 2 ? '#16a34a' : 'var(--color-bg-subtle)', color: i < 3 ? '#fff' : 'var(--color-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.85rem', flexShrink: 0 }}>
-                        {i + 1}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700 }}>{e.title}</div>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>{e.category}</div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: 900, fontSize: '1.1rem' }}>{e.registrationCount.toLocaleString()}</div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>registered</div>
-                      </div>
-                    </div>
-                  ))}
+              <div style={{ marginBottom: 36 }}>
+                <SectionHeader title={t('analytics.topRegisteredEvents')} />
+                <div className="data-table-wrap">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: 40 }}>#</th>
+                        <th>Event</th>
+                        <th>Category</th>
+                        <th style={{ textAlign: 'right' }}>Registrations</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stats.topRegisteredEvents.map((e: any, i: number) => (
+                        <tr key={e.eventId ?? `${e.title}-${i}`}>
+                          <td style={{ color: 'var(--color-text-faint)', fontWeight: 600, fontSize: '0.8rem' }}>{i + 1}</td>
+                          <td style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{e.title}</td>
+                          <td style={{ fontSize: '0.82rem' }}>{e.category ?? '—'}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--color-text-primary)' }}>{e.registrationCount.toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
 
             {/* Conversion */}
             {stats.totalEventViews > 0 && stats.totalRegistrations > 0 && (
-              <div style={{ padding: 24, borderRadius: 'var(--radius-2xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', maxWidth: 400 }}>
-                <h2 style={{ margin: '0 0 12px', fontSize: '1.1rem', fontWeight: 700 }}>{t('analytics.conversion')}</h2>
-                <div style={{ fontSize: '2.4rem', fontWeight: 900, color: 'var(--color-primary)', letterSpacing: 0 }}>
-                  {((stats.totalRegistrations / stats.totalEventViews) * 100).toFixed(2)}%
-                </div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: 4 }}>
-                  {stats.totalRegistrations.toLocaleString()} registrations from {stats.totalEventViews.toLocaleString()} views
+              <div style={{ maxWidth: 340 }}>
+                <SectionHeader title={t('analytics.conversion')} />
+                <div className="metric-card">
+                  <div className="metric-value">
+                    {((stats.totalRegistrations / stats.totalEventViews) * 100).toFixed(2)}%
+                  </div>
+                  <div className="metric-label">
+                    {stats.totalRegistrations.toLocaleString()} registrations from {stats.totalEventViews.toLocaleString()} views
+                  </div>
                 </div>
               </div>
             )}

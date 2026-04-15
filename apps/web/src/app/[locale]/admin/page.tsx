@@ -7,6 +7,10 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../hooks/useAuth';
 import { adminApi } from '../../../lib/api';
 import { useRouteLocale } from '../../../hooks/useRouteParams';
+import { PageHeader } from '../../../components/admin/PageHeader';
+import { MetricCard } from '../../../components/admin/MetricCard';
+import { SectionHeader } from '../../../components/admin/SectionHeader';
+import { EmptyState } from '../../../components/admin/EmptyState';
 
 export default function AdminPage() {
   const t = useTranslations();
@@ -59,26 +63,18 @@ export default function AdminPage() {
     return () => { active = false; };
   }, [user, isAdmin, isPlatformAdmin]);
 
-  const navItems = [
-    { href: `/${locale}/admin/events`,    label: t('admin.events'),    icon: '🎪', color: 'var(--color-primary-subtle)',   accent: 'var(--color-primary)' },
-    ...(isPlatformAdmin ? [{ href: `/${locale}/admin/users`, label: t('admin.users'), icon: '👥', color: 'rgba(168,85,247,0.08)', accent: '#a855f7' }] : []),
-    ...(isSuperAdmin ? [{ href: `/${locale}/admin/admins`, label: t('admin.admins'), icon: '🛡️', color: 'var(--color-primary-subtle)', accent: 'var(--color-primary)' }] : []),
-    { href: `/${locale}/admin/volunteers`, label: t('admin.volunteers'), icon: '🙋', color: 'var(--color-success-subtle)',  accent: 'var(--color-success)' },
-    { href: `/${locale}/admin/analytics`, label: t('admin.analytics'), icon: '📊', color: 'var(--color-warning-subtle)',   accent: 'var(--color-warning)' },
-  ];
-
   const summaryCards = stats?.eventScope
     ? [
-        { label: locale === 'ru' ? 'Управляемых событий' : 'Managed events', value: stats.totalEvents ?? 0, icon: '🎪', color: 'var(--color-primary-subtle)', accent: 'var(--color-primary)' },
-        { label: locale === 'ru' ? 'Участников' : 'Participants',           value: stats.participants ?? 0, icon: '📝', color: 'rgba(168,85,247,0.08)', accent: '#a855f7' },
-        { label: locale === 'ru' ? 'Заявок волонтёров' : 'Pending volunteers', value: stats.volunteersPending ?? 0, icon: '🙋', color: 'var(--color-success-subtle)', accent: 'var(--color-success)' },
-        { label: locale === 'ru' ? 'Просмотров события' : 'Event views',    value: stats.views ?? 0,        icon: '👁️', color: 'var(--color-warning-subtle)', accent: 'var(--color-warning)' },
+        { label: locale === 'ru' ? 'Управляемых событий' : 'Managed events',    value: stats.totalEvents ?? 0 },
+        { label: locale === 'ru' ? 'Участников' : 'Participants',                value: stats.participants ?? 0 },
+        { label: locale === 'ru' ? 'Заявок волонтёров' : 'Pending volunteers',   value: stats.volunteersPending ?? 0 },
+        { label: locale === 'ru' ? 'Просмотров события' : 'Event views',         value: stats.views ?? 0 },
       ]
     : [
-        { label: t('analytics.totalUsers'),         value: stats?.totalUsers ?? 0,         icon: '👥', color: 'var(--color-primary-subtle)', accent: 'var(--color-primary)' },
-        { label: t('analytics.totalEvents'),        value: stats?.totalEvents ?? 0,        icon: '🎪', color: 'rgba(168,85,247,0.08)', accent: '#a855f7' },
-        { label: t('analytics.totalRegistrations'), value: stats?.totalRegistrations ?? 0, icon: '📝', color: 'var(--color-success-subtle)', accent: 'var(--color-success)' },
-        { label: t('analytics.totalEventViews'),    value: stats?.totalEventViews ?? 0,    icon: '👁️', color: 'var(--color-warning-subtle)', accent: 'var(--color-warning)' },
+        { label: t('analytics.totalUsers'),         value: stats?.totalUsers ?? 0 },
+        { label: t('analytics.totalEvents'),        value: stats?.totalEvents ?? 0 },
+        { label: t('analytics.totalRegistrations'), value: stats?.totalRegistrations ?? 0 },
+        { label: t('analytics.totalEventViews'),    value: stats?.totalEventViews ?? 0 },
       ];
 
   if (loading || !user || !isAdmin) return (
@@ -87,150 +83,109 @@ export default function AdminPage() {
     </div>
   );
 
+  const scopeLabel = isPlatformAdmin
+    ? (locale === 'ru' ? 'Обзор платформы' : 'Platform overview')
+    : (locale === 'ru' ? 'Обзор событий' : 'Event overview');
+
   return (
-    <div style={{ minHeight: 'calc(100vh - 64px)', padding: '48px 0 80px' }}>
-      <div className="container">
-
-        {/* Header */}
-        <div style={{ marginBottom: 36, animation: 'fadeIn 0.4s ease both' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-            <div style={{
-              width: 42, height: 42, borderRadius: 'var(--radius-lg)',
-              background: 'linear-gradient(135deg, var(--color-primary), #a855f7)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '1.1rem', boxShadow: 'var(--shadow-primary)',
-            }}>
-              ⚙️
-            </div>
-            <h1 style={{ margin: 0, fontSize: 'clamp(1.8rem, 4vw, 2.4rem)', fontWeight: 900, letterSpacing: '-0.03em' }}>
-              {t('admin.title')}
-            </h1>
-          </div>
-          <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: '1rem' }}>
-            {t('admin.subtitle')}
-          </p>
-        </div>
-
-        {/* Quick nav */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 44 }}>
-          {navItems.map(({ href, label, icon }) => (
-            <Link key={href} href={href} className="nav-chip">
-              {icon} {label}
+    <div className="admin-page">
+      <PageHeader
+        title={t('admin.title')}
+        description={scopeLabel}
+        actions={
+          isPlatformAdmin ? (
+            <Link href={`/${locale}/admin/events/new`} className="btn-admin-primary">
+              {t('admin.createEvent')}
             </Link>
-          ))}
-        </div>
+          ) : undefined
+        }
+      />
 
-        {/* Stats section */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>
-            📊 {t('admin.analytics')}
-          </h2>
-        </div>
+      <div className="admin-page-body">
+
+        {/* Metrics */}
+        <SectionHeader title={t('admin.analytics')} />
 
         {statsLoading ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 36 }}>
+          <div className="metrics-grid" style={{ marginBottom: 32 }}>
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="skeleton" style={{ height: 120, borderRadius: 'var(--radius-2xl)' }} />
+              <div key={i} className="admin-skeleton" style={{ height: 80 }} />
             ))}
           </div>
         ) : stats ? (
-          <>
-            {/* KPI grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 40 }}>
-              {summaryCards.map(({ label, value, icon, color, accent }, i) => (
-                <div
-                  key={label}
-                  className="stat-card"
-                  style={{ animationDelay: `${i * 0.07}s`, animation: 'slideUp 0.4s ease both' }}
-                >
-                  <div className="stat-card-icon" style={{ background: color }}>
-                    <span style={{ fontSize: '1.1rem' }}>{icon}</span>
-                  </div>
-                  <div className="stat-card-value" style={{ color: accent }}>
-                    {typeof value === 'number' ? Number(value).toLocaleString() : value}
-                  </div>
-                  <div className="stat-card-label">{label}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Top viewed */}
-            {stats.topViewedEvents?.length > 0 && (
-              <div style={{ marginBottom: 32 }}>
-                <h3 style={{ margin: '0 0 14px', fontSize: '1.05rem', fontWeight: 800, color: 'var(--color-text-primary)' }}>
-                  👁️ {t('analytics.topViewedEvents')}
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {stats.topViewedEvents.slice(0, 5).map((e: any, index: number) => (
-                    <div
-                      key={e.eventId ?? e.slug ?? `${e.title}-${index}`}
-                      className="table-row"
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <span style={{
-                          width: 28, height: 28, borderRadius: 'var(--radius-md)',
-                          background: 'var(--color-primary-subtle)',
-                          color: 'var(--color-primary)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '0.78rem', fontWeight: 800, flexShrink: 0,
-                        }}>
-                          {index + 1}
-                        </span>
-                        <span style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                          {e.title}
-                        </span>
-                      </div>
-                      <span className="badge badge-primary">
-                        {e.viewCount} {locale === 'ru' ? 'просм.' : 'views'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Top registered */}
-            {stats.topRegisteredEvents?.length > 0 && (
-              <div style={{ marginBottom: 32 }}>
-                <h3 style={{ margin: '0 0 14px', fontSize: '1.05rem', fontWeight: 800, color: 'var(--color-text-primary)' }}>
-                  📝 {t('analytics.topRegisteredEvents')}
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {stats.topRegisteredEvents.slice(0, 5).map((e: any, index: number) => (
-                    <div
-                      key={e.eventId ?? e.slug ?? `${e.title}-${index}`}
-                      className="table-row"
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <span style={{
-                          width: 28, height: 28, borderRadius: 'var(--radius-md)',
-                          background: 'var(--color-success-subtle)',
-                          color: 'var(--color-success)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '0.78rem', fontWeight: 800, flexShrink: 0,
-                        }}>
-                          {index + 1}
-                        </span>
-                        <span style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                          {e.title}
-                        </span>
-                      </div>
-                      <span className="badge badge-success">
-                        {e.registrationCount} {locale === 'ru' ? 'регистр.' : 'registered'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
+          <div className="metrics-grid" style={{ marginBottom: 36 }}>
+            {summaryCards.map(({ label, value }) => (
+              <MetricCard key={label} label={label} value={value} />
+            ))}
+          </div>
         ) : (
-          <div className="empty-state">
-            <div className="empty-state-icon">📊</div>
-            <h3 className="empty-state-title">{t('common.noData')}</h3>
-            <p className="empty-state-text">
-              {locale === 'ru' ? 'Данные аналитики появятся после первых событий.' : 'Analytics data will appear after the first events.'}
-            </p>
+          <div style={{ marginBottom: 36 }}>
+            <EmptyState
+              title={t('common.noData')}
+              description={locale === 'ru' ? 'Данные аналитики появятся после первых событий.' : 'Analytics data will appear after the first events.'}
+            />
+          </div>
+        )}
+
+        {/* Top viewed */}
+        {stats?.topViewedEvents?.length > 0 && (
+          <div style={{ marginBottom: 28 }}>
+            <SectionHeader title={t('analytics.topViewedEvents')} />
+            <div className="data-table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 40 }}>#</th>
+                    <th>{locale === 'ru' ? 'Событие' : 'Event'}</th>
+                    <th style={{ textAlign: 'right' }}>{locale === 'ru' ? 'Просмотры' : 'Views'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.topViewedEvents.slice(0, 5).map((e: any, index: number) => (
+                    <tr key={e.eventId ?? `${e.title}-${index}`}>
+                      <td style={{ color: 'var(--color-text-faint)', fontWeight: 600, fontSize: '0.8rem' }}>{index + 1}</td>
+                      <td style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{e.title}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span className="status-badge status-published">
+                          {e.viewCount.toLocaleString()}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Top registered */}
+        {stats?.topRegisteredEvents?.length > 0 && (
+          <div style={{ marginBottom: 28 }}>
+            <SectionHeader title={t('analytics.topRegisteredEvents')} />
+            <div className="data-table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 40 }}>#</th>
+                    <th>{locale === 'ru' ? 'Событие' : 'Event'}</th>
+                    <th style={{ textAlign: 'right' }}>{locale === 'ru' ? 'Регистраций' : 'Registrations'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.topRegisteredEvents.slice(0, 5).map((e: any, index: number) => (
+                    <tr key={e.eventId ?? `${e.title}-${index}`}>
+                      <td style={{ color: 'var(--color-text-faint)', fontWeight: 600, fontSize: '0.8rem' }}>{index + 1}</td>
+                      <td style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{e.title}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span className="status-badge status-completed">
+                          {e.registrationCount.toLocaleString()}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 

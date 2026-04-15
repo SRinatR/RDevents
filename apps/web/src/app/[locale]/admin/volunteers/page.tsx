@@ -7,6 +7,9 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../../hooks/useAuth';
 import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
+import { PageHeader } from '../../../../components/admin/PageHeader';
+import { StatusBadge } from '../../../../components/admin/StatusBadge';
+import { EmptyState } from '../../../../components/admin/EmptyState';
 
 const STATUS_FILTERS = ['PENDING', 'ACTIVE', 'REJECTED', 'REMOVED'] as const;
 
@@ -15,6 +18,7 @@ export default function AdminVolunteersPage() {
   const { user, loading, isAdmin } = useAuth();
   const router = useRouter();
   const locale = useRouteLocale();
+
   const [events, setEvents] = useState<any[]>([]);
   const [selectedEventId, setSelectedEventId] = useState('');
   const [status, setStatus] = useState('PENDING');
@@ -63,92 +67,131 @@ export default function AdminVolunteersPage() {
   }
 
   if (loading || !user || !isAdmin) return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
+    <div className="loading-center">
+      <div className="spinner" />
     </div>
   );
 
-  return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', padding: '40px 0 60px' }}>
-      <div className="container">
-        <div style={{ marginBottom: 32 }}>
-          <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(1.8rem, 4vw, 2.4rem)', fontWeight: 900, letterSpacing: 0 }}>
-            {t('admin.volunteers')}
-          </h1>
-          <p style={{ margin: 0, color: 'var(--color-text-muted)' }}>
-            Review volunteer applications for events you manage.
-          </p>
-        </div>
+  const selectStyle: React.CSSProperties = {
+    height: 34,
+    padding: '0 10px',
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-border)',
+    background: 'var(--color-surface)',
+    fontSize: '0.82rem',
+    color: 'var(--color-text-secondary)',
+    cursor: 'pointer',
+  };
 
+  return (
+    <div className="admin-page">
+      <PageHeader
+        title={t('admin.volunteers')}
+        description="Review volunteer applications for events you manage."
+      />
+
+      <div className="admin-page-body">
         {loadingData ? (
-          <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
-        ) : events.length === 0 ? (
-          <div style={{ padding: 48, borderRadius: 'var(--radius-2xl)', border: '1px dashed var(--color-border)', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-            No manageable events yet.
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[1, 2, 3].map(i => <div key={i} className="admin-skeleton" style={{ height: 52 }} />)}
           </div>
+        ) : events.length === 0 ? (
+          <EmptyState title="No events yet" description="No manageable events found." />
         ) : (
           <>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
-              <select
-                value={selectedEventId}
-                onChange={event => setSelectedEventId(event.target.value)}
-                style={{ minWidth: 280, height: 42, padding: '0 14px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', background: 'white', fontWeight: 700 }}
-              >
+            {/* Filters toolbar */}
+            <div className="admin-toolbar">
+              <select value={selectedEventId} onChange={e => setSelectedEventId(e.target.value)} style={{ ...selectStyle, minWidth: 240 }}>
                 {events.map(event => (
                   <option key={event.id} value={event.id}>{event.title}</option>
                 ))}
               </select>
 
-              <select
-                value={status}
-                onChange={event => setStatus(event.target.value)}
-                style={{ height: 42, padding: '0 14px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', background: 'white', fontWeight: 700 }}
-              >
+              <select value={status} onChange={e => setStatus(e.target.value)} style={selectStyle}>
                 {STATUS_FILTERS.map(item => <option key={item} value={item}>{item}</option>)}
               </select>
 
               {selectedEventId && (
-                <Link href={`/${locale}/admin/events/${selectedEventId}/edit`} style={{ display: 'inline-flex', alignItems: 'center', height: 42, padding: '0 16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', fontWeight: 700 }}>
+                <Link href={`/${locale}/admin/events/${selectedEventId}/edit`} className="btn-admin-secondary">
                   {t('common.edit')} event
                 </Link>
               )}
             </div>
 
+            {/* Volunteers list */}
             {loadingVolunteers ? (
-              <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
-            ) : volunteers.length === 0 ? (
-              <div style={{ padding: 40, borderRadius: 'var(--radius-2xl)', border: '1px dashed var(--color-border)', color: 'var(--color-text-muted)', textAlign: 'center' }}>
-                No volunteer requests with status {status}.
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[1, 2, 3].map(i => <div key={i} className="admin-skeleton" style={{ height: 72 }} />)}
               </div>
+            ) : volunteers.length === 0 ? (
+              <EmptyState
+                title={`No ${status.toLowerCase()} volunteers`}
+                description={`No volunteer requests with status "${status}" for this event.`}
+              />
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {volunteers.map((membership: any) => (
-                  <article key={membership.id} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 18, borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
-                    <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--color-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, flexShrink: 0 }}>
-                      {membership.user?.avatarUrl ? <img src={membership.user.avatarUrl} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : membership.user?.name?.charAt(0)?.toUpperCase()}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                        <strong>{membership.user?.name}</strong>
-                        <span style={{ padding: '2px 8px', borderRadius: 'var(--radius-lg)', background: 'rgba(28,100,242,0.08)', color: 'var(--color-primary)', fontSize: '0.75rem', fontWeight: 800 }}>
-                          {membership.status}
-                        </span>
-                      </div>
-                      <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>{membership.user?.email}</div>
-                      {membership.notes && <p style={{ margin: '8px 0 0', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>{membership.notes}</p>}
-                    </div>
-                    {membership.status === 'PENDING' && (
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button onClick={() => updateStatus(membership.id, 'ACTIVE')} disabled={actionId === membership.id} style={{ padding: '8px 14px', borderRadius: 'var(--radius-lg)', border: '1px solid #16a34a', background: '#16a34a', color: '#fff', fontWeight: 800, cursor: 'pointer', opacity: actionId === membership.id ? 0.6 : 1 }}>
-                          Approve
-                        </button>
-                        <button onClick={() => updateStatus(membership.id, 'REJECTED')} disabled={actionId === membership.id} style={{ padding: '8px 14px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-danger)', background: 'white', color: 'var(--color-danger)', fontWeight: 800, cursor: 'pointer', opacity: actionId === membership.id ? 0.6 : 1 }}>
-                          Reject
-                        </button>
-                      </div>
-                    )}
-                  </article>
-                ))}
+              <div className="data-table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Volunteer</th>
+                      <th>Status</th>
+                      <th>Notes</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {volunteers.map((membership: any) => (
+                      <tr key={membership.id}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{
+                              width: 32, height: 32, borderRadius: '50%',
+                              background: 'var(--color-primary)', color: '#fff',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontWeight: 700, fontSize: '0.8rem', flexShrink: 0, overflow: 'hidden',
+                            }}>
+                              {membership.user?.avatarUrl
+                                ? <img src={membership.user.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                : membership.user?.name?.charAt(0)?.toUpperCase()}
+                            </div>
+                            <div>
+                              <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>{membership.user?.name}</div>
+                              <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>{membership.user?.email}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <StatusBadge status={membership.status} />
+                        </td>
+                        <td style={{ maxWidth: 240 }}>
+                          {membership.notes
+                            ? <span style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>{membership.notes}</span>
+                            : <span style={{ color: 'var(--color-text-faint)', fontSize: '0.82rem' }}>—</span>}
+                        </td>
+                        <td>
+                          {membership.status === 'PENDING' && (
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                              <button
+                                onClick={() => updateStatus(membership.id, 'ACTIVE')}
+                                disabled={actionId === membership.id}
+                                className="btn-admin-primary"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => updateStatus(membership.id, 'REJECTED')}
+                                disabled={actionId === membership.id}
+                                className="btn-admin-danger"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </>

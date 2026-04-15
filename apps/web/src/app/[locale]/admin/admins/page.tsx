@@ -6,6 +6,8 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../../hooks/useAuth';
 import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
+import { PageHeader } from '../../../../components/admin/PageHeader';
+import { SectionHeader } from '../../../../components/admin/SectionHeader';
 
 export default function AdminAdminsPage() {
   const t = useTranslations();
@@ -99,121 +101,182 @@ export default function AdminAdminsPage() {
   }
 
   if (loading || !user || !isSuperAdmin) return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
+    <div className="loading-center">
+      <div className="spinner" />
     </div>
   );
 
+  const inputStyle: React.CSSProperties = {
+    height: 34,
+    padding: '0 10px',
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-border)',
+    background: 'var(--color-surface)',
+    fontSize: '0.82rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+    width: '100%',
+  };
+
   return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', padding: '40px 0 60px' }}>
-      <div className="container">
-        <div style={{ marginBottom: 32 }}>
-          <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(1.8rem, 4vw, 2.4rem)', fontWeight: 900, letterSpacing: 0 }}>
-            {t('admin.admins')}
-          </h1>
-          <p style={{ margin: 0, color: 'var(--color-text-muted)' }}>
-            Event-scoped admins and platform admins
-          </p>
-        </div>
+    <div className="admin-page">
+      <PageHeader
+        title={t('admin.admins')}
+        description="Event-scoped admins and platform admins"
+      />
+
+      <div className="admin-page-body">
 
         {error && <div className="alert alert-danger" style={{ marginBottom: 16 }}>{error}</div>}
         {success && <div className="alert alert-success" style={{ marginBottom: 16 }}>{success}</div>}
 
         {loadingData ? (
-          <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[1, 2, 3].map(i => <div key={i} className="admin-skeleton" style={{ height: 52 }} />)}
+          </div>
         ) : (
-          <div style={{ display: 'grid', gap: 32 }}>
-            <section style={{ padding: 22, borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
-              <h2 style={{ margin: '0 0 16px', fontSize: '1.15rem', fontWeight: 800 }}>Assign event admin</h2>
-              <form onSubmit={handleAssign} style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.2fr) minmax(220px, 1fr)', gap: 12 }}>
-                <select
-                  value={selectedEventId}
-                  onChange={event => setSelectedEventId(event.target.value)}
-                  className="input-field"
-                  disabled={events.length === 0}
-                >
-                  {events.map(event => <option key={event.id} value={event.id}>{event.title}</option>)}
-                </select>
-                <input
-                  value={email}
-                  onChange={event => setEmail(event.target.value)}
-                  type="email"
-                  className="input-field"
-                  placeholder="organizer@example.com"
-                />
-                <input
-                  value={notes}
-                  onChange={event => setNotes(event.target.value)}
-                  className="input-field"
-                  placeholder="Internal note"
-                />
-                <button type="submit" disabled={actionId === 'assign' || !selectedEventId || !email.trim()} className="btn btn-primary">
-                  {actionId === 'assign' ? 'Assigning...' : 'Assign event admin'}
-                </button>
-              </form>
+          <div style={{ display: 'grid', gap: 36 }}>
+
+            {/* Assign form */}
+            <section>
+              <SectionHeader title="Assign event admin" />
+              <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 20 }}>
+                <form onSubmit={handleAssign} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+                  <select
+                    value={selectedEventId}
+                    onChange={e => setSelectedEventId(e.target.value)}
+                    disabled={events.length === 0}
+                    style={inputStyle}
+                  >
+                    {events.map(event => <option key={event.id} value={event.id}>{event.title}</option>)}
+                  </select>
+                  <input
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    type="email"
+                    placeholder="organizer@example.com"
+                    style={inputStyle}
+                  />
+                  <input
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
+                    placeholder="Internal note (optional)"
+                    style={inputStyle}
+                  />
+                  <button
+                    type="submit"
+                    disabled={actionId === 'assign' || !selectedEventId || !email.trim()}
+                    className="btn-admin-primary"
+                    style={{ height: 34 }}
+                  >
+                    {actionId === 'assign' ? 'Assigning...' : 'Assign event admin'}
+                  </button>
+                </form>
+              </div>
             </section>
 
+            {/* Event admins */}
             <section>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>Event admins</h2>
-                <span className="badge badge-primary">{eventAdmins.length}</span>
-              </div>
+              <SectionHeader
+                title="Event admins"
+                action={
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)' }}>
+                    {eventAdmins.length} total
+                  </span>
+                }
+              />
               {eventAdmins.length === 0 ? (
-                <div className="empty-state" style={{ padding: 36 }}>No event admins assigned yet.</div>
+                <div style={{ padding: '24px 16px', color: 'var(--color-text-muted)', fontSize: '0.875rem', textAlign: 'center', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-lg)' }}>
+                  No event admins assigned yet.
+                </div>
               ) : (
-                <div style={{ display: 'grid', gap: 10 }}>
-                  {eventAdmins.map(membership => (
-                    <div key={membership.id} className="table-row">
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 800 }}>{membership.user?.name}</div>
-                        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.86rem' }}>{membership.user?.email}</div>
-                        <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.86rem', marginTop: 4 }}>
-                          {membership.event?.title}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleRemoveEventAdmin(membership)}
-                        disabled={actionId === membership.id}
-                        className="btn btn-ghost btn-sm"
-                        style={{ color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}
-                      >
-                        {actionId === membership.id ? '...' : 'Remove'}
-                      </button>
-                    </div>
-                  ))}
+                <div className="data-table-wrap">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Admin</th>
+                        <th>Event</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {eventAdmins.map(membership => (
+                        <tr key={membership.id}>
+                          <td>
+                            <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>{membership.user?.name}</div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>{membership.user?.email}</div>
+                          </td>
+                          <td style={{ fontSize: '0.82rem' }}>{membership.event?.title}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button
+                              onClick={() => handleRemoveEventAdmin(membership)}
+                              disabled={actionId === membership.id}
+                              className="btn-admin-danger"
+                            >
+                              {actionId === membership.id ? '...' : 'Remove'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </section>
 
+            {/* Platform admins */}
             <section>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>Platform admins</h2>
-                <span className="badge badge-primary">{platformAdmins.length}</span>
-              </div>
-              <div style={{ display: 'grid', gap: 10 }}>
-                {platformAdmins.map(admin => (
-                  <div key={admin.id} className="table-row">
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 800 }}>{admin.name}</div>
-                      <div style={{ color: 'var(--color-text-muted)', fontSize: '0.86rem' }}>{admin.email}</div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span className="badge badge-primary">{admin.role}</span>
-                      {admin.id !== user.id && admin.role !== 'SUPER_ADMIN' && (
-                        <button
-                          onClick={() => handleRemovePlatformAdmin(admin.id)}
-                          disabled={actionId === admin.id}
-                          className="btn btn-ghost btn-sm"
-                          style={{ color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}
-                        >
-                          {actionId === admin.id ? '...' : 'Remove'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+              <SectionHeader
+                title="Platform admins"
+                action={
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)' }}>
+                    {platformAdmins.length} total
+                  </span>
+                }
+              />
+              <div className="data-table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Admin</th>
+                      <th>Role</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {platformAdmins.map(admin => (
+                      <tr key={admin.id}>
+                        <td>
+                          <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>{admin.name}</div>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>{admin.email}</div>
+                        </td>
+                        <td>
+                          <span style={{
+                            display: 'inline-flex', padding: '2px 8px', borderRadius: 4,
+                            fontSize: '0.72rem', fontWeight: 600,
+                            background: 'rgba(37,99,235,0.08)', color: 'var(--color-primary)',
+                          }}>
+                            {admin.role}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {admin.id !== user.id && admin.role !== 'SUPER_ADMIN' && (
+                            <button
+                              onClick={() => handleRemovePlatformAdmin(admin.id)}
+                              disabled={actionId === admin.id}
+                              className="btn-admin-danger"
+                            >
+                              {actionId === admin.id ? '...' : 'Remove'}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </section>
+
           </div>
         )}
       </div>

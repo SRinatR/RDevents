@@ -6,6 +6,14 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../../hooks/useAuth';
 import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
+import { PageHeader } from '../../../../components/admin/PageHeader';
+import { EmptyState } from '../../../../components/admin/EmptyState';
+
+const roleStyles: Record<string, { bg: string; color: string }> = {
+  SUPER_ADMIN:    { bg: 'rgba(124, 58, 237, 0.08)', color: '#7C3AED' },
+  PLATFORM_ADMIN: { bg: 'rgba(37, 99, 235, 0.08)',  color: '#2563EB' },
+  USER:           { bg: 'var(--color-bg-subtle)',    color: 'var(--color-text-muted)' },
+};
 
 export default function AdminUsersPage() {
   const t = useTranslations();
@@ -45,97 +53,121 @@ export default function AdminUsersPage() {
     }
   };
 
-  const roleColors: Record<string, string> = {
-    SUPER_ADMIN: '#7c3aed',
-    PLATFORM_ADMIN: '#2563eb',
-    USER: '#6b7280',
-  };
-
   if (loading || !user || !isPlatformAdmin) return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
+    <div className="loading-center">
+      <div className="spinner" />
     </div>
   );
 
   return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', padding: '40px 0 60px' }}>
-      <div className="container">
-        <div style={{ marginBottom: 36 }}>
-          <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(1.8rem, 4vw, 2.4rem)', fontWeight: 900, letterSpacing: 0 }}>
-            {t('admin.users')}
-          </h1>
-          <p style={{ margin: 0, color: 'var(--color-text-muted)' }}>{users.length} users total</p>
-        </div>
+    <div className="admin-page">
+      <PageHeader
+        title={t('admin.users')}
+        description={usersLoading ? undefined : `${users.length} users total`}
+      />
 
+      <div className="admin-page-body">
         {usersLoading ? (
-          <div style={{ color: 'var(--color-text-muted)' }}>{t('common.loading')}</div>
-        ) : users.length === 0 ? (
-          <div style={{ padding: '48px', borderRadius: 'var(--radius-2xl)', border: '1px dashed var(--color-border)', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-            No users found.
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="admin-skeleton" style={{ height: 52 }} />
+            ))}
           </div>
+        ) : users.length === 0 ? (
+          <EmptyState title="No users found" />
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', background: 'var(--color-surface)', borderRadius: 'var(--radius-xl)', overflow: 'hidden' }}>
+          <div className="data-table-wrap" style={{ overflowX: 'auto' }}>
+            <table className="data-table">
               <thead>
-                <tr style={{ background: 'var(--color-bg-subtle)' }}>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>User</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Role</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>City</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Registered</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Last Login</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Accounts</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Actions</th>
+                <tr>
+                  <th>User</th>
+                  <th>Role</th>
+                  <th>City</th>
+                  <th>Registered</th>
+                  <th>Last login</th>
+                  <th>Accounts</th>
+                  <th>Change role</th>
                 </tr>
               </thead>
               <tbody>
-                {users.map((u: any) => (
-                  <tr key={u.id} style={{ borderTop: '1px solid var(--color-border)' }}>
-                    <td style={{ padding: '14px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--color-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.85rem', flexShrink: 0 }}>
-                          {u.avatarUrl ? <img src={u.avatarUrl} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : u.name?.charAt(0)?.toUpperCase()}
+                {users.map((u: any) => {
+                  const rs = roleStyles[u.role] ?? roleStyles.USER;
+                  return (
+                    <tr key={u.id}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{
+                            width: 32, height: 32, borderRadius: '50%',
+                            background: 'var(--color-primary)',
+                            color: '#fff',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontWeight: 700, fontSize: '0.8rem', flexShrink: 0,
+                            overflow: 'hidden',
+                          }}>
+                            {u.avatarUrl
+                              ? <img src={u.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              : u.name?.charAt(0)?.toUpperCase()}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>{u.name}</div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>{u.email}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div style={{ fontWeight: 600 }}>{u.name}</div>
-                          <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>{u.email}</div>
+                      </td>
+                      <td>
+                        <span style={{
+                          display: 'inline-flex', padding: '2px 8px',
+                          borderRadius: 4, fontSize: '0.72rem', fontWeight: 600,
+                          background: rs.bg, color: rs.color,
+                        }}>
+                          {u.role}
+                        </span>
+                      </td>
+                      <td>{u.city || '—'}</td>
+                      <td style={{ fontSize: '0.82rem' }}>
+                        {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
+                      </td>
+                      <td style={{ fontSize: '0.82rem' }}>
+                        {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : '—'}
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {u.accounts?.map((a: any) => (
+                            <span key={a.id} style={{
+                              padding: '2px 7px', borderRadius: 4,
+                              fontSize: '0.72rem', fontWeight: 500,
+                              background: 'var(--color-bg-subtle)',
+                              color: 'var(--color-text-muted)',
+                            }}>
+                              {a.provider}
+                            </span>
+                          )) ?? <span style={{ color: 'var(--color-text-faint)', fontSize: '0.82rem' }}>—</span>}
                         </div>
-                      </div>
-                    </td>
-                    <td style={{ padding: '14px 16px' }}>
-                      <span style={{ padding: '4px 10px', borderRadius: 'var(--radius-lg)', fontSize: '0.8rem', fontWeight: 700, background: (roleColors[u.role] ?? '#6b7280') + '20', color: roleColors[u.role] ?? '#6b7280' }}>
-                        {u.role}
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px 16px', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>{u.city || '—'}</td>
-                    <td style={{ padding: '14px 16px', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
-                      {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
-                    </td>
-                    <td style={{ padding: '14px 16px', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
-                      {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : '—'}
-                    </td>
-                    <td style={{ padding: '14px 16px' }}>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                        {u.accounts?.map((a: any) => (
-                          <span key={a.id} style={{ padding: '2px 8px', borderRadius: 'var(--radius-lg)', fontSize: '0.75rem', background: 'var(--color-bg-subtle)', color: 'var(--color-text-muted)' }}>
-                            {a.provider}
-                          </span>
-                        )) ?? <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>—</span>}
-                      </div>
-                    </td>
-                    <td style={{ padding: '14px 16px' }}>
-                      <select
-                        value={u.role}
-                        onChange={e => handleRoleChange(u.id, e.target.value)}
-                        disabled={updatingId === u.id || u.id === user.id}
-                        style={{ padding: '6px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', fontSize: '0.85rem', cursor: (updatingId === u.id || u.id === user.id) ? 'not-allowed' : 'pointer', opacity: (updatingId === u.id || u.id === user.id) ? 0.5 : 1 }}
-                      >
-                        <option value="USER">User</option>
-                        <option value="PLATFORM_ADMIN">Platform Admin</option>
-                        <option value="SUPER_ADMIN">Super Admin</option>
-                      </select>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>
+                        <select
+                          value={u.role}
+                          onChange={e => handleRoleChange(u.id, e.target.value)}
+                          disabled={updatingId === u.id || u.id === user.id}
+                          style={{
+                            padding: '5px 8px',
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid var(--color-border)',
+                            background: 'var(--color-surface)',
+                            fontSize: '0.8rem',
+                            color: 'var(--color-text-secondary)',
+                            cursor: (updatingId === u.id || u.id === user.id) ? 'not-allowed' : 'pointer',
+                            opacity: (updatingId === u.id || u.id === user.id) ? 0.5 : 1,
+                          }}
+                        >
+                          <option value="USER">User</option>
+                          <option value="PLATFORM_ADMIN">Platform Admin</option>
+                          <option value="SUPER_ADMIN">Super Admin</option>
+                        </select>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

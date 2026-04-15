@@ -64,10 +64,10 @@ export function Navbar({ locale }: NavbarProps) {
         <div className="max-w-[1400px] mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <Link href={`/${locale}`} className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#E55C94] text-lg font-black text-white">
+              <span style={{ background: 'var(--color-primary)' }} className="flex h-9 w-9 items-center justify-center rounded-lg text-base font-black text-white">
                 E
               </span>
-              <span className="hidden text-base font-black text-[#1a1a1a] sm:block">
+              <span className="hidden text-sm font-black sm:block" style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.02em' }}>
                 EventPlatform
               </span>
             </Link>
@@ -88,7 +88,7 @@ export function Navbar({ locale }: NavbarProps) {
               <div className="flex items-center gap-3">
                 {user ? (
                   <Link href={`/${locale}/cabinet`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                    <div className="w-10 h-10 bg-[#5CEBAA] rounded-full flex items-center justify-center text-white font-semibold text-sm border-2 border-white shadow-sm">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-sm border-2 border-white shadow-sm" style={{ background: 'var(--color-primary)' }}>
                       {displayName.charAt(0).toUpperCase()}
                     </div>
                     <span className="hidden md:block text-sm font-medium">{displayName}</span>
@@ -105,14 +105,14 @@ export function Navbar({ locale }: NavbarProps) {
                   {user ? (
                     <button
                       onClick={handleLogout}
-                      className="rounded-full px-6 py-1 h-9 text-sm bg-[#E55C94] hover:bg-[#D04A82] text-white font-medium transition-colors"
+                      className="rounded-full px-5 py-1 h-9 text-sm text-white font-medium transition-colors" style={{ background: 'var(--color-primary)' }}
                     >
                       {t('nav.logout') || 'Выйти'}
                     </button>
                   ) : (
                     <Link
                       href={`/${locale}/login`}
-                      className="rounded-full px-6 py-1 h-9 text-sm bg-[#E55C94] hover:bg-[#D04A82] text-white font-medium transition-colors"
+                      className="rounded-full px-5 py-1 h-9 text-sm text-white font-medium transition-colors" style={{ background: 'var(--color-primary)' }}
                     >
                       {t('nav.login') || 'Войти'}
                     </Link>
