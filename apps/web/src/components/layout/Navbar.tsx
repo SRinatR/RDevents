@@ -64,7 +64,10 @@ export function Navbar({ locale }: NavbarProps) {
         <div className="container public-navbar-inner">
           <Link href={`/${locale}`} className="public-logo">
             <span className="public-logo-mark">EP</span>
-            <span className="public-logo-text">EventPlatform</span>
+            <span className="public-logo-text-wrap">
+              <span className="public-logo-text">EventPlatform</span>
+              <span className="public-logo-caption">{locale === 'ru' ? 'Event Operations' : 'Event Operations'}</span>
+            </span>
           </Link>
 
           <nav className="public-nav-links">

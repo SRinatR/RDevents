@@ -62,6 +62,55 @@ export default async function HomePage({ params }: HomePageProps) {
               </div>
             </aside>
           </div>
+          <div className="container">
+            <div className="public-hero-metrics">
+              <div className="public-hero-metric">
+                <small>{locale === 'ru' ? 'Активные модули' : 'Active modules'}</small>
+                <strong>06</strong>
+              </div>
+              <div className="public-hero-metric">
+                <small>{locale === 'ru' ? 'Средняя глубина сценария' : 'Avg. workflow depth'}</small>
+                <strong>{locale === 'ru' ? '3 уровня' : '3 levels'}</strong>
+              </div>
+              <div className="public-hero-metric">
+                <small>{locale === 'ru' ? 'Сквозной контур' : 'Unified surface'}</small>
+                <strong>{locale === 'ru' ? 'Public / Cabinet / Admin' : 'Public / Cabinet / Admin'}</strong>
+              </div>
+              <div className="public-hero-metric">
+                <small>{locale === 'ru' ? 'Демо готовность' : 'Demo readiness'}</small>
+                <strong>{locale === 'ru' ? 'Investor-ready' : 'Investor-ready'}</strong>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="public-story-band">
+          <div className="container public-story-grid">
+            <article className="public-story-main">
+              <small>{locale === 'ru' ? 'Продуктовый контур' : 'Product storyline'}</small>
+              <h2>{locale === 'ru' ? 'От первого просмотра события до управления потоком участия.' : 'From event discovery to participation operations.'}</h2>
+              <p>
+                {locale === 'ru'
+                  ? 'Публичная витрина, личный кабинет и админ-контур теперь собраны как единая продуктовая система: с единым языком статусов, решений и ответственности.'
+                  : 'Public discovery, participant workspace, and admin operations now behave as one product surface with a unified language of statuses, decisions, and accountability.'}
+              </p>
+            </article>
+            <article className="public-story-step">
+              <small>01</small>
+              <h3>{locale === 'ru' ? 'Discovery' : 'Discovery'}</h3>
+              <p>{locale === 'ru' ? 'Каталог и карточки событий создают читаемую картину спроса.' : 'Catalog and event cards create a readable demand landscape.'}</p>
+            </article>
+            <article className="public-story-step">
+              <small>02</small>
+              <h3>{locale === 'ru' ? 'Activation' : 'Activation'}</h3>
+              <p>{locale === 'ru' ? 'Страница события переводит интерес в управляемое действие.' : 'Event detail turns interest into structured action.'}</p>
+            </article>
+            <article className="public-story-step">
+              <small>03</small>
+              <h3>{locale === 'ru' ? 'Operations' : 'Operations'}</h3>
+              <p>{locale === 'ru' ? 'Кабинет и админ фиксируют прогресс, заявки и риски.' : 'Cabinet and admin track progress, applications, and risk.'}</p>
+            </article>
+          </div>
         </section>
 
         {leadEvent ? (
@@ -119,6 +168,11 @@ export default async function HomePage({ params }: HomePageProps) {
               <h2>{locale === 'ru' ? 'События' : 'Events'}</h2>
               <Link href={`/${locale}/events`} className="signal-chip-link">{locale === 'ru' ? 'Открыть каталог' : 'Open catalog'}</Link>
             </div>
+            <p className="public-section-intro">
+              {locale === 'ru'
+                ? 'Отобранные карточки с понятной структурой: формат, статус, загруженность и быстрый переход к действию.'
+                : 'Curated cards with clear structure: format, status, capacity, and direct path to action.'}
+            </p>
 
             {previewEvents.length === 0 ? (
               <div className="signal-empty-state">

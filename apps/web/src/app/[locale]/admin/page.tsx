@@ -75,13 +75,24 @@ export default function AdminPage() {
 
   return (
     <div className="signal-page-shell">
-      <PageHeader title={t('admin.title')} subtitle={t('admin.subtitle')} actions={<StatusBadge tone="info">{scope}</StatusBadge>} />
+      <div className="admin-command-hero">
+        <PageHeader title={t('admin.title')} subtitle={t('admin.subtitle')} actions={<StatusBadge tone="info">{scope}</StatusBadge>} />
+        <div className="admin-command-kpis">
+          <div><small>{locale === 'ru' ? 'События' : 'Events'}</small><strong>{stats?.totalEvents ?? 0}</strong></div>
+          <div><small>{locale === 'ru' ? 'Регистрации' : 'Registrations'}</small><strong>{stats?.totalRegistrations ?? 0}</strong></div>
+          <div><small>{locale === 'ru' ? 'Просмотры' : 'Views'}</small><strong>{stats?.totalEventViews ?? 0}</strong></div>
+          <div><small>{locale === 'ru' ? 'Очередь волонтёров' : 'Volunteer queue'}</small><strong>{stats?.volunteersPending ?? 0}</strong></div>
+        </div>
+      </div>
 
-      <ToolbarRow>
-        {quickActions.map((item) => (
-          <Link key={item.href} href={item.href} className="signal-chip-link">{item.label}</Link>
-        ))}
-      </ToolbarRow>
+      <Panel className="admin-actions-panel">
+        <SectionHeader title={locale === 'ru' ? 'Быстрые действия' : 'Quick actions'} />
+        <ToolbarRow>
+          {quickActions.map((item) => (
+            <Link key={item.href} href={item.href} className="signal-chip-link">{item.label}</Link>
+          ))}
+        </ToolbarRow>
+      </Panel>
 
       <div className="signal-two-col admin-dashboard-grid">
         <Panel className="admin-command-panel">

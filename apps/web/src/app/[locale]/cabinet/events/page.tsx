@@ -33,13 +33,15 @@ export default function CabinetAllEventsPage() {
 
   return (
     <div className="signal-page-shell">
-      <PageHeader title={locale === 'ru' ? 'Каталог мероприятий' : 'Event catalog'} subtitle={locale === 'ru' ? 'Доступные события для участия' : 'Available events for participation'} />
-      <ToolbarRow>
-        <Link href={`/${locale}/cabinet/my-events`} className="signal-chip-link">{locale === 'ru' ? 'Мои мероприятия' : 'My events'}</Link>
-        <StatusBadge tone="info">{events.length} {locale === 'ru' ? 'событий' : 'events'}</StatusBadge>
-      </ToolbarRow>
+      <div className="cabinet-page-hero">
+        <PageHeader title={locale === 'ru' ? 'Каталог мероприятий' : 'Event catalog'} subtitle={locale === 'ru' ? 'Доступные события для участия' : 'Available events for participation'} />
+        <ToolbarRow>
+          <Link href={`/${locale}/cabinet/my-events`} className="signal-chip-link">{locale === 'ru' ? 'Мои мероприятия' : 'My events'}</Link>
+          <StatusBadge tone="info">{events.length} {locale === 'ru' ? 'событий' : 'events'}</StatusBadge>
+        </ToolbarRow>
+      </div>
 
-      <Panel>
+      <Panel className="cabinet-module-panel-strong">
         {eventsLoading ? <LoadingLines rows={6} /> : events.length === 0 ? (
           <EmptyState title={locale === 'ru' ? 'События пока отсутствуют' : 'No events yet'} description={locale === 'ru' ? 'Каталог пуст. Возвращайтесь позже или проверьте фильтры на публичной странице событий.' : 'Catalog is empty. Check back later or review filters on the public events page.'} />
         ) : (

@@ -253,7 +253,7 @@ export default function EventDetailPage() {
               <div className="public-event-detail-cover-overlay" />
             </div>
 
-            <div className="public-event-layout">
+            <div className="public-event-layout public-event-layout-premium">
               <div>
                 <div className="public-meta-row public-gap-after-xs public-event-meta-top">
                   <StatusBadge tone="neutral">{event.category}</StatusBadge>
@@ -269,7 +269,26 @@ export default function EventDetailPage() {
                   <span>{event.location}</span>
                 </div>
 
-                <Panel className="public-event-description-panel">
+                <div className="public-event-story-grid">
+                  <Panel className="public-event-story-panel">
+                    <SectionHeader title={locale === 'ru' ? 'Контекст события' : 'Event context'} />
+                    <div className="signal-prose-copy">
+                      {locale === 'ru'
+                        ? 'Событие оформлено как структурированный продуктовый сценарий: от интереса и предварительной оценки до регистрации, командного участия и операционного сопровождения.'
+                        : 'The event is framed as a structured product journey: from initial interest and pre-check to registration, team participation, and operational follow-through.'}
+                    </div>
+                  </Panel>
+                  <Panel className="public-event-facts-panel">
+                    <SectionHeader title={locale === 'ru' ? 'Ключевые параметры' : 'Key parameters'} />
+                    <div className="signal-stack">
+                      <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Регистраций' : 'Registrations'}</span><strong>{event.registrationsCount}/{event.capacity}</strong></div>
+                      <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Командный режим' : 'Team mode'}</span><strong>{event.isTeamBased ? (locale === 'ru' ? 'Включён' : 'Enabled') : (locale === 'ru' ? 'Выключен' : 'Disabled')}</strong></div>
+                      <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Соло участие' : 'Solo participation'}</span><strong>{event.allowSoloParticipation ? (locale === 'ru' ? 'Разрешено' : 'Allowed') : (locale === 'ru' ? 'Отключено' : 'Off')}</strong></div>
+                    </div>
+                  </Panel>
+                </div>
+
+                <Panel className="public-event-description-panel public-event-description-panel-premium">
                   <SectionHeader title={t('events.description')} />
                   <div className="signal-prose-copy">
                     {event.fullDescription}
@@ -278,7 +297,7 @@ export default function EventDetailPage() {
               </div>
 
               <aside className="public-sticky-panel">
-                <Panel className="public-participation-panel">
+                <Panel className="public-participation-panel public-participation-panel-premium">
                   <SectionHeader title={locale === 'ru' ? 'Участие' : 'Participation'} />
                   <div className="progress-bar signal-gap-after-2xs public-participation-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
                   <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div>

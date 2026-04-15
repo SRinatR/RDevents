@@ -42,13 +42,19 @@ export default function CabinetApplicationsPage() {
 
   return (
     <div className="signal-page-shell">
-      <PageHeader title={locale === 'ru' ? 'Мои заявки' : 'My applications'} subtitle={locale === 'ru' ? 'Команды и волонтёрские статусы' : 'Team and volunteer statuses'} />
+      <div className="cabinet-page-hero">
+        <PageHeader title={locale === 'ru' ? 'Мои заявки' : 'My applications'} subtitle={locale === 'ru' ? 'Команды и волонтёрские статусы' : 'Team and volunteer statuses'} />
+        <div className="cabinet-page-hero-metrics">
+          <div><small>{locale === 'ru' ? 'Команды' : 'Teams'}</small><strong>{teams.length}</strong></div>
+          <div><small>{locale === 'ru' ? 'Волонтёрство' : 'Volunteer'}</small><strong>{volunteerApplications.length}</strong></div>
+        </div>
+      </div>
       {loadingData ? <LoadingLines rows={8} /> : null}
       {error ? <Notice tone="danger">{error}</Notice> : null}
 
       {!loadingData && !error ? (
-        <>
-          <Panel>
+        <div className="cabinet-two-col">
+          <Panel className="cabinet-module-panel-strong">
             <SectionHeader title={locale === 'ru' ? 'Командные заявки' : 'Team memberships'} actions={<StatusBadge tone="info">{teams.length}</StatusBadge>} />
             {teams.length === 0 ? <EmptyState title={locale === 'ru' ? 'Команд пока нет' : 'No teams yet'} description={locale === 'ru' ? 'После вступления в команду статус появится здесь.' : 'After joining a team, status will appear here.'} /> : (
               <div className="signal-stack cabinet-list-stack">
@@ -65,7 +71,7 @@ export default function CabinetApplicationsPage() {
             )}
           </Panel>
 
-          <Panel>
+          <Panel className="cabinet-module-panel-strong">
             <SectionHeader title={locale === 'ru' ? 'Волонтёрские заявки' : 'Volunteer applications'} actions={<StatusBadge tone="info">{volunteerApplications.length}</StatusBadge>} />
             {volunteerApplications.length === 0 ? <EmptyState title={locale === 'ru' ? 'Заявки отсутствуют' : 'No applications'} description={locale === 'ru' ? 'Статусы волонтёрства появятся здесь после подачи.' : 'Volunteer statuses appear here after applying.'} /> : (
               <div className="signal-stack cabinet-list-stack">
@@ -81,7 +87,7 @@ export default function CabinetApplicationsPage() {
               </div>
             )}
           </Panel>
-        </>
+        </div>
       ) : null}
     </div>
   );

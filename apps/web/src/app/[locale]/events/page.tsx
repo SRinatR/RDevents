@@ -87,9 +87,16 @@ export default function EventsPage() {
       <main className="public-main">
         <section className="public-section">
           <div className="container">
-            <PageHeader title={t('events.title')} subtitle={t('events.subtitle')} actions={<StatusBadge tone="info">{events.length} {locale === 'ru' ? 'на странице' : 'on page'}</StatusBadge>} />
+            <div className="public-catalog-hero">
+              <PageHeader title={t('events.title')} subtitle={t('events.subtitle')} actions={<StatusBadge tone="info">{events.length} {locale === 'ru' ? 'на странице' : 'on page'}</StatusBadge>} />
+              <div className="public-catalog-hero-meta">
+                <div><small>{locale === 'ru' ? 'Активные фильтры' : 'Active filters'}</small><strong>{(search ? 1 : 0) + (category ? 1 : 0)}</strong></div>
+                <div><small>{locale === 'ru' ? 'Страниц каталога' : 'Catalog pages'}</small><strong>{meta?.pages ?? 1}</strong></div>
+                <div><small>{locale === 'ru' ? 'Режим' : 'Mode'}</small><strong>{locale === 'ru' ? 'Просмотр и отбор' : 'Browse & shortlisting'}</strong></div>
+              </div>
+            </div>
 
-            <Panel className="public-events-toolbar-panel">
+            <Panel className="public-events-toolbar-panel public-elevated-toolbar">
               <ToolbarRow>
                 <FieldInput value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={t('events.searchPlaceholder')} className="public-events-search-input" />
                 <FieldSelect value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }} className="public-events-category-select">
@@ -119,7 +126,7 @@ export default function EventsPage() {
 
             {!loading && !error && events.length > 0 ? (
               <div className="public-events-grid public-events-grid-spaced">
-                {events.map((event) => {
+                {events.map((event, index) => {
                   const capacityPct = event.capacity > 0
                     ? Math.min((event.registrationsCount / event.capacity) * 100, 100)
                     : 0;
@@ -127,7 +134,7 @@ export default function EventsPage() {
                   const visualState = getEventVisualState(event);
 
                   return (
-                    <Link key={event.id} href={`/${locale}/events/${event.slug}`} className={`public-event-card public-event-card-${visualState.key}`}>
+                    <Link key={event.id} href={`/${locale}/events/${event.slug}`} className={`public-event-card public-event-card-${visualState.key}${index === 0 ? ' public-event-card-highlight' : ''}`}>
                       <div className="public-event-cover">
                         {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
                         <div className="public-event-cover-overlay" />

@@ -28,7 +28,15 @@ export default function CabinetLayout({ children }: { children: ReactNode }) {
       <div className="container">
         <div className="cabinet-layout-grid">
           <Sidebar locale={locale} userName={user.name} userEmail={user.email} userAvatar={user.avatarUrl} />
-          <div className="cabinet-content-area cabinet-content-surface">{children}</div>
+          <div className="cabinet-content-area">
+            <div className="cabinet-workspace-topbar">
+              <div>
+                <small>{locale === 'ru' ? 'Participant workspace' : 'Participant workspace'}</small>
+                <strong>{locale === 'ru' ? 'Личный кабинет и участие' : 'Profile and participation operations'}</strong>
+              </div>
+            </div>
+            <div className="cabinet-content-surface">{children}</div>
+          </div>
         </div>
       </div>
     </div>
