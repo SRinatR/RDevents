@@ -83,12 +83,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="admin-content-shell">
-        <header className="admin-topbar">
+        <header className="admin-topbar admin-topbar-command">
           <button className="admin-menu-button" onClick={() => setSidebarOpen((value) => !value)} type="button" aria-label="Toggle navigation">
             <MenuIcon />
           </button>
           <div className="admin-topbar-title-wrap">
-            <div className="admin-topbar-title">{t('admin.title')}</div>
+            <div className="admin-topbar-title">{locale === 'ru' ? 'Командный центр' : 'Command center'}</div>
             <div className="admin-topbar-subtitle">{user.name || user.email}</div>
           </div>
           <div className="admin-topbar-chip">{isSuperAdmin ? 'Super' : isPlatformAdmin ? 'Platform' : 'Event'} admin</div>
@@ -96,6 +96,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
             {t('admin.createEvent')}
           </Link>
         </header>
+        <div className="admin-command-strip">
+          <span>{locale === "ru" ? "Операционный контур" : "Operational contour"}</span>
+          <span>{locale === "ru" ? "События, волонтёры, аналитика, доступ" : "Events, volunteers, analytics, access"}</span>
+        </div>
         <main className="admin-main">{children}</main>
       </div>
     </div>

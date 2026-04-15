@@ -36,15 +36,15 @@ export default function MyEventsPage() {
   const formatDate = (date: string) => new Date(date).toLocaleDateString(locale === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' });
 
   return (
-    <div className="signal-page-shell">
+    <div className="signal-page-shell cabinet-workspace-page">
       <PageHeader title={locale === 'ru' ? 'Мои мероприятия' : 'My events'} subtitle={locale === 'ru' ? 'Текущие и завершённые участия' : 'Current and completed participations'} />
       <ToolbarRow><Link href={`/${locale}/cabinet/events`} className="signal-chip-link">{locale === 'ru' ? 'Открыть каталог' : 'Open catalog'}</Link></ToolbarRow>
 
-      <Panel>
+      <Panel className="cabinet-workspace-panel">
         {eventsLoading ? <LoadingLines rows={6} /> : error ? <Notice tone="danger">{error}</Notice> : events.length === 0 ? (
           <EmptyState title={locale === 'ru' ? 'Участий пока нет' : 'No participations yet'} description={locale === 'ru' ? 'Выберите событие из каталога, чтобы начать участие.' : 'Choose an event from catalog to start participating.'} actions={<Link href={`/${locale}/cabinet/events`} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Смотреть события' : 'View events'}</Link>} />
         ) : (
-          <div className="signal-stack cabinet-list-stack">
+          <div className="signal-stack cabinet-list-stack cabinet-list-stack-premium">
             {events.map((registration: any) => {
               const event = registration.event ?? registration;
               const href = event.slug ? `/${locale}/cabinet/my-events/${event.slug}` : `/${locale}/cabinet/my-events`;

@@ -246,15 +246,12 @@ export default function EventDetailPage() {
   return (
     <div className="public-page-shell">
       <main className="public-main">
-        <section className="public-event-hero">
+        <section className="public-event-hero public-event-hero-immersive">
           <div className="container">
-            <div className="public-event-cover public-event-detail-cover">
+            <div className="public-event-cover public-event-detail-cover public-event-cover-stage">
               {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
               <div className="public-event-detail-cover-overlay" />
-            </div>
-
-            <div className="public-event-layout public-event-layout-premium">
-              <div>
+              <div className="public-event-cover-story">
                 <div className="public-meta-row public-gap-after-xs public-event-meta-top">
                   <StatusBadge tone="neutral">{event.category}</StatusBadge>
                   <StatusBadge tone={event.status === 'PUBLISHED' ? 'success' : event.status === 'CANCELLED' ? 'danger' : 'warning'}>{event.status}</StatusBadge>
@@ -262,24 +259,30 @@ export default function EventDetailPage() {
                 </div>
                 <h1 className="signal-page-title public-gap-after-2xs">{event.title}</h1>
                 <p className="signal-page-subtitle public-gap-after-sm">{event.shortDescription}</p>
+              </div>
+            </div>
 
-                <div className="public-meta-row public-gap-after-sm public-event-meta-grid">
-                  <span>{formatDate(event.startsAt)}</span>
-                  <span>{formatTime(event.startsAt)} – {formatTime(event.endsAt)}</span>
-                  <span>{event.location}</span>
-                </div>
+            <div className="public-event-layout public-event-layout-premium public-event-layout-editorial">
+              <div className="public-event-story-column">
+                <Panel className="public-event-story-summary">
+                  <div className="public-meta-row public-event-meta-grid">
+                    <span>{formatDate(event.startsAt)}</span>
+                    <span>{formatTime(event.startsAt)} – {formatTime(event.endsAt)}</span>
+                    <span>{event.location}</span>
+                  </div>
+                </Panel>
 
                 <Panel className="public-event-description-panel public-event-description-panel-premium">
-                  <SectionHeader title={t('events.description')} />
+                  <SectionHeader title={t('events.description')} subtitle={locale === 'ru' ? 'Редакционная версия содержания события.' : 'Editorial event story and context.'} />
                   <div className="signal-prose-copy">
                     {event.fullDescription}
                   </div>
                 </Panel>
               </div>
 
-              <aside className="public-sticky-panel">
+              <aside className="public-sticky-panel public-event-action-rail">
                 <Panel className="public-participation-panel public-participation-panel-premium">
-                  <SectionHeader title={locale === 'ru' ? 'Участие' : 'Participation'} />
+                  <SectionHeader title={locale === 'ru' ? 'Участие' : 'Participation'} subtitle={locale === 'ru' ? 'Действия участия и статусы' : 'Participation actions and statuses'} />
                   <div className="progress-bar signal-gap-after-2xs public-participation-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
                   <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div>
 

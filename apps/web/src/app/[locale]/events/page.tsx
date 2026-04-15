@@ -82,30 +82,35 @@ export default function EventsPage() {
     return { key: 'normal', label: locale === 'ru' ? 'Открыто' : 'Open', tone: 'success' as const };
   }
 
+  const headlineEvent = events[0];
+  const tailEvents = events.slice(1);
+
   return (
     <div className="public-page-shell">
       <main className="public-main">
-        <section className="public-section">
+        <section className="public-section public-events-catalog-shell">
           <div className="container">
-            <PageHeader title={t('events.title')} subtitle={t('events.subtitle')} actions={<StatusBadge tone="info">{events.length} {locale === 'ru' ? 'на странице' : 'on page'}</StatusBadge>} />
+            <div className="public-events-catalog-stage">
+              <PageHeader title={t('events.title')} subtitle={t('events.subtitle')} actions={<StatusBadge tone="info">{events.length} {locale === 'ru' ? 'на странице' : 'on page'}</StatusBadge>} />
 
-            <Panel className="public-events-toolbar-panel public-elevated-toolbar">
-              <ToolbarRow>
-                <FieldInput value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={t('events.searchPlaceholder')} className="public-events-search-input" />
-                <FieldSelect value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }} className="public-events-category-select">
-                  <option value="">{t('events.category')}: {t('common.filters')}</option>
-                  {CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
-                </FieldSelect>
-                {(search || category) ? <button onClick={() => { setSearch(''); setCategory(''); setPage(1); }} className="btn btn-ghost btn-sm">Reset</button> : null}
-              </ToolbarRow>
+              <Panel className="public-events-toolbar-panel public-elevated-toolbar public-events-toolbar-layout">
+                <ToolbarRow>
+                  <FieldInput value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={t('events.searchPlaceholder')} className="public-events-search-input" />
+                  <FieldSelect value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }} className="public-events-category-select">
+                    <option value="">{t('events.category')}: {t('common.filters')}</option>
+                    {CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
+                  </FieldSelect>
+                  {(search || category) ? <button onClick={() => { setSearch(''); setCategory(''); setPage(1); }} className="btn btn-ghost btn-sm">Reset</button> : null}
+                </ToolbarRow>
 
-              <div className="public-events-filter-chips">
-                <button className="signal-chip-link" onClick={() => { setCategory(''); setPage(1); }}>{locale === 'ru' ? 'Все' : 'All'}</button>
-                {CATEGORIES.map((item) => (
-                  <button key={item} className="signal-chip-link" onClick={() => { setCategory(item); setPage(1); }}>{item}</button>
-                ))}
-              </div>
-            </Panel>
+                <div className="public-events-filter-chips public-events-filter-chips-stage">
+                  <button className={`signal-chip-link ${category === '' ? 'active' : ''}`} onClick={() => { setCategory(''); setPage(1); }}>{locale === 'ru' ? 'Все' : 'All'}</button>
+                  {CATEGORIES.map((item) => (
+                    <button key={item} className={`signal-chip-link ${category === item ? 'active' : ''}`} onClick={() => { setCategory(item); setPage(1); }}>{item}</button>
+                  ))}
+                </div>
+              </Panel>
+            </div>
 
             {loading ? <LoadingLines rows={8} /> : null}
 
@@ -118,37 +123,58 @@ export default function EventsPage() {
             ) : null}
 
             {!loading && !error && events.length > 0 ? (
-              <div className="public-events-grid public-events-grid-spaced">
-                {events.map((event) => {
-                  const capacityPct = event.capacity > 0
-                    ? Math.min((event.registrationsCount / event.capacity) * 100, 100)
-                    : 0;
-                  const isFull = event.registrationsCount >= event.capacity;
-                  const visualState = getEventVisualState(event);
+              <div className="public-events-catalog-grid">
+                {headlineEvent ? (
+                  <Link href={`/${locale}/events/${headlineEvent.slug}`} className="public-event-card public-event-card-headline">
+                    <div className="public-event-cover">
+                      {headlineEvent.coverImageUrl ? <img src={headlineEvent.coverImageUrl} alt={headlineEvent.title} /> : <div className="cover-fallback"><span>{headlineEvent.title.slice(0, 2).toUpperCase()}</span></div>}
+                      <div className="public-event-cover-overlay" />
+                    </div>
+                    <div className="public-event-body public-event-body-headline">
+                      <StatusBadge tone="info">{locale === 'ru' ? 'Главный фокус каталога' : 'Catalog spotlight'}</StatusBadge>
+                      <h3>{headlineEvent.title}</h3>
+                      <p>{headlineEvent.shortDescription || (locale === 'ru' ? 'Откройте карточку события для полной информации и участия.' : 'Open event details for full story and participation actions.')}</p>
+                      <div className="public-meta-row"><span>{formatDate(headlineEvent.startsAt)}</span><span>{headlineEvent.location}</span></div>
+                      <div className="public-event-card-footer">
+                        <StatusBadge tone={STATUS_TONE[headlineEvent.status] ?? 'neutral'}>{headlineEvent.status}</StatusBadge>
+                        <StatusBadge tone="neutral">{headlineEvent.category}</StatusBadge>
+                      </div>
+                    </div>
+                  </Link>
+                ) : null}
 
-                  return (
-                    <Link key={event.id} href={`/${locale}/events/${event.slug}`} className={`public-event-card public-event-card-${visualState.key}`}>
-                      <div className="public-event-cover">
-                        {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
-                        <div className="public-event-cover-overlay" />
-                      </div>
-                      <div className="public-event-body">
-                        <div className="public-meta-row"><span>{formatDate(event.startsAt)}</span><span>{event.location}</span></div>
-                        <h3>{event.title}</h3>
-                        <div className="public-event-badges">
-                          <StatusBadge tone={visualState.tone}>{visualState.label}</StatusBadge>
-                          <StatusBadge tone={STATUS_TONE[event.status] ?? 'neutral'}>{event.status}</StatusBadge>
+                <div className="public-events-grid public-events-grid-secondary">
+                  {tailEvents.map((event) => {
+                    const capacityPct = event.capacity > 0
+                      ? Math.min((event.registrationsCount / event.capacity) * 100, 100)
+                      : 0;
+                    const isFull = event.registrationsCount >= event.capacity;
+                    const visualState = getEventVisualState(event);
+
+                    return (
+                      <Link key={event.id} href={`/${locale}/events/${event.slug}`} className={`public-event-card public-event-card-${visualState.key}`}>
+                        <div className="public-event-cover">
+                          {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
+                          <div className="public-event-cover-overlay" />
                         </div>
-                        <div className="public-event-card-footer">
-                          <StatusBadge tone="neutral">{event.category}</StatusBadge>
-                          <span className="signal-muted">{event.registrationsCount}/{event.capacity}</span>
+                        <div className="public-event-body">
+                          <div className="public-meta-row"><span>{formatDate(event.startsAt)}</span><span>{event.location}</span></div>
+                          <h3>{event.title}</h3>
+                          <div className="public-event-badges">
+                            <StatusBadge tone={visualState.tone}>{visualState.label}</StatusBadge>
+                            <StatusBadge tone={STATUS_TONE[event.status] ?? 'neutral'}>{event.status}</StatusBadge>
+                          </div>
+                          <div className="public-event-card-footer">
+                            <StatusBadge tone="neutral">{event.category}</StatusBadge>
+                            <span className="signal-muted">{event.registrationsCount}/{event.capacity}</span>
+                          </div>
+                          <div className="progress-bar public-event-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
+                          <div className="signal-muted public-event-capacity-note">{isFull ? (locale === 'ru' ? 'Лимит мест достигнут' : 'Capacity reached') : (locale === 'ru' ? 'Регистрация активна' : 'Registration active')}</div>
                         </div>
-                        <div className="progress-bar public-event-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
-                        <div className="signal-muted public-event-capacity-note">{isFull ? (locale === 'ru' ? 'Лимит мест достигнут' : 'Capacity reached') : (locale === 'ru' ? 'Регистрация активна' : 'Registration active')}</div>
-                      </div>
-                    </Link>
-                  );
-                })}
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
             ) : null}
 

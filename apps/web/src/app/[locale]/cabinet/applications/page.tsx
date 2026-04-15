@@ -41,17 +41,21 @@ export default function CabinetApplicationsPage() {
   const toneByStatus: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> = { ACTIVE: 'success', PENDING: 'warning', REJECTED: 'danger', ACCEPTED: 'success' };
 
   return (
-    <div className="signal-page-shell">
+    <div className="signal-page-shell cabinet-workspace-page">
       <PageHeader title={locale === 'ru' ? 'Мои заявки' : 'My applications'} subtitle={locale === 'ru' ? 'Команды и волонтёрские статусы' : 'Team and volunteer statuses'} />
+      <div className="cabinet-workspace-intro">
+        <strong>{locale === 'ru' ? 'Единый журнал заявок' : 'Unified application journal'}</strong>
+        <span>{locale === 'ru' ? 'Командные и волонтёрские треки собраны в единое рабочее представление.' : 'Team and volunteer tracks are grouped into one operational view.'}</span>
+      </div>
       {loadingData ? <LoadingLines rows={8} /> : null}
       {error ? <Notice tone="danger">{error}</Notice> : null}
 
       {!loadingData && !error ? (
         <>
-          <Panel>
+          <Panel className="cabinet-workspace-panel">
             <SectionHeader title={locale === 'ru' ? 'Командные заявки' : 'Team memberships'} actions={<StatusBadge tone="info">{teams.length}</StatusBadge>} />
             {teams.length === 0 ? <EmptyState title={locale === 'ru' ? 'Команд пока нет' : 'No teams yet'} description={locale === 'ru' ? 'После вступления в команду статус появится здесь.' : 'After joining a team, status will appear here.'} /> : (
-              <div className="signal-stack cabinet-list-stack">
+              <div className="signal-stack cabinet-list-stack cabinet-list-stack-premium">
                 {teams.map((membership: any) => (
                   <Link key={membership.id} href={`/${locale}/events/${membership.team?.event?.slug || ''}`} className="signal-ranked-item cabinet-list-item">
                     <div>
@@ -65,10 +69,10 @@ export default function CabinetApplicationsPage() {
             )}
           </Panel>
 
-          <Panel>
+          <Panel className="cabinet-workspace-panel">
             <SectionHeader title={locale === 'ru' ? 'Волонтёрские заявки' : 'Volunteer applications'} actions={<StatusBadge tone="info">{volunteerApplications.length}</StatusBadge>} />
             {volunteerApplications.length === 0 ? <EmptyState title={locale === 'ru' ? 'Заявки отсутствуют' : 'No applications'} description={locale === 'ru' ? 'Статусы волонтёрства появятся здесь после подачи.' : 'Volunteer statuses appear here after applying.'} /> : (
-              <div className="signal-stack cabinet-list-stack">
+              <div className="signal-stack cabinet-list-stack cabinet-list-stack-premium">
                 {volunteerApplications.map((application: any) => (
                   <Link key={application.id} href={`/${locale}/events/${application.event?.slug || ''}`} className="signal-ranked-item cabinet-list-item">
                     <div>
