@@ -62,6 +62,26 @@ export default async function HomePage({ params }: HomePageProps) {
               </div>
             </aside>
           </div>
+          <div className="container">
+            <div className="public-hero-metrics">
+              <div className="public-hero-metric">
+                <small>{locale === 'ru' ? 'Активные модули' : 'Active modules'}</small>
+                <strong>06</strong>
+              </div>
+              <div className="public-hero-metric">
+                <small>{locale === 'ru' ? 'Средняя глубина сценария' : 'Avg. workflow depth'}</small>
+                <strong>{locale === 'ru' ? '3 уровня' : '3 levels'}</strong>
+              </div>
+              <div className="public-hero-metric">
+                <small>{locale === 'ru' ? 'Сквозной контур' : 'Unified surface'}</small>
+                <strong>{locale === 'ru' ? 'Public / Cabinet / Admin' : 'Public / Cabinet / Admin'}</strong>
+              </div>
+              <div className="public-hero-metric">
+                <small>{locale === 'ru' ? 'Демо готовность' : 'Demo readiness'}</small>
+                <strong>{locale === 'ru' ? 'Investor-ready' : 'Investor-ready'}</strong>
+              </div>
+            </div>
+          </div>
         </section>
 
         {leadEvent ? (

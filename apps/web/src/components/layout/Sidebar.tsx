@@ -49,6 +49,7 @@ export default function Sidebar({ locale, userName, userEmail, userAvatar }: Sid
       </Link>
 
       <nav className="cabinet-nav-list">
+        <div className="cabinet-nav-label">{locale === 'ru' ? 'Навигация' : 'Navigation'}</div>
         {menuItems.map((item) => {
           const isActive = pathname === item.href || (item.href !== `/${locale}/cabinet` && pathname.startsWith(item.href));
           const isParentActive = item.submenu?.some((subitem) => pathname === subitem.href || pathname.startsWith(subitem.href));
