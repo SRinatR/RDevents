@@ -64,46 +64,38 @@ export default function EventsPage() {
     const isLimited = !isFull && capacity > 0 && capacityRatio >= 0.75;
     const isUpcoming = new Date(event.startsAt).getTime() > Date.now();
 
-    if (event.status === 'CANCELLED') {
-      return { key: 'cancelled', label: locale === 'ru' ? 'Отменено' : 'Cancelled', tone: 'danger' as const };
-    }
-    if (isFull) {
-      return { key: 'full', label: locale === 'ru' ? 'Мест нет' : 'Full', tone: 'warning' as const };
-    }
-    if (isLimited) {
-      return { key: 'limited', label: locale === 'ru' ? 'Почти заполнено' : 'Limited spots', tone: 'warning' as const };
-    }
-    if (isUpcoming) {
-      return { key: 'upcoming', label: locale === 'ru' ? 'Скоро' : 'Upcoming', tone: 'info' as const };
-    }
-    return { key: 'normal', label: locale === 'ru' ? 'Открыто' : 'Open', tone: 'success' as const };
+    if (event.status === 'CANCELLED') return { label: locale === 'ru' ? 'Отменено' : 'Cancelled', tone: 'danger' as const };
+    if (isFull) return { label: locale === 'ru' ? 'Мест нет' : 'Full', tone: 'warning' as const };
+    if (isLimited) return { label: locale === 'ru' ? 'Почти заполнено' : 'Limited spots', tone: 'warning' as const };
+    if (isUpcoming) return { label: locale === 'ru' ? 'Скоро' : 'Upcoming', tone: 'info' as const };
+    return { label: locale === 'ru' ? 'Открыто' : 'Open', tone: 'success' as const };
   }
 
-  const dominantEvent = events[0];
-  const secondaryLead = events[1];
-  const remainingEvents = events.slice(2);
+  const heroSlot = events[0];
+  const nextSlots = events.slice(1, 4);
+  const streamSlots = events.slice(4);
   const hasActiveFilters = Boolean(search || category);
   const activeFilterCount = Number(Boolean(search)) + Number(Boolean(category));
 
   return (
-    <div className="public-page-shell route-shell route-events-catalog route-events-catalog-rebuilt">
+    <div className="public-page-shell route-shell route-events-catalog route-events-v3">
       <main className="public-main">
-        <section className="public-section public-events-catalog-shell catalog-shell catalog-shell-rebuilt motion-fade-up">
-          <div className="container">
-            <div className="catalog-cinematic-header motion-fade-up-fast">
+        <section className="public-section catalog-v3-shell motion-fade-up">
+          <div className="container-wide">
+            <div className="catalog-v3-header">
               <div>
-                <span className="catalog-kicker">{locale === 'ru' ? 'Event stream' : 'Event stream'}</span>
+                <span className="catalog-v3-kicker">{locale === 'ru' ? 'Public event stream' : 'Public event stream'}</span>
                 <h1>{t('events.title')}</h1>
-                <p>{locale === 'ru' ? 'Сильная лента событий с кураторской первой линией и быстрым входом в участие.' : 'A stronger event stream with a curated first line and quick entry to participation.'}</p>
+                <p>{locale === 'ru' ? 'Режиссированная лента с разным масштабом карточек и более сильной системой приоритета.' : 'An editorial event stream with multi-scale cards and stronger visual prioritization.'}</p>
               </div>
-              <div className="catalog-header-stats">
+              <div className="catalog-v3-metrics">
                 <article><small>{locale === 'ru' ? 'На странице' : 'On page'}</small><strong>{events.length}</strong></article>
-                <article><small>{locale === 'ru' ? 'Фильтры' : 'Filters'}</small><strong>{activeFilterCount}</strong></article>
+                <article><small>{locale === 'ru' ? 'Активные фильтры' : 'Active filters'}</small><strong>{activeFilterCount}</strong></article>
                 <article><small>{locale === 'ru' ? 'Страницы' : 'Pages'}</small><strong>{meta?.pages ?? 1}</strong></article>
               </div>
             </div>
 
-            <Panel variant="elevated" className="catalog-toolbar-shell catalog-toolbar-shell-rebuilt">
+            <Panel variant="elevated" className="catalog-v3-toolbar">
               <ToolbarRow>
                 <FieldInput value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={t('events.searchPlaceholder')} className="public-events-search-input catalog-search-input" />
                 <FieldSelect value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }} className="public-events-category-select catalog-category-select">
@@ -112,8 +104,7 @@ export default function EventsPage() {
                 </FieldSelect>
                 {hasActiveFilters ? <button onClick={() => { setSearch(''); setCategory(''); setPage(1); }} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Сбросить' : 'Reset'}</button> : null}
               </ToolbarRow>
-
-              <div className="public-events-filter-chips public-events-filter-chips-stage catalog-filter-chips">
+              <div className="public-events-filter-chips public-events-filter-chips-stage">
                 <button className={`signal-chip-link ${category === '' ? 'active' : ''}`} onClick={() => { setCategory(''); setPage(1); }}>{locale === 'ru' ? 'Все' : 'All'}</button>
                 {CATEGORIES.map((item) => (
                   <button key={item} className={`signal-chip-link ${category === item ? 'active' : ''}`} onClick={() => { setCategory(item); setPage(1); }}>{item}</button>
@@ -140,41 +131,37 @@ export default function EventsPage() {
             ) : null}
 
             {!loading && !error && events.length > 0 ? (
-              <div className="catalog-curated-grid motion-stagger">
-                {dominantEvent ? (
-                  <Link href={`/${locale}/events/${dominantEvent.slug}`} className="public-event-card catalog-dominant-card">
-                    <div className="public-event-cover">
-                      {dominantEvent.coverImageUrl ? <img src={dominantEvent.coverImageUrl} alt={dominantEvent.title} /> : <div className="cover-fallback"><span>{dominantEvent.title.slice(0, 2).toUpperCase()}</span></div>}
+              <div className="catalog-v3-stage motion-stagger">
+                {heroSlot ? (
+                  <Link href={`/${locale}/events/${heroSlot.slug}`} className="catalog-v3-hero-slot">
+                    <div className="catalog-v3-hero-cover">
+                      {heroSlot.coverImageUrl ? <img src={heroSlot.coverImageUrl} alt={heroSlot.title} /> : <div className="cover-fallback"><span>{heroSlot.title.slice(0, 2).toUpperCase()}</span></div>}
                       <div className="public-event-cover-overlay" />
                     </div>
-                    <div className="public-event-body">
-                      <h3>{dominantEvent.title}</h3>
-                      <p>{dominantEvent.shortDescription || (locale === 'ru' ? 'Откройте карточку, чтобы посмотреть детали и условия участия.' : 'Open event details to view info and participation options.')}</p>
-                      <div className="public-meta-row catalog-meta-row"><span>{formatDate(dominantEvent.startsAt)}</span><span>{dominantEvent.location}</span></div>
-                      <div className="public-event-card-footer catalog-card-footer">
-                        <StatusBadge tone={STATUS_TONE[dominantEvent.status] ?? 'neutral'}>{dominantEvent.status}</StatusBadge>
-                        <StatusBadge tone="neutral">{dominantEvent.category}</StatusBadge>
-                        {dominantEvent.isFeatured ? <StatusBadge tone="info">{locale === 'ru' ? 'В фокусе' : 'Featured'}</StatusBadge> : null}
+                    <div className="catalog-v3-hero-body">
+                      <h2>{heroSlot.title}</h2>
+                      <p>{heroSlot.shortDescription || (locale === 'ru' ? 'Откройте карточку события, чтобы посмотреть детали и регистрацию.' : 'Open the event destination for details and registration.')}</p>
+                      <div className="public-meta-row"><span>{formatDate(heroSlot.startsAt)}</span><span>{heroSlot.location}</span><span>{heroSlot.category}</span></div>
+                    </div>
+                  </Link>
+                ) : null}
+
+                <div className="catalog-v3-priority-strip">
+                  {nextSlots.map((event, index) => (
+                    <Link key={event.id} href={`/${locale}/events/${event.slug}`} className={`catalog-v3-priority-card p-${index + 1}`}>
+                      <div className="catalog-v3-priority-cover">
+                        {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
                       </div>
-                    </div>
-                  </Link>
-                ) : null}
+                      <div className="catalog-v3-priority-body">
+                        <h3>{event.title}</h3>
+                        <div className="public-meta-row"><span>{formatDate(event.startsAt)}</span><span>{event.location}</span></div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
 
-                {secondaryLead ? (
-                  <Link href={`/${locale}/events/${secondaryLead.slug}`} className="public-event-card catalog-secondary-lead-card">
-                    <div className="public-event-cover">
-                      {secondaryLead.coverImageUrl ? <img src={secondaryLead.coverImageUrl} alt={secondaryLead.title} /> : <div className="cover-fallback"><span>{secondaryLead.title.slice(0, 2).toUpperCase()}</span></div>}
-                      <div className="public-event-cover-overlay" />
-                    </div>
-                    <div className="public-event-body">
-                      <h3>{secondaryLead.title}</h3>
-                      <div className="public-meta-row catalog-meta-row"><span>{formatDate(secondaryLead.startsAt)}</span><span>{secondaryLead.location}</span></div>
-                    </div>
-                  </Link>
-                ) : null}
-
-                <div className="public-events-grid public-events-grid-secondary catalog-stack-grid">
-                  {remainingEvents.map((event) => {
+                <div className="catalog-v3-stream-list">
+                  {streamSlots.map((event, index) => {
                     const capacityPct = event.capacity > 0
                       ? Math.min((event.registrationsCount / event.capacity) * 100, 100)
                       : 0;
@@ -182,22 +169,17 @@ export default function EventsPage() {
                     const visualState = getEventVisualState(event);
 
                     return (
-                      <Link key={event.id} href={`/${locale}/events/${event.slug}`} className={`public-event-card public-event-card-${visualState.key} catalog-list-card`}>
-                        <div className="public-event-cover">
+                      <Link key={event.id} href={`/${locale}/events/${event.slug}`} className={`catalog-v3-stream-item s-${(index % 3) + 1}`}>
+                        <div className="catalog-v3-stream-cover">
                           {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
-                          <div className="public-event-cover-overlay" />
                         </div>
-                        <div className="public-event-body">
-                          <div className="public-meta-row catalog-meta-row"><span>{formatDate(event.startsAt)}</span><span>{event.location}</span></div>
-                          <h3>{event.title}</h3>
+                        <div className="catalog-v3-stream-body">
+                          <h4>{event.title}</h4>
+                          <div className="public-meta-row"><span>{formatDate(event.startsAt)}</span><span>{event.location}</span></div>
                           <div className="public-event-badges">
                             <StatusBadge tone={visualState.tone} size="sm">{visualState.label}</StatusBadge>
                             <StatusBadge tone={STATUS_TONE[event.status] ?? 'neutral'}>{event.status}</StatusBadge>
-                          </div>
-                          <div className="public-event-card-footer catalog-card-footer">
                             <StatusBadge tone="neutral">{event.category}</StatusBadge>
-                            <span className="signal-muted">{event.registrationsCount}/{event.capacity}</span>
-                            <span className="catalog-open-link">{locale === 'ru' ? 'Открыть' : 'Open'}</span>
                           </div>
                           <div className="progress-bar public-event-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
                         </div>
