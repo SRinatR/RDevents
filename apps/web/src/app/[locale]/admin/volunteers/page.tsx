@@ -67,53 +67,67 @@ export default function AdminVolunteersPage() {
   }
 
   if (loading || !user || !isAdmin) return (
-    <div className="loading-center">
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320 }}>
       <div className="spinner" />
     </div>
   );
 
-  const selectStyle: React.CSSProperties = {
-    height: 34,
-    padding: '0 10px',
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-border)',
-    background: 'var(--color-surface)',
-    fontSize: '0.82rem',
-    color: 'var(--color-text-secondary)',
-    cursor: 'pointer',
-  };
+  const selectedEvent = events.find(e => e.id === selectedEventId);
 
   return (
     <div className="admin-page">
       <PageHeader
         title={t('admin.volunteers')}
-        description="Review volunteer applications for events you manage."
+        description={
+          locale === 'ru'
+            ? 'Заявки волонтёров на события, которыми вы управляете.'
+            : 'Review volunteer applications for events you manage.'
+        }
       />
 
       <div className="admin-page-body">
         {loadingData ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[1, 2, 3].map(i => <div key={i} className="admin-skeleton" style={{ height: 52 }} />)}
+            {[1, 2, 3].map(i => <div key={i} className="admin-skeleton" style={{ height: 56 }} />)}
           </div>
         ) : events.length === 0 ? (
-          <EmptyState title="No events yet" description="No manageable events found." />
+          <EmptyState
+            title={locale === 'ru' ? 'Нет событий' : 'No events yet'}
+            description={locale === 'ru' ? 'Управляемые события не найдены.' : 'No manageable events found.'}
+          />
         ) : (
           <>
             {/* Filters toolbar */}
-            <div className="admin-toolbar">
-              <select value={selectedEventId} onChange={e => setSelectedEventId(e.target.value)} style={{ ...selectStyle, minWidth: 240 }}>
+            <div className="admin-toolbar" style={{ marginBottom: 20 }}>
+              <select
+                value={selectedEventId}
+                onChange={e => setSelectedEventId(e.target.value)}
+                className="admin-filter-select"
+                style={{ minWidth: 240 }}
+              >
                 {events.map(event => (
                   <option key={event.id} value={event.id}>{event.title}</option>
                 ))}
               </select>
 
-              <select value={status} onChange={e => setStatus(e.target.value)} style={selectStyle}>
-                {STATUS_FILTERS.map(item => <option key={item} value={item}>{item}</option>)}
+              <select
+                value={status}
+                onChange={e => setStatus(e.target.value)}
+                className="admin-filter-select"
+              >
+                {STATUS_FILTERS.map(item => (
+                  <option key={item} value={item}>
+                    {item === 'PENDING'  ? (locale === 'ru' ? 'Ожидают' : 'Pending')  :
+                     item === 'ACTIVE'   ? (locale === 'ru' ? 'Активные' : 'Active')  :
+                     item === 'REJECTED' ? (locale === 'ru' ? 'Отклонённые' : 'Rejected') :
+                                          (locale === 'ru' ? 'Удалённые' : 'Removed')}
+                  </option>
+                ))}
               </select>
 
               {selectedEventId && (
                 <Link href={`/${locale}/admin/events/${selectedEventId}/edit`} className="btn-admin-secondary">
-                  {t('common.edit')} event
+                  {t('common.edit')} {locale === 'ru' ? 'событие' : 'event'}
                 </Link>
               )}
             </div>
@@ -125,18 +139,26 @@ export default function AdminVolunteersPage() {
               </div>
             ) : volunteers.length === 0 ? (
               <EmptyState
-                title={`No ${status.toLowerCase()} volunteers`}
-                description={`No volunteer requests with status "${status}" for this event.`}
+                title={
+                  locale === 'ru'
+                    ? `Нет волонтёров со статусом "${status}"`
+                    : `No ${status.toLowerCase()} volunteers`
+                }
+                description={
+                  locale === 'ru'
+                    ? `Заявки волонтёров со статусом "${status}" для этого события отсутствуют.`
+                    : `No volunteer requests with status "${status}" for this event.`
+                }
               />
             ) : (
               <div className="data-table-wrap">
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Volunteer</th>
-                      <th>Status</th>
-                      <th>Notes</th>
-                      <th style={{ textAlign: 'right' }}>Actions</th>
+                      <th>{locale === 'ru' ? 'Волонтёр' : 'Volunteer'}</th>
+                      <th>{locale === 'ru' ? 'Статус' : 'Status'}</th>
+                      <th>{locale === 'ru' ? 'Заметки' : 'Notes'}</th>
+                      <th style={{ textAlign: 'right' }}>{locale === 'ru' ? 'Действия' : 'Actions'}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -156,7 +178,7 @@ export default function AdminVolunteersPage() {
                             </div>
                             <div>
                               <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>{membership.user?.name}</div>
-                              <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>{membership.user?.email}</div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{membership.user?.email}</div>
                             </div>
                           </div>
                         </td>
@@ -176,14 +198,14 @@ export default function AdminVolunteersPage() {
                                 disabled={actionId === membership.id}
                                 className="btn-admin-primary"
                               >
-                                Approve
+                                {locale === 'ru' ? 'Принять' : 'Approve'}
                               </button>
                               <button
                                 onClick={() => updateStatus(membership.id, 'REJECTED')}
                                 disabled={actionId === membership.id}
                                 className="btn-admin-danger"
                               >
-                                Reject
+                                {locale === 'ru' ? 'Отклонить' : 'Reject'}
                               </button>
                             </div>
                           )}

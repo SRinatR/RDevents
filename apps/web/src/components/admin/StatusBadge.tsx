@@ -5,6 +5,10 @@ const statusMap: Record<string, { cls: string; label: string }> = {
   DRAFT:     { cls: 'status-draft',      label: 'Draft'      },
   CANCELLED: { cls: 'status-cancelled',  label: 'Cancelled'  },
   COMPLETED: { cls: 'status-completed',  label: 'Completed'  },
+  PENDING:   { cls: 'status-draft',      label: 'Pending'    },
+  ACTIVE:    { cls: 'status-published',  label: 'Active'     },
+  REJECTED:  { cls: 'status-cancelled',  label: 'Rejected'   },
+  REMOVED:   { cls: 'status-cancelled',  label: 'Removed'    },
 };
 
 interface StatusBadgeProps {

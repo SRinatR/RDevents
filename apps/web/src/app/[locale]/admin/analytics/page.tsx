@@ -7,7 +7,6 @@ import { useAuth } from '../../../../hooks/useAuth';
 import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
 import { PageHeader } from '../../../../components/admin/PageHeader';
-import { MetricCard } from '../../../../components/admin/MetricCard';
 import { SectionHeader } from '../../../../components/admin/SectionHeader';
 import { EmptyState } from '../../../../components/admin/EmptyState';
 
@@ -62,12 +61,22 @@ export default function AdminAnalyticsPage() {
     return () => { active = false; };
   }, [user, isAdmin, isPlatformAdmin]);
 
-  const summaryCards = stats?.eventScope
+  if (loading || !user || !isAdmin) return (
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320 }}>
+      <div className="spinner" />
+    </div>
+  );
+
+  const scopeDesc = isPlatformAdmin
+    ? (locale === 'ru' ? 'Обзор производительности платформы' : 'Platform performance overview')
+    : (locale === 'ru' ? 'Обзор производительности события' : 'Event performance overview');
+
+  const kpiItems = stats?.eventScope
     ? [
-        { label: 'Managed events',     value: stats.totalEvents ?? 0 },
-        { label: 'Participants',        value: stats.participants ?? 0 },
-        { label: 'Pending volunteers',  value: stats.volunteersPending ?? 0 },
-        { label: 'Event views',         value: stats.views ?? 0 },
+        { label: locale === 'ru' ? 'Управляемых событий' : 'Managed events',   value: stats.totalEvents ?? 0 },
+        { label: locale === 'ru' ? 'Участников' : 'Participants',               value: stats.participants ?? 0 },
+        { label: locale === 'ru' ? 'Ожидают волонтёры' : 'Pending volunteers',  value: stats.volunteersPending ?? 0 },
+        { label: locale === 'ru' ? 'Просмотры событий' : 'Event views',         value: stats.views ?? 0 },
       ]
     : [
         { label: t('analytics.totalUsers'),         value: stats?.totalUsers ?? 0 },
@@ -76,13 +85,9 @@ export default function AdminAnalyticsPage() {
         { label: t('analytics.totalEventViews'),    value: stats?.totalEventViews ?? 0 },
       ];
 
-  if (loading || !user || !isAdmin) return (
-    <div className="loading-center">
-      <div className="spinner" />
-    </div>
-  );
-
-  const scopeDesc = isPlatformAdmin ? 'Platform performance overview' : 'Event performance overview';
+  const conversionRate = stats?.totalEventViews > 0 && stats?.totalRegistrations > 0
+    ? ((stats.totalRegistrations / stats.totalEventViews) * 100).toFixed(2)
+    : null;
 
   return (
     <div className="admin-page">
@@ -91,65 +96,145 @@ export default function AdminAnalyticsPage() {
       <div className="admin-page-body">
 
         {statsLoading ? (
-          <div className="metrics-grid" style={{ marginBottom: 32 }}>
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} className="admin-skeleton" style={{ height: 80 }} />
-            ))}
-          </div>
+          <>
+            <div className="admin-kpi-row" style={{ marginBottom: 28 }}>
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="admin-kpi-cell">
+                  <div className="admin-skeleton" style={{ height: 22, width: 70, marginBottom: 8 }} />
+                  <div className="admin-skeleton" style={{ height: 11, width: 100 }} />
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[1, 2, 3].map(i => <div key={i} className="admin-skeleton" style={{ height: 80, borderRadius: 8 }} />)}
+            </div>
+          </>
         ) : !stats ? (
-          <EmptyState title={t('common.noData')} description="No analytics data available yet." />
+          <EmptyState
+            title={t('common.noData')}
+            description={locale === 'ru' ? 'Данные аналитики появятся после первых событий.' : 'Analytics data will appear after the first events are created.'}
+          />
         ) : (
           <>
-            {/* KPIs */}
-            <div className="metrics-grid" style={{ marginBottom: 36 }}>
-              {summaryCards.map(({ label, value }) => (
-                <MetricCard key={label} label={label} value={value} />
+            {/* KPI row */}
+            <div className="admin-kpi-row" style={{ marginBottom: 32 }}>
+              {kpiItems.map(({ label, value }) => (
+                <div key={label} className="admin-kpi-cell">
+                  <div className="admin-kpi-value">{Number(value).toLocaleString()}</div>
+                  <div className="admin-kpi-label">{label}</div>
+                </div>
               ))}
             </div>
 
+            {/* Conversion rate – featured metric */}
+            {conversionRate && (
+              <div style={{ marginBottom: 32 }}>
+                <SectionHeader title={t('analytics.conversion')} />
+                <div className="admin-panel" style={{ maxWidth: 360 }}>
+                  <div className="admin-panel-body">
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12 }}>
+                      <div style={{ fontSize: '2.25rem', fontWeight: 700, color: 'var(--color-primary)', lineHeight: 1 }}>
+                        {conversionRate}%
+                      </div>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', paddingBottom: 4, lineHeight: 1.4 }}>
+                        {stats.totalRegistrations.toLocaleString()} {locale === 'ru' ? 'регистраций' : 'registrations'}<br />
+                        {locale === 'ru' ? 'из' : 'from'} {stats.totalEventViews.toLocaleString()} {locale === 'ru' ? 'просмотров' : 'views'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Registrations by provider */}
             {stats.registrationsByProvider && Object.keys(stats.registrationsByProvider).length > 0 && (
-              <div style={{ marginBottom: 36 }}>
+              <div style={{ marginBottom: 32 }}>
                 <SectionHeader title={t('analytics.registrationsByProvider')} />
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
-                  {Object.entries(stats.registrationsByProvider).map(([provider, count]) => (
-                    <div key={provider} className="metric-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>{provider}</span>
-                      <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--color-text-primary)' }}>{Number(count).toLocaleString()}</span>
-                    </div>
-                  ))}
+                <div className="admin-panel" style={{ overflow: 'hidden' }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>{locale === 'ru' ? 'Провайдер' : 'Provider'}</th>
+                        <th style={{ textAlign: 'right' }}>{locale === 'ru' ? 'Регистраций' : 'Registrations'}</th>
+                        <th style={{ width: 140 }}>{locale === 'ru' ? 'Доля' : 'Share'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        const entries = Object.entries(stats.registrationsByProvider) as [string, number][];
+                        const total = entries.reduce((sum, [, c]) => sum + Number(c), 0) || 1;
+                        return entries.map(([provider, count]) => {
+                          const pct = Math.round((Number(count) / total) * 100);
+                          return (
+                            <tr key={provider}>
+                              <td style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>{provider}</td>
+                              <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>{Number(count).toLocaleString()}</td>
+                              <td>
+                                <div className="inline-bar-wrap">
+                                  <div className="inline-bar-fill" style={{ width: `${pct}%` }} />
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
 
             {/* Logins by provider */}
             {stats.loginsByProvider && Object.keys(stats.loginsByProvider).length > 0 && (
-              <div style={{ marginBottom: 36 }}>
+              <div style={{ marginBottom: 32 }}>
                 <SectionHeader title={t('analytics.loginsByProvider')} />
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
-                  {Object.entries(stats.loginsByProvider).map(([provider, count]) => (
-                    <div key={provider} className="metric-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>{provider}</span>
-                      <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--color-text-primary)' }}>{Number(count).toLocaleString()}</span>
-                    </div>
-                  ))}
+                <div className="admin-panel" style={{ overflow: 'hidden' }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>{locale === 'ru' ? 'Провайдер' : 'Provider'}</th>
+                        <th style={{ textAlign: 'right' }}>{locale === 'ru' ? 'Входов' : 'Logins'}</th>
+                        <th style={{ width: 140 }}>{locale === 'ru' ? 'Доля' : 'Share'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        const entries = Object.entries(stats.loginsByProvider) as [string, number][];
+                        const total = entries.reduce((sum, [, c]) => sum + Number(c), 0) || 1;
+                        return entries.map(([provider, count]) => {
+                          const pct = Math.round((Number(count) / total) * 100);
+                          return (
+                            <tr key={provider}>
+                              <td style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>{provider}</td>
+                              <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>{Number(count).toLocaleString()}</td>
+                              <td>
+                                <div className="inline-bar-wrap">
+                                  <div className="inline-bar-fill" style={{ width: `${pct}%` }} />
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
 
-            {/* Top viewed */}
+            {/* Top viewed events */}
             {stats.topViewedEvents?.length > 0 && (
-              <div style={{ marginBottom: 36 }}>
+              <div style={{ marginBottom: 32 }}>
                 <SectionHeader title={t('analytics.topViewedEvents')} />
-                <div className="data-table-wrap">
+                <div className="admin-panel" style={{ overflow: 'hidden' }}>
                   <table className="data-table">
                     <thead>
                       <tr>
                         <th style={{ width: 40 }}>#</th>
-                        <th>Event</th>
-                        <th>Category</th>
-                        <th style={{ textAlign: 'right' }}>Views</th>
-                        <th style={{ width: 120 }}>Share</th>
+                        <th>{locale === 'ru' ? 'Событие' : 'Event'}</th>
+                        <th>{locale === 'ru' ? 'Категория' : 'Category'}</th>
+                        <th style={{ textAlign: 'right' }}>{locale === 'ru' ? 'Просмотры' : 'Views'}</th>
+                        <th style={{ width: 120 }}>{locale === 'ru' ? 'Доля' : 'Share'}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -159,12 +244,12 @@ export default function AdminAnalyticsPage() {
                         return (
                           <tr key={e.eventId ?? `${e.title}-${i}`}>
                             <td style={{ color: 'var(--color-text-faint)', fontWeight: 600, fontSize: '0.8rem' }}>{i + 1}</td>
-                            <td style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{e.title}</td>
-                            <td style={{ fontSize: '0.82rem' }}>{e.category ?? '—'}</td>
-                            <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--color-text-primary)' }}>{e.viewCount.toLocaleString()}</td>
+                            <td style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>{e.title}</td>
+                            <td style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>{e.category ?? '—'}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>{e.viewCount.toLocaleString()}</td>
                             <td>
-                              <div style={{ height: 4, background: 'var(--color-bg-subtle)', borderRadius: 2, overflow: 'hidden' }}>
-                                <div style={{ width: `${pct}%`, height: '100%', background: 'var(--color-primary)', borderRadius: 2 }} />
+                              <div className="inline-bar-wrap">
+                                <div className="inline-bar-fill" style={{ width: `${pct}%` }} />
                               </div>
                             </td>
                           </tr>
@@ -176,46 +261,31 @@ export default function AdminAnalyticsPage() {
               </div>
             )}
 
-            {/* Top registered */}
+            {/* Top registered events */}
             {stats.topRegisteredEvents?.length > 0 && (
-              <div style={{ marginBottom: 36 }}>
+              <div style={{ marginBottom: 32 }}>
                 <SectionHeader title={t('analytics.topRegisteredEvents')} />
-                <div className="data-table-wrap">
+                <div className="admin-panel" style={{ overflow: 'hidden' }}>
                   <table className="data-table">
                     <thead>
                       <tr>
                         <th style={{ width: 40 }}>#</th>
-                        <th>Event</th>
-                        <th>Category</th>
-                        <th style={{ textAlign: 'right' }}>Registrations</th>
+                        <th>{locale === 'ru' ? 'Событие' : 'Event'}</th>
+                        <th>{locale === 'ru' ? 'Категория' : 'Category'}</th>
+                        <th style={{ textAlign: 'right' }}>{locale === 'ru' ? 'Регистраций' : 'Registrations'}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {stats.topRegisteredEvents.map((e: any, i: number) => (
                         <tr key={e.eventId ?? `${e.title}-${i}`}>
                           <td style={{ color: 'var(--color-text-faint)', fontWeight: 600, fontSize: '0.8rem' }}>{i + 1}</td>
-                          <td style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{e.title}</td>
-                          <td style={{ fontSize: '0.82rem' }}>{e.category ?? '—'}</td>
-                          <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--color-text-primary)' }}>{e.registrationCount.toLocaleString()}</td>
+                          <td style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>{e.title}</td>
+                          <td style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>{e.category ?? '—'}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>{e.registrationCount.toLocaleString()}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                </div>
-              </div>
-            )}
-
-            {/* Conversion */}
-            {stats.totalEventViews > 0 && stats.totalRegistrations > 0 && (
-              <div style={{ maxWidth: 340 }}>
-                <SectionHeader title={t('analytics.conversion')} />
-                <div className="metric-card">
-                  <div className="metric-value">
-                    {((stats.totalRegistrations / stats.totalEventViews) * 100).toFixed(2)}%
-                  </div>
-                  <div className="metric-label">
-                    {stats.totalRegistrations.toLocaleString()} registrations from {stats.totalEventViews.toLocaleString()} views
-                  </div>
                 </div>
               </div>
             )}

@@ -8,6 +8,7 @@ import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
 import { PageHeader } from '../../../../components/admin/PageHeader';
 import { SectionHeader } from '../../../../components/admin/SectionHeader';
+import { RoleBadge } from '../../../../components/admin/RoleBadge';
 
 export default function AdminAdminsPage() {
   const t = useTranslations();
@@ -63,7 +64,7 @@ export default function AdminAdminsPage() {
       await adminApi.assignEventAdmin(selectedEventId, { email: email.trim(), notes: notes.trim() || undefined });
       setEmail('');
       setNotes('');
-      setSuccess('Event admin assigned');
+      setSuccess(locale === 'ru' ? 'Администратор события назначен' : 'Event admin assigned');
       await loadData();
     } catch (err: any) {
       setError(err.message || 'Failed to assign event admin');
@@ -73,9 +74,10 @@ export default function AdminAdminsPage() {
   }
 
   async function handleRemoveEventAdmin(membership: any) {
-    if (!confirm('Remove this event admin assignment?')) return;
+    if (!confirm(locale === 'ru' ? 'Удалить назначение администратора события?' : 'Remove this event admin assignment?')) return;
     setActionId(membership.id);
     setError('');
+    setSuccess('');
     try {
       await adminApi.removeEventAdmin(membership.eventId, membership.userId);
       setEventAdmins(prev => prev.filter(item => item.id !== membership.id));
@@ -87,9 +89,10 @@ export default function AdminAdminsPage() {
   }
 
   async function handleRemovePlatformAdmin(userId: string) {
-    if (!confirm('Remove platform admin role from this user?')) return;
+    if (!confirm(locale === 'ru' ? 'Убрать роль администратора платформы?' : 'Remove platform admin role from this user?')) return;
     setActionId(userId);
     setError('');
+    setSuccess('');
     try {
       await adminApi.updateUserRole(userId, 'USER');
       setPlatformAdmins(prev => prev.filter(admin => admin.id !== userId));
@@ -101,102 +104,112 @@ export default function AdminAdminsPage() {
   }
 
   if (loading || !user || !isSuperAdmin) return (
-    <div className="loading-center">
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320 }}>
       <div className="spinner" />
     </div>
   );
-
-  const inputStyle: React.CSSProperties = {
-    height: 34,
-    padding: '0 10px',
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-border)',
-    background: 'var(--color-surface)',
-    fontSize: '0.82rem',
-    color: 'var(--color-text-primary)',
-    outline: 'none',
-    width: '100%',
-  };
 
   return (
     <div className="admin-page">
       <PageHeader
         title={t('admin.admins')}
-        description="Event-scoped admins and platform admins"
+        description={locale === 'ru' ? 'Администраторы событий и платформы' : 'Event-scoped admins and platform admins'}
       />
 
       <div className="admin-page-body">
 
-        {error && <div className="alert alert-danger" style={{ marginBottom: 16 }}>{error}</div>}
-        {success && <div className="alert alert-success" style={{ marginBottom: 16 }}>{success}</div>}
+        {error && (
+          <div className="admin-notice admin-notice-error" style={{ marginBottom: 16 }}>
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="admin-notice admin-notice-success" style={{ marginBottom: 16 }}>
+            {success}
+          </div>
+        )}
 
         {loadingData ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[1, 2, 3].map(i => <div key={i} className="admin-skeleton" style={{ height: 52 }} />)}
+            {[1, 2, 3].map(i => <div key={i} className="admin-skeleton" style={{ height: 56 }} />)}
           </div>
         ) : (
           <div style={{ display: 'grid', gap: 36 }}>
 
             {/* Assign form */}
             <section>
-              <SectionHeader title="Assign event admin" />
-              <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 20 }}>
-                <form onSubmit={handleAssign} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
-                  <select
-                    value={selectedEventId}
-                    onChange={e => setSelectedEventId(e.target.value)}
-                    disabled={events.length === 0}
-                    style={inputStyle}
-                  >
-                    {events.map(event => <option key={event.id} value={event.id}>{event.title}</option>)}
-                  </select>
-                  <input
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    type="email"
-                    placeholder="organizer@example.com"
-                    style={inputStyle}
-                  />
-                  <input
-                    value={notes}
-                    onChange={e => setNotes(e.target.value)}
-                    placeholder="Internal note (optional)"
-                    style={inputStyle}
-                  />
-                  <button
-                    type="submit"
-                    disabled={actionId === 'assign' || !selectedEventId || !email.trim()}
-                    className="btn-admin-primary"
-                    style={{ height: 34 }}
-                  >
-                    {actionId === 'assign' ? 'Assigning...' : 'Assign event admin'}
-                  </button>
-                </form>
+              <SectionHeader title={locale === 'ru' ? 'Назначить администратора события' : 'Assign event admin'} />
+              <div className="admin-panel">
+                <div className="admin-panel-body">
+                  <form onSubmit={handleAssign} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+                    <select
+                      value={selectedEventId}
+                      onChange={e => setSelectedEventId(e.target.value)}
+                      disabled={events.length === 0}
+                      className="admin-filter-select"
+                      style={{ height: 34 }}
+                    >
+                      {events.length === 0
+                        ? <option value="">{locale === 'ru' ? 'Нет событий' : 'No events'}</option>
+                        : events.map(event => <option key={event.id} value={event.id}>{event.title}</option>)}
+                    </select>
+                    <input
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      type="email"
+                      placeholder="organizer@example.com"
+                      className="admin-text-input"
+                    />
+                    <input
+                      value={notes}
+                      onChange={e => setNotes(e.target.value)}
+                      placeholder={locale === 'ru' ? 'Внутренняя заметка (необязательно)' : 'Internal note (optional)'}
+                      className="admin-text-input"
+                    />
+                    <button
+                      type="submit"
+                      disabled={actionId === 'assign' || !selectedEventId || !email.trim()}
+                      className="btn-admin-primary"
+                      style={{ height: 34 }}
+                    >
+                      {actionId === 'assign'
+                        ? (locale === 'ru' ? 'Назначение...' : 'Assigning...')
+                        : (locale === 'ru' ? 'Назначить' : 'Assign event admin')}
+                    </button>
+                  </form>
+                </div>
               </div>
             </section>
 
             {/* Event admins */}
             <section>
               <SectionHeader
-                title="Event admins"
+                title={locale === 'ru' ? 'Администраторы событий' : 'Event admins'}
                 action={
                   <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)' }}>
-                    {eventAdmins.length} total
+                    {eventAdmins.length} {locale === 'ru' ? 'всего' : 'total'}
                   </span>
                 }
               />
               {eventAdmins.length === 0 ? (
-                <div style={{ padding: '24px 16px', color: 'var(--color-text-muted)', fontSize: '0.875rem', textAlign: 'center', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-lg)' }}>
-                  No event admins assigned yet.
+                <div style={{
+                  padding: '24px 16px',
+                  color: 'var(--color-text-muted)',
+                  fontSize: '0.875rem',
+                  textAlign: 'center',
+                  border: '1px dashed var(--color-border)',
+                  borderRadius: 'var(--radius-lg)',
+                }}>
+                  {locale === 'ru' ? 'Администраторы событий ещё не назначены.' : 'No event admins assigned yet.'}
                 </div>
               ) : (
-                <div className="data-table-wrap">
+                <div className="admin-panel" style={{ overflow: 'hidden' }}>
                   <table className="data-table">
                     <thead>
                       <tr>
-                        <th>Admin</th>
-                        <th>Event</th>
-                        <th style={{ textAlign: 'right' }}>Actions</th>
+                        <th>{locale === 'ru' ? 'Администратор' : 'Admin'}</th>
+                        <th>{locale === 'ru' ? 'Событие' : 'Event'}</th>
+                        <th style={{ textAlign: 'right' }}>{locale === 'ru' ? 'Действия' : 'Actions'}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -204,16 +217,16 @@ export default function AdminAdminsPage() {
                         <tr key={membership.id}>
                           <td>
                             <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>{membership.user?.name}</div>
-                            <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>{membership.user?.email}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{membership.user?.email}</div>
                           </td>
-                          <td style={{ fontSize: '0.82rem' }}>{membership.event?.title}</td>
+                          <td style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>{membership.event?.title}</td>
                           <td style={{ textAlign: 'right' }}>
                             <button
                               onClick={() => handleRemoveEventAdmin(membership)}
                               disabled={actionId === membership.id}
                               className="btn-admin-danger"
                             >
-                              {actionId === membership.id ? '...' : 'Remove'}
+                              {actionId === membership.id ? '...' : (locale === 'ru' ? 'Удалить' : 'Remove')}
                             </button>
                           </td>
                         </tr>
@@ -227,20 +240,20 @@ export default function AdminAdminsPage() {
             {/* Platform admins */}
             <section>
               <SectionHeader
-                title="Platform admins"
+                title={locale === 'ru' ? 'Администраторы платформы' : 'Platform admins'}
                 action={
                   <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)' }}>
-                    {platformAdmins.length} total
+                    {platformAdmins.length} {locale === 'ru' ? 'всего' : 'total'}
                   </span>
                 }
               />
-              <div className="data-table-wrap">
+              <div className="admin-panel" style={{ overflow: 'hidden' }}>
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Admin</th>
-                      <th>Role</th>
-                      <th style={{ textAlign: 'right' }}>Actions</th>
+                      <th>{locale === 'ru' ? 'Администратор' : 'Admin'}</th>
+                      <th>{locale === 'ru' ? 'Роль' : 'Role'}</th>
+                      <th style={{ textAlign: 'right' }}>{locale === 'ru' ? 'Действия' : 'Actions'}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -248,16 +261,10 @@ export default function AdminAdminsPage() {
                       <tr key={admin.id}>
                         <td>
                           <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>{admin.name}</div>
-                          <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>{admin.email}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{admin.email}</div>
                         </td>
                         <td>
-                          <span style={{
-                            display: 'inline-flex', padding: '2px 8px', borderRadius: 4,
-                            fontSize: '0.72rem', fontWeight: 600,
-                            background: 'rgba(37,99,235,0.08)', color: 'var(--color-primary)',
-                          }}>
-                            {admin.role}
-                          </span>
+                          <RoleBadge role={admin.role} />
                         </td>
                         <td style={{ textAlign: 'right' }}>
                           {admin.id !== user.id && admin.role !== 'SUPER_ADMIN' && (
@@ -266,7 +273,7 @@ export default function AdminAdminsPage() {
                               disabled={actionId === admin.id}
                               className="btn-admin-danger"
                             >
-                              {actionId === admin.id ? '...' : 'Remove'}
+                              {actionId === admin.id ? '...' : (locale === 'ru' ? 'Удалить' : 'Remove')}
                             </button>
                           )}
                         </td>

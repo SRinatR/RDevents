@@ -8,9 +8,11 @@ import { useAuth } from '../../../hooks/useAuth';
 import { adminApi } from '../../../lib/api';
 import { useRouteLocale } from '../../../hooks/useRouteParams';
 import { PageHeader } from '../../../components/admin/PageHeader';
-import { MetricCard } from '../../../components/admin/MetricCard';
 import { SectionHeader } from '../../../components/admin/SectionHeader';
 import { EmptyState } from '../../../components/admin/EmptyState';
+import {
+  CalendarIcon, UsersIcon, ShieldIcon, HandIcon, ChartIcon, PlusIcon,
+} from '../../../components/admin/icons';
 
 export default function AdminPage() {
   const t = useTranslations();
@@ -63,12 +65,20 @@ export default function AdminPage() {
     return () => { active = false; };
   }, [user, isAdmin, isPlatformAdmin]);
 
-  const summaryCards = stats?.eventScope
+  if (loading || !user || !isAdmin) return (
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320 }}>
+      <div className="spinner" />
+    </div>
+  );
+
+  const isEvent = stats?.eventScope;
+
+  const kpiItems = isEvent
     ? [
-        { label: locale === 'ru' ? 'Управляемых событий' : 'Managed events',    value: stats.totalEvents ?? 0 },
-        { label: locale === 'ru' ? 'Участников' : 'Participants',                value: stats.participants ?? 0 },
-        { label: locale === 'ru' ? 'Заявок волонтёров' : 'Pending volunteers',   value: stats.volunteersPending ?? 0 },
-        { label: locale === 'ru' ? 'Просмотров события' : 'Event views',         value: stats.views ?? 0 },
+        { label: locale === 'ru' ? 'Управляемых событий' : 'Managed events',  value: stats.totalEvents ?? 0 },
+        { label: locale === 'ru' ? 'Участников' : 'Participants',              value: stats.participants ?? 0 },
+        { label: locale === 'ru' ? 'Заявок волонтёров' : 'Volunteers pending', value: stats.volunteersPending ?? 0 },
+        { label: locale === 'ru' ? 'Просмотров' : 'Event views',               value: stats.views ?? 0 },
       ]
     : [
         { label: t('analytics.totalUsers'),         value: stats?.totalUsers ?? 0 },
@@ -77,15 +87,48 @@ export default function AdminPage() {
         { label: t('analytics.totalEventViews'),    value: stats?.totalEventViews ?? 0 },
       ];
 
-  if (loading || !user || !isAdmin) return (
-    <div className="loading-center">
-      <div className="spinner" />
-    </div>
-  );
+  const quickActions = [
+    {
+      href: `/${locale}/admin/events`,
+      label: locale === 'ru' ? 'События' : 'Events',
+      icon: <CalendarIcon size={14} />,
+      count: stats?.totalEvents ?? null,
+    },
+    {
+      href: `/${locale}/admin/volunteers`,
+      label: locale === 'ru' ? 'Волонтёры' : 'Volunteers',
+      icon: <HandIcon size={14} />,
+      count: stats?.volunteersPending ?? null,
+    },
+    ...(isPlatformAdmin ? [
+      {
+        href: `/${locale}/admin/users`,
+        label: locale === 'ru' ? 'Пользователи' : 'Users',
+        icon: <UsersIcon size={14} />,
+        count: stats?.totalUsers ?? null,
+      },
+      {
+        href: `/${locale}/admin/analytics`,
+        label: locale === 'ru' ? 'Аналитика' : 'Analytics',
+        icon: <ChartIcon size={14} />,
+        count: null,
+      },
+    ] : []),
+    ...(isSuperAdmin ? [
+      {
+        href: `/${locale}/admin/admins`,
+        label: locale === 'ru' ? 'Доступ' : 'Access',
+        icon: <ShieldIcon size={14} />,
+        count: null,
+      },
+    ] : []),
+  ];
 
   const scopeLabel = isPlatformAdmin
     ? (locale === 'ru' ? 'Обзор платформы' : 'Platform overview')
     : (locale === 'ru' ? 'Обзор событий' : 'Event overview');
+
+  const hasTopData = stats?.topViewedEvents?.length > 0 || stats?.topRegisteredEvents?.length > 0;
 
   return (
     <div className="admin-page">
@@ -95,7 +138,7 @@ export default function AdminPage() {
         actions={
           isPlatformAdmin ? (
             <Link href={`/${locale}/admin/events/new`} className="btn-admin-primary">
-              {t('admin.createEvent')}
+              <PlusIcon /> {t('admin.createEvent')}
             </Link>
           ) : undefined
         }
@@ -103,90 +146,157 @@ export default function AdminPage() {
 
       <div className="admin-page-body">
 
-        {/* Metrics */}
-        <SectionHeader title={t('admin.analytics')} />
-
+        {/* KPI row */}
         {statsLoading ? (
-          <div className="metrics-grid" style={{ marginBottom: 32 }}>
+          <div className="admin-kpi-row">
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="admin-skeleton" style={{ height: 80 }} />
+              <div key={i} className="admin-kpi-cell">
+                <div className="admin-skeleton" style={{ height: 18, width: 80, marginBottom: 8 }} />
+                <div className="admin-skeleton" style={{ height: 11, width: 100 }} />
+              </div>
             ))}
           </div>
         ) : stats ? (
-          <div className="metrics-grid" style={{ marginBottom: 36 }}>
-            {summaryCards.map(({ label, value }) => (
-              <MetricCard key={label} label={label} value={value} />
+          <div className="admin-kpi-row">
+            {kpiItems.map(({ label, value }) => (
+              <div key={label} className="admin-kpi-cell">
+                <div className="admin-kpi-value">{Number(value).toLocaleString()}</div>
+                <div className="admin-kpi-label">{label}</div>
+              </div>
             ))}
           </div>
         ) : (
-          <div style={{ marginBottom: 36 }}>
-            <EmptyState
-              title={t('common.noData')}
-              description={locale === 'ru' ? 'Данные аналитики появятся после первых событий.' : 'Analytics data will appear after the first events.'}
-            />
+          <div className="admin-kpi-row" style={{ marginBottom: 28 }}>
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="admin-kpi-cell">
+                <div className="admin-kpi-value" style={{ color: 'var(--color-text-faint)' }}>—</div>
+                <div className="admin-kpi-label">No data</div>
+              </div>
+            ))}
           </div>
         )}
 
-        {/* Top viewed */}
-        {stats?.topViewedEvents?.length > 0 && (
-          <div style={{ marginBottom: 28 }}>
-            <SectionHeader title={t('analytics.topViewedEvents')} />
-            <div className="data-table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: 40 }}>#</th>
-                    <th>{locale === 'ru' ? 'Событие' : 'Event'}</th>
-                    <th style={{ textAlign: 'right' }}>{locale === 'ru' ? 'Просмотры' : 'Views'}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats.topViewedEvents.slice(0, 5).map((e: any, index: number) => (
-                    <tr key={e.eventId ?? `${e.title}-${index}`}>
-                      <td style={{ color: 'var(--color-text-faint)', fontWeight: 600, fontSize: '0.8rem' }}>{index + 1}</td>
-                      <td style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{e.title}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        <span className="status-badge status-published">
-                          {e.viewCount.toLocaleString()}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+        {/* Quick actions */}
+        <div style={{ marginBottom: 32 }}>
+          <SectionHeader title={locale === 'ru' ? 'Разделы' : 'Sections'} />
+          <div className="admin-quick-actions">
+            {quickActions.map(({ href, label, icon, count }) => (
+              <Link key={href} href={href} className="admin-quick-action">
+                <div className="admin-quick-action-icon">{icon}</div>
+                <div className="admin-quick-action-value">
+                  {statsLoading ? '—' : count !== null ? Number(count).toLocaleString() : '—'}
+                </div>
+                <div className="admin-quick-action-label">{label}</div>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* Top performance tables */}
+        {!statsLoading && hasTopData && (
+          <div className="admin-2col">
+
+            {stats.topViewedEvents?.length > 0 && (
+              <div>
+                <SectionHeader
+                  title={t('analytics.topViewedEvents')}
+                  action={
+                    <Link href={`/${locale}/admin/analytics`} style={{ fontSize: '0.75rem', color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 500 }}>
+                      {locale === 'ru' ? 'Вся аналитика' : 'Full analytics'}
+                    </Link>
+                  }
+                />
+                <div className="admin-panel" style={{ overflow: 'hidden' }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: 32 }}>#</th>
+                        <th>{locale === 'ru' ? 'Событие' : 'Event'}</th>
+                        <th style={{ textAlign: 'right', width: 120 }}>{locale === 'ru' ? 'Просмотры' : 'Views'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stats.topViewedEvents.slice(0, 5).map((e: any, i: number) => {
+                        const maxVal = stats.topViewedEvents[0]?.viewCount || 1;
+                        const pct = Math.min(100, Math.round((e.viewCount / maxVal) * 100));
+                        return (
+                          <tr key={e.eventId ?? `${e.title}-${i}`}>
+                            <td style={{ color: 'var(--color-text-faint)', fontWeight: 600, fontSize: '0.78rem' }}>{i + 1}</td>
+                            <td>
+                              <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: '0.875rem', marginBottom: 4 }}>
+                                {e.title}
+                              </div>
+                              <div className="inline-bar-wrap">
+                                <div className="inline-bar-fill" style={{ width: `${pct}%` }} />
+                              </div>
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>
+                              {e.viewCount.toLocaleString()}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {stats.topRegisteredEvents?.length > 0 && (
+              <div>
+                <SectionHeader
+                  title={t('analytics.topRegisteredEvents')}
+                  action={
+                    <Link href={`/${locale}/admin/events`} style={{ fontSize: '0.75rem', color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 500 }}>
+                      {locale === 'ru' ? 'Все события' : 'All events'}
+                    </Link>
+                  }
+                />
+                <div className="admin-panel" style={{ overflow: 'hidden' }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: 32 }}>#</th>
+                        <th>{locale === 'ru' ? 'Событие' : 'Event'}</th>
+                        <th style={{ textAlign: 'right', width: 120 }}>{locale === 'ru' ? 'Регистраций' : 'Registered'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stats.topRegisteredEvents.slice(0, 5).map((e: any, i: number) => (
+                        <tr key={e.eventId ?? `${e.title}-${i}`}>
+                          <td style={{ color: 'var(--color-text-faint)', fontWeight: 600, fontSize: '0.78rem' }}>{i + 1}</td>
+                          <td style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>{e.title}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>
+                            {e.registrationCount.toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
           </div>
         )}
 
-        {/* Top registered */}
-        {stats?.topRegisteredEvents?.length > 0 && (
-          <div style={{ marginBottom: 28 }}>
-            <SectionHeader title={t('analytics.topRegisteredEvents')} />
-            <div className="data-table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: 40 }}>#</th>
-                    <th>{locale === 'ru' ? 'Событие' : 'Event'}</th>
-                    <th style={{ textAlign: 'right' }}>{locale === 'ru' ? 'Регистраций' : 'Registrations'}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats.topRegisteredEvents.slice(0, 5).map((e: any, index: number) => (
-                    <tr key={e.eventId ?? `${e.title}-${index}`}>
-                      <td style={{ color: 'var(--color-text-faint)', fontWeight: 600, fontSize: '0.8rem' }}>{index + 1}</td>
-                      <td style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{e.title}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        <span className="status-badge status-completed">
-                          {e.registrationCount.toLocaleString()}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+        {/* No data state */}
+        {!statsLoading && !stats && (
+          <EmptyState
+            title={t('common.noData')}
+            description={
+              locale === 'ru'
+                ? 'Данные появятся после первых событий.'
+                : 'Data will appear after the first events are created.'
+            }
+            action={
+              isPlatformAdmin ? (
+                <Link href={`/${locale}/admin/events/new`} className="btn-admin-primary">
+                  {t('admin.createEvent')}
+                </Link>
+              ) : undefined
+            }
+          />
         )}
 
       </div>
