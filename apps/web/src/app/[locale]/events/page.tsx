@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { eventsApi } from '../../../lib/api';
 import { analyticsApi } from '../../../lib/api';
 import { useRouteLocale } from '../../../hooks/useRouteParams';
-import { EmptyState, FieldInput, FieldSelect, LoadingLines, Notice, Panel, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, Notice, Panel, StatusBadge } from '@/components/ui/signal-primitives';
 import { PublicFooter } from '../../../components/layout/PublicFooter';
 
 const CATEGORIES = ['Tech', 'Community', 'Business', 'Design', 'Arts & Culture', 'Sports'];
@@ -71,137 +71,147 @@ export default function EventsPage() {
     return { label: locale === 'ru' ? 'Открыто' : 'Open', tone: 'success' as const };
   }
 
-  const heroSlot = events[0];
-  const nextSlots = events.slice(1, 4);
-  const streamSlots = events.slice(4);
+  const leadEvent = events[0];
+  const supportEvents = events.slice(1, 3);
+  const riverEvents = events.slice(3);
   const hasActiveFilters = Boolean(search || category);
   const activeFilterCount = Number(Boolean(search)) + Number(Boolean(category));
 
   return (
-    <div className="public-page-shell route-shell route-events-catalog route-events-v3">
+    <div className="public-page-shell route-shell route-events-catalog route-events-v4">
       <main className="public-main">
-        <section className="public-section catalog-v3-shell motion-fade-up">
+        <section className="public-section catalog-v4-shell motion-fade-up">
           <div className="container-wide">
-            <div className="catalog-v3-header">
+            <header className="catalog-v4-header">
               <div>
-                <span className="catalog-v3-kicker">{locale === 'ru' ? 'Public event stream' : 'Public event stream'}</span>
+                <span className="catalog-v4-kicker">{locale === 'ru' ? 'Event destination stream' : 'Event destination stream'}</span>
                 <h1>{t('events.title')}</h1>
-                <p>{locale === 'ru' ? 'Режиссированная лента с разным масштабом карточек и более сильной системой приоритета.' : 'An editorial event stream with multi-scale cards and stronger visual prioritization.'}</p>
+                <p>{locale === 'ru' ? 'Каталог построен как режиссированная лента: ключевой слот, поддерживающие релизы и основной поток.' : 'Catalog is structured as an editorial stream: key slot, supporting releases, and a continuous event river.'}</p>
               </div>
-              <div className="catalog-v3-metrics">
+              <div className="catalog-v4-metrics">
                 <article><small>{locale === 'ru' ? 'На странице' : 'On page'}</small><strong>{events.length}</strong></article>
                 <article><small>{locale === 'ru' ? 'Активные фильтры' : 'Active filters'}</small><strong>{activeFilterCount}</strong></article>
-                <article><small>{locale === 'ru' ? 'Страницы' : 'Pages'}</small><strong>{meta?.pages ?? 1}</strong></article>
+                <article><small>{locale === 'ru' ? 'Всего страниц' : 'Total pages'}</small><strong>{meta?.pages ?? 1}</strong></article>
+              </div>
+            </header>
+
+            <div className="catalog-v4-layout">
+              <aside className="catalog-v4-filter-rail">
+                <Panel variant="elevated" className="catalog-v4-filter-panel">
+                  <div className="catalog-v4-filter-head">
+                    <h2>{locale === 'ru' ? 'Поиск и фильтрация' : 'Search and filters'}</h2>
+                    {hasActiveFilters ? <button onClick={() => { setSearch(''); setCategory(''); setPage(1); }} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Сбросить' : 'Reset'}</button> : null}
+                  </div>
+
+                  <div className="catalog-v4-filter-fields">
+                    <FieldInput value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={t('events.searchPlaceholder')} className="public-events-search-input" />
+                    <FieldSelect value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }} className="public-events-category-select">
+                      <option value="">{t('events.category')}: {t('common.filters')}</option>
+                      {CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
+                    </FieldSelect>
+                  </div>
+
+                  <div className="catalog-v4-filter-chips">
+                    <button className={`signal-chip-link ${category === '' ? 'active' : ''}`} onClick={() => { setCategory(''); setPage(1); }}>{locale === 'ru' ? 'Все' : 'All'}</button>
+                    {CATEGORIES.map((item) => (
+                      <button key={item} className={`signal-chip-link ${category === item ? 'active' : ''}`} onClick={() => { setCategory(item); setPage(1); }}>{item}</button>
+                    ))}
+                  </div>
+                </Panel>
+              </aside>
+
+              <div className="catalog-v4-results-column">
+                {loading ? <LoadingLines rows={8} /> : null}
+
+                {error && !loading ? (
+                  <EmptyState title={error} description={locale === 'ru' ? 'Повторите запрос или измените параметры фильтра.' : 'Retry request or adjust filter settings.'} actions={<button onClick={load} className="btn btn-primary btn-sm">{t('common.retry')}</button>} />
+                ) : null}
+
+                {!loading && !error && events.length === 0 ? (
+                  <EmptyState
+                    title={t('events.emptyTitle')}
+                    description={hasActiveFilters
+                      ? (locale === 'ru' ? 'По этим фильтрам ничего не найдено. Сбросьте фильтры и попробуйте снова.' : 'No events matched these filters. Reset and try a broader query.')
+                      : t('events.emptySubtitle')}
+                    actions={hasActiveFilters
+                      ? <button onClick={() => { setSearch(''); setCategory(''); setPage(1); }} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Сбросить фильтры' : 'Reset filters'}</button>
+                      : undefined}
+                  />
+                ) : null}
+
+                {!loading && !error && events.length > 0 ? (
+                  <div className="catalog-v4-editorial-stage motion-stagger">
+                    {leadEvent ? (
+                      <Link href={`/${locale}/events/${leadEvent.slug}`} className="catalog-v4-lead-slot">
+                        <div className="catalog-v4-lead-cover">
+                          {leadEvent.coverImageUrl ? <img src={leadEvent.coverImageUrl} alt={leadEvent.title} /> : <div className="cover-fallback"><span>{leadEvent.title.slice(0, 2).toUpperCase()}</span></div>}
+                        </div>
+                        <div className="catalog-v4-lead-body">
+                          <h2>{leadEvent.title}</h2>
+                          <p>{leadEvent.shortDescription || (locale === 'ru' ? 'Откройте страницу события для подробностей и действий участия.' : 'Open the event page for full details and participation actions.')}</p>
+                          <div className="public-meta-row"><span>{formatDate(leadEvent.startsAt)}</span><span>{leadEvent.location}</span><span>{leadEvent.category}</span></div>
+                        </div>
+                      </Link>
+                    ) : null}
+
+                    <div className="catalog-v4-support-stack">
+                      {supportEvents.map((event) => (
+                        <Link key={event.id} href={`/${locale}/events/${event.slug}`} className="catalog-v4-support-card">
+                          <div className="catalog-v4-support-cover">
+                            {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
+                          </div>
+                          <div className="catalog-v4-support-body">
+                            <h3>{event.title}</h3>
+                            <div className="public-meta-row"><span>{formatDate(event.startsAt)}</span><span>{event.location}</span></div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+
+                    <div className="catalog-v4-river">
+                      {riverEvents.map((event, index) => {
+                        const capacityPct = event.capacity > 0
+                          ? Math.min((event.registrationsCount / event.capacity) * 100, 100)
+                          : 0;
+                        const isFull = event.registrationsCount >= event.capacity;
+                        const visualState = getEventVisualState(event);
+
+                        return (
+                          <Link key={event.id} href={`/${locale}/events/${event.slug}`} className={`catalog-v4-river-item ${index % 2 === 0 ? 'media-left' : 'media-right'}`}>
+                            <div className="catalog-v4-river-cover">
+                              {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
+                            </div>
+                            <div className="catalog-v4-river-body">
+                              <h4>{event.title}</h4>
+                              <div className="public-meta-row"><span>{formatDate(event.startsAt)}</span><span>{event.location}</span></div>
+                              <div className="public-event-badges">
+                                <StatusBadge tone={visualState.tone} size="sm">{visualState.label}</StatusBadge>
+                                <StatusBadge tone={STATUS_TONE[event.status] ?? 'neutral'}>{event.status}</StatusBadge>
+                                <StatusBadge tone="neutral">{event.category}</StatusBadge>
+                              </div>
+                              <div className="progress-bar public-event-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+
+                {meta && meta.pages > 1 ? (
+                  <div className="public-pagination catalog-pagination">
+                    <button onClick={() => setPage((value) => Math.max(value - 1, 1))} disabled={page === 1} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Назад' : 'Prev'}</button>
+                    {Array.from({ length: meta.pages }, (_, index) => index + 1).map((item) => (
+                      <button key={item} onClick={() => setPage(item)} className={`btn btn-sm ${item === page ? 'btn-primary' : 'btn-secondary'}`}>{item}</button>
+                    ))}
+                    <button onClick={() => setPage((value) => Math.min(value + 1, meta.pages))} disabled={page === meta.pages} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Далее' : 'Next'}</button>
+                  </div>
+                ) : null}
               </div>
             </div>
 
-            <Panel variant="elevated" className="catalog-v3-toolbar">
-              <ToolbarRow>
-                <FieldInput value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={t('events.searchPlaceholder')} className="public-events-search-input catalog-search-input" />
-                <FieldSelect value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }} className="public-events-category-select catalog-category-select">
-                  <option value="">{t('events.category')}: {t('common.filters')}</option>
-                  {CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
-                </FieldSelect>
-                {hasActiveFilters ? <button onClick={() => { setSearch(''); setCategory(''); setPage(1); }} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Сбросить' : 'Reset'}</button> : null}
-              </ToolbarRow>
-              <div className="public-events-filter-chips public-events-filter-chips-stage">
-                <button className={`signal-chip-link ${category === '' ? 'active' : ''}`} onClick={() => { setCategory(''); setPage(1); }}>{locale === 'ru' ? 'Все' : 'All'}</button>
-                {CATEGORIES.map((item) => (
-                  <button key={item} className={`signal-chip-link ${category === item ? 'active' : ''}`} onClick={() => { setCategory(item); setPage(1); }}>{item}</button>
-                ))}
-              </div>
-            </Panel>
-
-            {loading ? <LoadingLines rows={8} /> : null}
-
-            {error && !loading ? (
-              <EmptyState title={error} description={locale === 'ru' ? 'Повторите запрос или измените параметры фильтра.' : 'Retry request or adjust filter settings.'} actions={<button onClick={load} className="btn btn-primary btn-sm">{t('common.retry')}</button>} />
-            ) : null}
-
-            {!loading && !error && events.length === 0 ? (
-              <EmptyState
-                title={t('events.emptyTitle')}
-                description={hasActiveFilters
-                  ? (locale === 'ru' ? 'По этим фильтрам ничего не найдено. Сбросьте фильтры и попробуйте снова.' : 'No events matched these filters. Reset and try a broader query.')
-                  : t('events.emptySubtitle')}
-                actions={hasActiveFilters
-                  ? <button onClick={() => { setSearch(''); setCategory(''); setPage(1); }} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Сбросить фильтры' : 'Reset filters'}</button>
-                  : undefined}
-              />
-            ) : null}
-
-            {!loading && !error && events.length > 0 ? (
-              <div className="catalog-v3-stage motion-stagger">
-                {heroSlot ? (
-                  <Link href={`/${locale}/events/${heroSlot.slug}`} className="catalog-v3-hero-slot">
-                    <div className="catalog-v3-hero-cover">
-                      {heroSlot.coverImageUrl ? <img src={heroSlot.coverImageUrl} alt={heroSlot.title} /> : <div className="cover-fallback"><span>{heroSlot.title.slice(0, 2).toUpperCase()}</span></div>}
-                      <div className="public-event-cover-overlay" />
-                    </div>
-                    <div className="catalog-v3-hero-body">
-                      <h2>{heroSlot.title}</h2>
-                      <p>{heroSlot.shortDescription || (locale === 'ru' ? 'Откройте карточку события, чтобы посмотреть детали и регистрацию.' : 'Open the event destination for details and registration.')}</p>
-                      <div className="public-meta-row"><span>{formatDate(heroSlot.startsAt)}</span><span>{heroSlot.location}</span><span>{heroSlot.category}</span></div>
-                    </div>
-                  </Link>
-                ) : null}
-
-                <div className="catalog-v3-priority-strip">
-                  {nextSlots.map((event, index) => (
-                    <Link key={event.id} href={`/${locale}/events/${event.slug}`} className={`catalog-v3-priority-card p-${index + 1}`}>
-                      <div className="catalog-v3-priority-cover">
-                        {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
-                      </div>
-                      <div className="catalog-v3-priority-body">
-                        <h3>{event.title}</h3>
-                        <div className="public-meta-row"><span>{formatDate(event.startsAt)}</span><span>{event.location}</span></div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-
-                <div className="catalog-v3-stream-list">
-                  {streamSlots.map((event, index) => {
-                    const capacityPct = event.capacity > 0
-                      ? Math.min((event.registrationsCount / event.capacity) * 100, 100)
-                      : 0;
-                    const isFull = event.registrationsCount >= event.capacity;
-                    const visualState = getEventVisualState(event);
-
-                    return (
-                      <Link key={event.id} href={`/${locale}/events/${event.slug}`} className={`catalog-v3-stream-item s-${(index % 3) + 1}`}>
-                        <div className="catalog-v3-stream-cover">
-                          {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
-                        </div>
-                        <div className="catalog-v3-stream-body">
-                          <h4>{event.title}</h4>
-                          <div className="public-meta-row"><span>{formatDate(event.startsAt)}</span><span>{event.location}</span></div>
-                          <div className="public-event-badges">
-                            <StatusBadge tone={visualState.tone} size="sm">{visualState.label}</StatusBadge>
-                            <StatusBadge tone={STATUS_TONE[event.status] ?? 'neutral'}>{event.status}</StatusBadge>
-                            <StatusBadge tone="neutral">{event.category}</StatusBadge>
-                          </div>
-                          <div className="progress-bar public-event-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
-
-            {meta && meta.pages > 1 ? (
-              <div className="public-pagination catalog-pagination">
-                <button onClick={() => setPage((value) => Math.max(value - 1, 1))} disabled={page === 1} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Назад' : 'Prev'}</button>
-                {Array.from({ length: meta.pages }, (_, index) => index + 1).map((item) => (
-                  <button key={item} onClick={() => setPage(item)} className={`btn btn-sm ${item === page ? 'btn-primary' : 'btn-secondary'}`}>{item}</button>
-                ))}
-                <button onClick={() => setPage((value) => Math.min(value + 1, meta.pages))} disabled={page === meta.pages} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Далее' : 'Next'}</button>
-              </div>
-            ) : null}
-
             <Notice tone="info">
-              {locale === 'ru' ? 'Используйте поиск и фильтры, чтобы быстрее найти подходящее событие.' : 'Use search and filters to find relevant events faster.'}
+              {locale === 'ru' ? 'Используйте фильтры слева, чтобы быстро сузить поток и открыть подходящий формат участия.' : 'Use the left-side filters to narrow the stream and open the right participation format faster.'}
             </Notice>
           </div>
         </section>
