@@ -1,0 +1,4 @@
+interface:
+  display_name: "Youthful Design Architect"
+  short_description: "Design bold, youthful, premium web interfaces"
+  default_prompt: "Use $youthful-animated-website-design-architect to generate a premium, youthful, animated website concept with concrete specs and implementation notes."
