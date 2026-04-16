@@ -13,6 +13,13 @@ COPY apps/web/package.json apps/web/package.json
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
   pnpm install --frozen-lockfile --filter @event-platform/web...
 
+FROM deps AS dev
+COPY apps/web/package.json apps/web/package.json
+COPY packages ./packages
+WORKDIR /app/apps/web
+EXPOSE 3000
+CMD ["pnpm", "dev"]
+
 FROM deps AS builder
 ARG NEXT_PUBLIC_API_BASE_URL
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}

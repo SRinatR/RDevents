@@ -31,29 +31,22 @@
     "logout": "Logout"
   },
   "home": {
-    "heroTitle": "Modern event platform for communities, teams and real experiences",
-    "heroSubtitle": "Create events, register participants, manage volunteers and track analytics in one place.",
-    "exploreCta": "Explore events",
-    "joinCta": "Join now",
-    "featuresTitle": "Why people choose this platform",
-    "features": {
-      "fast": {
-        "title": "Fast launch",
-        "description": "Create and publish events quickly without technical chaos."
-      },
-      "analytics": {
-        "title": "Clear analytics",
-        "description": "Track registrations, event views and user activity from one dashboard."
-      },
-      "roles": {
-        "title": "Flexible roles",
-        "description": "Support participants, admins, volunteers and organizers in one system."
-      }
-    },
-    "popularTitle": "Popular and upcoming events",
-    "howItWorksTitle": "How it works",
+    "heroKicker": "Cultural and Educational Center",
+    "heroTitle": "Find events worth your time",
+    "heroSubtitle": "Browse upcoming cultural and educational events, register your spot, and manage everything from your personal cabinet.",
+    "exploreCta": "Browse events",
+    "joinCta": "Create account",
+    "featuredLabel": "Featured event",
+    "featuredFallbackTitle": "Events coming soon",
+    "featuredFallbackDesc": "New events will appear in the catalog when published.",
+    "upcomingTitle": "Upcoming events",
+    "upcomingSubtitle": "Browse and register for events happening soon.",
+    "viewFullCatalog": "Full catalog",
+    "streamEmptyTitle": "Events will appear soon",
+    "streamEmptyDesc": "Check the full catalog or come back later.",
+    "howItWorksTitle": "How to get started",
     "howItWorks": {
-      "step1": "Choose an event",
+      "step1": "Choose an event from the catalog",
       "step2": "Sign in with email or social account",
       "step3": "Register and manage everything from your cabinet"
     }
