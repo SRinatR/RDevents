@@ -1,11 +1,10 @@
-FROM node:25.6.0-alpine AS base
+FROM node:24-alpine AS base
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm install -g pnpm@10.33.0
-
 WORKDIR /app
 
 FROM base AS deps
@@ -14,23 +13,16 @@ COPY apps/web/package.json apps/web/package.json
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
   pnpm install --frozen-lockfile --filter @event-platform/web...
 
-FROM deps AS dev
-COPY apps/web/next.config.ts apps/web/next.config.ts
-COPY apps/web/postcss.config.js apps/web/postcss.config.js
-COPY apps/web/tailwind.config.ts apps/web/tailwind.config.ts
-COPY apps/web/tsconfig.json apps/web/tsconfig.json
-COPY apps/web/next-env.d.ts apps/web/next-env.d.ts
-COPY packages/ui/src/styles/tokens.css packages/ui/src/styles/tokens.css
-WORKDIR /app/apps/web
-EXPOSE 3000
-CMD ["pnpm", "dev"]
-
 FROM deps AS builder
-COPY packages/ui/src/styles/tokens.css packages/ui/src/styles/tokens.css
+ARG NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+
 COPY apps/web ./apps/web
+COPY packages ./packages
+
 RUN pnpm --filter @event-platform/web build
 
-FROM node:25.6.0-alpine AS runner
+FROM node:24-alpine AS runner
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
