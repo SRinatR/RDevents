@@ -90,9 +90,9 @@ jobs:
 
             cd /opt/rdevents/app
 
-            docker compose --env-file /opt/rdevents/.env down --remove-orphans || true
-            docker compose --env-file /opt/rdevents/.env up -d --build --remove-orphans
+            docker compose --env-file /opt/rdevents/.env -f docker-compose.prod.yml down --remove-orphans || true
+            docker compose --env-file /opt/rdevents/.env -f docker-compose.prod.yml up -d --build --remove-orphans
 
             docker image prune -f
-            docker compose --env-file /opt/rdevents/.env ps
+            docker compose --env-file /opt/rdevents/.env -f docker-compose.prod.yml ps
           EOF

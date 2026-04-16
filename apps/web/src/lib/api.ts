@@ -3,7 +3,11 @@
 // Typed API client for the web app.
 // All requests go through this module — no raw fetch() in pages/components.
 
-const BASE_URL = process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'http://localhost:4000';
+const rawBaseUrl =
+  process.env['NEXT_PUBLIC_API_BASE_URL']
+  ?? (process.env['NODE_ENV'] === 'development' ? 'http://localhost:4000' : 'https://api.rdevents.uz');
+
+const BASE_URL = rawBaseUrl.replace(/\/$/, '');
 
 // Access token is stored in memory (rehydrated from a cookie-based refresh on page load)
 let _accessToken: string | null = null;
