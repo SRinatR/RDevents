@@ -66,10 +66,20 @@ export async function getEmailOverview(): Promise<EmailOverview> {
 
 // ─── Email messages ─────────────────────────────────────────────────────────────
 
+function parseTimeRange(timeRange?: string): { maxDays: number | null } {
+  if (!timeRange) return { maxDays: null };
+  const match = timeRange.match(/^(\d+)([dh])$/);
+  if (!match) return { maxDays: null };
+  const value = parseInt(match[1], 10);
+  const unit = match[2];
+  return { maxDays: unit === 'h' ? value / 24 : value };
+}
+
 export async function listEmailMessages(
   params: { search?: string; status?: string; source?: string; timeRange?: string; page?: number; limit?: number } = {}
 ): Promise<{ data: EmailMessage[]; meta: { total: number; page: number; limit: number; pages: number } }> {
-  const { search, status, source, page = 1, limit = 50 } = params;
+  const { search, status, source, timeRange, page = 1, limit = 50 } = params;
+  const { maxDays } = parseTimeRange(timeRange);
   
   const allMessages: EmailMessage[] = [
     {
@@ -145,6 +155,13 @@ export async function listEmailMessages(
   
   if (source && source !== 'ALL') {
     filtered = filtered.filter(m => m.source === source);
+  }
+  
+  // Apply time range filter
+  if (maxDays !== null) {
+    const cutoffDate = new Date(BASE_DATE);
+    cutoffDate.setDate(cutoffDate.getDate() - maxDays);
+    filtered = filtered.filter(m => new Date(m.sentAt) >= cutoffDate);
   }
 
   const total = filtered.length;
@@ -364,26 +381,25 @@ export async function listEmailDomains(
 ): Promise<{ data: EmailDomain[]; meta: { total: number; page: number; limit: number; pages: number } }> {
   const { search, page = 1, limit = 20 } = params;
   
+  // If no sending domain configured, return empty - don't fake data
+  const configuredDomain = process.env['EMAIL_SENDING_DOMAIN'];
+  if (!configuredDomain) {
+    return {
+      data: [],
+      meta: { total: 0, page: 1, limit: 20, pages: 0 },
+    };
+  }
+  
   const domains: EmailDomain[] = [
     {
       id: domainIds[0],
-      domain: process.env['EMAIL_SENDING_DOMAIN'] ?? 'mail.rdevents.uz',
-      provider: process.env['EMAIL_PROVIDER'] ?? 'resend',
+      domain: configuredDomain,
+      provider: process.env['EMAIL_PROVIDER'] ?? 'unknown',
       verificationStatus: 'verified',
       spf: true,
       dkim: true,
       dmarc: true,
       isDefault: true,
-    },
-    {
-      id: domainIds[1],
-      domain: 'newsletter.rdevents.uz',
-      provider: process.env['EMAIL_PROVIDER'] ?? 'resend',
-      verificationStatus: 'pending',
-      spf: true,
-      dkim: false,
-      dmarc: false,
-      isDefault: false,
     },
   ];
 
@@ -407,9 +423,11 @@ export async function listEmailDomains(
 // ─── Email webhooks ─────────────────────────────────────────────────────────────
 
 export async function getEmailWebhooks(): Promise<EmailWebhooksData> {
+  const webhookEndpoint = process.env['EMAIL_WEBHOOK_ENDPOINT'];
+  
   return {
-    endpoint: process.env['EMAIL_WEBHOOK_ENDPOINT'] ?? 'https://api.rdevents.uz/webhooks/email',
-    signatureStatus: 'valid',
+    endpoint: webhookEndpoint ?? null,
+    signatureStatus: webhookEndpoint ? 'valid' : 'unknown',
     subscribedEvents: [
       'email.sent',
       'email.delivered',
