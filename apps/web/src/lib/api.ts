@@ -235,6 +235,44 @@ export const adminApi = {
     request<any>('/api/admin/analytics', { auth: true }),
 };
 
+// ─── Admin Email ──────────────────────────────────────────────────────────────
+
+export const adminEmailApi = {
+  getOverview: () =>
+    request<any>('/api/admin/email/overview', { auth: true }),
+
+  listMessages: (params: Record<string, string | number> = {}) => {
+    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/email/messages${qs}`, { auth: true });
+  },
+
+  listTemplates: (params: Record<string, string | number> = {}) => {
+    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/email/templates${qs}`, { auth: true });
+  },
+
+  listBroadcasts: (params: Record<string, string | number> = {}) => {
+    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/email/broadcasts${qs}`, { auth: true });
+  },
+
+  listAutomations: (params: Record<string, string | number> = {}) => {
+    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/email/automations${qs}`, { auth: true });
+  },
+
+  getAudience: () =>
+    request<any>('/api/admin/email/audience', { auth: true }),
+
+  listDomains: (params: Record<string, string | number> = {}) => {
+    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/email/domains${qs}`, { auth: true });
+  },
+
+  getWebhooks: () =>
+    request<any>('/api/admin/email/webhooks', { auth: true }),
+};
+
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
 export const analyticsApi = {
