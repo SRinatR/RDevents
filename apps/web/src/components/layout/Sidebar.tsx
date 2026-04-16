@@ -56,8 +56,8 @@ export default function Sidebar({ locale, userName, userEmail, userAvatar }: Sid
   const initials = displayName.split(' ').map((part) => part[0]).join('').toUpperCase().slice(0, 2);
 
   return (
-    <aside className="cabinet-sidebar-card workspace-sidebar-v2">
-      <div className="cabinet-user-block workspace-user-block-v2">
+    <aside className="cabinet-sidebar-card workspace-sidebar-v3">
+      <div className="cabinet-user-block workspace-user-block-v3">
         <div className="signal-avatar cabinet-avatar">
           {userAvatar ? <img src={userAvatar} alt="" /> : initials}
         </div>
@@ -77,12 +77,12 @@ export default function Sidebar({ locale, userName, userEmail, userAvatar }: Sid
         </Link>
       </div>
 
-      <div className="cabinet-quick-state workspace-quick-state-v2">
+      <div className="cabinet-quick-state workspace-quick-state-v3">
         <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Текущий режим' : 'Current mode'}</span><strong>{locale === 'ru' ? 'Участник' : 'Participant'}</strong></div>
         <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Навигационная логика' : 'Navigation logic'}</span><strong>{locale === 'ru' ? 'Профиль → Заявки → События' : 'Profile → Applications → Events'}</strong></div>
       </div>
 
-      <nav className="cabinet-nav-list workspace-nav-list-v2">
+      <nav className="cabinet-nav-list workspace-nav-list-v3">
         <div className="cabinet-nav-label">{locale === 'ru' ? 'Личный контур' : 'Personal loop'}</div>
         {primaryItems.map((item) => <NavItem key={item.href} item={item} pathname={pathname} />)}
 
@@ -90,7 +90,7 @@ export default function Sidebar({ locale, userName, userEmail, userAvatar }: Sid
         {eventItems.map((item) => <NavItem key={item.href} item={item} pathname={pathname} />)}
       </nav>
 
-      <div className="cabinet-side-note workspace-side-note-v2">
+      <div className="cabinet-side-note workspace-side-note-v3">
         <strong>{locale === 'ru' ? 'Что дальше' : 'What next'}</strong>
         <span>{locale === 'ru' ? 'Проверьте профиль, затем откройте каталог или продолжите текущие участия.' : 'Confirm profile readiness, then open catalog or continue current participations.'}</span>
       </div>

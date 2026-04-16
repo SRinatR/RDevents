@@ -14,6 +14,7 @@ type NavItem = {
   label: string;
   icon: ReactNode;
   allow: boolean;
+  scope: 'core' | 'management';
 };
 
 export function AdminShell({ children }: { children: ReactNode }) {
@@ -35,12 +36,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   const navItems = useMemo<NavItem[]>(() => [
-    { href: `/${locale}/admin`, label: t('admin.title'), icon: <DashboardIcon />, allow: true },
-    { href: `/${locale}/admin/events`, label: t('admin.events'), icon: <CalendarIcon />, allow: true },
-    { href: `/${locale}/admin/volunteers`, label: t('admin.volunteers'), icon: <UsersIcon />, allow: true },
-    { href: `/${locale}/admin/analytics`, label: t('admin.analytics'), icon: <ChartIcon />, allow: true },
-    { href: `/${locale}/admin/users`, label: t('admin.users'), icon: <TeamIcon />, allow: isPlatformAdmin },
-    { href: `/${locale}/admin/admins`, label: t('admin.admins'), icon: <ShieldIcon />, allow: isSuperAdmin },
+    { href: `/${locale}/admin`, label: t('admin.title'), icon: <DashboardIcon />, allow: true, scope: 'core' },
+    { href: `/${locale}/admin/events`, label: t('admin.events'), icon: <CalendarIcon />, allow: true, scope: 'core' },
+    { href: `/${locale}/admin/volunteers`, label: t('admin.volunteers'), icon: <UsersIcon />, allow: true, scope: 'core' },
+    { href: `/${locale}/admin/analytics`, label: t('admin.analytics'), icon: <ChartIcon />, allow: true, scope: 'core' },
+    { href: `/${locale}/admin/users`, label: t('admin.users'), icon: <TeamIcon />, allow: isPlatformAdmin, scope: 'management' },
+    { href: `/${locale}/admin/admins`, label: t('admin.admins'), icon: <ShieldIcon />, allow: isSuperAdmin, scope: 'management' },
   ], [locale, t, isPlatformAdmin, isSuperAdmin]);
 
   if (loading) {
@@ -53,19 +54,33 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   if (!user || !isAdmin) return null;
 
+  const roleLabel = isSuperAdmin ? 'Super admin' : isPlatformAdmin ? 'Platform admin' : 'Event admin';
+
   return (
-    <div className="admin-app-shell app-shell app-shell-admin" data-shell="admin">
-      <aside className={cn('admin-sidebar admin-shell-sidebar admin-command-sidebar', sidebarOpen && 'open')}>
+    <div className="admin-app-shell app-shell app-shell-admin admin-shell-v3" data-shell="admin">
+      <aside className={cn('admin-sidebar admin-shell-sidebar admin-command-sidebar admin-command-sidebar-v3', sidebarOpen && 'open')}>
         <div className="admin-sidebar-brand">
           <div className="admin-brand-mark">EP</div>
           <div>
             <div className="admin-brand-title">EventPlatform</div>
-            <div className="admin-brand-subtitle">{locale === 'ru' ? 'Панель управления' : 'Control center'}</div>
+            <div className="admin-brand-subtitle">{locale === 'ru' ? 'Command center' : 'Command center'}</div>
           </div>
         </div>
 
         <nav className="admin-nav" aria-label="Admin">
-          {navItems.filter((item) => item.allow).map((item) => {
+          <div className="admin-nav-section-label">{locale === 'ru' ? 'Операции' : 'Operations'}</div>
+          {navItems.filter((item) => item.allow && item.scope === 'core').map((item) => {
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            return (
+              <Link key={item.href} href={item.href} className={cn('admin-nav-item', active && 'active')} aria-current={active ? 'page' : undefined}>
+                <span className="admin-nav-icon">{item.icon}</span>
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+
+          <div className="admin-nav-section-label">{locale === 'ru' ? 'Управление доступом' : 'Access & governance'}</div>
+          {navItems.filter((item) => item.allow && item.scope === 'management').map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link key={item.href} href={item.href} className={cn('admin-nav-item', active && 'active')} aria-current={active ? 'page' : undefined}>
@@ -82,8 +97,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <div className="admin-content-shell admin-shell-content admin-command-content">
-        <header className="admin-topbar admin-topbar-command admin-shell-topbar">
+      <div className="admin-content-shell admin-shell-content admin-command-content admin-command-content-v3">
+        <header className="admin-topbar admin-topbar-command admin-shell-topbar admin-shell-topbar-v3">
           <button className="admin-menu-button" onClick={() => setSidebarOpen((value) => !value)} type="button" aria-label="Toggle navigation">
             <MenuIcon />
           </button>
@@ -91,20 +106,20 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <div className="admin-topbar-title">{locale === 'ru' ? 'Панель администратора' : 'Admin panel'}</div>
             <div className="admin-topbar-subtitle">{user.name || user.email}</div>
           </div>
-          <div className="admin-topbar-chip">{isSuperAdmin ? 'Super admin' : isPlatformAdmin ? 'Platform admin' : 'Event admin'}</div>
+          <div className="admin-topbar-chip">{roleLabel}</div>
           <div className="admin-topbar-signal-cluster">
             <span className="signal-status-badge tone-info">{locale === 'ru' ? 'Контур управления' : 'Control surface'}</span>
-            <span className="signal-status-badge tone-neutral">{locale === 'ru' ? 'Операции · Очереди · Доступ' : 'Ops · Queues · Access'}</span>
+            <span className="signal-status-badge tone-neutral">{locale === 'ru' ? 'Операции · Очереди · Аналитика · Доступ' : 'Ops · Queues · Analytics · Access'}</span>
           </div>
           <Link href={`/${locale}/admin/events/new`} className="btn btn-primary btn-sm admin-topbar-action">
             {t('admin.createEvent')}
           </Link>
         </header>
-        <div className="admin-command-strip admin-ops-strip">
-          <div><small>{locale === "ru" ? "Рабочие разделы" : "Work areas"}</small><strong>{locale === "ru" ? "События · Волонтёры · Аналитика · Доступ" : "Events · Volunteers · Analytics · Access"}</strong></div>
-          <div><small>{locale === "ru" ? "Оператор" : "Operator"}</small><strong>{user.name || user.email}</strong></div>
+        <div className="admin-command-strip admin-ops-strip admin-ops-strip-v3">
+          <div><small>{locale === 'ru' ? 'Фокус сейчас' : 'Focus now'}</small><strong>{locale === 'ru' ? 'Метрики, очереди, решения' : 'Metrics, queues, decisions'}</strong></div>
+          <div><small>{locale === 'ru' ? 'Оператор' : 'Operator'}</small><strong>{user.name || user.email}</strong></div>
         </div>
-        <main className="admin-main">{children}</main>
+        <main className="admin-main admin-main-v3">{children}</main>
       </div>
     </div>
   );

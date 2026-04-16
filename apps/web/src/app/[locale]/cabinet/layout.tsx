@@ -33,24 +33,25 @@ export default function CabinetLayout({ children }: { children: ReactNode }) {
   ];
 
   return (
-    <div className="cabinet-shell app-shell app-shell-workspace workspace-shell-v2" data-shell="workspace">
+    <div className="cabinet-shell app-shell app-shell-workspace workspace-shell-v3" data-shell="workspace">
       <div className="container workspace-shell-container">
-        <div className="cabinet-shell-stage shell-layout-group workspace-shell-frame">
-          <header className="cabinet-shell-topbar workspace-shell-header workspace-shell-header-v2">
+        <div className="cabinet-shell-stage shell-layout-group workspace-shell-frame workspace-shell-frame-v3">
+          <header className="cabinet-shell-topbar workspace-shell-header workspace-shell-header-v3">
             <div className="workspace-topbar-main">
               <div className="cabinet-shell-title-block">
                 <small>{locale === 'ru' ? 'Participant workspace' : 'Participant workspace'}</small>
                 <strong>{locale === 'ru' ? 'Личный кабинет участника' : 'Participant cabinet'}</strong>
               </div>
-              <p>{locale === 'ru' ? 'Единый личный контур для профиля, заявок и управления участием в событиях.' : 'A unified personal loop for profile, applications, and event participation management.'}</p>
+              <p>{locale === 'ru' ? 'Статус-ориентированный рабочий контур для профиля, заявок, участия и дальнейших действий.' : 'Status-first workspace for profile readiness, applications, participation flows, and next actions.'}</p>
             </div>
-            <div className="workspace-shell-statuses workspace-shell-statuses-v2">
+            <div className="workspace-shell-statuses workspace-shell-statuses-v3">
               <span className="signal-status-badge tone-info">{locale === 'ru' ? 'Личный контур' : 'Personal loop'}</span>
-              <span className="signal-status-badge tone-neutral">{locale === 'ru' ? 'Профиль · Заявки · События' : 'Profile · Applications · Events'}</span>
+              <span className="signal-status-badge tone-neutral">{locale === 'ru' ? 'Профиль · Заявки · Участия' : 'Profile · Applications · Participations'}</span>
+              <span className="signal-status-badge tone-success">{locale === 'ru' ? 'Готово к событиям' : 'Event-ready surface'}</span>
             </div>
           </header>
 
-          <div className="workspace-topbar-trail">
+          <div className="workspace-topbar-trail workspace-topbar-trail-v3">
             {navTrail.map((item) => (
               <Link key={item.href} href={item.href} className={`signal-chip-link ${pathname.startsWith(item.href) ? 'active' : ''}`}>
                 {item.label}
@@ -58,10 +59,15 @@ export default function CabinetLayout({ children }: { children: ReactNode }) {
             ))}
           </div>
 
-          <div className="cabinet-layout-grid workspace-layout-grid-v2">
+          <div className="workspace-priority-strip">
+            <div><small>{locale === 'ru' ? 'Приоритет' : 'Priority'}</small><strong>{locale === 'ru' ? 'Завершите профиль → проверьте заявки → управляйте участием' : 'Complete profile → review applications → operate participation'}</strong></div>
+            <div><small>{locale === 'ru' ? 'Оператор' : 'Operator'}</small><strong>{user.name || user.email}</strong></div>
+          </div>
+
+          <div className="cabinet-layout-grid workspace-layout-grid-v3">
             <Sidebar locale={locale} userName={user.name} userEmail={user.email} userAvatar={user.avatarUrl} />
             <div className="cabinet-content-area">
-              <div className="cabinet-content-surface workspace-content-surface-v2">{children}</div>
+              <div className="cabinet-content-surface workspace-content-surface-v3">{children}</div>
             </div>
           </div>
         </div>

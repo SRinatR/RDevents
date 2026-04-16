@@ -17,8 +17,8 @@ export function PublicFooter({ locale }: { locale: string }) {
             </div>
             <p className="public-footer-lead">
               {locale === 'ru'
-                ? 'Единая продуктовая система для каталога событий, личного кабинета и админ-контроля.'
-                : 'One product system for event discovery, participant workspace, and admin control.'}
+                ? 'Единая продуктовая система для каталога событий, личного кабинета и операционного контура участия.'
+                : 'One product system for event discovery, participant workspace, and event operations.'}
             </p>
             <a href="mailto:support@eventplatform.local" className="btn btn-secondary btn-sm public-footer-feedback">
               {locale === 'ru' ? 'Обратная связь' : 'Feedback'}
