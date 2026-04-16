@@ -38,13 +38,17 @@ const webhookIds = ['wh_delivered001', 'wh_bounced002', 'wh_opened003'];
 // ─── Email overview ───────────────────────────────────────────────────────────
 
 export async function getEmailOverview(): Promise<EmailOverview> {
+  const provider = process.env['EMAIL_PROVIDER'] ?? null;
+  const sendingDomain = process.env['EMAIL_SENDING_DOMAIN'] ?? null;
+  const webhookEndpoint = process.env['EMAIL_WEBHOOK_ENDPOINT'] ?? null;
+  
   return {
-    provider: process.env['EMAIL_PROVIDER'] ?? 'resend',
-    providerStatus: 'connected',
-    sendingDomain: process.env['EMAIL_SENDING_DOMAIN'] ?? 'mail.rdevents.uz',
-    sendingDomainStatus: 'verified',
-    webhookStatus: 'active',
-    webhookEndpoint: process.env['EMAIL_WEBHOOK_ENDPOINT'] ?? 'https://api.rdevents.uz/webhooks/email',
+    provider,
+    providerStatus: provider ? 'connected' : 'not_configured',
+    sendingDomain,
+    sendingDomainStatus: sendingDomain ? 'verified' : 'not_configured',
+    webhookStatus: webhookEndpoint ? 'active' : 'not_configured',
+    webhookEndpoint,
     sent24h: 142,
     delivered24h: 138,
     failed24h: 4,

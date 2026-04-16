@@ -10,9 +10,10 @@ import { useRouteLocale } from '@/hooks/useRouteParams';
 import { EmptyState, LoadingLines, MetricCard, PageHeader, Panel, StatusBadge } from '@/components/ui/signal-primitives';
 
 interface EmailOverview {
-  provider: string;
+  provider: string | null;
   providerStatus: string;
-  sendingDomain: string;
+  sendingDomain: string | null;
+  sendingDomainStatus: string;
   webhookStatus: string;
   sent24h: number;
   delivered24h: number;
@@ -22,59 +23,58 @@ interface EmailOverview {
   recentActivity: Array<{ type: string; status: string; timestamp: string }>;
 }
 
+interface PlatformStats {
+  totalUsers: number;
+  totalEvents: number;
+  totalRegistrations: number;
+  totalEventViews: number;
+  conversionViewToRegistration: number;
+  volunteersPending: number;
+  topViewedEvents: Array<{ eventId: string; title: string; viewCount: number }>;
+  topRegisteredEvents: Array<{ eventId: string; title: string; registrationCount: number }>;
+}
+
+interface EventScopedStats {
+  totalEvents: number;
+  totalRegistrations: number;
+  totalEventViews: number;
+  volunteersPending: number;
+  topViewedEvents: Array<{ eventId: string; title: string; viewCount: number }>;
+  topRegisteredEvents: Array<{ eventId: string; title: string; registrationCount: number }>;
+}
+
 export default function AdminPage() {
   const t = useTranslations();
   const { user, loading, isAdmin, isPlatformAdmin } = useAuth();
   const router = useRouter();
   const locale = useRouteLocale();
 
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<PlatformStats | EventScopedStats | null>(null);
   const [emailOverview, setEmailOverview] = useState<EmailOverview | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
 
+  // Redirect if not admin
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) router.push(`/${locale}`);
   }, [user, loading, isAdmin, router, locale]);
 
+  // Load stats based on role
   useEffect(() => {
     if (!user || !isAdmin) return;
     let active = true;
 
-    async function loadStats() {
+    async function loadPlatformStats() {
       setStatsLoading(true);
       try {
-        const results = await Promise.allSettled([
-          isPlatformAdmin ? adminApi.getAnalytics() : Promise.reject(),
+        const [analyticsData, emailData] = await Promise.all([
+          adminApi.getAnalytics(),
           isPlatformAdmin ? adminEmailApi.getOverview() : Promise.resolve(null),
         ]);
 
         if (!active) return;
 
-        const [statsResult, emailResult] = results;
-
-        if (statsResult.status === 'fulfilled') {
-          setStats(statsResult.value);
-        } else if (isPlatformAdmin) {
-          // Fallback for event-scoped admins
-          const eventsResult = await adminApi.listEvents({ limit: 1 });
-          const firstEvent = eventsResult.data[0];
-          if (firstEvent) {
-            const eventStats = await adminApi.getEventAnalytics(firstEvent.id);
-            setStats({
-              ...eventStats,
-              eventScope: true,
-              totalEvents: 1,
-              totalRegistrations: eventStats.participants,
-              totalEventViews: eventStats.views,
-              topViewedEvents: [{ eventId: firstEvent.id, title: firstEvent.title, viewCount: eventStats.views }],
-              topRegisteredEvents: [{ eventId: firstEvent.id, title: firstEvent.title, registrationCount: eventStats.participants }],
-            });
-          }
-        }
-
-        if (emailResult.status === 'fulfilled') {
-          setEmailOverview(emailResult.value);
-        }
+        setStats(analyticsData);
+        if (emailData) setEmailOverview(emailData);
       } catch {
         if (active) setStats(null);
       } finally {
@@ -82,13 +82,53 @@ export default function AdminPage() {
       }
     }
 
-    loadStats();
+    async function loadEventScopedStats() {
+      setStatsLoading(true);
+      try {
+        // Get events managed by this event admin
+        const eventsResult = await adminApi.listEvents({ limit: 10 });
+        const events = eventsResult.data;
+        
+        if (!active) return;
+
+        if (events.length === 0) {
+          setStats({ totalEvents: 0, totalRegistrations: 0, totalEventViews: 0, volunteersPending: 0, topViewedEvents: [], topRegisteredEvents: [] });
+          setStatsLoading(false);
+          return;
+        }
+
+        // Load analytics for first event (event-scoped)
+        const eventStats = await adminApi.getEventAnalytics(events[0].id);
+        
+        if (!active) return;
+
+        setStats({
+          totalEvents: events.length,
+          totalRegistrations: eventStats.participants,
+          totalEventViews: eventStats.views,
+          volunteersPending: eventStats.volunteersPending,
+          topViewedEvents: [{ eventId: events[0].id, title: events[0].title, viewCount: eventStats.views }],
+          topRegisteredEvents: [{ eventId: events[0].id, title: events[0].title, registrationCount: eventStats.participants }],
+        });
+      } catch {
+        if (active) setStats(null);
+      } finally {
+        if (active) setStatsLoading(false);
+      }
+    }
+
+    if (isPlatformAdmin) {
+      loadPlatformStats();
+    } else {
+      loadEventScopedStats();
+    }
+
     return () => { active = false; };
   }, [user, isAdmin, isPlatformAdmin]);
 
   if (loading || !user || !isAdmin) return <div className="admin-loading-screen"><div className="spinner" /></div>;
 
-  const scope = stats?.eventScope ? 'Event scope' : 'Platform scope';
+  const scopeLabel = isPlatformAdmin ? 'Platform scope' : 'Event scope';
   const isEmailAdmin = isPlatformAdmin;
 
   // Calculate email delivery rate
@@ -102,7 +142,7 @@ export default function AdminPage() {
       <PageHeader
         title={t('admin.title')}
         subtitle={t('admin.subtitle') ?? (locale === 'ru' ? 'Операционная панель платформы' : 'Platform operational dashboard')}
-        actions={<StatusBadge tone="info">{scope}</StatusBadge>}
+        actions={<StatusBadge tone="info">{scopeLabel}</StatusBadge>}
       />
 
       {/* Platform KPIs - visible to all admins */}
@@ -113,7 +153,7 @@ export default function AdminPage() {
           <div className="signal-kpi-grid">
             <MetricCard tone="info" label={locale === 'ru' ? 'Всего событий' : 'Total events'} value={stats.totalEvents ?? 0} />
             <MetricCard tone="success" label={locale === 'ru' ? 'Активных регистраций' : 'Active registrations'} value={stats.totalRegistrations ?? 0} />
-            <MetricCard tone="warning" label={locale === 'ru' ? 'Волонтёры в ожидании' : 'Volunteers pending'} value={stats.volunteersPending ?? 0} />
+            <MetricCard tone="warning" label={locale === 'ru' ? 'Волонтёры в ожидании' : 'Volunteers pending'} value={(stats as any).volunteersPending ?? 0} />
             <MetricCard tone="neutral" label={locale === 'ru' ? 'Просмотров' : 'Page views'} value={stats.totalEventViews ?? 0} />
           </div>
 
@@ -163,16 +203,18 @@ export default function AdminPage() {
             <div>
               <h2>{locale === 'ru' ? 'Статус Email системы' : 'Email system status'}</h2>
               <p className="signal-muted">
-                {locale === 'ru' 
-                  ? `Провайдер: ${emailOverview.provider} • Домен: ${emailOverview.sendingDomain} • Webhook: ${emailOverview.webhookStatus}`
-                  : `Provider: ${emailOverview.provider} • Domain: ${emailOverview.sendingDomain} • Webhook: ${emailOverview.webhookStatus}`}
+                {emailOverview.provider && emailOverview.sendingDomain
+                  ? (locale === 'ru' 
+                      ? `Провайдер: ${emailOverview.provider} • Домен: ${emailOverview.sendingDomain}`
+                      : `Provider: ${emailOverview.provider} • Domain: ${emailOverview.sendingDomain}`)
+                  : (locale === 'ru' ? 'Email система не настроена' : 'Email system not configured')}
               </p>
             </div>
             <div className="signal-row-gap">
-              <StatusBadge tone={emailOverview.providerStatus === 'connected' ? 'success' : 'danger'}>
+              <StatusBadge tone={emailOverview.providerStatus === 'connected' ? 'success' : emailOverview.providerStatus === 'not_configured' ? 'neutral' : 'warning'}>
                 {emailOverview.providerStatus}
               </StatusBadge>
-              <StatusBadge tone={emailOverview.webhookStatus === 'active' ? 'success' : 'warning'}>
+              <StatusBadge tone={emailOverview.webhookStatus === 'active' ? 'success' : emailOverview.webhookStatus === 'not_configured' ? 'neutral' : 'warning'}>
                 {emailOverview.webhookStatus}
               </StatusBadge>
             </div>

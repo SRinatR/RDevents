@@ -21,14 +21,25 @@ import {
 
 export const adminEmailRouter = Router();
 
-// Common error handler wrapper
-function withErrorHandler(handler: (req: any, res: any) => Promise<void>) {
-  return async (req: any, res: any) => {
+// Typed request/response
+import type { Request, Response } from 'express';
+
+// Common error handler wrapper with proper typing
+function withErrorHandler(handler: (req: Request, res: Response) => Promise<void>) {
+  return async (req: Request, res: Response) => {
     try {
       await handler(req, res);
     } catch (error) {
-      console.error('[admin-email]', req.path, error);
-      res.status(500).json({ error: 'Internal server error' });
+      // Log error with request context
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      
+      console.error(`[admin-email] ${req.method} ${req.path} - ${errorMessage}`, errorStack);
+      
+      res.status(500).json({ 
+        error: 'Internal server error',
+        requestId: req.headers['x-request-id'],
+      });
     }
   };
 }

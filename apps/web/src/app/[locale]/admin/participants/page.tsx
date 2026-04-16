@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
@@ -45,14 +45,14 @@ export default function AdminParticipantsPage() {
   const statusFilter = searchParams.get('status') ?? 'ALL';
   const page = parseInt(searchParams.get('page') ?? '1', 10);
 
-  // Debounced search
+  // Debounced search state
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Update URL with filter
+  // Update URL with filter (use replace for search/filter to avoid history pollution)
   const updateFilter = useCallback((key: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString());
     if (value === 'ALL' || value === 'PARTICIPANT' || value === '') {
@@ -60,8 +60,16 @@ export default function AdminParticipantsPage() {
     } else {
       params.set(key, value);
     }
-    if (key !== 'page') params.delete('page');
-    router.push(`?${params.toString()}`, { scroll: false });
+    // Always reset page on filter change
+    params.delete('page');
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }, [searchParams, router]);
+
+  // Navigate to page (use push for pagination)
+  const goToPage = useCallback((newPage: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('page', String(newPage));
+    router.replace(`?${params.toString()}`, { scroll: false });
   }, [searchParams, router]);
 
   // Load events for filter dropdown
@@ -191,7 +199,7 @@ export default function AdminParticipantsPage() {
               <div className="admin-pagination">
                 <button 
                   className="btn btn-ghost btn-sm" 
-                  onClick={() => updateFilter('page', String(page - 1))}
+                  onClick={() => goToPage(page - 1)}
                   disabled={page === 1}
                 >
                   ← {locale === 'ru' ? 'Назад' : 'Prev'}
@@ -201,7 +209,7 @@ export default function AdminParticipantsPage() {
                 </span>
                 <button 
                   className="btn btn-ghost btn-sm" 
-                  onClick={() => updateFilter('page', String(page + 1))}
+                  onClick={() => goToPage(page + 1)}
                   disabled={page === totalPages}
                 >
                   {locale === 'ru' ? 'Вперёд' : 'Next'} →

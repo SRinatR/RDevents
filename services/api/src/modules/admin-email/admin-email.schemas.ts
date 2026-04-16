@@ -135,10 +135,10 @@ export interface EmailAudienceData {
 
 export interface EmailOverview {
   provider: string | null;
-  providerStatus: 'connected' | 'disconnected' | 'unknown';
+  providerStatus: 'connected' | 'disconnected' | 'unknown' | 'not_configured';
   sendingDomain: string | null;
-  sendingDomainStatus: 'verified' | 'pending' | 'failed' | 'unknown';
-  webhookStatus: 'active' | 'inactive' | 'unknown';
+  sendingDomainStatus: 'verified' | 'pending' | 'failed' | 'unknown' | 'not_configured';
+  webhookStatus: 'active' | 'inactive' | 'unknown' | 'not_configured';
   webhookEndpoint: string | null;
   sent24h: number;
   delivered24h: number;
