@@ -24,7 +24,7 @@ jobs:
           PROD_PORT: ${{ secrets.PROD_PORT }}
           PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
         run: |
-          set -e
+          set -euo pipefail
           mkdir -p ~/.ssh
           printf '%s' "$PROD_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
@@ -33,14 +33,19 @@ jobs:
       - name: Pack project
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
+          ARCHIVE_PATH="$RUNNER_TEMP/deploy.tgz"
+
           tar \
             --exclude=.git \
             --exclude=.github \
             --exclude=.env \
             --exclude=.env.production \
             --exclude=node_modules \
-            -czf deploy.tgz .
+            --exclude=deploy.tgz \
+            -czf "$ARCHIVE_PATH" .
+
+          ls -lh "$ARCHIVE_PATH"
 
       - name: Upload archive
         shell: bash
@@ -49,8 +54,10 @@ jobs:
           PROD_PORT: ${{ secrets.PROD_PORT }}
           PROD_USER: ${{ secrets.PROD_USER }}
         run: |
-          set -e
-          scp -P "$PROD_PORT" -i ~/.ssh/id_ed25519 deploy.tgz "$PROD_USER@$PROD_HOST:/opt/rdevents/deploy.tgz"
+          set -euo pipefail
+          ARCHIVE_PATH="$RUNNER_TEMP/deploy.tgz"
+
+          scp -P "$PROD_PORT" -i ~/.ssh/id_ed25519 "$ARCHIVE_PATH" "$PROD_USER@$PROD_HOST:/opt/rdevents/deploy.tgz"
 
       - name: Write env file on server
         shell: bash
@@ -60,7 +67,7 @@ jobs:
           PROD_USER: ${{ secrets.PROD_USER }}
           PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
         run: |
-          set -e
+          set -euo pipefail
           ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "mkdir -p /opt/rdevents"
           ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "cat > /opt/rdevents/.env" <<< "$PROD_ENV_FILE"
 
@@ -71,9 +78,9 @@ jobs:
           PROD_PORT: ${{ secrets.PROD_PORT }}
           PROD_USER: ${{ secrets.PROD_USER }}
         run: |
-          set -e
+          set -euo pipefail
           ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" << 'EOF'
-            set -e
+            set -euo pipefail
 
             mkdir -p /opt/rdevents/app
             find /opt/rdevents/app -mindepth 1 -maxdepth 1 -exec rm -rf {} +
