@@ -1,7 +1,17 @@
 import { z } from 'zod';
 
-export const registerSchema = z.object({
+export const startRegistrationSchema = z.object({
   email: z.string().email(),
+});
+
+export const verifyRegistrationCodeSchema = z.object({
+  email: z.string().email(),
+  code: z.string().trim().regex(/^\d{6}$/, 'Verification code must contain 6 digits'),
+});
+
+export const completeRegistrationSchema = z.object({
+  email: z.string().email(),
+  registrationToken: z.string().min(1),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   name: z.string().min(2, 'Name must be at least 2 characters').optional(),
 });
@@ -31,7 +41,9 @@ export const socialAuthSchema = z.object({
   code: z.string().optional(),
 });
 
-export type RegisterInput = z.infer<typeof registerSchema>;
+export type StartRegistrationInput = z.infer<typeof startRegistrationSchema>;
+export type VerifyRegistrationCodeInput = z.infer<typeof verifyRegistrationCodeSchema>;
+export type CompleteRegistrationInput = z.infer<typeof completeRegistrationSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type SocialAuthInput = z.infer<typeof socialAuthSchema>;

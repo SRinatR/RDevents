@@ -32,8 +32,9 @@ event-platform-mvp/
 - 🌐 Поддержка русского и английского языков
 
 ### Аутентификация
-- ✉️ Email/password регистрация и вход
-- 🔐 JWT access/refresh tokens
+- ✉️ Трехшаговая email-регистрация: email -> код подтверждения -> пароль
+- � Отправка кода через Resend
+- �🔐 JWT access/refresh tokens
 - 🔒 Защищенные маршруты
 - 👤 Управление профилем
 
@@ -102,7 +103,10 @@ cp .env.example services/api/.env
 # - JWT_ACCESS_SECRET (минимум 32 символа)
 # - JWT_REFRESH_SECRET (минимум 32 символа)
 # - CORS_ORIGIN (URL фронтенда, обычно http://localhost:3000)
+# - RESEND_API_KEY / RESEND_FROM_EMAIL для писем регистрации
 ```
+
+Для production переменные нужно обновлять в GitHub secret `PROD_ENV_FILE`, потому что деплой перезаписывает `/opt/rdevents/.env`.
 
 ### 3. Настройка базы данных
 
@@ -239,7 +243,9 @@ pnpm docker:logs    # docker compose logs -f
 ## 🗂 Структура API
 
 ### Аутентификация (`/api/auth`)
-- `POST /register` - Регистрация
+- `POST /register/start` - Отправить код подтверждения на email
+- `POST /register/verify` - Подтвердить код из email
+- `POST /register/complete` - Завершить регистрацию и задать пароль
 - `POST /login` - Вход
 - `POST /logout` - Выход
 - `POST /refresh` - Обновление access token

@@ -70,10 +70,10 @@ export default function LoginPage() {
   return (
     <div className="auth-shell">
       <div className="auth-brand-panel">
-        <Link href={`/${locale}`} className="public-logo">
-          <span className="public-logo-mark">EP</span>
-          <span className="public-logo-text">EventPlatform</span>
-        </Link>
+          <Link href={`/${locale}`} className="public-logo">
+            <img src="/logo.svg" alt="Русский Дом" width="32" height="32" className="public-logo-mark" />
+            <span className="public-logo-text">Русский Дом</span>
+          </Link>
         <div className="auth-brand-content">
           <h1>{locale === 'ru' ? 'Вход в рабочее пространство' : 'Access your workspace'}</h1>
           <p>{locale === 'ru' ? 'Операционный доступ к событиям, заявкам и участию.' : 'Operational access to events, applications, and participation.'}</p>

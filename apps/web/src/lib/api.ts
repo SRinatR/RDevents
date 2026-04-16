@@ -62,8 +62,14 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export const authApi = {
-  register: (body: { email: string; password: string; name?: string }) =>
-    request<{ user: any; accessToken: string }>('/api/auth/register', { method: 'POST', body }),
+  startRegistration: (body: { email: string }) =>
+    request<{ ok: boolean; expiresAt: string; cooldownSeconds: number; devCode?: string }>('/api/auth/register/start', { method: 'POST', body }),
+
+  verifyRegistrationCode: (body: { email: string; code: string }) =>
+    request<{ registrationToken: string; expiresAt: string }>('/api/auth/register/verify', { method: 'POST', body }),
+
+  completeRegistration: (body: { email: string; registrationToken: string; password: string; name?: string }) =>
+    request<{ user: any; accessToken: string }>('/api/auth/register/complete', { method: 'POST', body }),
 
   login: (body: { email: string; password: string }) =>
     request<{ user: any; accessToken: string }>('/api/auth/login', { method: 'POST', body }),

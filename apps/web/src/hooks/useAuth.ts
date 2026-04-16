@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, createContext, useContext } from 'react';
-import { tryRefreshSession, doLogin, doRegister, doLogout } from '../lib/auth';
+import { tryRefreshSession, doCompleteRegistration, doLogin, doLogout } from '../lib/auth';
 import { authApi } from '../lib/api';
+import React from 'react';
 
 export interface AuthUser {
   id: string;
@@ -32,7 +33,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name?: string) => Promise<void>;
+  completeRegistration: (email: string, registrationToken: string, password: string, name?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   updateProfile: (data: Partial<AuthUser>) => Promise<void>;
@@ -40,8 +41,6 @@ interface AuthContextValue {
   isPlatformAdmin: boolean;
   isSuperAdmin: boolean;
 }
-
-import React from 'react';
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -63,8 +62,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(result.user);
   }, []);
 
-  const register = useCallback(async (email: string, password: string, name?: string) => {
-    const result = await doRegister(email, password, name);
+  const completeRegistration = useCallback(async (email: string, registrationToken: string, password: string, name?: string) => {
+    const result = await doCompleteRegistration(email, registrationToken, password, name);
     setUser(result.user);
   }, []);
 
@@ -96,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return React.createElement(
     AuthContext.Provider,
-    { value: { user, loading, login, register, logout, refreshUser, updateProfile, isAdmin, isPlatformAdmin, isSuperAdmin } },
+    { value: { user, loading, login, completeRegistration, logout, refreshUser, updateProfile, isAdmin, isPlatformAdmin, isSuperAdmin } },
     children
   );
 }

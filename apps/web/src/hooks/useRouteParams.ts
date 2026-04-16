@@ -9,7 +9,7 @@ function readParam(value: RouteParamValue, fallback = '') {
   return value ?? fallback;
 }
 
-export function useRouteLocale(defaultLocale = 'en') {
+export function useRouteLocale(defaultLocale = 'ru') {
   const params = useParams<Record<string, RouteParamValue>>();
   return readParam(params.locale, defaultLocale);
 }
@@ -19,7 +19,7 @@ export function useRouteParam(name: string, fallback = '') {
   return readParam(params[name], fallback);
 }
 
-export function useRouteParams(defaultLocale = 'en') {
+export function useRouteParams(defaultLocale = 'ru') {
   const params = useParams<Record<string, RouteParamValue>>();
 
   return {
