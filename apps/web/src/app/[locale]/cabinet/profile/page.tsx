@@ -6,7 +6,7 @@ import { useAuth } from '../../../../hooks/useAuth';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
-import { FieldInput, FieldTextarea, Notice, PageHeader, Panel, SectionHeader, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
+import { FieldInput, FieldTextarea, Notice, PageHeader, Panel, SectionHeader, StatusBadge } from '@/components/ui/signal-primitives';
 
 export default function ProfilePage() {
   const { user, loading, updateProfile } = useAuth();
@@ -23,18 +23,22 @@ export default function ProfilePage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
-  const [email, setEmail] = useState('');
-  const [surnameRu, setSurnameRu] = useState('');
-  const [surnameEn, setSurnameEn] = useState('');
-  const [nameRu, setNameRu] = useState('');
-  const [nameEn, setNameEn] = useState('');
-  const [patronymicRu, setPatronymicRu] = useState('');
-  const [patronymicEn, setPatronymicEn] = useState('');
+  // Cyrillic name fields
+  const [lastNameCyrillic, setLastNameCyrillic] = useState('');
+  const [firstNameCyrillic, setFirstNameCyrillic] = useState('');
+  const [middleNameCyrillic, setMiddleNameCyrillic] = useState('');
+
+  // Latin name fields
+  const [lastNameLatin, setLastNameLatin] = useState('');
+  const [firstNameLatin, setFirstNameLatin] = useState('');
+  const [middleNameLatin, setMiddleNameLatin] = useState('');
+
+  // Legacy name field (for backward compat)
+  const [name, setName] = useState('');
+
   const [birthDate, setBirthDate] = useState('');
   const [phone, setPhone] = useState('');
-
   const [city, setCity] = useState('');
-  const [country, setCountry] = useState('');
   const [telegram, setTelegram] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [bio, setBio] = useState('');
@@ -42,8 +46,17 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!loading && !user) router.push(`/${locale}/login`);
     if (user) {
-      setEmail(user.email ?? '');
-      setNameRu(user.name ?? '');
+      // Cyrillic names
+      setLastNameCyrillic(user.lastNameCyrillic ?? '');
+      setFirstNameCyrillic(user.firstNameCyrillic ?? '');
+      setMiddleNameCyrillic(user.middleNameCyrillic ?? '');
+      // Latin names
+      setLastNameLatin(user.lastNameLatin ?? '');
+      setFirstNameLatin(user.firstNameLatin ?? '');
+      setMiddleNameLatin(user.middleNameLatin ?? '');
+      // Legacy name (for display)
+      setName(user.name ?? user.fullNameCyrillic ?? '');
+      // Other fields
       setCity(user.city ?? '');
       setPhone(user.phone ?? '');
       setTelegram(user.telegram ?? '');
@@ -70,7 +83,17 @@ export default function ProfilePage() {
     setSuccess(false);
     try {
       await updateProfile({
-        name: nameRu,
+        // Cyrillic names
+        lastNameCyrillic,
+        firstNameCyrillic,
+        middleNameCyrillic,
+        // Latin names
+        lastNameLatin,
+        firstNameLatin,
+        middleNameLatin,
+        // Legacy name for backward compat
+        name,
+        // Other fields
         bio,
         city,
         phone,
@@ -121,35 +144,10 @@ export default function ProfilePage() {
       {error ? <Notice tone="danger">{error}</Notice> : null}
       {success ? <Notice tone="success">{locale === 'ru' ? 'Профиль обновлён.' : 'Profile updated.'}</Notice> : null}
 
-      <div className="workspace-status-strip workspace-status-strip-v2">
-        <div className="workspace-status-card">
-          <small>{locale === 'ru' ? 'Профиль' : 'Profile'}</small>
-          <strong>{requiredFields.length > 0 ? (locale === 'ru' ? 'Требует дополнения' : 'Needs completion') : (locale === 'ru' ? 'Готов к участию' : 'Participation-ready')}</strong>
-        </div>
-        <div className="workspace-status-card">
-          <small>{locale === 'ru' ? 'Контур данных' : 'Data surface'}</small>
-          <strong>{locale === 'ru' ? 'Регистрация · Контакты · Активность' : 'Registration · Contacts · Activity'}</strong>
-        </div>
-        <div className="workspace-status-card">
-          <small>{locale === 'ru' ? 'Следующий шаг' : 'Next step'}</small>
-          <strong>{requiredFields.length > 0 ? (locale === 'ru' ? 'Закрыть обязательные поля' : 'Close required fields') : (locale === 'ru' ? 'Перейти к событиям' : 'Proceed to events')}</strong>
-        </div>
-      </div>
-
-      <div className="cabinet-profile-top-grid">
-        <Panel variant="elevated" className="cabinet-profile-summary">
-          <SectionHeader title={locale === 'ru' ? 'Профиль участника' : 'Participant profile'} subtitle={locale === 'ru' ? 'Базовая готовность к участию в событиях' : 'Core readiness for event participation'} />
-          <div className="cabinet-profile-summary-metrics">
-            <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Обязательные поля' : 'Required fields'}</span><strong>{requiredFields.length}</strong></div>
-            <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Текущий email' : 'Current email'}</span><strong>{email || '—'}</strong></div>
-          </div>
-        </Panel>
-      </div>
-
       <Panel variant="elevated">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="cabinet-tabs-list">
-            <TabsTrigger value="registration">{locale === 'ru' ? 'Регистрационные данные' : 'Registration'}</TabsTrigger>
+            <TabsTrigger value="registration">{locale === 'ru' ? 'ФИО' : 'Name'}</TabsTrigger>
             <TabsTrigger value="general">{locale === 'ru' ? 'Общие данные' : 'General'}</TabsTrigger>
             <TabsTrigger value="documents">{locale === 'ru' ? 'Документы' : 'Documents'}</TabsTrigger>
             <TabsTrigger value="contacts">{locale === 'ru' ? 'Контакты' : 'Contacts'}</TabsTrigger>
@@ -157,70 +155,185 @@ export default function ProfilePage() {
           </TabsList>
 
           <TabsContent value="registration" className="cabinet-tab-content">
-            <SectionHeader title={locale === 'ru' ? 'Регистрационная карточка' : 'Registration card'} subtitle={locale === 'ru' ? 'Базовые данные для участия и верификации' : 'Base participation and verification data'} />
+            <SectionHeader 
+              title={locale === 'ru' ? 'Фамилия, имя, отчество' : 'Full name'} 
+              subtitle={locale === 'ru' ? 'Заполните ФИО на русском и английском языках' : 'Fill in your name in Russian and English'} 
+            />
             <form onSubmit={handleSave} className="signal-stack">
+              <div className="signal-section-label">{locale === 'ru' ? 'Кириллица (русский)' : 'Cyrillic (Russian)'}</div>
               <div className="signal-two-col">
-                <FieldBlock label="Email" required><FieldInput value={email} disabled /></FieldBlock>
-                <FieldBlock label={locale === 'ru' ? 'Телефон' : 'Phone'} required><FieldInput value={phone} onChange={(event) => setPhone(event.target.value)} className={fieldToneClass('phone')} />{requiredHint('phone')}</FieldBlock>
+                <FieldBlock label={locale === 'ru' ? 'Фамилия' : 'Last name'}>
+                  <FieldInput 
+                    value={lastNameCyrillic} 
+                    onChange={(event) => setLastNameCyrillic(event.target.value)} 
+                    placeholder={locale === 'ru' ? 'Иванов' : 'Ivanov'}
+                    className={fieldToneClass('lastNameCyrillic')}
+                  />
+                  {requiredHint('lastNameCyrillic')}
+                </FieldBlock>
+                <FieldBlock label={locale === 'ru' ? 'Имя' : 'First name'} required>
+                  <FieldInput 
+                    value={firstNameCyrillic} 
+                    onChange={(event) => setFirstNameCyrillic(event.target.value)} 
+                    placeholder={locale === 'ru' ? 'Иван' : 'Ivan'}
+                    className={fieldToneClass('firstNameCyrillic')}
+                  />
+                  {requiredHint('firstNameCyrillic')}
+                </FieldBlock>
               </div>
 
               <div className="signal-two-col">
-                <FieldBlock label={locale === 'ru' ? 'Имя (RU)' : 'Name (RU)'} required><FieldInput value={nameRu} onChange={(event) => setNameRu(event.target.value)} className={fieldToneClass('name')} />{requiredHint('name')}</FieldBlock>
-                <FieldBlock label={locale === 'ru' ? 'Имя (EN)' : 'Name (EN)'}><FieldInput value={nameEn} onChange={(event) => setNameEn(event.target.value)} /></FieldBlock>
+                <FieldBlock label={locale === 'ru' ? 'Отчество' : 'Patronymic'}>
+                  <FieldInput 
+                    value={middleNameCyrillic} 
+                    onChange={(event) => setMiddleNameCyrillic(event.target.value)} 
+                    placeholder={locale === 'ru' ? 'Иванович' : 'Ivanovich'}
+                  />
+                </FieldBlock>
+                <FieldBlock label={locale === 'ru' ? 'Дата рождения' : 'Birth date'} required>
+                  <FieldInput 
+                    value={birthDate} 
+                    onChange={(event) => setBirthDate(event.target.value)} 
+                    placeholder={locale === 'ru' ? 'ДД.ММ.ГГГГ' : 'DD.MM.YYYY'}
+                    className={fieldToneClass('birthDate')} 
+                  />
+                  {requiredHint('birthDate')}
+                </FieldBlock>
+              </div>
+
+              <div className="signal-section-label">{locale === 'ru' ? 'Латиница (английский)' : 'Latin (English)'}</div>
+              <div className="signal-two-col">
+                <FieldBlock label={locale === 'ru' ? 'Фамилия (EN)' : 'Last name (EN)'}>
+                  <FieldInput 
+                    value={lastNameLatin} 
+                    onChange={(event) => setLastNameLatin(event.target.value)} 
+                    placeholder="Ivanov"
+                  />
+                </FieldBlock>
+                <FieldBlock label={locale === 'ru' ? 'Имя (EN)' : 'First name (EN)'}>
+                  <FieldInput 
+                    value={firstNameLatin} 
+                    onChange={(event) => setFirstNameLatin(event.target.value)} 
+                    placeholder="Ivan"
+                  />
+                </FieldBlock>
               </div>
 
               <div className="signal-two-col">
-                <FieldBlock label={locale === 'ru' ? 'Фамилия (RU)' : 'Surname (RU)'}><FieldInput value={surnameRu} onChange={(event) => setSurnameRu(event.target.value)} /></FieldBlock>
-                <FieldBlock label={locale === 'ru' ? 'Фамилия (EN)' : 'Surname (EN)'}><FieldInput value={surnameEn} onChange={(event) => setSurnameEn(event.target.value)} /></FieldBlock>
+                <FieldBlock label={locale === 'ru' ? 'Отчество (EN)' : 'Patronymic (EN)'}>
+                  <FieldInput 
+                    value={middleNameLatin} 
+                    onChange={(event) => setMiddleNameLatin(event.target.value)} 
+                    placeholder="Ivanovich"
+                  />
+                </FieldBlock>
+                <FieldBlock label={locale === 'ru' ? 'Телефон' : 'Phone'} required>
+                  <FieldInput 
+                    value={phone} 
+                    onChange={(event) => setPhone(event.target.value)} 
+                    className={fieldToneClass('phone')} 
+                  />
+                  {requiredHint('phone')}
+                </FieldBlock>
               </div>
 
-              <div className="signal-two-col">
-                <FieldBlock label={locale === 'ru' ? 'Отчество (RU)' : 'Patronymic (RU)'}><FieldInput value={patronymicRu} onChange={(event) => setPatronymicRu(event.target.value)} /></FieldBlock>
-                <FieldBlock label={locale === 'ru' ? 'Отчество (EN)' : 'Patronymic (EN)'}><FieldInput value={patronymicEn} onChange={(event) => setPatronymicEn(event.target.value)} /></FieldBlock>
-              </div>
-
-              <FieldBlock label={locale === 'ru' ? 'Дата рождения' : 'Birth date'} required>
-                <FieldInput value={birthDate} onChange={(event) => setBirthDate(event.target.value)} placeholder={locale === 'ru' ? 'ДД.ММ.ГГГГ' : 'DD.MM.YYYY'} className={fieldToneClass('birthDate')} />
-                {requiredHint('birthDate')}
-              </FieldBlock>
-
-              <button type="submit" disabled={saving} className="btn btn-primary">{saving ? (locale === 'ru' ? 'Сохранение...' : 'Saving...') : (locale === 'ru' ? 'Сохранить изменения' : 'Save changes')}</button>
+              <button type="submit" disabled={saving} className="btn btn-primary">
+                {saving 
+                  ? (locale === 'ru' ? 'Сохранение...' : 'Saving...') 
+                  : (locale === 'ru' ? 'Сохранить изменения' : 'Save changes')}
+              </button>
             </form>
           </TabsContent>
 
           <TabsContent value="general" className="cabinet-tab-content">
             <SectionHeader title={locale === 'ru' ? 'Общие данные профиля' : 'General profile data'} subtitle={locale === 'ru' ? 'Публичные и контактные атрибуты' : 'Public and contact attributes'} />
             <div className="signal-stack">
-              <div className="signal-two-col">
-                <FieldBlock label={locale === 'ru' ? 'Город' : 'City'}><FieldInput value={city} onChange={(event) => setCity(event.target.value)} className={fieldToneClass('city')} />{requiredHint('city')}</FieldBlock>
-                <FieldBlock label={locale === 'ru' ? 'Страна' : 'Country'}><FieldInput value={country} onChange={(event) => setCountry(event.target.value)} /></FieldBlock>
-              </div>
+              <FieldBlock label={locale === 'ru' ? 'Город' : 'City'}>
+                <FieldInput 
+                  value={city} 
+                  onChange={(event) => setCity(event.target.value)} 
+                  className={fieldToneClass('city')} 
+                />
+                {requiredHint('city')}
+              </FieldBlock>
 
-              <FieldBlock label={locale === 'ru' ? 'Ссылка на фото' : 'Avatar URL'}><FieldInput value={avatarUrl} onChange={(event) => setAvatarUrl(event.target.value)} className={fieldToneClass('avatarUrl')} placeholder="https://..." />{requiredHint('avatarUrl')}</FieldBlock>
-              <FieldBlock label={locale === 'ru' ? 'О себе' : 'About'}><FieldTextarea value={bio} onChange={(event) => setBio(event.target.value)} className={fieldToneClass('bio')} />{requiredHint('bio')}</FieldBlock>
-              <button onClick={handleSave} disabled={saving} className="btn btn-primary btn-sm">{saving ? (locale === 'ru' ? 'Сохранение...' : 'Saving...') : (locale === 'ru' ? 'Сохранить' : 'Save')}</button>
+              <FieldBlock label={locale === 'ru' ? 'Ссылка на фото' : 'Avatar URL'}>
+                <FieldInput 
+                  value={avatarUrl} 
+                  onChange={(event) => setAvatarUrl(event.target.value)} 
+                  className={fieldToneClass('avatarUrl')} 
+                  placeholder="https://..." 
+                />
+                {requiredHint('avatarUrl')}
+              </FieldBlock>
+              <FieldBlock label={locale === 'ru' ? 'О себе' : 'About'}>
+                <FieldTextarea 
+                  value={bio} 
+                  onChange={(event) => setBio(event.target.value)} 
+                  className={fieldToneClass('bio')} 
+                />
+                {requiredHint('bio')}
+              </FieldBlock>
+              <button onClick={handleSave} disabled={saving} className="btn btn-primary btn-sm">
+                {saving 
+                  ? (locale === 'ru' ? 'Сохранение...' : 'Saving...') 
+                  : (locale === 'ru' ? 'Сохранить' : 'Save')}
+              </button>
             </div>
           </TabsContent>
 
           <TabsContent value="documents" className="cabinet-tab-content">
             <Panel className="cabinet-module-panel">
-              <SectionHeader title={locale === 'ru' ? 'Модуль документов' : 'Documents module'} subtitle={locale === 'ru' ? 'Секция готова к подключению верификационных файлов.' : 'Section is ready for verification file integrations.'} actions={<StatusBadge tone="neutral">Coming next</StatusBadge>} />
-              <EmptyModule locale={locale} textRu="После включения document-flow здесь появятся загруженные и проверенные документы." textEn="Uploaded and verified files will appear here once document-flow is enabled." />
+              <SectionHeader 
+                title={locale === 'ru' ? 'Модуль документов' : 'Documents module'} 
+                subtitle={locale === 'ru' ? 'Секция готова к подключению верификационных файлов.' : 'Section is ready for verification file integrations.'} 
+                actions={<StatusBadge tone="neutral">Coming next</StatusBadge>} 
+              />
+              <EmptyModule 
+                locale={locale} 
+                textRu="После включения document-flow здесь появятся загруженные и проверенные документы." 
+                textEn="Uploaded and verified files will appear here once document-flow is enabled." 
+              />
             </Panel>
           </TabsContent>
 
           <TabsContent value="contacts" className="cabinet-tab-content">
             <div className="signal-stack">
-              <FieldBlock label="Telegram"><FieldInput value={telegram} onChange={(event) => setTelegram(event.target.value)} placeholder="@username" className={fieldToneClass('telegram')} />{requiredHint('telegram')}</FieldBlock>
-              <FieldBlock label={locale === 'ru' ? 'Телефон' : 'Phone'}><FieldInput value={phone} onChange={(event) => setPhone(event.target.value)} /></FieldBlock>
-              <button onClick={handleSave} disabled={saving} className="btn btn-primary btn-sm">{saving ? (locale === 'ru' ? 'Сохранение...' : 'Saving...') : (locale === 'ru' ? 'Сохранить' : 'Save')}</button>
+              <FieldBlock label="Telegram">
+                <FieldInput 
+                  value={telegram} 
+                  onChange={(event) => setTelegram(event.target.value)} 
+                  placeholder="@username" 
+                  className={fieldToneClass('telegram')} 
+                />
+                {requiredHint('telegram')}
+              </FieldBlock>
+              <FieldBlock label={locale === 'ru' ? 'Телефон' : 'Phone'}>
+                <FieldInput 
+                  value={phone} 
+                  onChange={(event) => setPhone(event.target.value)} 
+                />
+              </FieldBlock>
+              <button onClick={handleSave} disabled={saving} className="btn btn-primary btn-sm">
+                {saving 
+                  ? (locale === 'ru' ? 'Сохранение...' : 'Saving...') 
+                  : (locale === 'ru' ? 'Сохранить' : 'Save')}
+              </button>
             </div>
           </TabsContent>
 
           <TabsContent value="activity" className="cabinet-tab-content">
             <Panel className="cabinet-module-panel">
-              <SectionHeader title={locale === 'ru' ? 'Модуль активности' : 'Activity module'} subtitle={locale === 'ru' ? 'История участия и персональные показатели будут отображаться здесь.' : 'Participation history and personal indicators will be displayed here.'} actions={<StatusBadge tone="info">Planned</StatusBadge>} />
-              <EmptyModule locale={locale} textRu="Текущий релиз сохраняет структуру и готовит интерфейс под будущую аналитику активности." textEn="Current release preserves structure and prepares UI for future activity analytics." />
+              <SectionHeader 
+                title={locale === 'ru' ? 'Модуль активности' : 'Activity module'} 
+                subtitle={locale === 'ru' ? 'История участия и персональные показатели будут отображаться здесь.' : 'Participation history and personal indicators will be displayed here.'} 
+                actions={<StatusBadge tone="info">Planned</StatusBadge>} 
+              />
+              <EmptyModule 
+                locale={locale} 
+                textRu="Текущий релиз сохраняет структуру и готовит интерфейс под будущую аналитику активности." 
+                textEn="Current release preserves structure and prepares UI for future activity analytics." 
+              />
             </Panel>
           </TabsContent>
         </Tabs>

@@ -29,6 +29,14 @@ export const updateProfileSchema = z.object({
   telegram: z.string().max(64).optional(),
   birthDate: z.string().datetime().optional().or(z.literal('')),
   avatarUrl: z.string().url().optional().or(z.literal('')),
+  // Cyrillic name fields
+  lastNameCyrillic: z.string().max(100).optional().or(z.literal('')),
+  firstNameCyrillic: z.string().max(100).optional().or(z.literal('')),
+  middleNameCyrillic: z.string().max(100).optional().or(z.literal('')),
+  // Latin name fields
+  lastNameLatin: z.string().max(100).optional().or(z.literal('')),
+  firstNameLatin: z.string().max(100).optional().or(z.literal('')),
+  middleNameLatin: z.string().max(100).optional().or(z.literal('')),
 });
 
 export const socialAuthSchema = z.object({

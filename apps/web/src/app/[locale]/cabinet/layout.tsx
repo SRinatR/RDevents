@@ -33,23 +33,9 @@ export default function CabinetLayout({ children }: { children: ReactNode }) {
   ];
 
   return (
-    <div className="cabinet-shell app-shell app-shell-workspace workspace-shell-v2" data-shell="workspace">
-      <div className="container workspace-shell-container">
-        <div className="cabinet-shell-stage shell-layout-group workspace-shell-frame">
-          <header className="cabinet-shell-topbar workspace-shell-header workspace-shell-header-v2">
-            <div className="workspace-topbar-main">
-              <div className="cabinet-shell-title-block">
-                <small>{locale === 'ru' ? 'Participant workspace' : 'Participant workspace'}</small>
-                <strong>{locale === 'ru' ? 'Личный кабинет участника' : 'Participant cabinet'}</strong>
-              </div>
-              <p>{locale === 'ru' ? 'Единый личный контур для профиля, заявок и управления участием в событиях.' : 'A unified personal loop for profile, applications, and event participation management.'}</p>
-            </div>
-            <div className="workspace-shell-statuses workspace-shell-statuses-v2">
-              <span className="signal-status-badge tone-info">{locale === 'ru' ? 'Личный контур' : 'Personal loop'}</span>
-              <span className="signal-status-badge tone-neutral">{locale === 'ru' ? 'Профиль · Заявки · События' : 'Profile · Applications · Events'}</span>
-            </div>
-          </header>
-
+    <div className="cabinet-shell app-shell">
+      <div className="container">
+        <div className="cabinet-shell-stage">
           <div className="workspace-topbar-trail">
             {navTrail.map((item) => (
               <Link key={item.href} href={item.href} className={`signal-chip-link ${pathname.startsWith(item.href) ? 'active' : ''}`}>
@@ -58,10 +44,10 @@ export default function CabinetLayout({ children }: { children: ReactNode }) {
             ))}
           </div>
 
-          <div className="cabinet-layout-grid workspace-layout-grid-v2">
-            <Sidebar locale={locale} userName={user.name} userEmail={user.email} userAvatar={user.avatarUrl} />
+          <div className="cabinet-layout-grid">
+            <Sidebar locale={locale} userName={user.name || user.fullNameCyrillic || user.email} userEmail={user.email} userAvatar={user.avatarUrl} />
             <div className="cabinet-content-area">
-              <div className="cabinet-content-surface workspace-content-surface-v2">{children}</div>
+              <div className="cabinet-content-surface">{children}</div>
             </div>
           </div>
         </div>

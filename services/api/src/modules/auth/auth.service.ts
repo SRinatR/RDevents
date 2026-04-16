@@ -348,17 +348,54 @@ export async function getMe(userId: string) {
   return sanitizeUser(user as any);
 }
 
+// Helper: build full name from non-empty parts
+function buildFullName(parts: string[]): string | null {
+  const trimmed = parts
+    .map((p) => (typeof p === 'string' ? p.trim() : ''))
+    .filter((p) => p.length > 0);
+  if (trimmed.length === 0) return null;
+  return trimmed.join(' ');
+}
+
 export async function updateProfile(userId: string, input: UpdateProfileInput) {
+  // Build full names from parts
+  const fullNameCyrillic = buildFullName([
+    input.lastNameCyrillic ?? '',
+    input.firstNameCyrillic ?? '',
+    input.middleNameCyrillic ?? '',
+  ]);
+  const fullNameLatin = buildFullName([
+    input.lastNameLatin ?? '',
+    input.firstNameLatin ?? '',
+    input.middleNameLatin ?? '',
+  ]);
+
+  // Sync name with fullNameCyrillic for backward compatibility
+  const syncName = input.name !== undefined 
+    ? input.name || fullNameCyrillic
+    : fullNameCyrillic;
+
   const user = await prisma.user.update({
     where: { id: userId },
     data: {
-      ...(input.name !== undefined && { name: input.name || null }),
+      ...(input.name !== undefined && { name: syncName }),
       ...(input.bio !== undefined && { bio: input.bio }),
       ...(input.city !== undefined && { city: input.city }),
       ...(input.phone !== undefined && { phone: input.phone }),
       ...(input.telegram !== undefined && { telegram: input.telegram || null }),
       ...(input.birthDate !== undefined && { birthDate: input.birthDate ? new Date(input.birthDate) : null }),
       ...(input.avatarUrl !== undefined && { avatarUrl: input.avatarUrl || null }),
+      // Cyrillic name fields
+      ...(input.lastNameCyrillic !== undefined && { lastNameCyrillic: input.lastNameCyrillic || null }),
+      ...(input.firstNameCyrillic !== undefined && { firstNameCyrillic: input.firstNameCyrillic || null }),
+      ...(input.middleNameCyrillic !== undefined && { middleNameCyrillic: input.middleNameCyrillic || null }),
+      // Latin name fields
+      ...(input.lastNameLatin !== undefined && { lastNameLatin: input.lastNameLatin || null }),
+      ...(input.firstNameLatin !== undefined && { firstNameLatin: input.firstNameLatin || null }),
+      ...(input.middleNameLatin !== undefined && { middleNameLatin: input.middleNameLatin || null }),
+      // Computed full names
+      ...(fullNameCyrillic !== null && { fullNameCyrillic }),
+      ...(fullNameLatin !== null && { fullNameLatin }),
     },
   });
   return sanitizeUser(user as any);
