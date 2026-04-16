@@ -217,6 +217,30 @@ export const adminApi = {
   getEventAnalytics: (eventId: string) =>
     request<any>(`/api/admin/events/${eventId}/analytics`, { auth: true }),
 
+  // Unified endpoints - no N+1 queries
+  listParticipants: (params?: {
+    search?: string;
+    eventId?: string;
+    role?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/participants${qs}`, { auth: true });
+  },
+
+  listTeams: (params?: {
+    search?: string;
+    eventId?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/teams${qs}`, { auth: true });
+  },
+
   listUsers: (params?: Record<string, string | number>) => {
     const qs = params ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
     return request<{ data: any[]; meta: any }>(`/api/admin/users${qs}`, { auth: true });
@@ -233,6 +257,44 @@ export const adminApi = {
 
   getAnalytics: () =>
     request<any>('/api/admin/analytics', { auth: true }),
+};
+
+// ─── Admin Email ──────────────────────────────────────────────────────────────
+
+export const adminEmailApi = {
+  getOverview: () =>
+    request<any>('/api/admin/email/overview', { auth: true }),
+
+  listMessages: (params: Record<string, string | number> = {}) => {
+    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/email/messages${qs}`, { auth: true });
+  },
+
+  listTemplates: (params: Record<string, string | number> = {}) => {
+    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/email/templates${qs}`, { auth: true });
+  },
+
+  listBroadcasts: (params: Record<string, string | number> = {}) => {
+    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/email/broadcasts${qs}`, { auth: true });
+  },
+
+  listAutomations: (params: Record<string, string | number> = {}) => {
+    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/email/automations${qs}`, { auth: true });
+  },
+
+  getAudience: () =>
+    request<any>('/api/admin/email/audience', { auth: true }),
+
+  listDomains: (params: Record<string, string | number> = {}) => {
+    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/email/domains${qs}`, { auth: true });
+  },
+
+  getWebhooks: () =>
+    request<any>('/api/admin/email/webhooks', { auth: true }),
 };
 
 // ─── Analytics ────────────────────────────────────────────────────────────────
