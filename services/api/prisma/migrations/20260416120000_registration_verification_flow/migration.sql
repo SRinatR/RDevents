@@ -17,7 +17,3 @@ CREATE TABLE "registration_verifications" (
 CREATE UNIQUE INDEX "registration_verifications_email_key" ON "registration_verifications"("email");
 CREATE INDEX "registration_verifications_codeExpiresAt_idx" ON "registration_verifications"("codeExpiresAt");
 CREATE INDEX "registration_verifications_completionTokenExpiresAt_idx" ON "registration_verifications"("completionTokenExpiresAt");
-
-ALTER TABLE "registration_verifications"
-ADD CONSTRAINT "registration_verifications_email_fkey"
-FOREIGN KEY ("email") REFERENCES "users"("email") ON DELETE CASCADE ON UPDATE CASCADE;
