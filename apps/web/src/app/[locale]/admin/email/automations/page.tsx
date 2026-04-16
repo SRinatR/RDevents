@@ -6,7 +6,8 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, LoadingLines, PageHeader, Panel, StatusBadge, TableShell } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, Panel, StatusBadge, TableShell } from '@/components/ui/signal-primitives';
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 
 export default function AdminEmailAutomationsPage() {
   const t = useTranslations();
@@ -55,7 +56,7 @@ export default function AdminEmailAutomationsPage() {
 
   return (
     <div className="signal-page-shell admin-control-page">
-      <PageHeader
+      <AdminPageHeader
         title={t('admin.automations') ?? 'Automations'}
         subtitle={locale === 'ru' ? 'Email автоматизации и триггеры' : 'Email automations and triggers'}
         actions={

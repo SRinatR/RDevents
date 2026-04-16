@@ -6,7 +6,9 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, FieldInput, LoadingLines, PageHeader, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
+import { AdminToolbarSearch } from '@/components/admin/AdminToolbar';
 
 export default function AdminEmailDomainsPage() {
   const t = useTranslations();
@@ -58,7 +60,7 @@ export default function AdminEmailDomainsPage() {
 
   return (
     <div className="signal-page-shell admin-control-page">
-      <PageHeader
+      <AdminPageHeader
         title={t('admin.domains') ?? 'Domains'}
         subtitle={locale === 'ru' ? 'Управление sending доменами' : 'Sending domain management'}
         actions={
@@ -70,11 +72,10 @@ export default function AdminEmailDomainsPage() {
 
       <Panel variant="elevated" className="admin-command-panel">
         <ToolbarRow>
-          <FieldInput
+          <AdminToolbarSearch
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={locale === 'ru' ? 'Поиск по домену...' : 'Search by domain...'}
-            className="admin-filter-search"
           />
           <StatusBadge tone="info">{filteredDomains.length} {locale === 'ru' ? 'доменов' : 'domains'}</StatusBadge>
         </ToolbarRow>

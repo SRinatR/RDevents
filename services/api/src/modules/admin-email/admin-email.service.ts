@@ -9,6 +9,17 @@ import type {
   EmailWebhooksData,
 } from './admin-email.schemas.js';
 
+// Email configuration from env - read through config layer
+import { env } from '../../config/env.js';
+
+function getEmailConfig() {
+  return {
+    provider: env.RESEND_API_KEY ? 'resend' : null,
+    sendingDomain: env.RESEND_FROM_EMAIL ? env.RESEND_FROM_EMAIL.split('@')[1] ?? null : null,
+    webhookEndpoint: null as string | null,
+  };
+}
+
 // ─── Deterministic mock data (no Math.random()) ─────────────────────────────────
 
 // Static base dates for consistent mock data
@@ -31,24 +42,21 @@ const messageIds = ['msg_abc123def456', 'msg_ghi789jkl012', 'msg_mno345pqr678', 
 const templateIds = ['tpl_verification001', 'tpl_invitation002', 'tpl_reminder003', 'tpl_confirmed004', 'tpl_password005', 'tpl_status006'];
 const broadcastIds = ['brd_season2026q1', 'brd_registration_rem', 'brd_event_summary'];
 const automationIds = ['aut_welcome_series', 'aut_24h_reminder', 'aut_feedback'];
-const domainIds = ['dom_mail_primary', 'dom_newsletter'];
 const segmentIds = ['seg_active_participants', 'seg_volunteers', 'seg_new_users', 'seg_inactive30d', 'seg_all'];
 const webhookIds = ['wh_delivered001', 'wh_bounced002', 'wh_opened003'];
 
 // ─── Email overview ───────────────────────────────────────────────────────────
 
 export async function getEmailOverview(): Promise<EmailOverview> {
-  const provider = process.env['EMAIL_PROVIDER'] ?? null;
-  const sendingDomain = process.env['EMAIL_SENDING_DOMAIN'] ?? null;
-  const webhookEndpoint = process.env['EMAIL_WEBHOOK_ENDPOINT'] ?? null;
+  const emailConfig = getEmailConfig();
   
   return {
-    provider,
-    providerStatus: provider ? 'connected' : 'not_configured',
-    sendingDomain,
-    sendingDomainStatus: sendingDomain ? 'verified' : 'not_configured',
-    webhookStatus: webhookEndpoint ? 'active' : 'not_configured',
-    webhookEndpoint,
+    provider: emailConfig.provider,
+    providerStatus: emailConfig.provider ? 'connected' : 'not_configured',
+    sendingDomain: emailConfig.sendingDomain,
+    sendingDomainStatus: emailConfig.sendingDomain ? 'verified' : 'not_configured',
+    webhookStatus: emailConfig.webhookEndpoint ? 'active' : 'not_configured',
+    webhookEndpoint: emailConfig.webhookEndpoint,
     sent24h: 142,
     delivered24h: 138,
     failed24h: 4,
@@ -381,9 +389,9 @@ export async function listEmailDomains(
 ): Promise<{ data: EmailDomain[]; meta: { total: number; page: number; limit: number; pages: number } }> {
   const { search, page = 1, limit = 20 } = params;
   
-  // If no sending domain configured, return empty - don't fake data
-  const configuredDomain = process.env['EMAIL_SENDING_DOMAIN'];
-  if (!configuredDomain) {
+  // If no email configured, return empty - don't fake data
+  const emailConfig = getEmailConfig();
+  if (!emailConfig.provider || !emailConfig.sendingDomain) {
     return {
       data: [],
       meta: { total: 0, page: 1, limit: 20, pages: 0 },
@@ -392,9 +400,9 @@ export async function listEmailDomains(
   
   const domains: EmailDomain[] = [
     {
-      id: domainIds[0],
-      domain: configuredDomain,
-      provider: process.env['EMAIL_PROVIDER'] ?? 'unknown',
+      id: 'dom_email_configured',
+      domain: emailConfig.sendingDomain,
+      provider: emailConfig.provider,
       verificationStatus: 'verified',
       spf: true,
       dkim: true,
@@ -423,7 +431,8 @@ export async function listEmailDomains(
 // ─── Email webhooks ─────────────────────────────────────────────────────────────
 
 export async function getEmailWebhooks(): Promise<EmailWebhooksData> {
-  const webhookEndpoint = process.env['EMAIL_WEBHOOK_ENDPOINT'];
+  // Webhook endpoint not configured in this version - return consistent state
+  const webhookEndpoint = null;
   
   return {
     endpoint: webhookEndpoint ?? null,

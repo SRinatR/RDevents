@@ -6,7 +6,9 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, FieldInput, FieldSelect, LoadingLines, PageHeader, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldSelect, LoadingLines, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
+import { AdminToolbarSearch, AdminToolbarSelect } from '@/components/admin/AdminToolbar';
 
 export default function AdminEmailTemplatesPage() {
   const t = useTranslations();
@@ -65,7 +67,7 @@ export default function AdminEmailTemplatesPage() {
 
   return (
     <div className="signal-page-shell admin-control-page">
-      <PageHeader
+      <AdminPageHeader
         title={t('admin.templates') ?? 'Templates'}
         subtitle={locale === 'ru' ? 'Управление email шаблонами' : 'Email template management'}
         actions={
@@ -77,18 +79,17 @@ export default function AdminEmailTemplatesPage() {
 
       <Panel variant="elevated" className="admin-command-panel">
         <ToolbarRow>
-          <FieldInput 
+          <AdminToolbarSearch 
             value={search} 
             onChange={(e) => setSearch(e.target.value)} 
-            placeholder={locale === 'ru' ? 'Поиск по названию или ключу...' : 'Search by name or key...'} 
-            className="admin-filter-search"
+            placeholder={locale === 'ru' ? 'Поиск по названию или ключу...' : 'Search by name or key...'}
           />
-          <FieldSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="admin-filter-select">
+          <AdminToolbarSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="ALL">{locale === 'ru' ? 'Все статусы' : 'All statuses'}</option>
             <option value="active">{locale === 'ru' ? 'Активные' : 'Active'}</option>
             <option value="draft">{locale === 'ru' ? 'Черновики' : 'Drafts'}</option>
             <option value="archived">{locale === 'ru' ? 'Архивные' : 'Archived'}</option>
-          </FieldSelect>
+          </AdminToolbarSelect>
           <StatusBadge tone="info">{filteredTemplates.length} {locale === 'ru' ? 'шаблонов' : 'templates'}</StatusBadge>
         </ToolbarRow>
 

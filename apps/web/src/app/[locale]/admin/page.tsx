@@ -7,7 +7,8 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminApi, adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, LoadingLines, MetricCard, PageHeader, Panel, StatusBadge } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, MetricCard, Panel, StatusBadge } from '@/components/ui/signal-primitives';
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 
 interface EmailOverview {
   provider: string | null;
@@ -166,7 +167,7 @@ export default function AdminPage() {
   return (
     <div className="signal-page-shell admin-dashboard-shell route-shell route-admin-home admin-control-page">
       {/* Page header */}
-      <PageHeader
+      <AdminPageHeader
         title={t('admin.title')}
         subtitle={t('admin.subtitle') ?? (locale === 'ru' ? 'Операционная панель платформы' : 'Platform operational dashboard')}
         actions={<StatusBadge tone="info">{scopeLabel}</StatusBadge>}

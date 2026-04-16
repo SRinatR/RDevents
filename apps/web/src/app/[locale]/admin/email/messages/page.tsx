@@ -6,7 +6,9 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, FieldInput, FieldSelect, LoadingLines, PageHeader, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldSelect, LoadingLines, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
+import { AdminToolbarSearch, AdminToolbarSelect } from '@/components/admin/AdminToolbar';
 
 export default function AdminEmailMessagesPage() {
   const t = useTranslations();
@@ -70,40 +72,39 @@ export default function AdminEmailMessagesPage() {
 
   return (
     <div className="signal-page-shell admin-control-page">
-      <PageHeader
+      <AdminPageHeader
         title={t('admin.messages') ?? 'Messages'}
         subtitle={locale === 'ru' ? 'Журнал всех email сообщений' : 'Email message log'}
       />
 
       <Panel variant="elevated" className="admin-command-panel">
         <ToolbarRow>
-          <FieldInput 
+          <AdminToolbarSearch 
             value={search} 
             onChange={(e) => setSearch(e.target.value)} 
-            placeholder={locale === 'ru' ? 'Поиск по получателю или теме...' : 'Search by recipient or subject...'} 
-            className="admin-filter-search"
+            placeholder={locale === 'ru' ? 'Поиск по получателю или теме...' : 'Search by recipient or subject...'}
           />
-          <FieldSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="admin-filter-select">
+          <AdminToolbarSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="ALL">{locale === 'ru' ? 'Все статусы' : 'All statuses'}</option>
             <option value="delivered">{locale === 'ru' ? 'Доставлено' : 'Delivered'}</option>
             <option value="sent">{locale === 'ru' ? 'Отправлено' : 'Sent'}</option>
             <option value="pending">{locale === 'ru' ? 'В ожидании' : 'Pending'}</option>
             <option value="failed">{locale === 'ru' ? 'Ошибка' : 'Failed'}</option>
             <option value="bounced">{locale === 'ru' ? 'Отказ' : 'Bounced'}</option>
-          </FieldSelect>
-          <FieldSelect value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} className="admin-filter-select">
+          </AdminToolbarSelect>
+          <AdminToolbarSelect value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
             <option value="ALL">{locale === 'ru' ? 'Все источники' : 'All sources'}</option>
             <option value="verification">{locale === 'ru' ? 'Верификация' : 'Verification'}</option>
             <option value="invitation">{locale === 'ru' ? 'Приглашение' : 'Invitation'}</option>
             <option value="notification">{locale === 'ru' ? 'Уведомление' : 'Notification'}</option>
             <option value="broadcast">{locale === 'ru' ? 'Рассылка' : 'Broadcast'}</option>
-          </FieldSelect>
-          <FieldSelect value={timeRange} onChange={(e) => setTimeRange(e.target.value)} className="admin-filter-select">
+          </AdminToolbarSelect>
+          <AdminToolbarSelect value={timeRange} onChange={(e) => setTimeRange(e.target.value)}>
             <option value="1h">{locale === 'ru' ? '1 час' : '1 hour'}</option>
             <option value="24h">{locale === 'ru' ? '24 часа' : '24 hours'}</option>
             <option value="7d">{locale === 'ru' ? '7 дней' : '7 days'}</option>
             <option value="30d">{locale === 'ru' ? '30 дней' : '30 days'}</option>
-          </FieldSelect>
+          </AdminToolbarSelect>
           <StatusBadge tone="info">{filteredMessages.length} {locale === 'ru' ? 'записей' : 'records'}</StatusBadge>
         </ToolbarRow>
 

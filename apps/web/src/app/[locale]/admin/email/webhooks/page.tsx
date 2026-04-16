@@ -6,7 +6,9 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, FieldSelect, LoadingLines, MetricCard, PageHeader, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldSelect, LoadingLines, MetricCard, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
+import { AdminToolbarSelect } from '@/components/admin/AdminToolbar';
 
 export default function AdminEmailWebhooksPage() {
   const t = useTranslations();
@@ -61,7 +63,7 @@ export default function AdminEmailWebhooksPage() {
 
   return (
     <div className="signal-page-shell admin-control-page">
-      <PageHeader
+      <AdminPageHeader
         title={t('admin.webhooks') ?? 'Webhooks'}
         subtitle={locale === 'ru' ? 'Webhook интеграция и логи' : 'Webhook integration and logs'}
       />

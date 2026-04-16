@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requirePlatformAdmin } from '../../common/middleware.js';
+import { logger } from '../../common/logger.js';
 import {
   emailMessagesQuerySchema,
   emailTemplatesQuerySchema,
@@ -30,15 +31,19 @@ function withErrorHandler(handler: (req: Request, res: Response) => Promise<void
     try {
       await handler(req, res);
     } catch (error) {
-      // Log error with request context
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       const errorStack = error instanceof Error ? error.stack : undefined;
+      const requestId = (req as any).requestId ?? req.headers['x-request-id'] ?? 'unknown';
       
-      console.error(`[admin-email] ${req.method} ${req.path} - ${errorMessage}`, errorStack);
+      logger.error(`[admin-email] ${req.method} ${req.path} - ${errorMessage}`, error, {
+        module: 'admin-email',
+        action: 'request_error',
+        requestId: String(requestId),
+      });
       
       res.status(500).json({ 
         error: 'Internal server error',
-        requestId: req.headers['x-request-id'],
+        requestId: String(requestId),
       });
     }
   };
