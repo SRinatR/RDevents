@@ -217,6 +217,30 @@ export const adminApi = {
   getEventAnalytics: (eventId: string) =>
     request<any>(`/api/admin/events/${eventId}/analytics`, { auth: true }),
 
+  // Unified endpoints - no N+1 queries
+  listParticipants: (params?: {
+    search?: string;
+    eventId?: string;
+    role?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/participants${qs}`, { auth: true });
+  },
+
+  listTeams: (params?: {
+    search?: string;
+    eventId?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/teams${qs}`, { auth: true });
+  },
+
   listUsers: (params?: Record<string, string | number>) => {
     const qs = params ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
     return request<{ data: any[]; meta: any }>(`/api/admin/users${qs}`, { auth: true });

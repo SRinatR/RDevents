@@ -9,39 +9,53 @@ import type {
   EmailWebhooksData,
 } from './admin-email.schemas.js';
 
-// ─── Mock data generators ───────────────────────────────────────────────────────
+// ─── Deterministic mock data (no Math.random()) ─────────────────────────────────
 
-function generateId(): string {
-  return Math.random().toString(36).substring(2, 15);
-}
+// Static base dates for consistent mock data
+const BASE_DATE = new Date('2026-04-17T00:00:00Z');
 
-function generateDate(daysAgo: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - daysAgo);
+function daysAgo(days: number): string {
+  const d = new Date(BASE_DATE);
+  d.setDate(d.getDate() - days);
   return d.toISOString();
 }
 
-// ─── Email overview ────────────────────────────────────────────────────────────
+function inFuture(hours: number): string {
+  const d = new Date(BASE_DATE);
+  d.setHours(d.getHours() + hours);
+  return d.toISOString();
+}
+
+// Static IDs based on index (deterministic)
+const messageIds = ['msg_abc123def456', 'msg_ghi789jkl012', 'msg_mno345pqr678', 'msg_stu901vwx234', 'msg_yza567bcd890', 'msg_efg123hij456'];
+const templateIds = ['tpl_verification001', 'tpl_invitation002', 'tpl_reminder003', 'tpl_confirmed004', 'tpl_password005', 'tpl_status006'];
+const broadcastIds = ['brd_season2026q1', 'brd_registration_rem', 'brd_event_summary'];
+const automationIds = ['aut_welcome_series', 'aut_24h_reminder', 'aut_feedback'];
+const domainIds = ['dom_mail_primary', 'dom_newsletter'];
+const segmentIds = ['seg_active_participants', 'seg_volunteers', 'seg_new_users', 'seg_inactive30d', 'seg_all'];
+const webhookIds = ['wh_delivered001', 'wh_bounced002', 'wh_opened003'];
+
+// ─── Email overview ───────────────────────────────────────────────────────────
 
 export async function getEmailOverview(): Promise<EmailOverview> {
   return {
-    provider: 'resend',
+    provider: process.env['EMAIL_PROVIDER'] ?? 'resend',
     providerStatus: 'connected',
-    sendingDomain: 'mail.rdevents.uz',
+    sendingDomain: process.env['EMAIL_SENDING_DOMAIN'] ?? 'mail.rdevents.uz',
     sendingDomainStatus: 'verified',
     webhookStatus: 'active',
-    webhookEndpoint: 'https://api.rdevents.uz/webhooks/email',
+    webhookEndpoint: process.env['EMAIL_WEBHOOK_ENDPOINT'] ?? 'https://api.rdevents.uz/webhooks/email',
     sent24h: 142,
     delivered24h: 138,
     failed24h: 4,
-    templatesCount: 8,
+    templatesCount: 6,
     automationsCount: 3,
     recentActivity: [
-      { type: 'email_sent', status: 'delivered', timestamp: generateDate(0) },
-      { type: 'email_delivered', status: 'delivered', timestamp: generateDate(0.1) },
-      { type: 'email_opened', status: 'opened', timestamp: generateDate(0.2) },
-      { type: 'email_clicked', status: 'clicked', timestamp: generateDate(0.5) },
-      { type: 'email_bounced', status: 'bounced', timestamp: generateDate(1) },
+      { type: 'email_sent', status: 'delivered', timestamp: daysAgo(0) },
+      { type: 'email_delivered', status: 'delivered', timestamp: daysAgo(0.04) },
+      { type: 'email_opened', status: 'opened', timestamp: daysAgo(0.08) },
+      { type: 'email_clicked', status: 'clicked', timestamp: daysAgo(0.2) },
+      { type: 'email_bounced', status: 'bounced', timestamp: daysAgo(1) },
     ],
   };
 }
@@ -53,58 +67,58 @@ export async function listEmailMessages(
 ): Promise<{ data: EmailMessage[]; meta: { total: number; page: number; limit: number; pages: number } }> {
   const messages: EmailMessage[] = [
     {
-      id: generateId(),
+      id: messageIds[0],
       to: 'user1@example.com',
       subject: 'Подтверждение регистрации',
       status: 'delivered',
       source: 'verification',
-      sentAt: generateDate(0),
-      providerMessageId: 'msg_' + generateId(),
+      sentAt: daysAgo(0),
+      providerMessageId: 'resend_' + messageIds[0],
     },
     {
-      id: generateId(),
+      id: messageIds[1],
       to: 'user2@example.com',
       subject: 'Приглашение на мероприятие',
       status: 'delivered',
       source: 'invitation',
-      sentAt: generateDate(0.1),
-      providerMessageId: 'msg_' + generateId(),
+      sentAt: daysAgo(0.1),
+      providerMessageId: 'resend_' + messageIds[1],
     },
     {
-      id: generateId(),
+      id: messageIds[2],
       to: 'user3@example.com',
       subject: 'Напоминание о событии',
       status: 'sent',
       source: 'notification',
-      sentAt: generateDate(0.5),
-      providerMessageId: 'msg_' + generateId(),
+      sentAt: daysAgo(0.5),
+      providerMessageId: 'resend_' + messageIds[2],
     },
     {
-      id: generateId(),
+      id: messageIds[3],
       to: 'user4@example.com',
       subject: 'Обновление статуса регистрации',
       status: 'delivered',
       source: 'notification',
-      sentAt: generateDate(1),
-      providerMessageId: 'msg_' + generateId(),
+      sentAt: daysAgo(1),
+      providerMessageId: 'resend_' + messageIds[3],
     },
     {
-      id: generateId(),
+      id: messageIds[4],
       to: 'invalid@example',
       subject: 'Код подтверждения',
       status: 'failed',
       source: 'verification',
-      sentAt: generateDate(2),
+      sentAt: daysAgo(2),
       providerMessageId: null,
     },
     {
-      id: generateId(),
+      id: messageIds[5],
       to: 'test@example.com',
       subject: 'Тестовое сообщение',
       status: 'bounced',
       source: 'broadcast',
-      sentAt: generateDate(3),
-      providerMessageId: 'msg_' + generateId(),
+      sentAt: daysAgo(3),
+      providerMessageId: 'resend_' + messageIds[5],
     },
   ];
 
@@ -121,52 +135,52 @@ export async function listEmailTemplates(
 ): Promise<{ data: EmailTemplate[]; meta: { total: number; page: number; limit: number; pages: number } }> {
   const templates: EmailTemplate[] = [
     {
-      id: generateId(),
+      id: templateIds[0],
       name: 'Подтверждение email',
       key: 'email-verification',
       subject: 'Подтвердите ваш email адрес',
       status: 'active',
-      updatedAt: generateDate(5),
+      updatedAt: daysAgo(5),
     },
     {
-      id: generateId(),
+      id: templateIds[1],
       name: 'Приглашение на событие',
       key: 'event-invitation',
       subject: 'Вас приглашают на мероприятие',
       status: 'active',
-      updatedAt: generateDate(3),
+      updatedAt: daysAgo(3),
     },
     {
-      id: generateId(),
+      id: templateIds[2],
       name: 'Напоминание',
       key: 'event-reminder',
       subject: 'Напоминание о мероприятии завтра',
       status: 'active',
-      updatedAt: generateDate(7),
+      updatedAt: daysAgo(7),
     },
     {
-      id: generateId(),
+      id: templateIds[3],
       name: 'Подтверждение регистрации',
       key: 'registration-confirmed',
       subject: 'Ваша регистрация подтверждена',
       status: 'draft',
-      updatedAt: generateDate(10),
+      updatedAt: daysAgo(10),
     },
     {
-      id: generateId(),
+      id: templateIds[4],
       name: 'Сброс пароля',
       key: 'password-reset',
       subject: 'Сброс пароля',
       status: 'active',
-      updatedAt: generateDate(2),
+      updatedAt: daysAgo(2),
     },
     {
-      id: generateId(),
+      id: templateIds[5],
       name: 'Обновление статуса',
       key: 'status-update',
       subject: 'Обновление статуса вашей заявки',
       status: 'archived',
-      updatedAt: generateDate(30),
+      updatedAt: daysAgo(30),
     },
   ];
 
@@ -183,23 +197,23 @@ export async function listEmailBroadcasts(
 ): Promise<{ data: EmailBroadcast[]; meta: { total: number; page: number; limit: number; pages: number } }> {
   const broadcasts: EmailBroadcast[] = [
     {
-      id: generateId(),
+      id: broadcastIds[0],
       title: 'Анонс нового сезона мероприятий',
       audience: 'Все подписчики',
       status: 'sent',
-      scheduledAt: generateDate(7),
+      scheduledAt: daysAgo(7),
       sentCount: 1250,
     },
     {
-      id: generateId(),
+      id: broadcastIds[1],
       title: 'Напоминание о регистрациях',
       audience: 'Незавершённые регистрации',
       status: 'scheduled',
-      scheduledAt: new Date(Date.now() + 86400000).toISOString(),
+      scheduledAt: inFuture(24),
       sentCount: 0,
     },
     {
-      id: generateId(),
+      id: broadcastIds[2],
       title: 'Итоги мероприятия',
       audience: 'Участники события',
       status: 'draft',
@@ -221,27 +235,27 @@ export async function listEmailAutomations(
 ): Promise<{ data: EmailAutomation[]; meta: { total: number; page: number; limit: number; pages: number } }> {
   const automations: EmailAutomation[] = [
     {
-      id: generateId(),
+      id: automationIds[0],
       name: 'Добро пожаловать серии',
       trigger: 'user.created',
       status: 'active',
-      lastRunAt: generateDate(0),
-      nextRunAt: new Date(Date.now() + 3600000).toISOString(),
+      lastRunAt: daysAgo(0),
+      nextRunAt: inFuture(1),
     },
     {
-      id: generateId(),
+      id: automationIds[1],
       name: 'Напоминание за 24ч',
       trigger: 'event.starts_soon',
       status: 'active',
-      lastRunAt: generateDate(1),
-      nextRunAt: new Date(Date.now() + 7200000).toISOString(),
+      lastRunAt: daysAgo(1),
+      nextRunAt: inFuture(2),
     },
     {
-      id: generateId(),
+      id: automationIds[2],
       name: 'Сбор обратной связи',
       trigger: 'event.ended',
       status: 'paused',
-      lastRunAt: generateDate(14),
+      lastRunAt: daysAgo(14),
       nextRunAt: null,
     },
   ];
@@ -261,11 +275,11 @@ export async function getEmailAudience(): Promise<EmailAudienceData> {
     unsubscribed: 42,
     segmentsCount: 5,
     segments: [
-      { id: generateId(), name: 'Активные участники', size: 1250, source: 'event_registration', updatedAt: generateDate(1) },
-      { id: generateId(), name: 'Волонтёры', size: 340, source: 'volunteer_application', updatedAt: generateDate(3) },
-      { id: generateId(), name: 'Новые пользователи', size: 180, source: 'user_created', updatedAt: generateDate(0) },
-      { id: generateId(), name: 'Неактивные 30 дней', size: 520, source: 'inactivity_rule', updatedAt: generateDate(7) },
-      { id: generateId(), name: 'Все подписчики', size: 2847, source: 'all_contacts', updatedAt: generateDate(0) },
+      { id: segmentIds[0], name: 'Активные участники', size: 1250, source: 'event_registration', updatedAt: daysAgo(1) },
+      { id: segmentIds[1], name: 'Волонтёры', size: 340, source: 'volunteer_application', updatedAt: daysAgo(3) },
+      { id: segmentIds[2], name: 'Новые пользователи', size: 180, source: 'user_created', updatedAt: daysAgo(0) },
+      { id: segmentIds[3], name: 'Неактивные 30 дней', size: 520, source: 'inactivity_rule', updatedAt: daysAgo(7) },
+      { id: segmentIds[4], name: 'Все подписчики', size: 2847, source: 'all_contacts', updatedAt: daysAgo(0) },
     ],
   };
 }
@@ -277,9 +291,9 @@ export async function listEmailDomains(
 ): Promise<{ data: EmailDomain[]; meta: { total: number; page: number; limit: number; pages: number } }> {
   const domains: EmailDomain[] = [
     {
-      id: generateId(),
-      domain: 'mail.rdevents.uz',
-      provider: 'resend',
+      id: domainIds[0],
+      domain: process.env['EMAIL_SENDING_DOMAIN'] ?? 'mail.rdevents.uz',
+      provider: process.env['EMAIL_PROVIDER'] ?? 'resend',
       verificationStatus: 'verified',
       spf: true,
       dkim: true,
@@ -287,9 +301,9 @@ export async function listEmailDomains(
       isDefault: true,
     },
     {
-      id: generateId(),
+      id: domainIds[1],
       domain: 'newsletter.rdevents.uz',
-      provider: 'resend',
+      provider: process.env['EMAIL_PROVIDER'] ?? 'resend',
       verificationStatus: 'pending',
       spf: true,
       dkim: false,
@@ -308,7 +322,7 @@ export async function listEmailDomains(
 
 export async function getEmailWebhooks(): Promise<EmailWebhooksData> {
   return {
-    endpoint: 'https://api.rdevents.uz/webhooks/email',
+    endpoint: process.env['EMAIL_WEBHOOK_ENDPOINT'] ?? 'https://api.rdevents.uz/webhooks/email',
     signatureStatus: 'valid',
     subscribedEvents: [
       'email.sent',
@@ -323,28 +337,28 @@ export async function getEmailWebhooks(): Promise<EmailWebhooksData> {
     totalFailed: 617,
     logs: [
       {
-        id: generateId(),
+        id: webhookIds[0],
         eventType: 'email.delivered',
-        providerEventId: 'evt_' + generateId(),
-        receivedAt: generateDate(0),
+        providerEventId: 'evt_' + webhookIds[0],
+        receivedAt: daysAgo(0),
         processingStatus: 'processed',
         relatedEntity: 'registration-123',
         errorMessage: null,
       },
       {
-        id: generateId(),
+        id: webhookIds[1],
         eventType: 'email.bounced',
-        providerEventId: 'evt_' + generateId(),
-        receivedAt: generateDate(1),
+        providerEventId: 'evt_' + webhookIds[1],
+        receivedAt: daysAgo(1),
         processingStatus: 'processed',
         relatedEntity: 'user-456',
         errorMessage: null,
       },
       {
-        id: generateId(),
+        id: webhookIds[2],
         eventType: 'email.opened',
-        providerEventId: 'evt_' + generateId(),
-        receivedAt: generateDate(0.5),
+        providerEventId: 'evt_' + webhookIds[2],
+        receivedAt: daysAgo(0.5),
         processingStatus: 'processed',
         relatedEntity: 'email-789',
         errorMessage: null,

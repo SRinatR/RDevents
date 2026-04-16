@@ -4,6 +4,8 @@ import { canManageEvent, requireAuth, requirePlatformAdmin, requireSuperAdmin } 
 import { prisma } from '../../db/prisma.js';
 import { createEventSchema, updateEventSchema } from '../events/events.schemas.js';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
+import { listParticipantsQuerySchema } from './participants.schemas.js';
+import { listTeamsQuerySchema } from './teams.schemas.js';
 
 export const adminRouter = Router();
 
@@ -757,5 +759,163 @@ adminRouter.get('/analytics', requirePlatformAdmin, async (_req, res) => {
       category: event.category,
       registrationCount: event.registrationsCount,
     })),
+  });
+});
+
+// ─── Unified Participants Endpoint (fixes N+1) ─────────────────────────────────
+
+adminRouter.get('/participants', async (req, res) => {
+  const user = (req as any).user as User;
+
+  const parsed = listParticipantsQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid query params', details: parsed.error.flatten() });
+    return;
+  }
+
+  const { search, eventId, role, status, page, limit } = parsed.data;
+  const managedEventIds = await getManagedEventIds(user);
+
+  if (managedEventIds && managedEventIds.length === 0) {
+    res.json({ data: [], meta: { total: 0, page, limit, pages: 0 } });
+    return;
+  }
+
+  // Build where clause for event members
+  const where: Record<string, unknown> = {
+    role: { in: role === 'ALL' || !role ? ['PARTICIPANT', 'VOLUNTEER'] : [role] },
+  };
+
+  if (managedEventIds) {
+    where['eventId'] = eventId ? { in: managedEventIds.filter(id => id === eventId) } : { in: managedEventIds };
+  } else if (eventId) {
+    where['eventId'] = eventId;
+  }
+
+  if (status && status !== 'ALL') {
+    where['status'] = status;
+  }
+
+  // Search by user name/email
+  if (search) {
+    where['user'] = {
+      OR: [
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ],
+    };
+  }
+
+  const [total, members, events] = await Promise.all([
+    prisma.eventMember.count({ where: where as any }),
+    prisma.eventMember.findMany({
+      where: where as any,
+      include: {
+        user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+        event: { select: { id: true, title: true, slug: true } },
+      },
+      orderBy: { assignedAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    // Fetch event titles for any events we might need
+    prisma.event.findMany({
+      select: { id: true, title: true },
+    }),
+  ]);
+
+  const eventTitles = new Map(events.map(e => [e.id, e.title]));
+
+  const data = members.map(member => ({
+    id: member.id,
+    userId: member.userId,
+    userName: member.user?.name ?? null,
+    userEmail: member.user?.email ?? '',
+    eventId: member.eventId,
+    eventTitle: eventTitles.get(member.eventId) ?? member.event?.title ?? '',
+    role: member.role,
+    status: member.status,
+    assignedAt: member.assignedAt.toISOString(),
+  }));
+
+  res.json({
+    data,
+    meta: { total, page, limit, pages: Math.ceil(total / limit) },
+  });
+});
+
+// ─── Unified Teams Endpoint (fixes N+1) ──────────────────────────────────────
+
+adminRouter.get('/teams', async (req, res) => {
+  const user = (req as any).user as User;
+
+  const parsed = listTeamsQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid query params', details: parsed.error.flatten() });
+    return;
+  }
+
+  const { search, eventId, status, page, limit } = parsed.data;
+  const managedEventIds = await getManagedEventIds(user);
+
+  if (managedEventIds && managedEventIds.length === 0) {
+    res.json({ data: [], meta: { total: 0, page, limit, pages: 0 } });
+    return;
+  }
+
+  // Build where clause for teams
+  const where: Record<string, unknown> = {};
+
+  if (managedEventIds) {
+    where['eventId'] = eventId ? { in: managedEventIds.filter(id => id === eventId) } : { in: managedEventIds };
+  } else if (eventId) {
+    where['eventId'] = eventId;
+  }
+
+  if (status && status !== 'ALL') {
+    where['status'] = status;
+  }
+
+  if (search) {
+    where['OR'] = [
+      { name: { contains: search, mode: 'insensitive' } },
+    ];
+  }
+
+  const [total, teams, events] = await Promise.all([
+    prisma.eventTeam.count({ where: where as any }),
+    prisma.eventTeam.findMany({
+      where: where as any,
+      include: {
+        event: { select: { id: true, title: true, slug: true } },
+        captainUser: { select: { id: true, name: true, email: true, avatarUrl: true } },
+        _count: { select: { members: { where: { status: 'ACTIVE' } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.event.findMany({
+      select: { id: true, title: true },
+    }),
+  ]);
+
+  const eventTitles = new Map(events.map(e => [e.id, e.title]));
+
+  const data = teams.map(team => ({
+    id: team.id,
+    name: team.name,
+    eventId: team.eventId,
+    eventTitle: eventTitles.get(team.eventId) ?? team.event?.title ?? '',
+    captainUserId: team.captainUserId,
+    captainUserName: team.captainUser?.name ?? null,
+    membersCount: team._count.members,
+    status: team.status,
+    createdAt: team.createdAt.toISOString(),
+  }));
+
+  res.json({
+    data,
+    meta: { total, page, limit, pages: Math.ceil(total / limit) },
   });
 });

@@ -21,130 +21,97 @@ import {
 
 export const adminEmailRouter = Router();
 
+// Common error handler wrapper
+function withErrorHandler(handler: (req: any, res: any) => Promise<void>) {
+  return async (req: any, res: any) => {
+    try {
+      await handler(req, res);
+    } catch (error) {
+      console.error('[admin-email]', req.path, error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+}
+
 adminEmailRouter.use(requirePlatformAdmin);
 
 // ─── GET /api/admin/email/overview ────────────────────────────────────────────
 
-adminEmailRouter.get('/overview', async (_req, res) => {
-  try {
-    const overview = await getEmailOverview();
-    res.json(overview);
-  } catch (error) {
-    console.error('Email overview error:', error);
-    res.status(500).json({ error: 'Failed to fetch email overview' });
-  }
-});
+adminEmailRouter.get('/overview', withErrorHandler(async (_req, res) => {
+  const overview = await getEmailOverview();
+  res.json(overview);
+}));
 
 // ─── GET /api/admin/email/messages ─────────────────────────────────────────────
 
-adminEmailRouter.get('/messages', async (req, res) => {
-  try {
-    const parsed = emailMessagesQuerySchema.safeParse(req.query);
-    if (!parsed.success) {
-      res.status(400).json({ error: 'Invalid query params', details: parsed.error.flatten() });
-      return;
-    }
-    const result = await listEmailMessages(parsed.data);
-    res.json(result);
-  } catch (error) {
-    console.error('Email messages error:', error);
-    res.status(500).json({ error: 'Failed to fetch email messages' });
+adminEmailRouter.get('/messages', withErrorHandler(async (req, res) => {
+  const parsed = emailMessagesQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid query params', details: parsed.error.flatten() });
+    return;
   }
-});
+  const result = await listEmailMessages(parsed.data);
+  res.json(result);
+}));
 
-// ─── GET /api/admin/email/templates ────────────────────────────────────────────
+// ─── GET /api/admin/email/templates ───────────────────────────────────────────
 
-adminEmailRouter.get('/templates', async (req, res) => {
-  try {
-    const parsed = emailTemplatesQuerySchema.safeParse(req.query);
-    if (!parsed.success) {
-      res.status(400).json({ error: 'Invalid query params', details: parsed.error.flatten() });
-      return;
-    }
-    const result = await listEmailTemplates(parsed.data);
-    res.json(result);
-  } catch (error) {
-    console.error('Email templates error:', error);
-    res.status(500).json({ error: 'Failed to fetch email templates' });
+adminEmailRouter.get('/templates', withErrorHandler(async (req, res) => {
+  const parsed = emailTemplatesQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid query params', details: parsed.error.flatten() });
+    return;
   }
-});
+  const result = await listEmailTemplates(parsed.data);
+  res.json(result);
+}));
 
 // ─── GET /api/admin/email/broadcasts ───────────────────────────────────────────
 
-adminEmailRouter.get('/broadcasts', async (req, res) => {
-  try {
-    const parsed = emailBroadcastsQuerySchema.safeParse(req.query);
-    if (!parsed.success) {
-      res.status(400).json({ error: 'Invalid query params', details: parsed.error.flatten() });
-      return;
-    }
-    const result = await listEmailBroadcasts(parsed.data);
-    res.json(result);
-  } catch (error) {
-    console.error('Email broadcasts error:', error);
-    res.status(500).json({ error: 'Failed to fetch email broadcasts' });
+adminEmailRouter.get('/broadcasts', withErrorHandler(async (req, res) => {
+  const parsed = emailBroadcastsQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid query params', details: parsed.error.flatten() });
+    return;
   }
-});
+  const result = await listEmailBroadcasts(parsed.data);
+  res.json(result);
+}));
 
 // ─── GET /api/admin/email/automations ─────────────────────────────────────────
 
-adminEmailRouter.get('/automations', async (req, res) => {
-  try {
-    const parsed = emailAutomationsQuerySchema.safeParse(req.query);
-    if (!parsed.success) {
-      res.status(400).json({ error: 'Invalid query params', details: parsed.error.flatten() });
-      return;
-    }
-    const result = await listEmailAutomations(parsed.data);
-    res.json(result);
-  } catch (error) {
-    console.error('Email automations error:', error);
-    res.status(500).json({ error: 'Failed to fetch email automations' });
+adminEmailRouter.get('/automations', withErrorHandler(async (req, res) => {
+  const parsed = emailAutomationsQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid query params', details: parsed.error.flatten() });
+    return;
   }
-});
+  const result = await listEmailAutomations(parsed.data);
+  res.json(result);
+}));
 
 // ─── GET /api/admin/email/audience ─────────────────────────────────────────────
 
-adminEmailRouter.get('/audience', async (_req, res) => {
-  try {
-    const audience = await getEmailAudience();
-    res.json(audience);
-  } catch (error) {
-    console.error('Email audience error:', error);
-    res.status(500).json({ error: 'Failed to fetch email audience' });
-  }
-});
+adminEmailRouter.get('/audience', withErrorHandler(async (_req, res) => {
+  const audience = await getEmailAudience();
+  res.json(audience);
+}));
 
 // ─── GET /api/admin/email/domains ──────────────────────────────────────────────
 
-adminEmailRouter.get('/domains', async (req, res) => {
-  try {
-    const parsed = emailDomainsQuerySchema.safeParse(req.query);
-    if (!parsed.success) {
-      res.status(400).json({ error: 'Invalid query params', details: parsed.error.flatten() });
-      return;
-    }
-    const result = await listEmailDomains(parsed.data);
-    res.json(result);
-  } catch (error) {
-    console.error('Email domains error:', error);
-    res.status(500).json({ error: 'Failed to fetch email domains' });
+adminEmailRouter.get('/domains', withErrorHandler(async (req, res) => {
+  const parsed = emailDomainsQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid query params', details: parsed.error.flatten() });
+    return;
   }
-});
+  const result = await listEmailDomains(parsed.data);
+  res.json(result);
+}));
 
 // ─── GET /api/admin/email/webhooks ─────────────────────────────────────────────
 
-adminEmailRouter.get('/webhooks', async (req, res) => {
-  try {
-    const parsed = emailWebhooksQuerySchema.safeParse(req.query);
-    if (!parsed.success) {
-      res.status(400).json({ error: 'Invalid query params', details: parsed.error.flatten() });
-      return;
-    }
-    const webhooks = await getEmailWebhooks();
-    res.json(webhooks);
-  } catch (error) {
-    console.error('Email webhooks error:', error);
-    res.status(500).json({ error: 'Failed to fetch email webhooks' });
-  }
-});
+adminEmailRouter.get('/webhooks', withErrorHandler(async (_req, res) => {
+  const webhooks = await getEmailWebhooks();
+  res.json(webhooks);
+}));
