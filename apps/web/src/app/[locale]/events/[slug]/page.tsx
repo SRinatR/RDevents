@@ -246,168 +246,147 @@ export default function EventDetailPage() {
   const eventDateRange = `${formatDate(event.startsAt)} · ${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}`;
   const spotsLeft = Math.max((event.capacity ?? 0) - (event.registrationsCount ?? 0), 0);
   const heroDescription = event.shortDescription || (locale === 'ru'
-    ? 'Событие готово к участию. Откройте детали ниже и выберите подходящий формат входа.'
-    : 'This event is open for participation. Explore the details below and choose the right way to join.');
+    ? 'Событие открывает полноценный маршрут участия: изучите контекст, проверьте требования и запустите нужный сценарий входа.'
+    : 'This event opens a complete participation route: review context, verify requirements, and launch the right entry path.');
   const fullStory = event.fullDescription || (locale === 'ru'
-    ? 'Подробное описание будет опубликовано организаторами позже. Следите за обновлениями и проверяйте блок участия.'
-    : 'Detailed description will be published by organizers soon. Check back for updates and use the participation panel for current actions.');
+    ? 'Организаторы готовят расширенное описание. Пока используйте блоки ниже, чтобы понять формат участия и рабочие условия.'
+    : 'Organizers are preparing the extended story. Use the sections below to evaluate participation format and operating requirements.');
 
   return (
-    <div className="public-page-shell route-shell route-event-detail route-event-v5">
+    <div className="public-page-shell route-shell route-event-detail route-event-v6">
       <main className="public-main">
-        <section className="event-v5-masthead motion-fade-up">
-          <div className="event-v5-media-stage">
+        <section className="event-v6-stage motion-fade-up">
+          <div className="event-v6-media-layer">
             {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
-            <div className="event-v5-media-overlay" />
+            <div className="event-v6-media-overlay" />
           </div>
 
-          <div className="container-wide event-v5-masthead-inner">
-            <div className="event-v5-title-column">
+          <div className="container-wide event-v6-stage-inner">
+            <div className="event-v6-title-block">
               <div className="public-meta-row public-gap-after-xs">
                 <StatusBadge tone="neutral">{event.category}</StatusBadge>
                 <StatusBadge tone={statusTone}>{event.status}</StatusBadge>
                 {event.isFeatured ? <StatusBadge tone="info">{locale === 'ru' ? 'Рекомендуемое' : 'Featured'}</StatusBadge> : null}
               </div>
-
               <h1>{event.title}</h1>
               <p>{heroDescription}</p>
-
-              <div className="event-v5-title-actions">
+              <div className="event-v6-hero-actions">
                 <a href="#event-participation" className="btn btn-primary btn-sm">{locale === 'ru' ? 'Перейти к участию' : 'Go to participation'}</a>
                 <button onClick={handleCopyLink} className="btn btn-secondary btn-sm">{copied ? (locale === 'ru' ? 'Ссылка скопирована' : 'Link copied') : t('events.copyLink')}</button>
               </div>
             </div>
 
-            <div className="event-v5-hero-dock">
-              <article>
-                <small>{locale === 'ru' ? 'Дата и время' : 'Date & time'}</small>
-                <strong>{eventDateRange}</strong>
-              </article>
-              <article>
-                <small>{locale === 'ru' ? 'Локация' : 'Location'}</small>
-                <strong>{event.location}</strong>
-              </article>
-              <article>
-                <small>{locale === 'ru' ? 'Доступность' : 'Availability'}</small>
-                <strong>{isFull ? (locale === 'ru' ? 'Мест нет' : 'No spots left') : (locale === 'ru' ? `Осталось ${spotsLeft}` : `${spotsLeft} spots left`)}</strong>
-              </article>
-              <article>
-                <small>{locale === 'ru' ? 'Формат участия' : 'Participation format'}</small>
-                <strong>{event.isTeamBased ? (locale === 'ru' ? 'Командный' : 'Team-based') : (locale === 'ru' ? 'Индивидуальный' : 'Individual')}</strong>
-              </article>
+            <div className="event-v6-facts-ribbon">
+              <article><small>{locale === 'ru' ? 'Дата и время' : 'Date & time'}</small><strong>{eventDateRange}</strong></article>
+              <article><small>{locale === 'ru' ? 'Локация' : 'Location'}</small><strong>{event.location}</strong></article>
+              <article><small>{locale === 'ru' ? 'Доступность' : 'Availability'}</small><strong>{isFull ? (locale === 'ru' ? 'Лимит достигнут' : 'Capacity reached') : (locale === 'ru' ? `Осталось мест: ${spotsLeft}` : `${spotsLeft} spots left`)}</strong></article>
+              <article><small>{locale === 'ru' ? 'Формат участия' : 'Participation format'}</small><strong>{event.isTeamBased ? (locale === 'ru' ? 'Командный вход' : 'Team entry') : (locale === 'ru' ? 'Индивидуальный вход' : 'Individual entry')}</strong></article>
             </div>
           </div>
         </section>
 
-        <section className="event-v5-content motion-fade-up-fast">
-          <div className="container-wide">
-            <div className="event-v5-layout">
-              <div className="event-v5-story-column motion-stagger">
-                <Panel className="event-v5-atmosphere-panel">
-                  <SectionHeader title={locale === 'ru' ? 'Атмосфера и ожидания' : 'Atmosphere and expectations'} subtitle={locale === 'ru' ? 'Быстрая ориентировка перед регистрацией' : 'Quick orientation before registration'} />
-                  <div className="event-v5-atmosphere-grid">
-                    <div><small>{locale === 'ru' ? 'Регистрации' : 'Registrations'}</small><strong>{event.registrationsCount}/{event.capacity || '∞'}</strong></div>
-                    <div><small>{locale === 'ru' ? 'Окно участия' : 'Participation window'}</small><strong>{formatTime(event.startsAt)} – {formatTime(event.endsAt)}</strong></div>
-                    <div><small>{locale === 'ru' ? 'Модель входа' : 'Entry model'}</small><strong>{event.isTeamBased ? (locale === 'ru' ? 'Командная' : 'Team workflow') : (locale === 'ru' ? 'Индивидуальная' : 'Individual workflow')}</strong></div>
-                  </div>
-                </Panel>
+        <section className="event-v6-story motion-fade-up-fast">
+          <div className="container-wide event-v6-story-grid">
+            <Panel className="event-v6-description-panel">
+              <SectionHeader title={t('events.description')} subtitle={locale === 'ru' ? 'Контекст, программа и структура события' : 'Context, program, and event structure'} />
+              <div className="signal-prose-copy">{fullStory}</div>
+            </Panel>
 
-                <Panel className="event-v5-story-panel">
-                  <SectionHeader title={t('events.description')} subtitle={locale === 'ru' ? 'Контекст, программа и смысл события' : 'Context, program, and event narrative'} />
-                  <div className="signal-prose-copy">{fullStory}</div>
-                </Panel>
-
-                <Panel className="event-v5-support-panel">
-                  <SectionHeader title={locale === 'ru' ? 'Поддерживающая информация' : 'Supporting information'} subtitle={locale === 'ru' ? 'Ключевые факты для принятия решения' : 'Key facts for participation decisions'} />
-                  <div className="event-v5-support-grid">
-                    <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Категория' : 'Category'}</span><strong>{event.category}</strong></div>
-                    <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Статус события' : 'Event status'}</span><StatusBadge tone={statusTone}>{event.status}</StatusBadge></div>
-                    <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Волонтёрский трек' : 'Volunteer track'}</span><strong>{locale === 'ru' ? 'Доступен в панели участия' : 'Available in participation rail'}</strong></div>
-                    <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Регистрация' : 'Registration'}</span><strong>{isFull ? (locale === 'ru' ? 'Лимит достигнут' : 'Capacity reached') : (locale === 'ru' ? 'Открыта' : 'Open')}</strong></div>
-                  </div>
-                </Panel>
+            <Panel className="event-v6-brief-panel">
+              <SectionHeader title={locale === 'ru' ? 'Операционный бриф' : 'Operational brief'} subtitle={locale === 'ru' ? 'Что важно перед входом в участие' : 'What matters before joining'} />
+              <div className="event-v6-brief-grid">
+                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Регистрации' : 'Registrations'}</span><strong>{event.registrationsCount}/{event.capacity || '∞'}</strong></div>
+                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Окно участия' : 'Participation window'}</span><strong>{formatTime(event.startsAt)} – {formatTime(event.endsAt)}</strong></div>
+                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Волонтёрский трек' : 'Volunteer track'}</span><strong>{locale === 'ru' ? 'Доступен в секции участия' : 'Available in participation section'}</strong></div>
+                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Регистрация' : 'Registration'}</span><strong>{isFull ? (locale === 'ru' ? 'Закрыта по лимиту' : 'Closed by capacity') : (locale === 'ru' ? 'Открыта' : 'Open')}</strong></div>
               </div>
+            </Panel>
+          </div>
+        </section>
 
-              <aside className="public-sticky-panel event-v5-action-rail motion-fade-up-fast">
-                <Panel id="event-participation" className="public-participation-panel event-v5-participation-panel">
-                  <SectionHeader title={locale === 'ru' ? 'Участие' : 'Participation'} subtitle={locale === 'ru' ? 'Действия и текущий статус' : 'Actions and current status'} />
-                  <div className="progress-bar signal-gap-after-2xs public-participation-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
-                  <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div>
+        <section className="event-v6-action-zone motion-fade-up-fast" id="event-participation">
+          <div className="container-wide event-v6-action-grid">
+            <Panel className="public-participation-panel event-v6-participation-panel">
+              <SectionHeader title={locale === 'ru' ? 'Участие' : 'Participation'} subtitle={locale === 'ru' ? 'Выберите подходящий сценарий входа' : 'Choose the right entry scenario'} />
+              <div className="progress-bar signal-gap-after-2xs public-participation-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
+              <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div>
 
-                  {myTeam ? <Notice tone="success">{locale === 'ru' ? 'Вы состоите в команде' : 'You are on team'}: {myTeam.name}</Notice>
-                    : isRegistered ? <Notice tone="success">{t('events.registered')}</Notice>
-                    : user ? (
-                      <div className="signal-stack">
-                        {event.isTeamBased ? (
-                          <>
-                            {teamState === 'IDLE' ? (
-                              <ToolbarRow>
-                                <button onClick={() => setTeamState('CREATING')} disabled={isFull} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Создать команду' : 'Create team'}</button>
-                                <button onClick={() => setTeamState('JOINING')} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Вступить по коду' : 'Join by code'}</button>
-                                {event.allowSoloParticipation ? <button onClick={handleRegister} disabled={registering || isFull} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Участвовать одному' : 'Participate solo'}</button> : null}
-                              </ToolbarRow>
-                            ) : null}
+              {myTeam ? <Notice tone="success">{locale === 'ru' ? 'Вы состоите в команде' : 'You are on team'}: {myTeam.name}</Notice>
+                : isRegistered ? <Notice tone="success">{t('events.registered')}</Notice>
+                : user ? (
+                  <div className="signal-stack">
+                    {event.isTeamBased ? (
+                      <>
+                        {teamState === 'IDLE' ? (
+                          <ToolbarRow>
+                            <button onClick={() => setTeamState('CREATING')} disabled={isFull} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Создать команду' : 'Create team'}</button>
+                            <button onClick={() => setTeamState('JOINING')} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Вступить по коду' : 'Join by code'}</button>
+                            {event.allowSoloParticipation ? <button onClick={handleRegister} disabled={registering || isFull} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Участвовать одному' : 'Participate solo'}</button> : null}
+                          </ToolbarRow>
+                        ) : null}
 
-                            {teamState === 'CREATING' ? (
-                              <div className="signal-stack public-participation-state">
-                                <input className="signal-field" placeholder={locale === 'ru' ? 'Название команды' : 'Team name'} value={teamName} onChange={(event) => setTeamName(event.target.value)} />
-                                <ToolbarRow>
-                                  <button onClick={handleCreateTeam} disabled={registering || !teamName} className="btn btn-primary btn-sm">{t('common.save')}</button>
-                                  <button onClick={() => setTeamState('IDLE')} className="btn btn-secondary btn-sm">{t('common.cancel')}</button>
-                                </ToolbarRow>
-                              </div>
-                            ) : null}
+                        {teamState === 'CREATING' ? (
+                          <div className="signal-stack public-participation-state">
+                            <input className="signal-field" placeholder={locale === 'ru' ? 'Название команды' : 'Team name'} value={teamName} onChange={(event) => setTeamName(event.target.value)} />
+                            <ToolbarRow>
+                              <button onClick={handleCreateTeam} disabled={registering || !teamName} className="btn btn-primary btn-sm">{t('common.save')}</button>
+                              <button onClick={() => setTeamState('IDLE')} className="btn btn-secondary btn-sm">{t('common.cancel')}</button>
+                            </ToolbarRow>
+                          </div>
+                        ) : null}
 
-                            {teamState === 'JOINING' ? (
-                              <div className="signal-stack public-participation-state">
-                                <input className="signal-field" placeholder={locale === 'ru' ? 'Код приглашения' : 'Join code'} value={joinCode} onChange={(event) => setJoinCode(event.target.value)} />
-                                <ToolbarRow>
-                                  <button onClick={handleJoinTeam} disabled={registering || !joinCode} className="btn btn-primary btn-sm">{t('events.join')}</button>
-                                  <button onClick={() => setTeamState('IDLE')} className="btn btn-secondary btn-sm">{t('common.cancel')}</button>
-                                </ToolbarRow>
-                              </div>
-                            ) : null}
-                          </>
-                        ) : (
-                          <button onClick={handleRegister} disabled={registering || isFull} className="btn btn-primary">
-                            {registering ? t('common.loading') : isFull ? (locale === 'ru' ? 'Мест нет' : 'No spots left') : t('events.join')}
-                          </button>
-                        )}
+                        {teamState === 'JOINING' ? (
+                          <div className="signal-stack public-participation-state">
+                            <input className="signal-field" placeholder={locale === 'ru' ? 'Код приглашения' : 'Join code'} value={joinCode} onChange={(event) => setJoinCode(event.target.value)} />
+                            <ToolbarRow>
+                              <button onClick={handleJoinTeam} disabled={registering || !joinCode} className="btn btn-primary btn-sm">{t('events.join')}</button>
+                              <button onClick={() => setTeamState('IDLE')} className="btn btn-secondary btn-sm">{t('common.cancel')}</button>
+                            </ToolbarRow>
+                          </div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <button onClick={handleRegister} disabled={registering || isFull} className="btn btn-primary">
+                        {registering ? t('common.loading') : isFull ? (locale === 'ru' ? 'Мест нет' : 'No spots left') : t('events.join')}
+                      </button>
+                    )}
 
-                        {teamError ? <Notice tone="danger">{teamError}</Notice> : null}
-                        {regError ? <Notice tone="danger">{regError}</Notice> : null}
-                      </div>
-                    ) : <Link href={`/${locale}/login`} className="btn btn-primary">{t('events.loginToJoin')}</Link>}
+                    {teamError ? <Notice tone="danger">{teamError}</Notice> : null}
+                    {regError ? <Notice tone="danger">{regError}</Notice> : null}
+                  </div>
+                ) : <Link href={`/${locale}/login`} className="btn btn-primary">{t('events.loginToJoin')}</Link>}
+            </Panel>
 
-                  {missingFields.length > 0 ? (
-                    <Panel className="public-missing-fields-panel">
-                      <SectionHeader title={locale === 'ru' ? 'Требуются дополнительные поля' : 'Additional fields required'} subtitle={locale === 'ru' ? 'Заполните профиль и анкету события' : 'Complete profile and event form fields'} />
-                      <div className="signal-stack">
-                        {missingFields.map((field) => (
-                          <div key={`${field.scope}-${field.key}`} className="signal-ranked-item"><span>{fieldLabel(field)}</span><StatusBadge tone="neutral">{field.scope}</StatusBadge></div>
-                        ))}
-                        {profileMissing.length > 0 ? <Link href={profileLink} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Заполнить профиль' : 'Complete profile'}</Link> : null}
-                        {eventFormMissing.length > 0 ? eventFormMissing.map((field) => (
-                          <label key={field.key} className="signal-stack">
-                            <span className="signal-muted">{fieldLabel(field)}</span>
-                            <FieldTextarea value={eventAnswers[field.key] ?? ''} onChange={(event) => setEventAnswers((previous) => ({ ...previous, [field.key]: event.target.value }))} rows={2} />
-                          </label>
-                        )) : null}
-                        {eventFormMissing.length > 0 ? <button onClick={handleSaveRegistrationAnswers} disabled={savingAnswers} className="btn btn-primary btn-sm">{savingAnswers ? t('common.loading') : locale === 'ru' ? 'Сохранить анкету' : 'Save event form'}</button> : null}
-                      </div>
-                    </Panel>
-                  ) : null}
+            <Panel className="event-v6-support-actions">
+              <SectionHeader title={locale === 'ru' ? 'Требования и доп. действия' : 'Requirements and support actions'} subtitle={locale === 'ru' ? 'Поля профиля, анкета и волонтёрский трек' : 'Profile fields, event form, and volunteer track'} />
 
-                  {hasActiveVolunteer
-                    ? <Notice tone="info">{locale === 'ru' ? 'Заявка волонтёра' : 'Volunteer request'}: {volunteerStatus}</Notice>
-                    : user
-                      ? <button onClick={handleVolunteerApply} disabled={volunteering} className="btn btn-secondary btn-sm">{volunteering ? t('common.loading') : locale === 'ru' ? 'Откликнуться как волонтёр' : 'Apply as volunteer'}</button>
-                      : <Link href={`/${locale}/login`} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Войти для волонтёрства' : 'Login to volunteer'}</Link>}
-
-                  {volunteerError ? <Notice tone="danger">{volunteerError}</Notice> : null}
+              {missingFields.length > 0 ? (
+                <Panel className="public-missing-fields-panel">
+                  <SectionHeader title={locale === 'ru' ? 'Требуются дополнительные поля' : 'Additional fields required'} subtitle={locale === 'ru' ? 'Заполните профиль и анкету события' : 'Complete profile and event form fields'} />
+                  <div className="signal-stack">
+                    {missingFields.map((field) => (
+                      <div key={`${field.scope}-${field.key}`} className="signal-ranked-item"><span>{fieldLabel(field)}</span><StatusBadge tone="neutral">{field.scope}</StatusBadge></div>
+                    ))}
+                    {profileMissing.length > 0 ? <Link href={profileLink} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Заполнить профиль' : 'Complete profile'}</Link> : null}
+                    {eventFormMissing.length > 0 ? eventFormMissing.map((field) => (
+                      <label key={field.key} className="signal-stack">
+                        <span className="signal-muted">{fieldLabel(field)}</span>
+                        <FieldTextarea value={eventAnswers[field.key] ?? ''} onChange={(event) => setEventAnswers((previous) => ({ ...previous, [field.key]: event.target.value }))} rows={2} />
+                      </label>
+                    )) : null}
+                    {eventFormMissing.length > 0 ? <button onClick={handleSaveRegistrationAnswers} disabled={savingAnswers} className="btn btn-primary btn-sm">{savingAnswers ? t('common.loading') : locale === 'ru' ? 'Сохранить анкету' : 'Save event form'}</button> : null}
+                  </div>
                 </Panel>
-              </aside>
-            </div>
+              ) : null}
+
+              {hasActiveVolunteer
+                ? <Notice tone="info">{locale === 'ru' ? 'Заявка волонтёра' : 'Volunteer request'}: {volunteerStatus}</Notice>
+                : user
+                  ? <button onClick={handleVolunteerApply} disabled={volunteering} className="btn btn-secondary btn-sm">{volunteering ? t('common.loading') : locale === 'ru' ? 'Откликнуться как волонтёр' : 'Apply as volunteer'}</button>
+                  : <Link href={`/${locale}/login`} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Войти для волонтёрства' : 'Login to volunteer'}</Link>}
+
+              {volunteerError ? <Notice tone="danger">{volunteerError}</Notice> : null}
+            </Panel>
           </div>
         </section>
       </main>
