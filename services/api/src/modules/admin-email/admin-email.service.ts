@@ -161,8 +161,10 @@ export async function listEmailMessages(
 // ─── Email templates ───────────────────────────────────────────────────────────
 
 export async function listEmailTemplates(
-  _params: { search?: string; status?: string; page?: number; limit?: number } = {}
+  params: { search?: string; status?: string; page?: number; limit?: number } = {}
 ): Promise<{ data: EmailTemplate[]; meta: { total: number; page: number; limit: number; pages: number } }> {
+  const { search, status, page = 1, limit = 20 } = params;
+  
   const templates: EmailTemplate[] = [
     {
       id: templateIds[0],
@@ -214,17 +216,36 @@ export async function listEmailTemplates(
     },
   ];
 
+  // Apply filters
+  let filtered = templates;
+  if (search) {
+    const searchLower = search.toLowerCase();
+    filtered = filtered.filter(t => 
+      t.name.toLowerCase().includes(searchLower) || 
+      t.subject.toLowerCase().includes(searchLower)
+    );
+  }
+  if (status && status !== 'ALL') {
+    filtered = filtered.filter(t => t.status === status);
+  }
+
+  const total = filtered.length;
+  const pages = Math.ceil(total / limit);
+  const offset = (page - 1) * limit;
+
   return {
-    data: templates,
-    meta: { total: templates.length, page: 1, limit: 20, pages: 1 },
+    data: filtered.slice(offset, offset + limit),
+    meta: { total, page, limit, pages },
   };
 }
 
 // ─── Email broadcasts ───────────────────────────────────────────────────────────
 
 export async function listEmailBroadcasts(
-  _params: { status?: string; page?: number; limit?: number } = {}
+  params: { status?: string; page?: number; limit?: number } = {}
 ): Promise<{ data: EmailBroadcast[]; meta: { total: number; page: number; limit: number; pages: number } }> {
+  const { status, page = 1, limit = 20 } = params;
+  
   const broadcasts: EmailBroadcast[] = [
     {
       id: broadcastIds[0],
@@ -252,17 +273,29 @@ export async function listEmailBroadcasts(
     },
   ];
 
+  // Apply filters
+  let filtered = broadcasts;
+  if (status && status !== 'ALL') {
+    filtered = filtered.filter(b => b.status === status);
+  }
+
+  const total = filtered.length;
+  const pages = Math.ceil(total / limit);
+  const offset = (page - 1) * limit;
+
   return {
-    data: broadcasts,
-    meta: { total: broadcasts.length, page: 1, limit: 20, pages: 1 },
+    data: filtered.slice(offset, offset + limit),
+    meta: { total, page, limit, pages },
   };
 }
 
 // ─── Email automations ─────────────────────────────────────────────────────────
 
 export async function listEmailAutomations(
-  _params: { status?: string; page?: number; limit?: number } = {}
+  params: { status?: string; page?: number; limit?: number } = {}
 ): Promise<{ data: EmailAutomation[]; meta: { total: number; page: number; limit: number; pages: number } }> {
+  const { status, page = 1, limit = 20 } = params;
+  
   const automations: EmailAutomation[] = [
     {
       id: automationIds[0],
@@ -290,9 +323,19 @@ export async function listEmailAutomations(
     },
   ];
 
+  // Apply filters
+  let filtered = automations;
+  if (status && status !== 'ALL') {
+    filtered = filtered.filter(a => a.status === status);
+  }
+
+  const total = filtered.length;
+  const pages = Math.ceil(total / limit);
+  const offset = (page - 1) * limit;
+
   return {
-    data: automations,
-    meta: { total: automations.length, page: 1, limit: 20, pages: 1 },
+    data: filtered.slice(offset, offset + limit),
+    meta: { total, page, limit, pages },
   };
 }
 
@@ -317,8 +360,10 @@ export async function getEmailAudience(): Promise<EmailAudienceData> {
 // ─── Email domains ─────────────────────────────────────────────────────────────
 
 export async function listEmailDomains(
-  _params: { search?: string; page?: number; limit?: number } = {}
+  params: { search?: string; page?: number; limit?: number } = {}
 ): Promise<{ data: EmailDomain[]; meta: { total: number; page: number; limit: number; pages: number } }> {
+  const { search, page = 1, limit = 20 } = params;
+  
   const domains: EmailDomain[] = [
     {
       id: domainIds[0],
@@ -342,9 +387,20 @@ export async function listEmailDomains(
     },
   ];
 
+  // Apply filters
+  let filtered = domains;
+  if (search) {
+    const searchLower = search.toLowerCase();
+    filtered = filtered.filter(d => d.domain.toLowerCase().includes(searchLower));
+  }
+
+  const total = filtered.length;
+  const pages = Math.ceil(total / limit);
+  const offset = (page - 1) * limit;
+
   return {
-    data: domains,
-    meta: { total: domains.length, page: 1, limit: 20, pages: 1 },
+    data: filtered.slice(offset, offset + limit),
+    meta: { total, page, limit, pages },
   };
 }
 

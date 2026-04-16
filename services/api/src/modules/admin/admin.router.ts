@@ -685,6 +685,7 @@ adminRouter.get('/analytics', requirePlatformAdmin, async (_req, res) => {
     totalEvents,
     totalRegistrations,
     totalViews,
+    volunteersPending,
     registrationsByProvider,
     loginsByProvider,
     topViewedRaw,
@@ -694,6 +695,7 @@ adminRouter.get('/analytics', requirePlatformAdmin, async (_req, res) => {
     prisma.event.count({ where: { status: 'PUBLISHED' } }),
     prisma.eventMember.count({ where: { role: 'PARTICIPANT', status: { in: [...ACTIVE_MEMBER_STATUSES] } } }),
     prisma.analyticsEvent.count({ where: { type: 'EVENT_DETAIL_VIEW' } }),
+    prisma.eventMember.count({ where: { role: 'VOLUNTEER', status: 'PENDING' } }),
     prisma.analyticsEvent.groupBy({
       by: ['authProvider'],
       where: { type: 'USER_REGISTER', authProvider: { not: null } },
@@ -747,6 +749,7 @@ adminRouter.get('/analytics', requirePlatformAdmin, async (_req, res) => {
     totalUsers,
     totalEvents,
     totalRegistrations,
+    volunteersPending,
     totalEventViews: totalViews,
     conversionViewToRegistration: totalViews > 0 ? totalRegistrations / totalViews : 0,
     registrationsByProvider: providerCounts(registrationsByProvider),
