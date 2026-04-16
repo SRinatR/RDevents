@@ -782,8 +782,9 @@ adminRouter.get('/participants', async (req, res) => {
   }
 
   // Build where clause for event members
+  // Default to PARTICIPANT only (VOLUNTEER has separate page)
   const where: Record<string, unknown> = {
-    role: { in: role === 'ALL' || !role ? ['PARTICIPANT', 'VOLUNTEER'] : [role] },
+    role: role === 'VOLUNTEER' ? 'VOLUNTEER' : 'PARTICIPANT',
   };
 
   if (managedEventIds) {

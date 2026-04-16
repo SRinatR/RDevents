@@ -85,8 +85,8 @@ export default function AdminPage() {
     async function loadEventScopedStats() {
       setStatsLoading(true);
       try {
-        // Get events managed by this event admin
-        const eventsResult = await adminApi.listEvents({ limit: 10 });
+        // Get ALL events managed by this event admin
+        const eventsResult = await adminApi.listEvents({ limit: 100 });
         const events = eventsResult.data;
         
         if (!active) return;
@@ -97,18 +97,45 @@ export default function AdminPage() {
           return;
         }
 
-        // Load analytics for first event (event-scoped)
-        const eventStats = await adminApi.getEventAnalytics(events[0].id);
+        // Aggregate analytics for ALL managed events
+        const eventIds = events.map(e => e.id);
+        
+        // Fetch analytics for each event in parallel
+        const analyticsResults = await Promise.all(
+          eventIds.map(id => adminApi.getEventAnalytics(id).catch(() => null))
+        );
         
         if (!active) return;
 
+        // Aggregate stats
+        let totalRegistrations = 0;
+        let totalViews = 0;
+        let totalVolunteersPending = 0;
+        const viewStats: { eventId: string; title: string; viewCount: number }[] = [];
+        const registrationStats: { eventId: string; title: string; registrationCount: number }[] = [];
+
+        events.forEach((event, index) => {
+          const stats = analyticsResults[index];
+          if (stats) {
+            totalRegistrations += stats.participants;
+            totalViews += stats.views;
+            totalVolunteersPending += stats.volunteersPending;
+            viewStats.push({ eventId: event.id, title: event.title, viewCount: stats.views });
+            registrationStats.push({ eventId: event.id, title: event.title, registrationCount: stats.participants });
+          }
+        });
+
+        // Sort and take top 6
+        viewStats.sort((a, b) => b.viewCount - a.viewCount);
+        registrationStats.sort((a, b) => b.registrationCount - a.registrationCount);
+
         setStats({
           totalEvents: events.length,
-          totalRegistrations: eventStats.participants,
-          totalEventViews: eventStats.views,
-          volunteersPending: eventStats.volunteersPending,
-          topViewedEvents: [{ eventId: events[0].id, title: events[0].title, viewCount: eventStats.views }],
-          topRegisteredEvents: [{ eventId: events[0].id, title: events[0].title, registrationCount: eventStats.participants }],
+          totalRegistrations,
+          totalEventViews: totalViews,
+          volunteersPending: totalVolunteersPending,
+          topViewedEvents: viewStats.slice(0, 6),
+          topRegisteredEvents: registrationStats.slice(0, 6),
         });
       } catch {
         if (active) setStats(null);

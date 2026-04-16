@@ -67,9 +67,11 @@ export async function getEmailOverview(): Promise<EmailOverview> {
 // ─── Email messages ─────────────────────────────────────────────────────────────
 
 export async function listEmailMessages(
-  _params: { search?: string; status?: string; source?: string; timeRange?: string; page?: number; limit?: number } = {}
+  params: { search?: string; status?: string; source?: string; timeRange?: string; page?: number; limit?: number } = {}
 ): Promise<{ data: EmailMessage[]; meta: { total: number; page: number; limit: number; pages: number } }> {
-  const messages: EmailMessage[] = [
+  const { search, status, source, page = 1, limit = 50 } = params;
+  
+  const allMessages: EmailMessage[] = [
     {
       id: messageIds[0],
       to: 'user1@example.com',
@@ -126,9 +128,33 @@ export async function listEmailMessages(
     },
   ];
 
+  // Apply filters
+  let filtered = allMessages;
+  
+  if (search) {
+    const searchLower = search.toLowerCase();
+    filtered = filtered.filter(m => 
+      m.to.toLowerCase().includes(searchLower) || 
+      m.subject.toLowerCase().includes(searchLower)
+    );
+  }
+  
+  if (status && status !== 'ALL') {
+    filtered = filtered.filter(m => m.status === status);
+  }
+  
+  if (source && source !== 'ALL') {
+    filtered = filtered.filter(m => m.source === source);
+  }
+
+  const total = filtered.length;
+  const pages = Math.ceil(total / limit);
+  const offset = (page - 1) * limit;
+  const data = filtered.slice(offset, offset + limit);
+
   return {
-    data: messages,
-    meta: { total: messages.length, page: 1, limit: 50, pages: 1 },
+    data,
+    meta: { total, page, limit, pages },
   };
 }
 
