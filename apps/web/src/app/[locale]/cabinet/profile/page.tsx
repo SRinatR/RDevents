@@ -6,7 +6,7 @@ import { useAuth } from '../../../../hooks/useAuth';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
-import { FieldInput, FieldTextarea, Notice, PageHeader, Panel, SectionHeader, StatusBadge } from '@/components/ui/signal-primitives';
+import { FieldInput, FieldTextarea, Notice, Panel, SectionHeader, StatusBadge } from '@/components/ui/signal-primitives';
 
 export default function ProfilePage() {
   const { user, loading, updateProfile } = useAuth();
@@ -125,12 +125,16 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="signal-page-shell">
-      <PageHeader title={locale === 'ru' ? 'Профиль' : 'Profile'} subtitle={locale === 'ru' ? 'Личные данные и модули участия' : 'Personal data and participation modules'} />
-
-      <div className="workspace-command-row">
-        <Link href={`/${locale}/cabinet/applications`} className="signal-chip-link">{locale === 'ru' ? 'Открыть заявки' : 'Open applications'}</Link>
-        <Link href={`/${locale}/cabinet/my-events`} className="signal-chip-link">{locale === 'ru' ? 'Перейти к участию' : 'Go to participations'}</Link>
+    <div className="profile-workspace">
+      <div className="profile-workspace-topbar">
+        <div>
+          <h1 className="profile-workspace-title">{locale === 'ru' ? 'Профиль' : 'Profile'}</h1>
+          <p className="profile-workspace-subtitle">{locale === 'ru' ? 'Личные данные и модули участия' : 'Personal data and participation modules'}</p>
+        </div>
+        <div className="profile-workspace-actions">
+          <Link href={`/${locale}/cabinet/applications`} className="signal-chip-link">{locale === 'ru' ? 'Открыть заявки' : 'Open applications'}</Link>
+          <Link href={`/${locale}/cabinet/my-events`} className="signal-chip-link">{locale === 'ru' ? 'Перейти к участию' : 'Go to participations'}</Link>
+        </div>
       </div>
 
       {requiredFields.length > 0 ? (
@@ -144,7 +148,7 @@ export default function ProfilePage() {
       {error ? <Notice tone="danger">{error}</Notice> : null}
       {success ? <Notice tone="success">{locale === 'ru' ? 'Профиль обновлён.' : 'Profile updated.'}</Notice> : null}
 
-      <Panel variant="elevated">
+      <div className="profile-tab-area">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="cabinet-tabs-list">
             <TabsTrigger value="registration">{locale === 'ru' ? 'ФИО' : 'Name'}</TabsTrigger>
@@ -337,7 +341,7 @@ export default function ProfilePage() {
             </Panel>
           </TabsContent>
         </Tabs>
-      </Panel>
+      </div>
     </div>
   );
 }

@@ -68,16 +68,6 @@ export default function Sidebar({ locale, userName, userEmail, userAvatar }: Sid
         </div>
       </div>
 
-      <div className="workspace-sidebar-actions">
-        <Link href={`/${locale}/cabinet`} className="btn btn-secondary btn-sm btn-block-center cabinet-profile-action">
-          {locale === 'ru' ? 'Обновить профиль' : 'Update profile'}
-        </Link>
-        <Link href={`/${locale}/cabinet/my-events`} className="btn btn-ghost btn-sm btn-block-center">
-          {locale === 'ru' ? 'Открыть мои мероприятия' : 'Open my events'}
-        </Link>
-      </div>
-
-
       <nav className="cabinet-nav-list workspace-nav-list-v2">
         <div className="cabinet-nav-label">{locale === 'ru' ? 'Личный контур' : 'Personal loop'}</div>
         {primaryItems.map((item) => <NavItem key={item.href} item={item} pathname={pathname} />)}
