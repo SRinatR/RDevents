@@ -1,0 +1,160 @@
+{
+  "common": {
+    "appName": "Event Platform",
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete",
+    "close": "Close",
+    "back": "Back",
+    "search": "Search",
+    "filters": "Filters",
+    "sort": "Sort",
+    "status": "Status",
+    "open": "Open",
+    "viewAll": "View all",
+    "comingSoon": "Coming soon",
+    "noData": "No data yet",
+    "retry": "Retry",
+    "language": "Language"
+  },
+  "nav": {
+    "home": "Home",
+    "events": "Events",
+    "analytics": "Analytics",
+    "cabinet": "Cabinet",
+    "profile": "Profile",
+    "admin": "Admin",
+    "login": "Login",
+    "register": "Register",
+    "logout": "Logout"
+  },
+  "home": {
+    "heroTitle": "Modern event platform for communities, teams and real experiences",
+    "heroSubtitle": "Create events, register participants, manage volunteers and track analytics in one place.",
+    "exploreCta": "Explore events",
+    "joinCta": "Join now",
+    "featuresTitle": "Why people choose this platform",
+    "features": {
+      "fast": {
+        "title": "Fast launch",
+        "description": "Create and publish events quickly without technical chaos."
+      },
+      "analytics": {
+        "title": "Clear analytics",
+        "description": "Track registrations, event views and user activity from one dashboard."
+      },
+      "roles": {
+        "title": "Flexible roles",
+        "description": "Support participants, admins, volunteers and organizers in one system."
+      }
+    },
+    "popularTitle": "Popular and upcoming events",
+    "howItWorksTitle": "How it works",
+    "howItWorks": {
+      "step1": "Choose an event",
+      "step2": "Sign in with email or social account",
+      "step3": "Register and manage everything from your cabinet"
+    }
+  },
+  "auth": {
+    "loginTitle": "Welcome back",
+    "loginSubtitle": "Sign in to continue",
+    "registerTitle": "Create your account",
+    "registerSubtitle": "Join the platform in a minute",
+    "email": "Email",
+    "password": "Password",
+    "name": "Name",
+    "continueWithEmail": "Continue with Email",
+    "continueWithGoogle": "Continue with Google",
+    "continueWithYandex": "Continue with Yandex",
+    "continueWithTelegram": "Continue with Telegram",
+    "alreadyHaveAccount": "Already have an account?",
+    "noAccount": "Don't have an account yet?",
+    "signIn": "Sign in",
+    "signUp": "Sign up",
+    "errors": {
+      "invalidEmail": "Enter a valid email address",
+      "passwordTooShort": "Password must be at least 8 characters",
+      "nameTooShort": "Name must be at least 2 characters",
+      "wrongCredentials": "Incorrect email or password",
+      "userExists": "A user with this email already exists",
+      "unauthorized": "You need to sign in first"
+    }
+  },
+  "events": {
+    "title": "Events",
+    "subtitle": "Discover events, activities and opportunities",
+    "searchPlaceholder": "Search events",
+    "emptyTitle": "No events found",
+    "emptySubtitle": "Try changing filters or come back later.",
+    "errorTitle": "Failed to load events",
+    "details": "Details",
+    "join": "Join event",
+    "registered": "Registered",
+    "loginToJoin": "Login to join",
+    "share": "Share",
+    "copyLink": "Copy link",
+    "date": "Date",
+    "time": "Time",
+    "location": "Location",
+    "category": "Category",
+    "capacity": "Capacity",
+    "registrationStatus": "Registration status",
+    "conditions": "Participation conditions",
+    "description": "Description"
+  },
+  "cabinet": {
+    "title": "My cabinet",
+    "subtitle": "Your profile, events and activity in one place",
+    "myEvents": "My events",
+    "profile": "Profile",
+    "connectedAccounts": "Connected accounts",
+    "activityStats": "Activity and stats",
+    "noEvents": "You have not joined any events yet."
+  },
+  "profile": {
+    "title": "Profile",
+    "personalInfo": "Personal information",
+    "bio": "Bio",
+    "city": "City",
+    "phone": "Phone",
+    "avatar": "Avatar",
+    "registeredAt": "Registration date",
+    "lastLogin": "Last login",
+    "connectedProviders": "Connected providers",
+    "updateSuccess": "Profile updated successfully"
+  },
+  "admin": {
+    "title": "Admin panel",
+    "subtitle": "Manage events, users, volunteers and platform analytics",
+    "events": "Manage events",
+    "users": "Users",
+    "admins": "Admins",
+    "volunteers": "Volunteers",
+    "analytics": "Analytics",
+    "createEvent": "Create event",
+    "editEvent": "Edit event",
+    "createAdmin": "Create admin",
+    "export": "Export"
+  },
+  "analytics": {
+    "title": "Analytics",
+    "totalUsers": "Total users",
+    "totalEvents": "Total events",
+    "totalRegistrations": "Total registrations",
+    "totalEventViews": "Total event views",
+    "registrationsByProvider": "Registrations by provider",
+    "loginsByProvider": "Logins by provider",
+    "topViewedEvents": "Top viewed events",
+    "topRegisteredEvents": "Top registered events",
+    "conversion": "View to registration conversion"
+  },
+  "footer": {
+    "rights": "All rights reserved.",
+    "product": "Product",
+    "company": "Company",
+    "support": "Support"
+  }
+}

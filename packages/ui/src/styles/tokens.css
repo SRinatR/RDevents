@@ -1,0 +1,121 @@
+:root {
+  --font-sans:
+    'Plus Jakarta Sans',
+    'Inter',
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+
+  --font-display:
+    'Plus Jakarta Sans',
+    'Inter',
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
+
+  --font-mono:
+    'JetBrains Mono',
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+
+  --color-bg: #f5f7fb;
+  --color-bg-soft: #eef2f8;
+  --color-bg-subtle: #e6ebf4;
+  --color-bg-inverse: #0f172a;
+
+  --color-surface: #ffffff;
+  --color-surface-strong: #ffffff;
+  --color-surface-elevated: #f8faff;
+  --color-surface-overlay: #f1f5fc;
+  --color-surface-table: #fbfcff;
+  --color-surface-action: #edf3ff;
+
+  --color-text-primary: #0f1b2d;
+  --color-text-secondary: #25344a;
+  --color-text-muted: #526078;
+  --color-text-faint: #7f8da4;
+  --color-text-inverse: #e6edf8;
+
+  --color-primary: #1f53cf;
+  --color-primary-hover: #1947b3;
+  --color-primary-active: #153992;
+  --color-primary-subtle: rgba(31, 83, 207, 0.1);
+  --color-primary-glow: rgba(31, 83, 207, 0.2);
+
+  --color-accent: #c33b4f;
+  --color-accent-hover: #aa3144;
+  --color-accent-subtle: rgba(195, 59, 79, 0.12);
+
+  --color-info: #275fc9;
+  --color-info-subtle: rgba(39, 95, 201, 0.11);
+  --color-success: #0f766e;
+  --color-success-subtle: rgba(15, 118, 110, 0.11);
+  --color-warning: #9d6218;
+  --color-warning-subtle: rgba(157, 98, 24, 0.12);
+  --color-danger: #b03333;
+  --color-danger-subtle: rgba(176, 51, 51, 0.11);
+
+  --color-border: #d2daea;
+  --color-border-soft: #dbe2ef;
+  --color-border-strong: #bcc8dc;
+  --color-border-focus: rgba(31, 83, 207, 0.32);
+  --color-border-inverse: rgba(230, 237, 248, 0.26);
+
+  --shadow-xs: 0 1px 2px rgba(13, 23, 42, 0.04), 0 0 0 1px rgba(13, 23, 42, 0.02);
+  --shadow-sm: 0 8px 20px rgba(13, 23, 42, 0.08), 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  --shadow-md: 0 16px 36px rgba(13, 23, 42, 0.12), 0 3px 12px rgba(13, 23, 42, 0.05);
+  --shadow-lg: 0 28px 56px rgba(13, 23, 42, 0.16), 0 8px 24px rgba(13, 23, 42, 0.08);
+  --shadow-xl: 0 40px 78px rgba(13, 23, 42, 0.2);
+  --shadow-primary: 0 10px 24px rgba(31, 83, 207, 0.22);
+  --shadow-primary-lg: 0 18px 44px rgba(31, 83, 207, 0.3);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 28px;
+  --radius-3xl: 36px;
+  --radius-full: 9999px;
+
+  --container-narrow: 720px;
+  --container-base: 1120px;
+  --container-wide: 1280px;
+  --container-gutter-mobile: 20px;
+  --container-gutter-desktop: 40px;
+
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 2.75rem;
+  --space-3xl: 4rem;
+  --space-4xl: 5.5rem;
+
+  --step--1: clamp(0.82rem, 0.8rem + 0.05vw, 0.88rem);
+  --step-0: clamp(0.95rem, 0.9rem + 0.1vw, 1rem);
+  --step-1: clamp(1.1rem, 1.01rem + 0.24vw, 1.24rem);
+  --step-2: clamp(1.28rem, 1.13rem + 0.44vw, 1.54rem);
+  --step-3: clamp(1.54rem, 1.3rem + 0.74vw, 1.96rem);
+  --step-4: clamp(1.88rem, 1.5rem + 1.1vw, 2.48rem);
+  --step-5: clamp(2.28rem, 1.72rem + 1.7vw, 3.18rem);
+
+  --transition-fast: 140ms cubic-bezier(0.32, 0.72, 0, 1);
+  --transition-base: 230ms cubic-bezier(0.3, 0.7, 0.2, 1);
+  --transition-slow: 340ms cubic-bezier(0.23, 1, 0.32, 1);
+  --transition-spring: 300ms cubic-bezier(0.22, 1, 0.36, 1);
+
+  --z-navbar: 100;
+  --z-overlay: 200;
+  --z-modal: 300;
+
+  --blur-sm: blur(8px);
+  --blur-md: blur(16px);
+  --blur-lg: blur(24px);
+}

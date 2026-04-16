@@ -1,0 +1,75 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: event-platform-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: event_platform
+      POSTGRES_USER: event_platform_user
+      POSTGRES_PASSWORD: event_platform_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U event_platform_user -d event_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: ./services/api/Dockerfile
+      target: dev
+    container_name: event-platform-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: postgresql://event_platform_user:event_platform_password@postgres:5432/event_platform?schema=public
+      JWT_ACCESS_SECRET: change_me_access_secret
+      JWT_REFRESH_SECRET: change_me_refresh_secret
+      CORS_ORIGIN: http://localhost:3000
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./services/api/src:/app/services/api/src
+      - ./services/api/prisma:/app/services/api/prisma
+      - ./services/api/prisma.config.ts:/app/services/api/prisma.config.ts
+      - ./services/api/tsconfig.json:/app/services/api/tsconfig.json:ro
+    working_dir: /app/services/api
+    command: sh -c "pnpm prisma generate && pnpm prisma migrate deploy && pnpm db:seed && pnpm dev"
+
+  web:
+    build:
+      context: .
+      dockerfile: ./apps/web/Dockerfile
+      target: dev
+    container_name: event-platform-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      API_INTERNAL_URL: http://api:4000
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:4000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./apps/web/src:/app/apps/web/src
+      - ./apps/web/public:/app/apps/web/public
+      - ./apps/web/next.config.ts:/app/apps/web/next.config.ts
+      - ./apps/web/postcss.config.js:/app/apps/web/postcss.config.js:ro
+      - ./apps/web/tailwind.config.ts:/app/apps/web/tailwind.config.ts:ro
+      - ./apps/web/tsconfig.json:/app/apps/web/tsconfig.json
+      - ./packages/ui/src/styles:/app/packages/ui/src/styles:ro
+    working_dir: /app/apps/web
+    command: pnpm dev
+
+volumes:
+  postgres_data:
