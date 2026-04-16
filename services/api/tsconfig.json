@@ -14,7 +14,7 @@
     "isolatedModules": true,
     "declaration": false,
     "types": ["node"],
-    "ignoreDeprecations": "6.0",
+    "ignoreDeprecations": "5.0",
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],

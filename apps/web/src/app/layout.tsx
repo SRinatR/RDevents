@@ -3,15 +3,15 @@ import '@/styles/globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'EventPlatform — Find & Create Amazing Events',
-    template: '%s · EventPlatform',
+    default: 'Русский Дом — Найди и создай мероприятия',
+    template: '%s · Русский Дом',
   },
-  description: 'Discover, join, and manage events with ease. EventPlatform combines public listings, registration, analytics, and an admin panel in one product.',
-  keywords: ['events', 'platform', 'registration', 'community', 'analytics'],
-  authors: [{ name: 'EventPlatform Team' }],
+  description: 'Платформа для поиска и организации мероприятий. Публичный каталог, регистрация участников, аналитика и панель управления в одном продукте.',
+  keywords: ['мероприятия', 'русский дом', 'регистрация', 'события', 'аналитика'],
+  authors: [{ name: 'Русский Дом' }],
   openGraph: {
-    title: 'EventPlatform — Find & Create Amazing Events',
-    description: 'Discover, join, and manage events with ease.',
+    title: 'Русский Дом — Найди и создай мероприятия',
+    description: 'Платформа для поиска и организации мероприятий.',
     type: 'website',
   },
 };
@@ -28,7 +28,7 @@ type RootLayoutProps = Readonly<{
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
+    <html lang="ru" data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

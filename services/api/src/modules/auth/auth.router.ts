@@ -1,12 +1,21 @@
 import { Router } from 'express';
 import { authenticate } from '../../common/middleware.js';
-import { registerSchema, loginSchema, updateProfileSchema, socialAuthSchema } from './auth.schemas.js';
 import {
-  registerWithEmail,
+  completeRegistrationSchema,
+  loginSchema,
+  socialAuthSchema,
+  startRegistrationSchema,
+  updateProfileSchema,
+  verifyRegistrationCodeSchema,
+} from './auth.schemas.js';
+import {
+  completeEmailRegistration,
   loginWithEmail,
   loginWithProvider,
+  startEmailRegistration,
   getMe,
   updateProfile,
+  verifyEmailRegistrationCode,
 } from './auth.service.js';
 import { verifyRefreshToken, signAccessToken } from '../../common/jwt.js';
 import { prisma } from '../../db/prisma.js';
@@ -26,21 +35,87 @@ function setRefreshCookie(res: any, token: string) {
   });
 }
 
-// POST /api/auth/register
-authRouter.post('/register', async (req, res) => {
-  const parsed = registerSchema.safeParse(req.body);
+// POST /api/auth/register/start
+authRouter.post('/register/start', async (req, res) => {
+  const parsed = startRegistrationSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
     return;
   }
 
   try {
-    const result = await registerWithEmail(parsed.data);
+    const result = await startEmailRegistration(parsed.data);
+    res.status(201).json({ ok: true, ...result });
+  } catch (err: any) {
+    if (err.message === 'EMAIL_TAKEN') {
+      res.status(409).json({ error: 'A user with this email already exists' });
+      return;
+    }
+    if (err.message === 'RESEND_COOLDOWN') {
+      res.status(429).json({
+        error: `You can request a new code in ${err.retryAfterSeconds ?? env.REGISTRATION_RESEND_COOLDOWN} seconds.`,
+      });
+      return;
+    }
+    if (err.message === 'EMAIL_DELIVERY_NOT_CONFIGURED' || err.message === 'EMAIL_SENDER_NOT_CONFIGURED') {
+      res.status(503).json({ error: 'Email delivery is not configured on the server.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+// POST /api/auth/register/verify
+authRouter.post('/register/verify', async (req, res) => {
+  const parsed = verifyRegistrationCodeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+    return;
+  }
+
+  try {
+    const result = await verifyEmailRegistrationCode(parsed.data);
+    res.json(result);
+  } catch (err: any) {
+    if (err.message === 'INVALID_CODE') {
+      res.status(400).json({ error: 'Incorrect verification code' });
+      return;
+    }
+    if (err.message === 'CODE_EXPIRED') {
+      res.status(410).json({ error: 'Verification code expired. Request a new code.' });
+      return;
+    }
+    if (err.message === 'TOO_MANY_ATTEMPTS') {
+      res.status(429).json({ error: 'Too many incorrect attempts. Request a new code.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+// POST /api/auth/register/complete
+authRouter.post('/register/complete', async (req, res) => {
+  const parsed = completeRegistrationSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+    return;
+  }
+
+  try {
+    const result = await completeEmailRegistration(parsed.data);
     setRefreshCookie(res, result.refreshToken);
     res.status(201).json({ user: result.user, accessToken: result.accessToken });
   } catch (err: any) {
     if (err.message === 'EMAIL_TAKEN') {
       res.status(409).json({ error: 'A user with this email already exists' });
+      return;
+    }
+    if (err.message === 'REGISTRATION_SESSION_EXPIRED') {
+      res.status(410).json({ error: 'Registration session expired. Start over.' });
+      return;
+    }
+    if (err.message === 'REGISTRATION_SESSION_INVALID') {
+      res.status(401).json({ error: 'Registration session is invalid. Verify the code again.' });
       return;
     }
     throw err;

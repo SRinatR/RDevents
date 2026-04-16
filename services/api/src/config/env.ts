@@ -23,8 +23,16 @@ export const env = {
   JWT_REFRESH_SECRET: require_env('JWT_REFRESH_SECRET'),
   JWT_ACCESS_TTL: parseInt(optional_env('JWT_ACCESS_TTL', '900'), 10),
   JWT_REFRESH_TTL: parseInt(optional_env('JWT_REFRESH_TTL', '604800'), 10),
+  REGISTRATION_CODE_TTL: parseInt(optional_env('REGISTRATION_CODE_TTL', '360'), 10),
+  REGISTRATION_COMPLETION_TTL: parseInt(optional_env('REGISTRATION_COMPLETION_TTL', '1800'), 10),
+  REGISTRATION_MAX_ATTEMPTS: parseInt(optional_env('REGISTRATION_MAX_ATTEMPTS', '5'), 10),
+  REGISTRATION_RESEND_COOLDOWN: parseInt(optional_env('REGISTRATION_RESEND_COOLDOWN', '60'), 10),
 
   CORS_ORIGIN: optional_env('CORS_ORIGIN', 'http://localhost:3000'),
+  RESEND_API_KEY: process.env['RESEND_API_KEY'] ?? '',
+  RESEND_FROM_EMAIL: process.env['RESEND_FROM_EMAIL'] ?? '',
+  RESEND_FROM_NAME: optional_env('RESEND_FROM_NAME', 'RDEvents'),
+  RESEND_REPLY_TO_EMAIL: process.env['RESEND_REPLY_TO_EMAIL'] ?? '',
 
   // Social auth — optional, dev mock is used when empty
   GOOGLE_CLIENT_ID: process.env['GOOGLE_CLIENT_ID'] ?? '',

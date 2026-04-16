@@ -56,13 +56,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
   return (
     <div className="admin-app-shell app-shell app-shell-admin" data-shell="admin">
       <aside className={cn('admin-sidebar admin-shell-sidebar admin-command-sidebar', sidebarOpen && 'open')}>
-        <div className="admin-sidebar-brand">
-          <div className="admin-brand-mark">EP</div>
-          <div>
-            <div className="admin-brand-title">EventPlatform</div>
-            <div className="admin-brand-subtitle">{locale === 'ru' ? 'Панель управления' : 'Control center'}</div>
+          <div className="admin-sidebar-brand">
+            <img src="/logo.svg" alt="Русский Дом" width="34" height="34" className="admin-brand-mark" />
+            <div>
+              <div className="admin-brand-title">Русский Дом</div>
+              <div className="admin-brand-subtitle">{locale === 'ru' ? 'Панель управления' : 'Control center'}</div>
+            </div>
           </div>
-        </div>
 
         <nav className="admin-nav" aria-label="Admin">
           {navItems.filter((item) => item.allow).map((item) => {

@@ -1,9 +1,19 @@
-import { prisma } from '../../db/prisma.js';
+import { createHash, randomBytes, randomInt } from 'node:crypto';
+import type { AuthProvider } from '@prisma/client';
 import { hashPassword, verifyPassword } from '../../common/password.js';
 import { signAccessToken, signRefreshToken } from '../../common/jwt.js';
-import type { RegisterInput, LoginInput, UpdateProfileInput } from './auth.schemas.js';
-import type { AuthProvider } from '@prisma/client';
+import { sendRegistrationCodeEmail } from '../../common/email.js';
+import { logger } from '../../common/logger.js';
+import { env } from '../../config/env.js';
+import { prisma } from '../../db/prisma.js';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
+import type {
+  CompleteRegistrationInput,
+  LoginInput,
+  StartRegistrationInput,
+  UpdateProfileInput,
+  VerifyRegistrationCodeInput,
+} from './auth.schemas.js';
 
 // Strip sensitive fields before sending user to client
 export function sanitizeUser(user: Record<string, unknown>) {
@@ -22,9 +32,146 @@ export function sanitizeUser(user: Record<string, unknown>) {
   };
 }
 
-export async function registerWithEmail(input: RegisterInput) {
+export async function startEmailRegistration(input: StartRegistrationInput) {
   const existing = await prisma.user.findUnique({ where: { email: input.email } });
   if (existing) throw new Error('EMAIL_TAKEN');
+
+  const existingVerification = await prisma.registrationVerification.findUnique({
+    where: { email: input.email },
+  });
+  const now = Date.now();
+  const lastCodeSentAt = existingVerification?.codeSentAt?.getTime() ?? 0;
+  const cooldownEndsAt = lastCodeSentAt + env.REGISTRATION_RESEND_COOLDOWN * 1000;
+
+  if (cooldownEndsAt > now) {
+    const error = new Error('RESEND_COOLDOWN');
+    (error as Error & { retryAfterSeconds?: number }).retryAfterSeconds = Math.ceil((cooldownEndsAt - now) / 1000);
+    throw error;
+  }
+
+  const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+  const codeSentAt = new Date(now);
+  const codeExpiresAt = new Date(now + env.REGISTRATION_CODE_TTL * 1000);
+
+  await prisma.registrationVerification.upsert({
+    where: { email: input.email },
+    update: {
+      codeHash: hashOpaqueValue(code),
+      codeSentAt,
+      codeExpiresAt,
+      verifiedAt: null,
+      completionTokenHash: null,
+      completionTokenExpiresAt: null,
+      attempts: 0,
+    },
+    create: {
+      email: input.email,
+      codeHash: hashOpaqueValue(code),
+      codeSentAt,
+      codeExpiresAt,
+    },
+  });
+
+  try {
+    await sendRegistrationCodeEmail({
+      to: input.email,
+      code,
+      ttlMinutes: Math.ceil(env.REGISTRATION_CODE_TTL / 60),
+    });
+  } catch (error) {
+    if (!env.isDev) {
+      throw error;
+    }
+  }
+
+  logger.info('Registration verification code generated', {
+    module: 'auth',
+    action: 'registration_code_generated',
+    meta: {
+      email: input.email,
+      code,
+      expiresAt: codeExpiresAt.toISOString(),
+      delivery: env.RESEND_API_KEY ? 'resend' : 'dev_log_only',
+    },
+  });
+
+  return {
+    expiresAt: codeExpiresAt.toISOString(),
+    cooldownSeconds: env.REGISTRATION_RESEND_COOLDOWN,
+    ...(env.isDev ? { devCode: code } : {}),
+  };
+}
+
+export async function verifyEmailRegistrationCode(input: VerifyRegistrationCodeInput) {
+  const verification = await prisma.registrationVerification.findUnique({
+    where: { email: input.email },
+  });
+
+  if (!verification || verification.codeExpiresAt.getTime() <= Date.now()) {
+    throw new Error('CODE_EXPIRED');
+  }
+
+  if (verification.attempts >= env.REGISTRATION_MAX_ATTEMPTS) {
+    throw new Error('TOO_MANY_ATTEMPTS');
+  }
+
+  if (verification.codeHash !== hashOpaqueValue(input.code)) {
+    const attempts = verification.attempts + 1;
+
+    await prisma.registrationVerification.update({
+      where: { email: input.email },
+      data: { attempts },
+    });
+
+    if (attempts >= env.REGISTRATION_MAX_ATTEMPTS) {
+      throw new Error('TOO_MANY_ATTEMPTS');
+    }
+
+    throw new Error('INVALID_CODE');
+  }
+
+  const completionToken = randomBytes(24).toString('hex');
+  const completionTokenExpiresAt = new Date(Date.now() + env.REGISTRATION_COMPLETION_TTL * 1000);
+
+  await prisma.registrationVerification.update({
+    where: { email: input.email },
+    data: {
+      attempts: 0,
+      verifiedAt: new Date(),
+      completionTokenHash: hashOpaqueValue(completionToken),
+      completionTokenExpiresAt,
+    },
+  });
+
+  return {
+    registrationToken: completionToken,
+    expiresAt: completionTokenExpiresAt.toISOString(),
+  };
+}
+
+export async function completeEmailRegistration(input: CompleteRegistrationInput) {
+  const existing = await prisma.user.findUnique({ where: { email: input.email } });
+  if (existing) throw new Error('EMAIL_TAKEN');
+
+  const verification = await prisma.registrationVerification.findUnique({
+    where: { email: input.email },
+  });
+
+  const isCompletionExpired = !verification?.completionTokenExpiresAt
+    || verification.completionTokenExpiresAt.getTime() <= Date.now();
+
+  if (
+    !verification
+    || !verification.verifiedAt
+    || !verification.completionTokenHash
+    || isCompletionExpired
+  ) {
+    throw new Error('REGISTRATION_SESSION_EXPIRED');
+  }
+
+  if (verification.completionTokenHash !== hashOpaqueValue(input.registrationToken)) {
+    throw new Error('REGISTRATION_SESSION_INVALID');
+  }
 
   const passwordHash = await hashPassword(input.password);
   const user = await prisma.$transaction(async (tx) => {
@@ -33,7 +180,9 @@ export async function registerWithEmail(input: RegisterInput) {
         email: input.email,
         passwordHash,
         name: input.name ?? null,
+        emailVerifiedAt: verification.verifiedAt,
         registeredAt: new Date(),
+        lastLoginAt: new Date(),
       },
     });
 
@@ -44,6 +193,10 @@ export async function registerWithEmail(input: RegisterInput) {
         providerAccountId: input.email,
         providerEmail: input.email,
       },
+    });
+
+    await tx.registrationVerification.delete({
+      where: { email: input.email },
     });
 
     await trackAnalyticsEvent(tx, {
@@ -215,4 +368,8 @@ function issueTokens(user: { id: string; email: string; role: string }) {
   const accessToken = signAccessToken({ sub: user.id, email: user.email, role: user.role });
   const refreshToken = signRefreshToken({ sub: user.id });
   return { accessToken, refreshToken };
+}
+
+function hashOpaqueValue(value: string) {
+  return createHash('sha256').update(value).digest('hex');
 }

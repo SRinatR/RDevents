@@ -37,16 +37,16 @@ export default async function HomePage({ params }: HomePageProps) {
 
           <div className="container-wide home-v3-hero-inner">
             <div className="home-v3-hero-copy">
-              <span className="home-v3-kicker">{locale === 'ru' ? 'Event operations product' : 'Event operations product'}</span>
+              <span className="home-v3-kicker">{locale === 'ru' ? 'Культурно-образовательный центр' : 'Cultural and Educational Center'}</span>
               <h1>
                 {locale === 'ru'
-                  ? 'Платформа событий с визуальным качеством продуктового релиза.'
-                  : 'An event platform presented with product-release level quality.'}
+                  ? 'Русский Дом — платформа для мероприятий и культурных событий.'
+                  : 'Russian House — platform for events and cultural activities.'}
               </h1>
               <p>
                 {locale === 'ru'
-                  ? 'Публичная витрина, регистрация и рабочий цикл участия собраны в единую, управляемую и визуально сильную систему.'
-                  : 'Public discovery, registration, and participation operations are composed into one controlled, visually confident system.'}
+                  ? 'Каталог событий, регистрация участников, команды и волонтёрство — всё в одном месте.'
+                  : 'Event catalog, participant registration, teams and volunteering — all in one place.'}
               </p>
 
               <div className="home-v3-hero-actions">
