@@ -34,8 +34,8 @@ export default function CabinetLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="cabinet-shell app-shell">
-      <div className="container">
-        <div className="cabinet-shell-stage">
+      <div className="cabinet-fullbleed">
+        <div className="cabinet-shell-stage cabinet-shell-stage-v3">
           <div className="workspace-topbar-trail">
             {navTrail.map((item) => (
               <Link key={item.href} href={item.href} className={`signal-chip-link ${pathname.startsWith(item.href) ? 'active' : ''}`}>

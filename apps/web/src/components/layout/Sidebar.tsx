@@ -56,15 +56,14 @@ export default function Sidebar({ locale, userName, userEmail, userAvatar }: Sid
   const initials = displayName.split(' ').map((part) => part[0]).join('').toUpperCase().slice(0, 2);
 
   return (
-    <aside className="cabinet-sidebar-card workspace-sidebar-v2">
-      <div className="cabinet-user-block workspace-user-block-v2">
+    <aside className="cabinet-rail">
+      <div className="cabinet-user-block">
         <div className="signal-avatar cabinet-avatar">
           {userAvatar ? <img src={userAvatar} alt="" /> : initials}
         </div>
         <div className="cabinet-user-content">
           <h2>{userName || displayName}</h2>
           {userEmail ? <p>{userEmail}</p> : null}
-          <span className="cabinet-user-pill">{locale === 'ru' ? 'Личный рабочий контур' : 'Personal workspace loop'}</span>
         </div>
       </div>
 

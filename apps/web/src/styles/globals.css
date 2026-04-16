@@ -5004,3 +5004,260 @@ body {
     animation: none !important;
   }
 }
+
+/* ═══════════════════════════════════════
+   Cabinet v3 — dominant workspace shell
+   Wider container · narrow nav rail ·
+   single dominant content surface
+═══════════════════════════════════════ */
+
+/* Wider cabinet wrap — 1280px vs 1120px */
+.cabinet-fullbleed {
+  width: min(var(--container-wide), calc(100% - calc(var(--container-gutter-mobile) * 2)));
+  margin: 0 auto;
+}
+
+@media (min-width: 1024px) {
+  .cabinet-fullbleed {
+    width: min(var(--container-wide), calc(100% - calc(var(--container-gutter-desktop) * 2)));
+  }
+}
+
+/* Stage v3: tighter row gap */
+.cabinet-shell-stage-v3 {
+  gap: 12px;
+}
+
+/* Section switcher chips — smaller, quieter in v3 */
+.cabinet-shell-stage-v3 .workspace-topbar-trail {
+  gap: 5px;
+}
+.cabinet-shell-stage-v3 .workspace-topbar-trail .signal-chip-link {
+  font-size: 0.78rem;
+  padding: 5px 11px;
+  opacity: 0.88;
+}
+.cabinet-shell-stage-v3 .workspace-topbar-trail .signal-chip-link.active {
+  opacity: 1;
+}
+
+/* Grid: narrow rail (220px) + dominant main */
+.cabinet-shell-stage-v3 .cabinet-layout-grid {
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 26px;
+  align-items: start;
+}
+
+/* Content surface — sole dominant white card */
+.cabinet-shell-stage-v3 .cabinet-content-surface {
+  padding: 28px 32px;
+  border-radius: 22px;
+  border-color: rgba(204, 214, 232, 0.68);
+  background: #ffffff;
+  box-shadow:
+    0 1px 3px rgba(13, 23, 42, 0.04),
+    0 6px 22px rgba(13, 23, 42, 0.08),
+    0 0 0 1px rgba(255, 255, 255, 0.88) inset;
+}
+
+/* ─── Navigation rail ────────────────── */
+
+.cabinet-rail {
+  position: sticky;
+  top: 84px;
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+/* Compact identity capsule */
+.cabinet-rail .cabinet-user-block {
+  padding: 10px;
+  border: 1px solid rgba(209, 218, 234, 0.62);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.78);
+  gap: 9px;
+}
+
+.cabinet-rail .cabinet-user-block h2 {
+  font-size: 0.87rem;
+  font-weight: 650;
+}
+
+.cabinet-rail .cabinet-user-block p {
+  max-width: 170px;
+  font-size: 0.74rem;
+}
+
+/* Rail nav — compact, no item summaries */
+.cabinet-rail .cabinet-nav-list {
+  gap: 2px;
+  padding: 2px 0;
+}
+
+.cabinet-rail .cabinet-nav-label {
+  font-size: 0.59rem;
+  letter-spacing: 0.09em;
+  color: var(--color-text-faint);
+  padding-left: 10px;
+  margin: 8px 0 1px;
+  opacity: 0.72;
+}
+
+.cabinet-rail .cabinet-nav-link {
+  padding: 7px 10px;
+  font-size: 0.82rem;
+  border-radius: 10px;
+}
+
+/* Hide nav subtitles in narrow rail */
+.cabinet-rail .workspace-nav-item-copy small {
+  display: none;
+}
+
+/* Helper note — very soft, just a nudge */
+.cabinet-rail .cabinet-side-note {
+  border: none;
+  background: transparent;
+  padding: 6px 10px 2px;
+  gap: 3px;
+  opacity: 0.65;
+}
+
+.cabinet-rail .cabinet-side-note strong {
+  font-size: 0.74rem;
+  font-weight: 650;
+}
+
+.cabinet-rail .cabinet-side-note span {
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
+/* ─── Profile workspace v3 ───────────── */
+
+/* Commanding page identity */
+.cabinet-shell-stage-v3 .profile-workspace-title {
+  font-size: clamp(1.88rem, 1.5rem + 1.1vw, 2.55rem);
+  font-weight: 820;
+  letter-spacing: -0.038em;
+  line-height: 1.07;
+}
+
+.cabinet-shell-stage-v3 .profile-workspace-subtitle {
+  margin-top: 7px;
+  font-size: 0.91rem;
+  max-width: 52ch;
+}
+
+.cabinet-shell-stage-v3 .profile-workspace-topbar {
+  padding-bottom: 24px;
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+/* Underline tab strip — editorial control layer */
+.cabinet-shell-stage-v3 .profile-workspace .cabinet-tabs-list {
+  border-bottom: 2px solid var(--color-border-soft);
+  padding-bottom: 0;
+  margin-top: 22px;
+  margin-bottom: 30px;
+  gap: 0;
+}
+
+.cabinet-shell-stage-v3 .profile-workspace .signal-tab-trigger {
+  border: none;
+  border-radius: 0;
+  padding: 0 16px 13px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  font-size: 0.875rem;
+  font-weight: 650;
+  color: var(--color-text-muted);
+  background: transparent;
+  box-shadow: none;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+  min-height: unset;
+}
+
+.cabinet-shell-stage-v3 .profile-workspace .signal-tab-trigger:hover {
+  color: var(--color-text-secondary);
+  background: transparent;
+  border-bottom-color: rgba(180, 195, 220, 0.7);
+}
+
+.cabinet-shell-stage-v3 .profile-workspace .signal-tab-trigger.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+  background: transparent;
+  box-shadow: none;
+  font-weight: 720;
+}
+
+/* More breathing room in form stacks */
+.cabinet-shell-stage-v3 .profile-workspace .signal-stack {
+  gap: 20px;
+}
+
+/* Lighter, more editorial field labels */
+.cabinet-shell-stage-v3 .profile-workspace .cabinet-field-label {
+  font-size: 0.79rem;
+  font-weight: 670;
+  color: var(--color-text-muted);
+  letter-spacing: 0.01em;
+}
+
+/* Section dividers with generous spacing */
+.cabinet-shell-stage-v3 .profile-workspace .signal-section-label {
+  font-size: 0.65rem;
+  font-weight: 760;
+  letter-spacing: 0.09em;
+  color: var(--color-text-faint);
+  padding: 16px 0 4px;
+  margin-top: 4px;
+  border-top: 1px solid var(--color-border-soft);
+}
+
+/* First section label — no top border */
+.cabinet-shell-stage-v3 .profile-workspace form > .signal-section-label:first-child {
+  border-top: none;
+  padding-top: 2px;
+}
+
+/* Tab content entrance */
+.cabinet-shell-stage-v3 .profile-workspace .cabinet-tab-content {
+  animation: fadeIn var(--transition-base) both;
+}
+
+/* Placeholder module panels */
+.cabinet-shell-stage-v3 .profile-workspace .cabinet-module-panel {
+  border-radius: var(--radius-xl);
+  padding: 28px;
+}
+
+/* Responsive: collapse to single column */
+@media (max-width: 1024px) {
+  .cabinet-shell-stage-v3 .cabinet-layout-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .cabinet-rail {
+    position: static;
+  }
+  .cabinet-shell-stage-v3 .cabinet-content-surface {
+    padding: 20px 22px;
+    border-radius: 18px;
+  }
+  .cabinet-shell-stage-v3 .profile-workspace-title {
+    font-size: clamp(1.55rem, 1.3rem + 0.9vw, 1.9rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cabinet-shell-stage-v3 .profile-workspace .cabinet-tab-content {
+    animation: none !important;
+  }
+}
