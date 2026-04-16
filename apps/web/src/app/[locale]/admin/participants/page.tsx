@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminApi } from '@/lib/api';
@@ -28,37 +29,40 @@ export default function AdminParticipantsPage() {
   const t = useTranslations();
   const { user, loading, isAdmin } = useAuth();
   const locale = useRouteLocale();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
+  // URL-synced state
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [events, setEvents] = useState<EventsOption[]>([]);
   const [loadingData, setLoadingData] = useState(true);
-  const [search, setSearch] = useState('');
-  const [eventFilter, setEventFilter] = useState('ALL');
-  const [roleFilter, setRoleFilter] = useState('ALL');
-  const [statusFilter, setStatusFilter] = useState('ALL');
-  const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  const fetchParticipants = useCallback(async () => {
-    if (!user || !isAdmin) return;
+  // Filters from URL
+  const search = searchParams.get('search') ?? '';
+  const eventFilter = searchParams.get('eventId') ?? 'ALL';
+  const roleFilter = searchParams.get('role') ?? 'PARTICIPANT'; // Default to PARTICIPANT only
+  const statusFilter = searchParams.get('status') ?? 'ALL';
+  const page = parseInt(searchParams.get('page') ?? '1', 10);
 
-    try {
-      const result = await adminApi.listParticipants({
-        search: search || undefined,
-        eventId: eventFilter !== 'ALL' ? eventFilter : undefined,
-        role: roleFilter !== 'ALL' ? roleFilter : undefined,
-        status: statusFilter !== 'ALL' ? statusFilter : undefined,
-        page,
-        limit: 50,
-      });
-      setParticipants(result.data);
-      setTotalPages(result.meta.pages);
-    } catch {
-      setParticipants([]);
-    } finally {
-      setLoadingData(false);
+  // Debounced search
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Update URL with filter
+  const updateFilter = useCallback((key: string, value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === 'ALL' || value === 'PARTICIPANT' || value === '') {
+      params.delete(key);
+    } else {
+      params.set(key, value);
     }
-  }, [user, isAdmin, search, eventFilter, roleFilter, statusFilter, page]);
+    if (key !== 'page') params.delete('page');
+    router.push(`?${params.toString()}`, { scroll: false });
+  }, [searchParams, router]);
 
   // Load events for filter dropdown
   useEffect(() => {
@@ -72,18 +76,31 @@ export default function AdminParticipantsPage() {
   }, [user, isAdmin]);
 
   // Load participants with unified endpoint (no N+1!)
+  const fetchParticipants = useCallback(async () => {
+    if (!user || !isAdmin) return;
+
+    setLoadingData(true);
+    try {
+      const result = await adminApi.listParticipants({
+        search: debouncedSearch || undefined,
+        eventId: eventFilter !== 'ALL' ? eventFilter : undefined,
+        role: roleFilter !== 'ALL' ? roleFilter : undefined,
+        status: statusFilter !== 'ALL' ? statusFilter : undefined,
+        page,
+        limit: 50,
+      });
+      setParticipants(result.data);
+      setTotalPages(result.meta.pages);
+    } catch {
+      setParticipants([]);
+    } finally {
+      setLoadingData(false);
+    }
+  }, [user, isAdmin, debouncedSearch, eventFilter, roleFilter, statusFilter, page]);
+
   useEffect(() => {
     fetchParticipants();
   }, [fetchParticipants]);
-
-  // Debounced search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (page !== 1) setPage(1);
-      else fetchParticipants();
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [search]);
 
   const toneByStatus: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
     ACTIVE: 'success',
@@ -96,29 +113,29 @@ export default function AdminParticipantsPage() {
     <div className="signal-page-shell admin-control-page">
       <PageHeader
         title={t('admin.participants') ?? 'Participants'}
-        subtitle={locale === 'ru' ? 'Все участия и регистрации' : 'All participations and registrations'}
+        subtitle={locale === 'ru' ? 'Участники событий' : 'Event participants'}
       />
 
       <Panel variant="elevated" className="admin-command-panel">
         <ToolbarRow>
           <FieldInput
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => updateFilter('search', e.target.value)}
             placeholder={locale === 'ru' ? 'Поиск по имени или email...' : 'Search by name or email...'}
             className="admin-filter-search"
           />
-          <FieldSelect value={eventFilter} onChange={(e) => { setEventFilter(e.target.value); setPage(1); }} className="admin-filter-select">
+          <FieldSelect value={eventFilter} onChange={(e) => updateFilter('eventId', e.target.value)} className="admin-filter-select">
             <option value="ALL">{locale === 'ru' ? 'Все события' : 'All events'}</option>
             {events.map((event) => (
               <option key={event.id} value={event.id}>{event.title}</option>
             ))}
           </FieldSelect>
-          <FieldSelect value={roleFilter} onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }} className="admin-filter-select">
+          <FieldSelect value={roleFilter} onChange={(e) => updateFilter('role', e.target.value)} className="admin-filter-select">
             <option value="ALL">{locale === 'ru' ? 'Все роли' : 'All roles'}</option>
             <option value="PARTICIPANT">{locale === 'ru' ? 'Участник' : 'Participant'}</option>
             <option value="VOLUNTEER">{locale === 'ru' ? 'Волонтёр' : 'Volunteer'}</option>
           </FieldSelect>
-          <FieldSelect value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="admin-filter-select">
+          <FieldSelect value={statusFilter} onChange={(e) => updateFilter('status', e.target.value)} className="admin-filter-select">
             <option value="ALL">{locale === 'ru' ? 'Все статусы' : 'All statuses'}</option>
             <option value="ACTIVE">{locale === 'ru' ? 'Активные' : 'Active'}</option>
             <option value="PENDING">{locale === 'ru' ? 'В ожидании' : 'Pending'}</option>
@@ -174,7 +191,7 @@ export default function AdminParticipantsPage() {
               <div className="admin-pagination">
                 <button 
                   className="btn btn-ghost btn-sm" 
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  onClick={() => updateFilter('page', String(page - 1))}
                   disabled={page === 1}
                 >
                   ← {locale === 'ru' ? 'Назад' : 'Prev'}
@@ -184,7 +201,7 @@ export default function AdminParticipantsPage() {
                 </span>
                 <button 
                   className="btn btn-ghost btn-sm" 
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  onClick={() => updateFilter('page', String(page + 1))}
                   disabled={page === totalPages}
                 >
                   {locale === 'ru' ? 'Вперёд' : 'Next'} →

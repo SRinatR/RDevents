@@ -806,7 +806,7 @@ adminRouter.get('/participants', async (req, res) => {
     };
   }
 
-  const [total, members, events] = await Promise.all([
+  const [total, members] = await Promise.all([
     prisma.eventMember.count({ where: where as any }),
     prisma.eventMember.findMany({
       where: where as any,
@@ -818,13 +818,7 @@ adminRouter.get('/participants', async (req, res) => {
       skip: (page - 1) * limit,
       take: limit,
     }),
-    // Fetch event titles for any events we might need
-    prisma.event.findMany({
-      select: { id: true, title: true },
-    }),
   ]);
-
-  const eventTitles = new Map(events.map(e => [e.id, e.title]));
 
   const data = members.map(member => ({
     id: member.id,
@@ -832,7 +826,7 @@ adminRouter.get('/participants', async (req, res) => {
     userName: member.user?.name ?? null,
     userEmail: member.user?.email ?? '',
     eventId: member.eventId,
-    eventTitle: eventTitles.get(member.eventId) ?? member.event?.title ?? '',
+    eventTitle: member.event?.title ?? '',
     role: member.role,
     status: member.status,
     assignedAt: member.assignedAt.toISOString(),
@@ -882,7 +876,7 @@ adminRouter.get('/teams', async (req, res) => {
     ];
   }
 
-  const [total, teams, events] = await Promise.all([
+  const [total, teams] = await Promise.all([
     prisma.eventTeam.count({ where: where as any }),
     prisma.eventTeam.findMany({
       where: where as any,
@@ -895,18 +889,13 @@ adminRouter.get('/teams', async (req, res) => {
       skip: (page - 1) * limit,
       take: limit,
     }),
-    prisma.event.findMany({
-      select: { id: true, title: true },
-    }),
   ]);
-
-  const eventTitles = new Map(events.map(e => [e.id, e.title]));
 
   const data = teams.map(team => ({
     id: team.id,
     name: team.name,
     eventId: team.eventId,
-    eventTitle: eventTitles.get(team.eventId) ?? team.event?.title ?? '',
+    eventTitle: team.event?.title ?? '',
     captainUserId: team.captainUserId,
     captainUserName: team.captainUser?.name ?? null,
     membersCount: team._count.members,

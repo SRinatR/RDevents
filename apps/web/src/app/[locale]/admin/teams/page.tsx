@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminApi } from '@/lib/api';
@@ -28,35 +29,39 @@ export default function AdminTeamsPage() {
   const t = useTranslations();
   const { user, loading, isAdmin } = useAuth();
   const locale = useRouteLocale();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
+  // URL-synced state
   const [teams, setTeams] = useState<Team[]>([]);
   const [events, setEvents] = useState<EventsOption[]>([]);
   const [loadingData, setLoadingData] = useState(true);
-  const [search, setSearch] = useState('');
-  const [eventFilter, setEventFilter] = useState('ALL');
-  const [statusFilter, setStatusFilter] = useState('ALL');
-  const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  const fetchTeams = useCallback(async () => {
-    if (!user || !isAdmin) return;
+  // Filters from URL
+  const search = searchParams.get('search') ?? '';
+  const eventFilter = searchParams.get('eventId') ?? 'ALL';
+  const statusFilter = searchParams.get('status') ?? 'ALL';
+  const page = parseInt(searchParams.get('page') ?? '1', 10);
 
-    try {
-      const result = await adminApi.listTeams({
-        search: search || undefined,
-        eventId: eventFilter !== 'ALL' ? eventFilter : undefined,
-        status: statusFilter !== 'ALL' ? statusFilter : undefined,
-        page,
-        limit: 50,
-      });
-      setTeams(result.data);
-      setTotalPages(result.meta.pages);
-    } catch {
-      setTeams([]);
-    } finally {
-      setLoadingData(false);
+  // Debounced search
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Update URL with filter
+  const updateFilter = useCallback((key: string, value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === 'ALL' || value === '') {
+      params.delete(key);
+    } else {
+      params.set(key, value);
     }
-  }, [user, isAdmin, search, eventFilter, statusFilter, page]);
+    if (key !== 'page') params.delete('page');
+    router.push(`?${params.toString()}`, { scroll: false });
+  }, [searchParams, router]);
 
   // Load events for filter dropdown
   useEffect(() => {
@@ -70,18 +75,37 @@ export default function AdminTeamsPage() {
   }, [user, isAdmin]);
 
   // Load teams with unified endpoint (no N+1!)
+  const fetchTeams = useCallback(async () => {
+    if (!user || !isAdmin) return;
+
+    setLoadingData(true);
+    try {
+      const result = await adminApi.listTeams({
+        search: debouncedSearch || undefined,
+        eventId: eventFilter !== 'ALL' ? eventFilter : undefined,
+        status: statusFilter !== 'ALL' ? statusFilter : undefined,
+        page,
+        limit: 50,
+      });
+      setTeams(result.data);
+      setTotalPages(result.meta.pages);
+    } catch {
+      setTeams([]);
+    } finally {
+      setLoadingData(false);
+    }
+  }, [user, isAdmin, debouncedSearch, eventFilter, statusFilter, page]);
+
   useEffect(() => {
     fetchTeams();
   }, [fetchTeams]);
 
-  // Debounced search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (page !== 1) setPage(1);
-      else fetchTeams();
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [search]);
+  // Status colors - fixed mapping
+  const toneByStatus: Record<string, 'success' | 'warning' | 'neutral'> = {
+    ACTIVE: 'success',
+    COMPLETED: 'neutral',
+    ARCHIVED: 'warning',
+  };
 
   return (
     <div className="signal-page-shell admin-control-page">
@@ -94,17 +118,17 @@ export default function AdminTeamsPage() {
         <ToolbarRow>
           <FieldInput
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => updateFilter('search', e.target.value)}
             placeholder={locale === 'ru' ? 'Поиск по названию команды...' : 'Search by team name...'}
             className="admin-filter-search"
           />
-          <FieldSelect value={eventFilter} onChange={(e) => { setEventFilter(e.target.value); setPage(1); }} className="admin-filter-select">
+          <FieldSelect value={eventFilter} onChange={(e) => updateFilter('eventId', e.target.value)} className="admin-filter-select">
             <option value="ALL">{locale === 'ru' ? 'Все события' : 'All events'}</option>
             {events.map((event) => (
               <option key={event.id} value={event.id}>{event.title}</option>
             ))}
           </FieldSelect>
-          <FieldSelect value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="admin-filter-select">
+          <FieldSelect value={statusFilter} onChange={(e) => updateFilter('status', e.target.value)} className="admin-filter-select">
             <option value="ALL">{locale === 'ru' ? 'Все статусы' : 'All statuses'}</option>
             <option value="ACTIVE">{locale === 'ru' ? 'Активные' : 'Active'}</option>
             <option value="COMPLETED">{locale === 'ru' ? 'Завершённые' : 'Completed'}</option>
@@ -141,7 +165,7 @@ export default function AdminTeamsPage() {
                       <td className="signal-muted signal-overflow-ellipsis">{team.eventTitle}</td>
                       <td>{team.captainUserName ?? '—'}</td>
                       <td><StatusBadge tone="info">{team.membersCount}</StatusBadge></td>
-                      <td><StatusBadge tone="success">{team.status ?? 'ACTIVE'}</StatusBadge></td>
+                      <td><StatusBadge tone={toneByStatus[team.status] ?? 'neutral'}>{team.status ?? 'ACTIVE'}</StatusBadge></td>
                       <td className="signal-muted">{new Date(team.createdAt).toLocaleDateString()}</td>
                       <td className="right">
                         <div className="signal-row-actions">
@@ -158,7 +182,7 @@ export default function AdminTeamsPage() {
               <div className="admin-pagination">
                 <button 
                   className="btn btn-ghost btn-sm" 
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  onClick={() => updateFilter('page', String(page - 1))}
                   disabled={page === 1}
                 >
                   ← {locale === 'ru' ? 'Назад' : 'Prev'}
@@ -168,7 +192,7 @@ export default function AdminTeamsPage() {
                 </span>
                 <button 
                   className="btn btn-ghost btn-sm" 
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  onClick={() => updateFilter('page', String(page + 1))}
                   disabled={page === totalPages}
                 >
                   {locale === 'ru' ? 'Вперёд' : 'Next'} →
