@@ -77,10 +77,6 @@ export default function Sidebar({ locale, userName, userEmail, userAvatar }: Sid
         </Link>
       </div>
 
-      <div className="cabinet-quick-state workspace-quick-state-v2">
-        <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Текущий режим' : 'Current mode'}</span><strong>{locale === 'ru' ? 'Участник' : 'Participant'}</strong></div>
-        <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Навигационная логика' : 'Navigation logic'}</span><strong>{locale === 'ru' ? 'Профиль → Заявки → События' : 'Profile → Applications → Events'}</strong></div>
-      </div>
 
       <nav className="cabinet-nav-list workspace-nav-list-v2">
         <div className="cabinet-nav-label">{locale === 'ru' ? 'Личный контур' : 'Personal loop'}</div>

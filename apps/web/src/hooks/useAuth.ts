@@ -27,6 +27,15 @@ export interface AuthUser {
     role: string;
     status: string;
   }>;
+  // Name fields
+  lastNameCyrillic?: string | null;
+  firstNameCyrillic?: string | null;
+  middleNameCyrillic?: string | null;
+  lastNameLatin?: string | null;
+  firstNameLatin?: string | null;
+  middleNameLatin?: string | null;
+  fullNameCyrillic?: string | null;
+  fullNameLatin?: string | null;
 }
 
 interface AuthContextValue {

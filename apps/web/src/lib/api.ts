@@ -87,7 +87,21 @@ export const authApi = {
   me: () =>
     request<{ user: any }>('/api/auth/me', { auth: true }),
 
-  updateProfile: (body: { name?: string; bio?: string; city?: string; phone?: string; telegram?: string; birthDate?: string; avatarUrl?: string }) =>
+  updateProfile: (body: {
+    name?: string;
+    bio?: string;
+    city?: string;
+    phone?: string;
+    telegram?: string;
+    birthDate?: string;
+    avatarUrl?: string;
+    lastNameCyrillic?: string;
+    firstNameCyrillic?: string;
+    middleNameCyrillic?: string;
+    lastNameLatin?: string;
+    firstNameLatin?: string;
+    middleNameLatin?: string;
+  }) =>
     request<{ user: any }>('/api/auth/profile', { method: 'PATCH', auth: true, body }),
 
   loginWithGoogle: (payload: { providerAccountId: string; providerEmail?: string; providerUsername?: string }) =>
