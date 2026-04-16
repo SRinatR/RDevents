@@ -1,0 +1,91 @@
+name: Deploy production
+
+on:
+  push:
+    branches:
+      - production
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare SSH
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+        run: |
+          set -e
+          mkdir -p ~/.ssh
+          printf '%s' "$PROD_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "$PROD_PORT" -H "$PROD_HOST" >> ~/.ssh/known_hosts
+
+      - name: Pack project
+        shell: bash
+        run: |
+          set -e
+          tar \
+            --exclude=.git \
+            --exclude=.github \
+            --exclude=.env \
+            --exclude=.env.production \
+            --exclude=node_modules \
+            -czf deploy.tgz .
+
+      - name: Upload archive
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          set -e
+          scp -P "$PROD_PORT" -i ~/.ssh/id_ed25519 deploy.tgz "$PROD_USER@$PROD_HOST:/opt/rdevents/deploy.tgz"
+
+      - name: Write env file on server
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+          PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
+        run: |
+          set -e
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "mkdir -p /opt/rdevents"
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "cat > /opt/rdevents/.env" <<< "$PROD_ENV_FILE"
+
+      - name: Deploy on server
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          set -e
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" << 'EOF'
+            set -e
+
+            mkdir -p /opt/rdevents/app
+            find /opt/rdevents/app -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
+            tar -xzf /opt/rdevents/deploy.tgz -C /opt/rdevents/app
+            rm -f /opt/rdevents/deploy.tgz
+
+            cd /opt/rdevents/app
+
+            docker compose --env-file /opt/rdevents/.env down --remove-orphans || true
+            docker compose --env-file /opt/rdevents/.env up -d --build --remove-orphans
+
+            docker image prune -f
+            docker compose --env-file /opt/rdevents/.env ps
+          EOF
