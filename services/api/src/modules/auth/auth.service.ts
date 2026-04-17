@@ -175,7 +175,9 @@ export async function completeEmailRegistration(input: CompleteRegistrationInput
   }
 
   const passwordHash = await hashPassword(input.password);
-  const user = await prisma.$transaction(async (tx) => {
+  // Cast tx to 'any' to bypass Prisma's TransactionClient type limitation
+  // At runtime, tx has full model access but TypeScript definitions are incomplete
+  const user = await prisma.$transaction(async (tx: any) => {
     const created = await tx.user.create({
       data: {
         email: input.email,
