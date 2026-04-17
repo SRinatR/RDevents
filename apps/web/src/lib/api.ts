@@ -211,6 +211,9 @@ export const adminApi = {
   listEventMembers: (eventId: string) =>
     request<{ members: any[] }>(`/api/admin/events/${eventId}/members`, { auth: true }),
 
+  updateParticipantStatus: (eventId: string, memberId: string, body: { status: string; notes?: string }) =>
+    request<{ membership: any }>(`/api/admin/events/${eventId}/participants/${memberId}`, { method: 'PATCH', auth: true, body }),
+
   listEventTeams: (eventId: string) =>
     request<{ teams: any[] }>(`/api/admin/events/${eventId}/teams`, { auth: true }),
 

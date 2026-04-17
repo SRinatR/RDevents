@@ -46,7 +46,10 @@ export default function EventDetailPage() {
   const [error, setError] = useState('');
   const [registering, setRegistering] = useState(false);
   const [regError, setRegError] = useState('');
+  const [regSuccess, setRegSuccess] = useState('');
   const [isRegistered, setIsRegistered] = useState(false);
+  const [hasPendingApplication, setHasPendingApplication] = useState(false);
+  const [participationStatus, setParticipationStatus] = useState<string | null>(null);
   const [volunteering, setVolunteering] = useState(false);
   const [volunteerError, setVolunteerError] = useState('');
   const [volunteerStatus, setVolunteerStatus] = useState<string | null>(null);
@@ -69,6 +72,16 @@ export default function EventDetailPage() {
         setIsRegistered(currentEvent.isRegistered ?? false);
         setMyTeam(currentEvent.teamMembership?.team ?? null);
         setEventAnswers(currentEvent.registrationAnswers ?? {});
+        
+        // Find participant membership status
+        const participantMembership = currentEvent.memberships?.find((membership: any) => membership.role === 'PARTICIPANT');
+        if (participantMembership) {
+          setParticipationStatus(participantMembership.status);
+          setHasPendingApplication(participantMembership.status === 'PENDING');
+          setIsRegistered(participantMembership.status === 'ACTIVE');
+        }
+        
+        // Find volunteer membership status
         const vm = currentEvent.memberships?.find((membership: any) => membership.role === 'VOLUNTEER');
         setVolunteerStatus(vm?.status ?? null);
         analyticsApi.track('EVENT_DETAIL_VIEW', { eventId: currentEvent.id, locale });
@@ -245,6 +258,37 @@ export default function EventDetailPage() {
   const statusTone = event.status === 'PUBLISHED' ? 'success' : event.status === 'CANCELLED' ? 'danger' : 'warning';
   const eventDateRange = `${formatDate(event.startsAt)} · ${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}`;
   const spotsLeft = Math.max((event.capacity ?? 0) - (event.registrationsCount ?? 0), 0);
+  
+  // Participation config values
+  const requireApproval = event.requireParticipantApproval;
+  const showCountPublicly = event.participantCountVisibility === 'PUBLIC';
+  const limitMode = event.participantLimitMode;
+  const participantTarget = event.participantTarget ?? event.capacity;
+  const isStrictLimit = limitMode === 'STRICT_LIMIT';
+  const isGoalLimit = limitMode === 'GOAL_LIMIT';
+  const isUnlimited = limitMode === 'UNLIMITED';
+  
+  // Status labels
+  const getParticipationStatusLabel = (status: string | null) => {
+    if (!status) return null;
+    const labels: Record<string, string> = {
+      'PENDING': locale === 'ru' ? 'Заявка на рассмотрении' : 'Application pending',
+      'ACTIVE': locale === 'ru' ? 'Вы участник' : 'You are a participant',
+      'RESERVE': locale === 'ru' ? 'В резерве' : 'In reserve',
+      'REJECTED': locale === 'ru' ? 'Заявка отклонена' : 'Application rejected',
+      'CANCELLED': locale === 'ru' ? 'Участие отменено' : 'Participation cancelled',
+      'REMOVED': locale === 'ru' ? 'Удалён из участников' : 'Removed from participants',
+    };
+    return labels[status] ?? status;
+  };
+  
+  const getParticipationStatusTone = (status: string | null): 'success' | 'warning' | 'danger' | 'info' => {
+    if (!status) return 'info';
+    if (status === 'ACTIVE') return 'success';
+    if (status === 'PENDING') return 'warning';
+    if (status === 'RESERVE') return 'info';
+    return 'danger';
+  };
 
   return (
     <div className="public-page-shell route-shell route-event-detail route-event-v4">
@@ -311,20 +355,50 @@ export default function EventDetailPage() {
               <aside className="public-sticky-panel event-v4-action-lane motion-fade-up-fast">
                 <Panel id="event-participation" className="public-participation-panel event-v4-participation-panel">
                   <SectionHeader title={locale === 'ru' ? 'Участие' : 'Participation'} subtitle={locale === 'ru' ? 'Действия и текущий статус' : 'Actions and current status'} />
-                  <div className="progress-bar signal-gap-after-2xs public-participation-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
-                  <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div>
+                  
+                  {/* Progress bar - only show publicly if configured */}
+                  {showCountPublicly && (
+                    <>
+                      <div className="progress-bar signal-gap-after-2xs public-participation-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
+                      <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div>
+                    </>
+                  )}
+                  
+                  {/* Mode indicator */}
+                  {requireApproval ? (
+                    <div className="signal-muted" style={{ fontSize: '0.85rem', marginBottom: 12 }}>
+                      {locale === 'ru' ? 'Требуется одобрение организатора' : 'Requires organizer approval'}
+                    </div>
+                  ) : isStrictLimit ? (
+                    <div className="signal-muted" style={{ fontSize: '0.85rem', marginBottom: 12 }}>
+                      {locale === 'ru' ? `Свободных мест: ${spotsLeft} из ${participantTarget}` : `Spots left: ${spotsLeft} of ${participantTarget}`}
+                    </div>
+                  ) : isGoalLimit ? (
+                    <div className="signal-muted" style={{ fontSize: '0.85rem', marginBottom: 12 }}>
+                      {locale === 'ru' ? `Цель: ${participantTarget} участников` : `Goal: ${participantTarget} participants`}
+                    </div>
+                  ) : null}
 
+                  {/* User participation status */}
                   {myTeam ? <Notice tone="success">{locale === 'ru' ? 'Вы состоите в команде' : 'You are on team'}: {myTeam.name}</Notice>
-                    : isRegistered ? <Notice tone="success">{t('events.registered')}</Notice>
+                    : participationStatus === 'ACTIVE' ? <Notice tone="success">{getParticipationStatusLabel('ACTIVE')}</Notice>
+                    : participationStatus === 'PENDING' ? (
+                      <Notice tone="warning">
+                        <div>{getParticipationStatusLabel('PENDING')}</div>
+                        <div style={{ fontSize: '0.8rem', marginTop: 4 }}>{locale === 'ru' ? 'Организатор рассмотрит вашу заявку' : 'Organizer will review your application'}</div>
+                      </Notice>
+                    )
+                    : participationStatus === 'RESERVE' ? <Notice tone="info">{getParticipationStatusLabel('RESERVE')}</Notice>
+                    : participationStatus && ['REJECTED', 'CANCELLED', 'REMOVED'].includes(participationStatus) ? <Notice tone="danger">{getParticipationStatusLabel(participationStatus)}</Notice>
                     : user ? (
                       <div className="signal-stack">
                         {event.isTeamBased ? (
                           <>
                             {teamState === 'IDLE' ? (
                               <ToolbarRow>
-                                <button onClick={() => setTeamState('CREATING')} disabled={isFull} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Создать команду' : 'Create team'}</button>
+                                <button onClick={() => setTeamState('CREATING')} disabled={isFull && isStrictLimit} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Создать команду' : 'Create team'}</button>
                                 <button onClick={() => setTeamState('JOINING')} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Вступить по коду' : 'Join by code'}</button>
-                                {event.allowSoloParticipation ? <button onClick={handleRegister} disabled={registering || isFull} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Участвовать одному' : 'Participate solo'}</button> : null}
+                                {event.allowSoloParticipation ? <button onClick={handleRegister} disabled={registering || (isFull && isStrictLimit)} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Участвовать одному' : 'Participate solo'}</button> : null}
                               </ToolbarRow>
                             ) : null}
 
@@ -349,8 +423,8 @@ export default function EventDetailPage() {
                             ) : null}
                           </>
                         ) : (
-                          <button onClick={handleRegister} disabled={registering || isFull} className="btn btn-primary">
-                            {registering ? t('common.loading') : isFull ? (locale === 'ru' ? 'Мест нет' : 'No spots left') : t('events.join')}
+                          <button onClick={handleRegister} disabled={registering || (isFull && isStrictLimit)} className="btn btn-primary">
+                            {registering ? t('common.loading') : isFull && isStrictLimit ? (locale === 'ru' ? 'Мест нет' : 'No spots left') : requireApproval ? (locale === 'ru' ? 'Подать заявку' : 'Apply now') : t('events.join')}
                           </button>
                         )}
 

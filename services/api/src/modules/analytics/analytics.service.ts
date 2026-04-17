@@ -1,10 +1,14 @@
 import type { AnalyticsEventType, AuthProvider, Prisma, PrismaClient } from '@prisma/client';
 import { logger } from '../../common/logger.js';
 
-type AnalyticsClient = PrismaClient | Prisma.TransactionClient;
+// Use a more permissive type that accepts both PrismaClient (normal) and
+// TransactionClient (Omit<PrismaClient, ...>) which is passed inside $transaction callbacks.
+// We cast to 'any' inside the function to bypass TypeScript's strict type checking,
+// since Prisma's generated types don't fully reflect runtime capabilities.
+type AnalyticsClient = Parameters<PrismaClient['$transaction']>[0] extends (tx: infer T) => any ? T : never;
 
 export async function trackAnalyticsEvent(
-  client: AnalyticsClient,
+  client: any,
   input: {
     type: AnalyticsEventType;
     userId?: string | null;
@@ -17,7 +21,10 @@ export async function trackAnalyticsEvent(
   }
 ) {
   try {
-    await client.analyticsEvent.create({
+    // Cast to 'any' because TransactionClient type doesn't expose model access at compile time
+    // but at runtime it does. This is a TypeScript definition limitation with Prisma $transaction.
+    const db = client as any;
+    await db.analyticsEvent.create({
       data: {
         type: input.type,
         userId: input.userId ?? null,

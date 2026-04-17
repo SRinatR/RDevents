@@ -9,6 +9,8 @@ import { authApi, setAccessToken } from '../../../lib/api';
 import { ApiError } from '../../../lib/api';
 import { useRouteLocale } from '../../../hooks/useRouteParams';
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 const SOCIAL_PROVIDERS = [
   { id: 'google' as const, label: 'Google', key: 'G' },
   { id: 'yandex' as const, label: 'Yandex', key: 'Y' },
@@ -44,27 +46,8 @@ export default function LoginPage() {
   }
 
   async function handleSocial(provider: 'google' | 'yandex' | 'telegram') {
-    setSocialLoading(provider);
-    setError('');
-    try {
-      const mock = {
-        providerAccountId: `demo_${provider}_${Date.now()}`,
-        providerEmail: `demo_${provider}@example.com`,
-        providerUsername: `Demo ${provider.charAt(0).toUpperCase() + provider.slice(1)} User`,
-      };
-      const result = provider === 'google'
-        ? await authApi.loginWithGoogle(mock)
-        : provider === 'yandex'
-          ? await authApi.loginWithYandex(mock)
-          : await authApi.loginWithTelegram(mock);
-      setAccessToken(result.accessToken);
-      await refreshUser();
-      router.push(`/${locale}/cabinet`);
-    } catch (err) {
-      if (err instanceof ApiError) setError(err.message);
-    } finally {
-      setSocialLoading('');
-    }
+    // Social auth is disabled in production
+    setError(locale === 'ru' ? 'Социальный вход временно недоступен' : 'Social login is temporarily unavailable');
   }
 
   return (
@@ -102,16 +85,19 @@ export default function LoginPage() {
             <button type="submit" disabled={loading} className="btn btn-primary">{loading ? '...' : (locale === 'ru' ? 'Войти' : 'Sign in')}</button>
           </form>
 
-          <div className="auth-divider">{locale === 'ru' ? 'или через провайдера' : 'or continue with provider'}</div>
-
-          <div className="auth-social-grid">
-            {SOCIAL_PROVIDERS.map((provider) => (
-              <button key={provider.id} onClick={() => handleSocial(provider.id)} disabled={Boolean(socialLoading) || loading} className="auth-social-btn">
-                <span>{socialLoading === provider.id ? '...' : provider.key}</span>
-                <small>{provider.label}</small>
-              </button>
-            ))}
-          </div>
+          {isProduction ? null : (
+            <>
+              <div className="auth-divider">{locale === 'ru' ? 'или через провайдера' : 'or continue with provider'}</div>
+              <div className="auth-social-grid">
+                {SOCIAL_PROVIDERS.map((provider) => (
+                  <button key={provider.id} onClick={() => handleSocial(provider.id)} disabled={Boolean(socialLoading) || loading} className="auth-social-btn">
+                    <span>{socialLoading === provider.id ? '...' : provider.key}</span>
+                    <small>{provider.label}</small>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

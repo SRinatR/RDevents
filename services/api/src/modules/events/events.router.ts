@@ -86,9 +86,19 @@ eventsRouter.post('/:id/register', authenticate, async (req, res) => {
   }
 
   try {
-    const registration = await registerForEvent(String(req.params['id']), user.id, parsed.data.answers);
-    res.status(201).json({ registration });
+    const result = await registerForEvent(String(req.params['id']), user.id, parsed.data.answers);
+    const statusCode = result.status === 'PENDING' ? 202 : 201;
+    res.status(statusCode).json(result);
   } catch (err: any) {
+    if (err.code === 'CAPACITY_REACHED') {
+      res.status(409).json({
+        error: 'Event is at full capacity',
+        code: 'CAPACITY_REACHED',
+        participantCount: err.participantCount,
+        participantTarget: err.participantTarget,
+      });
+      return;
+    }
     sendMappedError(res, err);
   }
 });

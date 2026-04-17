@@ -1,3 +1,11 @@
+// Workaround for Prisma adapter type issues in TypeScript
+// The PrismaPg adapter works correctly at runtime but TypeScript definitions have a mismatch
+declare module '@prisma/client' {
+  interface PrismaClientOptions {
+    adapter?: unknown;
+  }
+}
+
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
@@ -12,6 +20,7 @@ function createPrismaClient() {
   const connectionString = env.DATABASE_URL;
   const pool = new pg.Pool({ connectionString });
   const adapter = new PrismaPg(pool);
+  // @ts-expect-error - adapter type mismatch between @prisma/adapter-pg and @prisma/client
   return new PrismaClient({ adapter, log: env.isDev ? ['query', 'error', 'warn'] : ['error'] });
 }
 

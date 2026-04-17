@@ -36,6 +36,11 @@ export const createEventSchema = z.object({
   requireAdminApprovalForTeams: z.boolean().default(false),
   requiredProfileFields: z.array(z.string()).default([]),
   requiredEventFields: z.array(z.string()).default([]),
+  // Individual participation config
+  requireParticipantApproval: z.boolean().default(false),
+  participantLimitMode: z.enum(['UNLIMITED', 'GOAL_LIMIT', 'STRICT_LIMIT']).default('UNLIMITED'),
+  participantTarget: z.coerce.number().int().positive().optional(),
+  participantCountVisibility: z.enum(['PUBLIC', 'HIDDEN']).default('PUBLIC'),
 });
 
 export const registrationAnswersSchema = z.object({
