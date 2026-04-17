@@ -243,7 +243,24 @@ export function AdminShell({ children }: { children: ReactNode }) {
           { href: `/${locale}/admin`, label: t('admin.title'), icon: <DashboardIcon />, allow: true },
           { href: `/${locale}/admin/events`, label: t('admin.events'), icon: <CalendarIcon />, allow: true },
           { href: `/${locale}/admin/analytics`, label: t('admin.analytics'), icon: <ChartIcon />, allow: true },
-          { href: `/${locale}/admin/email`, label: locale === 'ru' ? 'Коммуникации' : 'Communications', icon: <MailIcon />, allow: isPlatformAdmin },
+        ],
+      },
+      {
+        label: 'Communications',
+        items: [
+          { href: `/${locale}/admin/email`, label: t('admin.email'), icon: <MailIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/email/messages`, label: t('admin.messages'), icon: <InboxIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/email/templates`, label: t('admin.templates'), icon: <TemplateIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/email/broadcasts`, label: t('admin.broadcasts'), icon: <BroadcastIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/email/automations`, label: t('admin.automations'), icon: <AutomationIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/email/audience`, label: t('admin.audience'), icon: <AudienceIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/email/domains`, label: t('admin.domains'), icon: <GlobeIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/email/webhooks`, label: t('admin.webhooks'), icon: <WebhookIcon />, allow: isPlatformAdmin },
+        ],
+      },
+      {
+        label: 'Management',
+        items: [
           { href: `/${locale}/admin/users`, label: t('admin.users'), icon: <UserCogIcon />, allow: isPlatformAdmin },
           { href: `/${locale}/admin/admins`, label: t('admin.admins'), icon: <ShieldIcon />, allow: isSuperAdmin },
           { href: `/${locale}/admin/settings`, label: t('admin.settings'), icon: <SettingsIcon />, allow: isPlatformAdmin },
@@ -255,7 +272,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
     if (currentEventId) {
       const eventBase = `/${locale}/admin/events/${currentEventId}`;
       groups.push({
-        label: currentEvent?.title ? (locale === 'ru' ? 'Текущее событие' : 'Current Event') : (locale === 'ru' ? 'Событие' : 'Event'),
+        label: currentEvent?.title
+          ? (locale === 'ru' ? 'Текущее событие' : 'Current Event')
+          : (locale === 'ru' ? 'Событие' : 'Event'),
         items: [
           { href: `${eventBase}/overview`, label: locale === 'ru' ? 'Обзор' : 'Overview', icon: <DashboardIcon />, allow: true },
           { href: `${eventBase}/participants`, label: t('admin.participants'), icon: <HandshakeIcon />, allow: true },
