@@ -56,27 +56,16 @@ export default function Sidebar({ locale, userName, userEmail, userAvatar }: Sid
   const initials = displayName.split(' ').map((part) => part[0]).join('').toUpperCase().slice(0, 2);
 
   return (
-    <aside className="cabinet-sidebar-card workspace-sidebar-v2">
-      <div className="cabinet-user-block workspace-user-block-v2">
+    <aside className="cabinet-rail">
+      <div className="cabinet-user-block">
         <div className="signal-avatar cabinet-avatar">
           {userAvatar ? <img src={userAvatar} alt="" /> : initials}
         </div>
         <div className="cabinet-user-content">
           <h2>{userName || displayName}</h2>
           {userEmail ? <p>{userEmail}</p> : null}
-          <span className="cabinet-user-pill">{locale === 'ru' ? 'Личный рабочий контур' : 'Personal workspace loop'}</span>
         </div>
       </div>
-
-      <div className="workspace-sidebar-actions">
-        <Link href={`/${locale}/cabinet`} className="btn btn-secondary btn-sm btn-block-center cabinet-profile-action">
-          {locale === 'ru' ? 'Обновить профиль' : 'Update profile'}
-        </Link>
-        <Link href={`/${locale}/cabinet/my-events`} className="btn btn-ghost btn-sm btn-block-center">
-          {locale === 'ru' ? 'Открыть мои мероприятия' : 'Open my events'}
-        </Link>
-      </div>
-
 
       <nav className="cabinet-nav-list workspace-nav-list-v2">
         <div className="cabinet-nav-label">{locale === 'ru' ? 'Личный контур' : 'Personal loop'}</div>
@@ -101,8 +90,8 @@ function NavItem({ item, pathname }: { item: MenuItem; pathname: string }) {
     <Link href={item.href} className={cn('cabinet-nav-link', isActive && 'active')} aria-current={isActive ? 'page' : undefined}>
       <span className="cabinet-nav-icon">{item.icon}</span>
       <span className="workspace-nav-item-copy">
-        <strong>{item.label}</strong>
-        {item.summary ? <small>{item.summary}</small> : null}
+        <strong className="workspace-nav-item-title">{item.label}</strong>
+        {item.summary ? <small className="workspace-nav-item-summary">{item.summary}</small> : null}
       </span>
     </Link>
   );
