@@ -191,8 +191,14 @@ authRouter.patch('/profile', authenticate, async (req, res) => {
 });
 
 // POST /api/auth/google
-// Production: exchange code via Google OAuth. Dev: accepts mock payload directly.
+// Production: returns 501 as real OAuth is not implemented.
+// Dev: accepts mock payload for local development only.
 authRouter.post('/google', async (req, res) => {
+  if (env.isProd) {
+    res.status(501).json({ error: 'SOCIAL_AUTH_DISABLED', message: 'Social authentication is not available in production.' });
+    return;
+  }
+
   const parsed = socialAuthSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Validation failed' });
@@ -212,6 +218,11 @@ authRouter.post('/google', async (req, res) => {
 
 // POST /api/auth/yandex
 authRouter.post('/yandex', async (req, res) => {
+  if (env.isProd) {
+    res.status(501).json({ error: 'SOCIAL_AUTH_DISABLED', message: 'Social authentication is not available in production.' });
+    return;
+  }
+
   const parsed = socialAuthSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Validation failed' });
@@ -231,6 +242,11 @@ authRouter.post('/yandex', async (req, res) => {
 
 // POST /api/auth/telegram
 authRouter.post('/telegram', async (req, res) => {
+  if (env.isProd) {
+    res.status(501).json({ error: 'SOCIAL_AUTH_DISABLED', message: 'Social authentication is not available in production.' });
+    return;
+  }
+
   const parsed = socialAuthSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Validation failed' });
