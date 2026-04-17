@@ -82,8 +82,19 @@ export function AdminShell({ children }: { children: ReactNode }) {
         { href: `/${locale}/admin/teams`, label: t('admin.teams'), icon: <TeamIcon />, allow: true },
       ],
     },
-    // Email admin module is not implemented yet - hidden from navigation
-    // Will be shown again once the feature is properly implemented
+    {
+      label: 'Communications',
+      items: [
+        { href: `/${locale}/admin/email`, label: t('admin.email'), icon: <MailIcon />, allow: isPlatformAdmin },
+        { href: `/${locale}/admin/email/messages`, label: t('admin.messages'), icon: <InboxIcon />, allow: isPlatformAdmin },
+        { href: `/${locale}/admin/email/templates`, label: t('admin.templates'), icon: <TemplateIcon />, allow: isPlatformAdmin },
+        { href: `/${locale}/admin/email/broadcasts`, label: t('admin.broadcasts'), icon: <BroadcastIcon />, allow: isPlatformAdmin },
+        { href: `/${locale}/admin/email/automations`, label: t('admin.automations'), icon: <AutomationIcon />, allow: isPlatformAdmin },
+        { href: `/${locale}/admin/email/audience`, label: t('admin.audience'), icon: <AudienceIcon />, allow: isPlatformAdmin },
+        { href: `/${locale}/admin/email/domains`, label: t('admin.domains'), icon: <GlobeIcon />, allow: isPlatformAdmin },
+        { href: `/${locale}/admin/email/webhooks`, label: t('admin.webhooks'), icon: <WebhookIcon />, allow: isPlatformAdmin },
+      ],
+    },
     {
       label: 'Management',
       items: [
