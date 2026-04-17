@@ -391,37 +391,45 @@ psql -U event_platform_user -d event_platform
 
 ## 🚢 Деплой
 
-### Требования для production
-- PostgreSQL (managed или self-hosted)
-- Node.js 25.6+
-- Reverse proxy (nginx, caddy)
+> Подробная документация по CI/CD и процессу деплоя: [docs/deploy-workflow.md](docs/deploy-workflow.md)
 
-### Environment variables (production)
+### Краткая схема
 
-```bash
-NODE_ENV=production
-DATABASE_URL=postgresql://user:pass@host:5432/db
-JWT_ACCESS_SECRET=<strong-secret-min-32-chars>
-JWT_REFRESH_SECRET=<different-strong-secret>
-CORS_ORIGIN=https://yourdomain.com
+```
+feature/* → PR → main → PR → production → deploy
 ```
 
-### Сборка и запуск
+### Branch Strategy
+
+| Branch | Назначение | Merge |
+|--------|------------|-------|
+| `feature/*`, `fix/*`, `hotfix/*` | Рабочие ветки | PR в `main` |
+| `main` | Интеграция | Только PR |
+| `production` | Production | PR из `main` |
+
+### CI/CD Workflows
+
+- **CI** (`.github/workflows/ci.yml`): только `typecheck` + `build`, запускается на PR в `main`/`develop` и push в `main`/`develop`/`feature/**`/`fix/**`/`hotfix/**`
+- **Deploy** (`.github/workflows/deploy-production.yml`): только production deploy, запускается на push в `production` или вручную с ref `production`
+- Required checks для protected branches: `Type check`, `Build` (в PR UI они отображаются внутри workflow `CI`)
+- `main`: обычный поток через PR + review/checks, owner/admin bypass включён
+- `production`: строгий поток через PR + 2 approvals/checks/environment approval, owner/admin bypass включён для emergency release
+- Production deploy использует GitHub Environment `production`; production secrets не используются в CI
+
+### Secrets для production
+
+Secrets настраиваются в GitHub → Settings → Environments → production:
+- `PROD_HOST`, `PROD_PORT`, `PROD_USER`
+- `PROD_SSH_KEY`, `PROD_ENV_FILE`
+
+### Локальная сборка (manual deploy)
 
 ```bash
-# Установить зависимости
 pnpm install --prod=false
-
-# Собрать
 pnpm build
-
-# Применить миграции
 pnpm db:migrate deploy
-
-# Запустить (используйте process manager типа PM2)
-cd apps/web && pnpm start    # Web
-cd services/api && pnpm start # API
 ```
+
 
 ## 📝 Лицензия
 

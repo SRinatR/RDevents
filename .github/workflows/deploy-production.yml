@@ -4,38 +4,48 @@ on:
   push:
     branches:
       - production
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: production-deploy
-  cancel-in-progress: true
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  DEPLOY_ROOT: /opt/rdevents
+  APP_DIR: /opt/rdevents/app
+  ARCHIVE_NAME: deploy.tgz
 
 jobs:
-  deploy:
-    name: Deploy and smoke test
+  validate-ref:
+    name: Validate production ref
     runs-on: ubuntu-latest
-    needs: []
+    steps:
+      - name: Confirm production branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF" != "refs/heads/production" ]; then
+            echo "Production deploy can only run from refs/heads/production."
+            echo "Current ref: $GITHUB_REF"
+            exit 1
+          fi
+
+  deploy:
+    name: Deploy production
+    runs-on: ubuntu-latest
+    needs: validate-ref
+    environment: production
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'pnpm'
-
-      - name: Setup pnpm
-        run: npm install -g pnpm@10.33.0
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Type check
-        run: pnpm typecheck
-
-      - name: Build
-        run: pnpm build
+      - name: Confirm deployment commit
+        run: echo "Deploying $GITHUB_SHA from $GITHUB_REF"
 
       - name: Prepare SSH
         shell: bash
@@ -54,7 +64,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ARCHIVE_PATH="$RUNNER_TEMP/deploy.tgz"
+          ARCHIVE_PATH="$RUNNER_TEMP/$ARCHIVE_NAME"
 
           tar \
             --exclude=.git \
@@ -75,9 +85,10 @@ jobs:
           PROD_USER: ${{ secrets.PROD_USER }}
         run: |
           set -euo pipefail
-          ARCHIVE_PATH="$RUNNER_TEMP/deploy.tgz"
+          ARCHIVE_PATH="$RUNNER_TEMP/$ARCHIVE_NAME"
 
-          scp -P "$PROD_PORT" -i ~/.ssh/id_ed25519 "$ARCHIVE_PATH" "$PROD_USER@$PROD_HOST:/opt/rdevents/deploy.tgz"
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "mkdir -p $DEPLOY_ROOT"
+          scp -P "$PROD_PORT" -i ~/.ssh/id_ed25519 "$ARCHIVE_PATH" "$PROD_USER@$PROD_HOST:$DEPLOY_ROOT/$ARCHIVE_NAME"
 
       - name: Write env file on server
         shell: bash
@@ -88,8 +99,8 @@ jobs:
           PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
         run: |
           set -euo pipefail
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "mkdir -p /opt/rdevents"
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "cat > /opt/rdevents/.env" <<< "$PROD_ENV_FILE"
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "mkdir -p $DEPLOY_ROOT"
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "cat > $DEPLOY_ROOT/.env" <<< "$PROD_ENV_FILE"
 
       - name: Deploy on server
         shell: bash
@@ -99,22 +110,23 @@ jobs:
           PROD_USER: ${{ secrets.PROD_USER }}
         run: |
           set -euo pipefail
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" << 'EOF'
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' ARCHIVE_NAME='$ARCHIVE_NAME' RELEASE_SHA='$GITHUB_SHA' bash -se" << 'EOF'
             set -euo pipefail
 
-            mkdir -p /opt/rdevents/app
-            find /opt/rdevents/app -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+            mkdir -p "$APP_DIR"
+            find "$APP_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 
-            tar -xzf /opt/rdevents/deploy.tgz -C /opt/rdevents/app
-            rm -f /opt/rdevents/deploy.tgz
+            tar -xzf "$DEPLOY_ROOT/$ARCHIVE_NAME" -C "$APP_DIR"
+            rm -f "$DEPLOY_ROOT/$ARCHIVE_NAME"
+            printf '%s\n' "$RELEASE_SHA" > "$APP_DIR/.release-commit"
 
-            cd /opt/rdevents/app
+            cd "$APP_DIR"
 
-            docker compose --env-file /opt/rdevents/.env -f docker-compose.prod.yml down --remove-orphans || true
-            docker compose --env-file /opt/rdevents/.env -f docker-compose.prod.yml up -d --build --remove-orphans
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml down --remove-orphans || true
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml up -d --build --remove-orphans
 
             docker image prune -f
-            docker compose --env-file /opt/rdevents/.env -f docker-compose.prod.yml ps
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
           EOF
 
       - name: Wait for services to start
@@ -129,7 +141,7 @@ jobs:
         run: |
           set -euo pipefail
           ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "docker compose -f /opt/rdevents/app/docker-compose.prod.yml ps api | grep -q 'Up'" \
+            "docker compose --env-file '$DEPLOY_ROOT/.env' -f '$APP_DIR/docker-compose.prod.yml' ps --status running --services | grep -qx api" \
             || { echo "API container is not running"; exit 1; }
 
       - name: Smoke test - Web container is running
@@ -141,7 +153,7 @@ jobs:
         run: |
           set -euo pipefail
           ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "docker compose -f /opt/rdevents/app/docker-compose.prod.yml ps web | grep -q 'Up'" \
+            "docker compose --env-file '$DEPLOY_ROOT/.env' -f '$APP_DIR/docker-compose.prod.yml' ps --status running --services | grep -qx web" \
             || { echo "Web container is not running"; exit 1; }
 
       - name: Smoke test - API health via wget
@@ -153,7 +165,7 @@ jobs:
         run: |
           set -euo pipefail
           ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "docker compose -f /opt/rdevents/app/docker-compose.prod.yml exec -T api wget --spider -q http://localhost:4000/health" \
+            "docker compose --env-file '$DEPLOY_ROOT/.env' -f '$APP_DIR/docker-compose.prod.yml' exec -T api wget --spider -q http://localhost:4000/health" \
             || { echo "API health check failed"; exit 1; }
 
       - name: Smoke test - API ready via wget
@@ -165,7 +177,7 @@ jobs:
         run: |
           set -euo pipefail
           ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "docker compose -f /opt/rdevents/app/docker-compose.prod.yml exec -T api wget --spider -q http://localhost:4000/ready" \
+            "docker compose --env-file '$DEPLOY_ROOT/.env' -f '$APP_DIR/docker-compose.prod.yml' exec -T api wget --spider -q http://localhost:4000/ready" \
             || { echo "API ready check failed"; exit 1; }
 
       - name: Smoke test - Web root via wget
@@ -177,7 +189,7 @@ jobs:
         run: |
           set -euo pipefail
           ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "docker compose -f /opt/rdevents/app/docker-compose.prod.yml exec -T web wget --spider -q http://localhost:3000" \
+            "docker compose --env-file '$DEPLOY_ROOT/.env' -f '$APP_DIR/docker-compose.prod.yml' exec -T web wget --spider -q http://localhost:3000" \
             || { echo "Web root check failed"; exit 1; }
 
       - name: Deployment complete
