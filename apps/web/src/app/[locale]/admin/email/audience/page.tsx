@@ -1,15 +1,21 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
+import { adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, MetricCard, PageHeader, Panel, StatusBadge, TableShell } from '@/components/ui/signal-primitives';
 
 export default function AdminEmailAudiencePage() {
-  const { user, loading, isAdmin } = useAuth();
+  const t = useTranslations();
+  const { user, loading, isAdmin, isPlatformAdmin } = useAuth();
   const router = useRouter();
   const locale = useRouteLocale();
+
+  const [audience, setAudience] = useState<any>(null);
+  const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) {
@@ -17,18 +23,95 @@ export default function AdminEmailAudiencePage() {
     }
   }, [user, loading, isAdmin, router, locale]);
 
+  useEffect(() => {
+    if (!user || !isAdmin || !isPlatformAdmin) return;
+
+    adminEmailApi.getAudience()
+      .then(setAudience)
+      .catch(() => setAudience(null))
+      .finally(() => setLoadingData(false));
+  }, [user, isAdmin, isPlatformAdmin]);
+
   if (loading || !user || !isAdmin) {
     return <div className="admin-loading-screen"><div className="spinner" /></div>;
   }
 
+  if (!isPlatformAdmin) {
+    return (
+      <div className="signal-page-shell admin-control-page">
+        <EmptyState
+          title={locale === 'ru' ? 'Доступ запрещён' : 'Access denied'}
+          description={locale === 'ru' ? 'Управление аудиторией доступно только платформенным администраторам.' : 'Audience management is only available to platform administrators.'}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="signal-page-shell admin-control-page">
-      <EmptyState
-        title={locale === 'ru' ? 'Модуль временно недоступен' : 'Module temporarily unavailable'}
-        description={locale === 'ru' 
-          ? 'Аудитория email ещё не реализована.' 
-          : 'Email audience is not implemented yet.'}
+      <PageHeader
+        title={t('admin.audience') ?? 'Audience'}
+        subtitle={locale === 'ru' ? 'Контакты и сегменты' : 'Contacts and segments'}
       />
+
+      {/* KPI cards */}
+      {loadingData ? (
+        <div className="signal-kpi-grid"><LoadingLines rows={4} /></div>
+      ) : audience ? (
+        <div className="signal-kpi-grid">
+          <MetricCard tone="info" label={locale === 'ru' ? 'Всего контактов' : 'Total contacts'} value={audience.totalContacts ?? 0} />
+          <MetricCard tone="success" label={locale === 'ru' ? 'Подтверждённых' : 'Verified'} value={audience.verifiedContacts ?? 0} />
+          <MetricCard tone="danger" label={locale === 'ru' ? 'Отписавшихся' : 'Unsubscribed'} value={audience.unsubscribed ?? 0} />
+          <MetricCard tone="neutral" label={locale === 'ru' ? 'Сегментов' : 'Segments'} value={audience.segmentsCount ?? 0} />
+        </div>
+      ) : (
+        <EmptyState
+          title={locale === 'ru' ? 'Нет данных' : 'No data'}
+          description={locale === 'ru' ? 'Данные аудитории будут загружены.' : 'Audience data will be loaded.'}
+        />
+      )}
+
+      {/* Segments table */}
+      <Panel variant="elevated" className="admin-command-panel">
+        <div className="signal-section-header">
+          <div>
+            <h2>{locale === 'ru' ? 'Сегменты' : 'Segments'}</h2>
+            <p className="signal-muted">{locale === 'ru' ? 'Группы контактов по критериям' : 'Contact groups by criteria'}</p>
+          </div>
+        </div>
+
+        {loadingData ? (
+          <LoadingLines rows={5} />
+        ) : audience?.segments?.length ? (
+          <TableShell>
+            <table className="signal-table">
+              <thead>
+                <tr>
+                  <th>{locale === 'ru' ? 'Название сегмента' : 'Segment name'}</th>
+                  <th>{locale === 'ru' ? 'Размер' : 'Size'}</th>
+                  <th>{locale === 'ru' ? 'Источник' : 'Source'}</th>
+                  <th>{locale === 'ru' ? 'Обновлено' : 'Updated'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {audience.segments.map((seg: any) => (
+                  <tr key={seg.id}>
+                    <td><strong>{seg.name}</strong></td>
+                    <td><StatusBadge tone="info">{seg.size}</StatusBadge></td>
+                    <td className="signal-muted">{seg.source}</td>
+                    <td className="signal-muted">{new Date(seg.updatedAt).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableShell>
+        ) : (
+          <EmptyState
+            title={locale === 'ru' ? 'Нет сегментов' : 'No segments'}
+            description={locale === 'ru' ? 'Сегменты будут созданы после настройки автоматизаций.' : 'Segments will be created after automation setup.'}
+          />
+        )}
+      </Panel>
     </div>
   );
 }
