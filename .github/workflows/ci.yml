@@ -7,11 +7,16 @@ on:
   push:
     branches:
       - main
-      - develop
+      - 'feature/**'
+      - 'fix/**'
+      - 'hotfix/**'
   pull_request:
     branches:
       - main
-      - develop
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   typecheck:
@@ -27,7 +32,7 @@ jobs:
           node-version: '24'
           cache: 'pnpm'
 
-      - name: Setup pnpm
+      - name: Install pnpm
         run: npm install -g pnpm@10.33.0
 
       - name: Install dependencies
@@ -50,7 +55,7 @@ jobs:
           node-version: '24'
           cache: 'pnpm'
 
-      - name: Setup pnpm
+      - name: Install pnpm
         run: npm install -g pnpm@10.33.0
 
       - name: Install dependencies
@@ -58,13 +63,3 @@ jobs:
 
       - name: Build
         run: pnpm build
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: build
-          path: |
-            apps/web/.next
-            services/api/dist
-            packages/*/dist
-          retention-days: 1
