@@ -165,7 +165,7 @@ jobs:
         run: |
           set -euo pipefail
           ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "docker compose --env-file '$DEPLOY_ROOT/.env' -f '$APP_DIR/docker-compose.prod.yml' exec -T api wget --spider -q http://localhost:4000/health" \
+            "docker compose --env-file '$DEPLOY_ROOT/.env' -f '$APP_DIR/docker-compose.prod.yml' exec -T api wget --spider -q http://127.0.0.1:4000/health" \
             || { echo "API health check failed"; exit 1; }
 
       - name: Smoke test - API ready via wget
@@ -177,7 +177,7 @@ jobs:
         run: |
           set -euo pipefail
           ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "docker compose --env-file '$DEPLOY_ROOT/.env' -f '$APP_DIR/docker-compose.prod.yml' exec -T api wget --spider -q http://localhost:4000/ready" \
+            "docker compose --env-file '$DEPLOY_ROOT/.env' -f '$APP_DIR/docker-compose.prod.yml' exec -T api wget --spider -q http://127.0.0.1:4000/ready" \
             || { echo "API ready check failed"; exit 1; }
 
       - name: Smoke test - Web root via wget
@@ -189,8 +189,23 @@ jobs:
         run: |
           set -euo pipefail
           ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "docker compose --env-file '$DEPLOY_ROOT/.env' -f '$APP_DIR/docker-compose.prod.yml' exec -T web wget --spider -q http://localhost:3000" \
-            || { echo "Web root check failed"; exit 1; }
+            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' bash -se" << 'EOF'
+            set -euo pipefail
+
+            for attempt in $(seq 1 30); do
+              if docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" exec -T web wget --spider -q http://127.0.0.1:3000/; then
+                exit 0
+              fi
+
+              echo "Waiting for web root ($attempt/30)..."
+              sleep 2
+            done
+
+            echo "Web root check failed"
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 web
+            exit 1
+          EOF
 
       - name: Deployment complete
         run: echo "Deployment and smoke tests completed successfully"
