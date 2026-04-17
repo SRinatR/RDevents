@@ -8,7 +8,9 @@ on:
     branches:
       - main
       - develop
-      - production
+      - 'feature/**'
+      - 'fix/**'
+      - 'hotfix/**'
   pull_request:
     branches:
       - main
@@ -32,16 +34,16 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@v4
         with:
           version: 10.33.0
-          run_install: false
-          cache: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -62,16 +64,16 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@v4
         with:
           version: 10.33.0
-          run_install: false
-          cache: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -81,13 +83,3 @@ jobs:
 
       - name: Build
         run: pnpm build
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: build
-          path: |
-            apps/web/.next
-            services/api/dist
-            packages/*/dist
-          retention-days: 1
