@@ -7,7 +7,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum UserRole {
@@ -108,59 +107,60 @@ enum AnalyticsEventType {
 }
 
 model User {
-  id              String    @id @default(cuid())
-  email           String    @unique
-  passwordHash    String?
-  name            String?
-  // Name fields
-  lastNameCyrillic   String?
-  firstNameCyrillic  String?
-  middleNameCyrillic String?
-  lastNameLatin      String?
-  firstNameLatin     String?
-  middleNameLatin    String?
-  fullNameCyrillic   String?
-  fullNameLatin      String?
-  
-  bio             String?
-  city            String?
-  phone           String?
-  telegram        String?
-  birthDate       DateTime?
-  avatarUrl       String?
-  role            UserRole  @default(USER)
-  isActive        Boolean   @default(true)
-  emailVerifiedAt DateTime?
-  registeredAt    DateTime  @default(now())
-  lastLoginAt     DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                    String   @id @default(cuid())
+  email                 String   @unique
+  passwordHash          String?
+  name                  String?
 
-  accounts             UserAccount[]
-  createdEvents        Event[]           @relation("CreatedBy")
-  eventMemberships     EventMember[]     @relation("EventMemberUser")
-  assignedEventMembers EventMember[]     @relation("EventMemberAssignedBy")
-  teamMemberships      EventTeamMember[]
-  captainedTeams       EventTeam[]       @relation("TeamCaptain")
-  analyticsEvents      AnalyticsEvent[]
+  // Name fields
+  lastNameCyrillic      String?
+  firstNameCyrillic     String?
+  middleNameCyrillic    String?
+  lastNameLatin         String?
+  firstNameLatin        String?
+  middleNameLatin       String?
+  fullNameCyrillic      String?
+  fullNameLatin         String?
+
+  bio                   String?
+  city                  String?
+  phone                 String?
+  telegram              String?
+  birthDate             DateTime?
+  avatarUrl             String?
+  role                  UserRole @default(USER)
+  isActive              Boolean  @default(true)
+  emailVerifiedAt       DateTime?
+  registeredAt          DateTime @default(now())
+  lastLoginAt           DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  accounts              UserAccount[]
+  createdEvents         Event[] @relation("CreatedBy")
+  eventMemberships      EventMember[] @relation("EventMemberUser")
+  assignedEventMembers  EventMember[] @relation("EventMemberAssignedBy")
+  teamMemberships       EventTeamMember[]
+  captainedTeams        EventTeam[] @relation("TeamCaptain")
+  analyticsEvents       AnalyticsEvent[]
   registrationSubmissions EventRegistrationFormSubmission[]
-  refreshSessions      RefreshSession[]
+  refreshSessions       RefreshSession[]
 
   @@map("users")
 }
 
 model UserAccount {
-  id                String       @id @default(cuid())
-  userId            String
-  provider          AuthProvider
-  providerAccountId String
-  providerEmail     String?
-  providerUsername  String?
-  providerAvatarUrl String?
-  linkedAt          DateTime     @default(now())
-  lastUsedAt        DateTime?
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  id                 String       @id @default(cuid())
+  userId             String
+  provider           AuthProvider
+  providerAccountId  String
+  providerEmail      String?
+  providerUsername   String?
+  providerAvatarUrl  String?
+  linkedAt           DateTime     @default(now())
+  lastUsedAt         DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -169,17 +169,17 @@ model UserAccount {
 }
 
 model RegistrationVerification {
-  id                       String   @id @default(cuid())
-  email                    String   @unique
-  codeHash                 String
-  codeSentAt               DateTime
-  codeExpiresAt            DateTime
-  verifiedAt               DateTime?
-  completionTokenHash      String?
-  completionTokenExpiresAt DateTime?
-  attempts                 Int      @default(0)
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
+  id                          String   @id @default(cuid())
+  email                       String   @unique
+  codeHash                    String
+  codeSentAt                  DateTime
+  codeExpiresAt               DateTime
+  verifiedAt                  DateTime?
+  completionTokenHash         String?
+  completionTokenExpiresAt    DateTime?
+  attempts                    Int      @default(0)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
 
   @@index([codeExpiresAt])
   @@index([completionTokenExpiresAt])
@@ -187,75 +187,74 @@ model RegistrationVerification {
 }
 
 model Event {
-  id                   String      @id @default(cuid())
-  slug                 String      @unique
-  title                String
-  shortDescription     String
-  fullDescription      String      @db.Text
-  coverImageUrl        String?
-  category             String
-  location             String
-  
-  // Registration and limits
-  capacity             Int         @default(100)
-  registrationsCount   Int         @default(0)
-  
-  // Timing
-  startsAt             DateTime
-  endsAt               DateTime
-  registrationOpensAt  DateTime?
-  registrationDeadline DateTime?
-  
-  // Registration Settings
-  registrationEnabled          Boolean @default(true)
-  registrationMode             RegistrationMode @default(INDIVIDUAL)
-  volunteerApplicationsEnabled Boolean @default(false)
-  requiredProfileFields        String[] @default([])
-  requiredEventFields          String[] @default([])
-  customRegistrationFields     Json?
+  id                               String                     @id @default(cuid())
+  slug                             String                     @unique
+  title                            String
+  shortDescription                 String
+  fullDescription                  String                     @db.Text
+  coverImageUrl                    String?
+  category                         String
+  location                         String
 
-  conditions           String?
-  contactEmail         String?
-  tags                 String[]
-  status               EventStatus @default(DRAFT)
-  isFeatured           Boolean     @default(false)
+  // Registration and limits
+  capacity                         Int                        @default(100)
+  registrationsCount               Int                        @default(0)
+
+  // Timing
+  startsAt                         DateTime
+  endsAt                           DateTime
+  registrationOpensAt              DateTime?
+  registrationDeadline             DateTime?
+
+  // Registration Settings
+  registrationEnabled              Boolean                    @default(true)
+  registrationMode                 RegistrationMode           @default(INDIVIDUAL)
+  volunteerApplicationsEnabled     Boolean                    @default(false)
+  requiredProfileFields            String[]                   @default([])
+  requiredEventFields              String[]                   @default([])
+  customRegistrationFields         Json?
+  conditions                       String?
+  contactEmail                     String?
+  tags                             String[]
+  status                           EventStatus                @default(DRAFT)
+  isFeatured                       Boolean                    @default(false)
 
   // Team settings
-  isTeamBased                  Boolean      @default(false)
-  minTeamSize                  Int          @default(1)
-  maxTeamSize                  Int          @default(1)
-  allowSoloParticipation       Boolean      @default(true)
-  teamJoinMode                 TeamJoinMode @default(OPEN)
-  requireAdminApprovalForTeams Boolean      @default(false)
+  isTeamBased                      Boolean                    @default(false)
+  minTeamSize                      Int                        @default(1)
+  maxTeamSize                      Int                        @default(1)
+  allowSoloParticipation           Boolean                    @default(true)
+  teamJoinMode                     TeamJoinMode               @default(OPEN)
+  requireAdminApprovalForTeams     Boolean                    @default(false)
 
   // Individual participation config
-  requireParticipantApproval   Boolean           @default(false)
-  participantLimitMode         ParticipantLimitMode @default(UNLIMITED)
-  participantTarget            Int?
-  participantCountVisibility  ParticipantCountVisibility @default(PUBLIC)
+  requireParticipantApproval       Boolean                    @default(false)
+  participantLimitMode             ParticipantLimitMode       @default(UNLIMITED)
+  participantTarget                Int?
+  participantCountVisibility       ParticipantCountVisibility @default(PUBLIC)
 
-  publishedAt DateTime?
-  createdById String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  publishedAt                      DateTime?
+  createdById                      String?
+  createdAt                        DateTime                   @default(now())
+  updatedAt                        DateTime                   @updatedAt
 
-  createdBy       User?            @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  members         EventMember[]
-  teams           EventTeam[]
-  analyticsEvents AnalyticsEvent[]
-  registrationSubmissions EventRegistrationFormSubmission[]
+  createdBy                        User?                      @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  members                          EventMember[]
+  teams                            EventTeam[]
+  analyticsEvents                  AnalyticsEvent[]
+  registrationSubmissions          EventRegistrationFormSubmission[]
 
   @@map("events")
 }
 
 model EventRegistrationFormSubmission {
-  id            String   @id @default(cuid())
-  eventId       String
-  userId        String
-  answersJson   Json
-  isComplete    Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          String   @id @default(cuid())
+  eventId     String
+  userId      String
+  answersJson Json
+  isComplete  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -266,23 +265,23 @@ model EventRegistrationFormSubmission {
 }
 
 model EventMember {
-  id               String            @id @default(cuid())
+  id               String             @id @default(cuid())
   eventId          String
   userId           String
   role             EventMemberRole
-  status           EventMemberStatus @default(PENDING)
+  status           EventMemberStatus  @default(PENDING)
   assignedByUserId String?
-  assignedAt       DateTime          @default(now())
+  assignedAt       DateTime           @default(now())
   approvedAt       DateTime?
   rejectedAt       DateTime?
   removedAt        DateTime?
   notes            String?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
-  event          Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user           User  @relation("EventMemberUser", fields: [userId], references: [id], onDelete: Cascade)
-  assignedByUser User? @relation("EventMemberAssignedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+  event            Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user             User   @relation("EventMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedByUser   User?  @relation("EventMemberAssignedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
 
   @@unique([eventId, userId, role])
   @@index([userId, role, status])
@@ -303,9 +302,9 @@ model EventTeam {
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
-  event       Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  captainUser User              @relation("TeamCaptain", fields: [captainUserId], references: [id], onDelete: Cascade)
-  members     EventTeamMember[]
+  event         Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  captainUser   User            @relation("TeamCaptain", fields: [captainUserId], references: [id], onDelete: Cascade)
+  members       EventTeamMember[]
 
   @@index([eventId])
   @@index([captainUserId])
@@ -322,8 +321,8 @@ model EventTeamMember {
   approvedAt DateTime?
   removedAt  DateTime?
 
-  team EventTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team       EventTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, userId])
   @@index([teamId, status])
@@ -332,7 +331,7 @@ model EventTeamMember {
 }
 
 model AnalyticsEvent {
-  id           String             @id @default(cuid())
+  id           String              @id @default(cuid())
   type         AnalyticsEventType
   userId       String?
   eventId      String?
@@ -341,10 +340,10 @@ model AnalyticsEvent {
   locale       String?
   path         String?
   meta         Json?
-  createdAt    DateTime           @default(now())
+  createdAt    DateTime            @default(now())
 
-  user  User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
-  event Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  user         User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  event        Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
 
   @@index([type])
   @@index([createdAt])
@@ -353,19 +352,19 @@ model AnalyticsEvent {
 }
 
 model RefreshSession {
-  id           String    @id @default(cuid())
-  userId       String
-  tokenHash    String    @unique
-  deviceInfo   String?
-  ipAddress    String?
-  userAgent    String?
-  createdAt    DateTime  @default(now())
-  expiresAt    DateTime
-  revokedAt    DateTime?
-  replacedById String?
+  id               String          @id @default(cuid())
+  userId           String
+  tokenHash        String          @unique
+  deviceInfo       String?
+  ipAddress        String?
+  userAgent        String?
+  createdAt        DateTime        @default(now())
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  replacedById     String?
 
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  replacedBy    RefreshSession? @relation("SessionRotation", fields: [replacedById], references: [id])
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy       RefreshSession? @relation("SessionRotation", fields: [replacedById], references: [id])
   replacedSessions RefreshSession[] @relation("SessionRotation")
 
   @@index([userId, revokedAt])
