@@ -124,7 +124,7 @@ These settings are configured in GitHub repository settings, not in workflow YAM
 Required:
 
 - Require a pull request before merging
-- Require at least 1 approval
+- Require at least 1 approval for the normal contributor flow
 - Require status checks to pass before merging
 - Required checks:
   - `Type check`
@@ -137,6 +137,8 @@ Recommended:
 
 - Dismiss stale approvals when new commits are pushed
 - Do not allow bypassing for regular contributors
+
+Current repository setting: owner/admin bypass is enabled for `main`. Regular contributors still go through PR, checks, and review; the owner can bypass branch protection when needed.
 
 ### `production`
 
@@ -163,7 +165,9 @@ Recommended:
 - Require conversation resolution before merging
 - Require signed commits if the team uses signed commits consistently
 
-Note for `SRinatR/RDevents`: this is a personal repository. GitHub rejects user/team push restrictions for personal repositories with `Only organization repositories can have users and team restrictions`. The active stricter controls for `production` are 2 required approvals, enforced admins, required checks, blocked force push/delete, and the `production` environment required reviewer. If the repository moves to an organization, enable push restrictions for the release owner group.
+Current repository setting: owner/admin bypass is enabled for `production`. Regular contributors still go through PR, 2 approvals, required checks, and the `production` environment reviewer; the owner can bypass branch protection for emergency release operations.
+
+Note for `SRinatR/RDevents`: this is a personal repository. GitHub rejects user/team push restrictions for personal repositories with `Only organization repositories can have users and team restrictions`. The active stricter controls for `production` are 2 required approvals, required checks, blocked force push/delete for non-admin contributors, owner/admin bypass, and the `production` environment required reviewer. If the repository moves to an organization, enable push restrictions for the release owner group.
 
 ## Release Process
 

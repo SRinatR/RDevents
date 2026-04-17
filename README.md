@@ -412,6 +412,8 @@ feature/* → PR → main → PR → production → deploy
 - **CI** (`.github/workflows/ci.yml`): только `typecheck` + `build`, запускается на PR в `main`/`develop` и push в `main`/`develop`/`feature/**`/`fix/**`/`hotfix/**`
 - **Deploy** (`.github/workflows/deploy-production.yml`): только production deploy, запускается на push в `production` или вручную с ref `production`
 - Required checks для protected branches: `Type check`, `Build` (в PR UI они отображаются внутри workflow `CI`)
+- `main`: обычный поток через PR + review/checks, owner/admin bypass включён
+- `production`: строгий поток через PR + 2 approvals/checks/environment approval, owner/admin bypass включён для emergency release
 - Production deploy использует GitHub Environment `production`; production secrets не используются в CI
 
 ### Secrets для production
