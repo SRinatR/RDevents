@@ -74,11 +74,36 @@ export default function EventParticipantsPage() {
     try {
       const [eventRes, participantsRes] = await Promise.all([
         adminApi.listEvents({ id: eventId, limit: 1 }),
-        adminApi.listEventParticipants(eventId),
+        adminApi.listEventMembers(eventId),
       ]);
 
       setEvent(eventRes.data[0] ?? null);
-      setParticipants(participantsRes.participants ?? []);
+      setParticipants(
+        (participantsRes.members ?? [])
+          .filter((member: any) => member.role === 'PARTICIPANT')
+          .map((member: any) => ({
+            id: member.id,
+            role: member.role,
+            status: member.status,
+            userId: member.userId,
+            teamId: null,
+            answers: {},
+            createdAt: member.assignedAt,
+            updatedAt: member.updatedAt ?? member.assignedAt,
+            user: member.user
+              ? {
+                  id: member.user.id,
+                  name: member.user.name,
+                  email: member.user.email,
+                  phone: null,
+                  city: member.user.city ?? null,
+                  telegram: null,
+                  birthDate: null,
+                }
+              : undefined,
+            team: undefined,
+          })),
+      );
     } catch (err: any) {
       setError(err.message || 'Failed to load data');
     } finally {

@@ -22,7 +22,6 @@ function createPrismaClient() {
   const pool = new pg.Pool({ connectionString });
   const adapter = new PrismaPg(pool);
 
-  // @ts-ignore Prisma adapter typing is still not aligned here.
   return new PrismaClient({
     adapter,
     log: env.isDev ? ['query', 'error', 'warn'] : ['error'],
