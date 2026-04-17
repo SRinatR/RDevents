@@ -90,8 +90,8 @@ function NavItem({ item, pathname }: { item: MenuItem; pathname: string }) {
     <Link href={item.href} className={cn('cabinet-nav-link', isActive && 'active')} aria-current={isActive ? 'page' : undefined}>
       <span className="cabinet-nav-icon">{item.icon}</span>
       <span className="workspace-nav-item-copy">
-        <strong>{item.label}</strong>
-        {item.summary ? <small>{item.summary}</small> : null}
+        <strong className="workspace-nav-item-title">{item.label}</strong>
+        {item.summary ? <small className="workspace-nav-item-summary">{item.summary}</small> : null}
       </span>
     </Link>
   );
