@@ -165,77 +165,71 @@ export default function ProfilePage() {
             />
             <form onSubmit={handleSave} className="signal-stack">
               <div className="signal-section-label">{locale === 'ru' ? 'Кириллица (русский)' : 'Cyrillic (Russian)'}</div>
-              <div className="signal-two-col">
+              <div className="profile-form-four-col">
                 <FieldBlock label={locale === 'ru' ? 'Фамилия' : 'Last name'}>
-                  <FieldInput 
-                    value={lastNameCyrillic} 
-                    onChange={(event) => setLastNameCyrillic(event.target.value)} 
+                  <FieldInput
+                    value={lastNameCyrillic}
+                    onChange={(event) => setLastNameCyrillic(event.target.value)}
                     placeholder={locale === 'ru' ? 'Иванов' : 'Ivanov'}
                     className={fieldToneClass('lastNameCyrillic')}
                   />
                   {requiredHint('lastNameCyrillic')}
                 </FieldBlock>
                 <FieldBlock label={locale === 'ru' ? 'Имя' : 'First name'} required>
-                  <FieldInput 
-                    value={firstNameCyrillic} 
-                    onChange={(event) => setFirstNameCyrillic(event.target.value)} 
+                  <FieldInput
+                    value={firstNameCyrillic}
+                    onChange={(event) => setFirstNameCyrillic(event.target.value)}
                     placeholder={locale === 'ru' ? 'Иван' : 'Ivan'}
                     className={fieldToneClass('firstNameCyrillic')}
                   />
                   {requiredHint('firstNameCyrillic')}
                 </FieldBlock>
-              </div>
-
-              <div className="signal-two-col">
                 <FieldBlock label={locale === 'ru' ? 'Отчество' : 'Patronymic'}>
-                  <FieldInput 
-                    value={middleNameCyrillic} 
-                    onChange={(event) => setMiddleNameCyrillic(event.target.value)} 
+                  <FieldInput
+                    value={middleNameCyrillic}
+                    onChange={(event) => setMiddleNameCyrillic(event.target.value)}
                     placeholder={locale === 'ru' ? 'Иванович' : 'Ivanovich'}
                   />
                 </FieldBlock>
                 <FieldBlock label={locale === 'ru' ? 'Дата рождения' : 'Birth date'} required>
-                  <FieldInput 
-                    value={birthDate} 
-                    onChange={(event) => setBirthDate(event.target.value)} 
+                  <FieldInput
+                    value={birthDate}
+                    onChange={(event) => setBirthDate(event.target.value)}
                     placeholder={locale === 'ru' ? 'ДД.ММ.ГГГГ' : 'DD.MM.YYYY'}
-                    className={fieldToneClass('birthDate')} 
+                    className={fieldToneClass('birthDate')}
                   />
                   {requiredHint('birthDate')}
                 </FieldBlock>
               </div>
 
               <div className="signal-section-label">{locale === 'ru' ? 'Латиница (английский)' : 'Latin (English)'}</div>
-              <div className="signal-two-col">
+              <div className="profile-form-four-col">
                 <FieldBlock label={locale === 'ru' ? 'Фамилия (EN)' : 'Last name (EN)'}>
-                  <FieldInput 
-                    value={lastNameLatin} 
-                    onChange={(event) => setLastNameLatin(event.target.value)} 
+                  <FieldInput
+                    value={lastNameLatin}
+                    onChange={(event) => setLastNameLatin(event.target.value)}
                     placeholder="Ivanov"
                   />
                 </FieldBlock>
                 <FieldBlock label={locale === 'ru' ? 'Имя (EN)' : 'First name (EN)'}>
-                  <FieldInput 
-                    value={firstNameLatin} 
-                    onChange={(event) => setFirstNameLatin(event.target.value)} 
+                  <FieldInput
+                    value={firstNameLatin}
+                    onChange={(event) => setFirstNameLatin(event.target.value)}
                     placeholder="Ivan"
                   />
                 </FieldBlock>
-              </div>
-
-              <div className="signal-two-col">
                 <FieldBlock label={locale === 'ru' ? 'Отчество (EN)' : 'Patronymic (EN)'}>
-                  <FieldInput 
-                    value={middleNameLatin} 
-                    onChange={(event) => setMiddleNameLatin(event.target.value)} 
+                  <FieldInput
+                    value={middleNameLatin}
+                    onChange={(event) => setMiddleNameLatin(event.target.value)}
                     placeholder="Ivanovich"
                   />
                 </FieldBlock>
                 <FieldBlock label={locale === 'ru' ? 'Телефон' : 'Phone'} required>
-                  <FieldInput 
-                    value={phone} 
-                    onChange={(event) => setPhone(event.target.value)} 
-                    className={fieldToneClass('phone')} 
+                  <FieldInput
+                    value={phone}
+                    onChange={(event) => setPhone(event.target.value)}
+                    className={fieldToneClass('phone')}
                   />
                   {requiredHint('phone')}
                 </FieldBlock>
@@ -252,29 +246,30 @@ export default function ProfilePage() {
           <TabsContent value="general" className="cabinet-tab-content">
             <SectionHeader title={locale === 'ru' ? 'Общие данные профиля' : 'General profile data'} subtitle={locale === 'ru' ? 'Публичные и контактные атрибуты' : 'Public and contact attributes'} />
             <div className="signal-stack">
-              <FieldBlock label={locale === 'ru' ? 'Город' : 'City'}>
-                <FieldInput 
-                  value={city} 
-                  onChange={(event) => setCity(event.target.value)} 
-                  className={fieldToneClass('city')} 
-                />
-                {requiredHint('city')}
-              </FieldBlock>
-
-              <FieldBlock label={locale === 'ru' ? 'Ссылка на фото' : 'Avatar URL'}>
-                <FieldInput 
-                  value={avatarUrl} 
-                  onChange={(event) => setAvatarUrl(event.target.value)} 
-                  className={fieldToneClass('avatarUrl')} 
-                  placeholder="https://..." 
-                />
-                {requiredHint('avatarUrl')}
-              </FieldBlock>
+              <div className="signal-two-col">
+                <FieldBlock label={locale === 'ru' ? 'Город' : 'City'}>
+                  <FieldInput
+                    value={city}
+                    onChange={(event) => setCity(event.target.value)}
+                    className={fieldToneClass('city')}
+                  />
+                  {requiredHint('city')}
+                </FieldBlock>
+                <FieldBlock label={locale === 'ru' ? 'Ссылка на фото' : 'Avatar URL'}>
+                  <FieldInput
+                    value={avatarUrl}
+                    onChange={(event) => setAvatarUrl(event.target.value)}
+                    className={fieldToneClass('avatarUrl')}
+                    placeholder="https://..."
+                  />
+                  {requiredHint('avatarUrl')}
+                </FieldBlock>
+              </div>
               <FieldBlock label={locale === 'ru' ? 'О себе' : 'About'}>
-                <FieldTextarea 
-                  value={bio} 
-                  onChange={(event) => setBio(event.target.value)} 
-                  className={fieldToneClass('bio')} 
+                <FieldTextarea
+                  value={bio}
+                  onChange={(event) => setBio(event.target.value)}
+                  className={fieldToneClass('bio')}
                 />
                 {requiredHint('bio')}
               </FieldBlock>
@@ -303,21 +298,23 @@ export default function ProfilePage() {
 
           <TabsContent value="contacts" className="cabinet-tab-content">
             <div className="signal-stack">
-              <FieldBlock label="Telegram">
-                <FieldInput 
-                  value={telegram} 
-                  onChange={(event) => setTelegram(event.target.value)} 
-                  placeholder="@username" 
-                  className={fieldToneClass('telegram')} 
-                />
-                {requiredHint('telegram')}
-              </FieldBlock>
-              <FieldBlock label={locale === 'ru' ? 'Телефон' : 'Phone'}>
-                <FieldInput 
-                  value={phone} 
-                  onChange={(event) => setPhone(event.target.value)} 
-                />
-              </FieldBlock>
+              <div className="signal-two-col">
+                <FieldBlock label="Telegram">
+                  <FieldInput
+                    value={telegram}
+                    onChange={(event) => setTelegram(event.target.value)}
+                    placeholder="@username"
+                    className={fieldToneClass('telegram')}
+                  />
+                  {requiredHint('telegram')}
+                </FieldBlock>
+                <FieldBlock label={locale === 'ru' ? 'Телефон' : 'Phone'}>
+                  <FieldInput
+                    value={phone}
+                    onChange={(event) => setPhone(event.target.value)}
+                  />
+                </FieldBlock>
+              </div>
               <button onClick={handleSave} disabled={saving} className="btn btn-primary btn-sm">
                 {saving 
                   ? (locale === 'ru' ? 'Сохранение...' : 'Saving...') 

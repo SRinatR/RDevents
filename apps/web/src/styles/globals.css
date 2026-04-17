@@ -5451,6 +5451,8 @@ body {
 
 /* Underline tab strip — editorial, surface-attached */
 .cabinet-scene-main .profile-workspace .cabinet-tabs-list {
+  display: flex;
+  width: 100%;
   border-bottom: 2px solid var(--color-border-soft);
   padding-bottom: 0;
   margin-top: 30px;
@@ -5532,6 +5534,20 @@ body {
 .cabinet-scene-main .profile-workspace .cabinet-module-panel {
   padding: 32px;
   border-radius: var(--radius-xl);
+}
+
+/* Four-column name row — full-canvas spread */
+.profile-form-four-col {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .profile-form-four-col { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 540px) {
+  .profile-form-four-col { grid-template-columns: 1fr; }
 }
 
 /* Responsive: stack at narrow viewports */
