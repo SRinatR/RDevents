@@ -35,20 +35,19 @@ export default function CabinetLayout({ children }: { children: ReactNode }) {
   return (
     <div className="cabinet-shell app-shell">
       <div className="cabinet-fullbleed">
-        <div className="cabinet-shell-stage cabinet-shell-stage-v3">
-          <div className="workspace-topbar-trail">
-            {navTrail.map((item) => (
-              <Link key={item.href} href={item.href} className={`signal-chip-link ${pathname.startsWith(item.href) ? 'active' : ''}`}>
-                {item.label}
-              </Link>
-            ))}
-          </div>
-
-          <div className="cabinet-layout-grid">
+        <div className="cabinet-scene-surface">
+          <div className="cabinet-scene-rail">
             <Sidebar locale={locale} userName={user.name || user.fullNameCyrillic || user.email} userEmail={user.email} userAvatar={user.avatarUrl} />
-            <div className="cabinet-content-area">
-              <div className="cabinet-content-surface">{children}</div>
-            </div>
+          </div>
+          <div className="cabinet-scene-main">
+            <nav className="cabinet-scene-nav">
+              {navTrail.map((item) => (
+                <Link key={item.href} href={item.href} className={`signal-chip-link ${pathname.startsWith(item.href) ? 'active' : ''}`}>
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+            {children}
           </div>
         </div>
       </div>
