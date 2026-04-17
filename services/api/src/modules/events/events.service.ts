@@ -302,27 +302,124 @@ async function assertRegistrationRequirements(
   return precheck;
 }
 
-export async function registerForEvent(eventId: string, userId: string, answers?: Record<string, unknown>) {
+export interface RegistrationResult {
+  status: 'ACTIVE' | 'PENDING' | 'CAPACITY_REACHED' | 'GOAL_REACHED';
+  membership?: {
+    id: string;
+    status: string;
+    role: string;
+  };
+  participantCount?: number;
+  participantTarget?: number | null;
+  goalReached?: boolean;
+  message: string;
+}
+
+export async function registerForEvent(eventId: string, userId: string, answers?: Record<string, unknown>): Promise<RegistrationResult> {
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) throw new Error('EVENT_NOT_FOUND');
   if (event.isTeamBased && !event.allowSoloParticipation) {
     throw new Error('EVENT_REQUIRES_TEAM');
   }
+
+  // Check timing gates
+  if (event.status !== 'PUBLISHED') throw new Error('EVENT_NOT_AVAILABLE');
+  if (event.registrationOpensAt && event.registrationOpensAt > new Date()) {
+    throw new Error('REGISTRATION_NOT_OPEN');
+  }
+  if (event.registrationDeadline && event.registrationDeadline < new Date()) {
+    throw new Error('EVENT_NOT_AVAILABLE');
+  }
+
+  const existing = await prisma.eventMember.findUnique({
+    where: { eventId_userId_role: { eventId, userId, role: 'PARTICIPANT' } },
+  });
+
+  // Already registered as ACTIVE
+  if (existing && ACTIVE_MEMBER_STATUSES.includes(existing.status as any)) {
+    throw new Error('ALREADY_REGISTERED');
+  }
+
+  // Has pending application
+  if (existing && existing.status === 'PENDING') {
+    throw new Error('ALREADY_HAS_PENDING_APPLICATION');
+  }
+
+  // Check capacity based on limit mode
+  const activeCount = await prisma.eventMember.count({
+    where: { eventId, role: 'PARTICIPANT', status: { in: [...ACTIVE_MEMBER_STATUSES] } },
+  });
+
+  // Type-safe access to new participation config fields
+  const eventAny = event as any;
+  const target = eventAny.participantTarget ?? event.capacity;
+  const isStrictLimit = eventAny.participantLimitMode === 'STRICT_LIMIT';
+  const isGoalLimit = eventAny.participantLimitMode === 'GOAL_LIMIT';
+
+  // Strict limit check
+  if (isStrictLimit && activeCount >= target) {
+    if (eventAny.participantCountVisibility === 'PUBLIC') {
+      throw { code: 'CAPACITY_REACHED', participantCount: activeCount, participantTarget: target };
+    }
+    throw new Error('CAPACITY_REACHED');
+  }
+
+  // Require approval mode - create PENDING application
+  if (eventAny.requireParticipantApproval) {
+    const precheck = await assertRegistrationRequirements(eventId, userId, answers);
+    
+    await prisma.$transaction(async (tx) => {
+      if (event.requiredEventFields.length > 0) {
+        await tx.eventRegistrationFormSubmission.upsert({
+          where: { eventId_userId: { eventId, userId } },
+          create: {
+            eventId,
+            userId,
+            answersJson: precheck.answers as Prisma.InputJsonValue,
+            isComplete: true,
+          },
+          update: {
+            answersJson: precheck.answers as Prisma.InputJsonValue,
+          },
+        });
+      }
+
+      if (existing) {
+        await tx.eventMember.update({
+          where: { id: existing.id },
+          data: {
+            status: 'PENDING',
+            assignedAt: new Date(),
+            approvedAt: null,
+            rejectedAt: null,
+            removedAt: null,
+          },
+        });
+      } else {
+        await tx.eventMember.create({
+          data: {
+            eventId,
+            userId,
+            role: 'PARTICIPANT',
+            status: 'PENDING',
+            assignedByUserId: userId,
+          },
+        });
+      }
+    });
+
+    return {
+      status: 'PENDING',
+      participantCount: activeCount,
+      participantTarget: target,
+      message: 'Application submitted for review',
+    };
+  }
+
+  // Auto-approve (no approval required)
   const precheck = await assertRegistrationRequirements(eventId, userId, answers);
 
-  return prisma.$transaction(async (tx) => {
-    const participantCount = await tx.eventMember.count({
-      where: { eventId, role: 'PARTICIPANT', status: { in: [...ACTIVE_MEMBER_STATUSES] } },
-    });
-    if (participantCount >= event.capacity) throw new Error('EVENT_FULL');
-
-    const existing = await tx.eventMember.findUnique({
-      where: { eventId_userId_role: { eventId, userId, role: 'PARTICIPANT' } },
-    });
-    if (existing && ACTIVE_MEMBER_STATUSES.includes(existing.status as any)) {
-      throw new Error('ALREADY_REGISTERED');
-    }
-
+  const result = await prisma.$transaction(async (tx) => {
     if (event.requiredEventFields.length > 0) {
       await tx.eventRegistrationFormSubmission.upsert({
         where: { eventId_userId: { eventId, userId } },
@@ -338,43 +435,37 @@ export async function registerForEvent(eventId: string, userId: string, answers?
       });
     }
 
-    // Ensure not in any active team if we are doing solo
-    if (event.isTeamBased) {
-      const activeTeamMember = await tx.eventTeamMember.findFirst({
-        where: { team: { eventId }, userId, status: { in: ['ACTIVE', 'PENDING'] } }
+    if (existing) {
+      await tx.eventMember.update({
+        where: { id: existing.id },
+        data: {
+          status: 'ACTIVE',
+          assignedAt: new Date(),
+          approvedAt: new Date(),
+          rejectedAt: null,
+          removedAt: null,
+        },
       });
-      if (activeTeamMember) {
-        throw new Error('ALREADY_IN_TEAM');
-      }
+    } else {
+      await tx.eventMember.create({
+        data: {
+          eventId,
+          userId,
+          role: 'PARTICIPANT',
+          status: 'ACTIVE',
+          assignedByUserId: userId,
+          approvedAt: new Date(),
+        },
+      });
     }
 
-    const membership = existing
-      ? await tx.eventMember.update({
-          where: { id: existing.id },
-          data: {
-            status: 'ACTIVE',
-            assignedByUserId: userId,
-            assignedAt: new Date(),
-            approvedAt: new Date(),
-            rejectedAt: null,
-            removedAt: null,
-          },
-        })
-      : await tx.eventMember.create({
-          data: {
-            eventId,
-            userId,
-            role: 'PARTICIPANT',
-            status: 'ACTIVE',
-            assignedByUserId: userId,
-            approvedAt: new Date(),
-          },
-        });
-
-    await tx.event.update({
-      where: { id: eventId },
-      data: { registrationsCount: { increment: 1 } },
-    });
+    // Only increment if we cross from inactive to active
+    if (!existing || !ACTIVE_MEMBER_STATUSES.includes(existing.status as any)) {
+      await tx.event.update({
+        where: { id: eventId },
+        data: { registrationsCount: { increment: 1 } },
+      });
+    }
 
     await trackAnalyticsEvent(tx, {
       type: 'EVENT_REGISTRATION',
@@ -383,9 +474,18 @@ export async function registerForEvent(eventId: string, userId: string, answers?
       authProvider: 'EMAIL',
       meta: { source: 'event_register' },
     });
-
-    return membership;
   });
+
+  const newActiveCount = activeCount + 1;
+  const goalReached = isGoalLimit && newActiveCount >= target;
+
+  return {
+    status: goalReached ? 'GOAL_REACHED' : 'ACTIVE',
+    participantCount: newActiveCount,
+    participantTarget: target,
+    goalReached,
+    message: goalReached ? 'Registered successfully. Goal participants reached.' : 'Registered successfully',
+  };
 }
 
 export async function unregisterFromEvent(eventId: string, userId: string) {

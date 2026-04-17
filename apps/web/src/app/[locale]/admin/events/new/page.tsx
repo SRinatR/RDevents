@@ -52,6 +52,11 @@ export default function NewEventPage() {
     requireAdminApprovalForTeams: false,
     requiredProfileFields: [] as string[],
     requiredEventFields: '',
+    // Participation config
+    requireParticipantApproval: false,
+    participantLimitMode: 'UNLIMITED',
+    participantTarget: undefined as number | undefined,
+    participantCountVisibility: 'PUBLIC',
   });
 
   useEffect(() => {
@@ -212,6 +217,54 @@ export default function NewEventPage() {
           <div style={{ maxWidth: 200 }}>
             <label style={{ display: 'block', fontWeight: 700, fontSize: '0.9rem', marginBottom: 6 }}>Capacity</label>
             <input name="capacity" value={form.capacity} onChange={handleChange} type="number" min="1" style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', fontSize: '0.95rem', boxSizing: 'border-box' }} />
+          </div>
+
+          {/* Participation settings */}
+          <div style={{ padding: 18, borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
+            <h2 style={{ margin: '0 0 4px', fontSize: '1rem', fontWeight: 900 }}>Participation Settings</h2>
+            <p style={{ margin: '0 0 16px', color: 'var(--color-text-muted)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+              Configure how users join this event. Different modes control approval flow and capacity limits.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontWeight: 700, fontSize: '0.9rem', marginBottom: 6 }}>Limit mode</label>
+                <select name="participantLimitMode" value={form.participantLimitMode} onChange={handleChange} className="input-field">
+                  <option value="UNLIMITED">Unlimited</option>
+                  <option value="GOAL_LIMIT">Goal (soft limit)</option>
+                  <option value="STRICT_LIMIT">Strict limit</option>
+                </select>
+              </div>
+              {(form.participantLimitMode === 'GOAL_LIMIT' || form.participantLimitMode === 'STRICT_LIMIT') && (
+                <div>
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: '0.9rem', marginBottom: 6 }}>
+                    {form.participantLimitMode === 'GOAL_LIMIT' ? 'Target participants' : 'Max participants'}
+                  </label>
+                  <input name="participantTarget" value={form.participantTarget || ''} onChange={handleChange} type="number" min="1" placeholder={String(form.capacity)} className="input-field" />
+                </div>
+              )}
+              <div>
+                <label style={{ display: 'block', fontWeight: 700, fontSize: '0.9rem', marginBottom: 6 }}>Count visibility</label>
+                <select name="participantCountVisibility" value={form.participantCountVisibility} onChange={handleChange} className="input-field">
+                  <option value="PUBLIC">Public (show count)</option>
+                  <option value="HIDDEN">Hidden (admin only)</option>
+                </select>
+              </div>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700 }}>
+              <input name="requireParticipantApproval" checked={form.requireParticipantApproval} onChange={handleChange} type="checkbox" />
+              Require admin approval for participation
+            </label>
+            <div style={{ marginTop: 10, padding: 10, borderRadius: 'var(--radius-md)', background: 'var(--color-bg-subtle)', fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>
+              {form.requireParticipantApproval ? (
+                <>Users submit an application (PENDING) and you approve/reject from admin panel.</>
+              ) : form.participantLimitMode === 'STRICT_LIMIT' ? (
+                <>Users register instantly until the limit is reached. No admin action needed.</>
+              ) : form.participantLimitMode === 'GOAL_LIMIT' ? (
+                <>Users register instantly. Admin decides when to close registration after goal is reached.</>
+              ) : (
+                <>Users register instantly. Registration is only limited by deadline or manual closing.</>
+              )}
+            </div>
           </div>
 
           {/* Team settings */}

@@ -77,6 +77,17 @@ enum EventTeamMemberStatus {
   LEFT
 }
 
+enum ParticipantLimitMode {
+  UNLIMITED
+  GOAL_LIMIT
+  STRICT_LIMIT
+}
+
+enum ParticipantCountVisibility {
+  PUBLIC
+  HIDDEN
+}
+
 enum AnalyticsEventType {
   HOME_VIEW
   EVENTS_LIST_VIEW
@@ -214,6 +225,12 @@ model Event {
   allowSoloParticipation       Boolean      @default(true)
   teamJoinMode                 TeamJoinMode @default(OPEN)
   requireAdminApprovalForTeams Boolean      @default(false)
+
+  // Individual participation config
+  requireParticipantApproval   Boolean           @default(false)
+  participantLimitMode         ParticipantLimitMode @default(UNLIMITED)
+  participantTarget            Int?
+  participantCountVisibility  ParticipantCountVisibility @default(PUBLIC)
 
   publishedAt DateTime?
   createdById String?

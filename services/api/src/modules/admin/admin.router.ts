@@ -842,6 +842,218 @@ adminRouter.get('/participants', async (req, res) => {
   });
 });
 
+// ─── Participant Applications Management ─────────────────────────────────────
+
+const PARTICIPANT_DECISION_STATUSES: EventMemberStatus[] = ['ACTIVE', 'RESERVE', 'REJECTED', 'CANCELLED'];
+
+adminRouter.get('/events/:id/participations', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await assertCanManageEvent(user, eventId, res))) return;
+
+  const status = req.query['status'] as EventMemberStatus | undefined;
+  const participations = await prisma.eventMember.findMany({
+    where: {
+      eventId,
+      role: 'PARTICIPANT',
+      ...(status ? { status } : {}),
+    },
+    include: {
+      user: { select: { id: true, name: true, email: true, avatarUrl: true, city: true } },
+      assignedByUser: { select: { id: true, name: true, email: true } },
+    },
+    orderBy: { assignedAt: 'desc' },
+  });
+
+  // Get counts for admin dashboard
+  const [activeCount, pendingCount, reserveCount, rejectedCount] = await Promise.all([
+    prisma.eventMember.count({ where: { eventId, role: 'PARTICIPANT', status: { in: [...ACTIVE_MEMBER_STATUSES] } } }),
+    prisma.eventMember.count({ where: { eventId, role: 'PARTICIPANT', status: 'PENDING' } }),
+    prisma.eventMember.count({ where: { eventId, role: 'PARTICIPANT', status: 'RESERVE' } }),
+    prisma.eventMember.count({ where: { eventId, role: 'PARTICIPANT', status: { in: ['REJECTED', 'CANCELLED'] } } }),
+  ]);
+
+  res.json({
+    participations,
+    counts: { active: activeCount, pending: pendingCount, reserve: reserveCount, rejected: rejectedCount },
+  });
+});
+
+adminRouter.patch('/events/:id/participations/:memberId', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  const memberId = req.params['memberId']!;
+  if (!(await assertCanManageEvent(user, eventId, res))) return;
+
+  const status = req.body?.status as EventMemberStatus;
+  const notes = req.body?.notes as string | undefined;
+  const force = req.body?.force as boolean | undefined;
+
+  if (!PARTICIPANT_DECISION_STATUSES.includes(status)) {
+    res.status(400).json({ error: 'Invalid participation status' });
+    return;
+  }
+
+  // Get event for limit check
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  if (!event) {
+    res.status(404).json({ error: 'Event not found' });
+    return;
+  }
+
+  const membership = await prisma.eventMember.findUnique({
+    where: { id: memberId },
+    include: { user: { select: { id: true, name: true, email: true } } },
+  });
+
+  if (!membership || membership.eventId !== eventId || membership.role !== 'PARTICIPANT') {
+    res.status(404).json({ error: 'Participant not found' });
+    return;
+  }
+
+  // If trying to approve to ACTIVE with STRICT_LIMIT, check capacity
+  const limitMode = (event as any).participantLimitMode;
+  const targetLimit = (event as any).participantTarget ?? event.capacity;
+  if (status === 'ACTIVE' && limitMode === 'STRICT_LIMIT') {
+    const currentActive = await prisma.eventMember.count({
+      where: { eventId, role: 'PARTICIPANT', status: { in: [...ACTIVE_MEMBER_STATUSES] } },
+    });
+
+    if (currentActive >= targetLimit && !force) {
+      res.status(400).json({
+        error: 'Capacity reached',
+        message: `Cannot approve: strict limit of ${targetLimit} participants reached. Use force=true to override.`,
+        currentActive,
+        participantTarget: targetLimit,
+      });
+      return;
+    }
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const data: Record<string, unknown> = {
+      status,
+      notes: notes ?? undefined,
+      approvedAt: status === 'ACTIVE' ? new Date() : null,
+      rejectedAt: status === 'REJECTED' ? new Date() : null,
+      removedAt: status === 'REMOVED' || status === 'CANCELLED' ? new Date() : null,
+    };
+
+    const result = await tx.eventMember.update({
+      where: { id: memberId },
+      data,
+      include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+    });
+
+    // Update registrations count on Event
+    if (membership.status !== 'ACTIVE' && status === 'ACTIVE') {
+      await tx.event.update({ where: { id: eventId }, data: { registrationsCount: { increment: 1 } } });
+    } else if (membership.status === 'ACTIVE' && status !== 'ACTIVE') {
+      await tx.event.update({ where: { id: eventId }, data: { registrationsCount: { decrement: 1 } } });
+    }
+
+    return result;
+  });
+
+  res.json({ membership: updated });
+});
+
+adminRouter.post('/events/:id/participations/:memberId/approve', async (req, res) => {
+  req.body = { ...req.body, status: 'ACTIVE' };
+  const patchedReq = { ...req, params: { ...req.params, memberId: req.params['memberId']! } } as any;
+  return (adminRouter as any)._patch('/events/:id/participations/:memberId', patchedReq, res);
+});
+
+adminRouter.post('/events/:id/participations/:memberId/reject', async (req, res) => {
+  req.body = { ...req.body, status: 'REJECTED' };
+  const patchedReq = { ...req, params: { ...req.params, memberId: req.params['memberId']! } } as any;
+  return (adminRouter as any)._patch('/events/:id/participations/:memberId', patchedReq, res);
+});
+
+adminRouter.post('/events/:id/participations/:memberId/reserve', async (req, res) => {
+  req.body = { ...req.body, status: 'RESERVE' };
+  const patchedReq = { ...req, params: { ...req.params, memberId: req.params['memberId']! } } as any;
+  return (adminRouter as any)._patch('/events/:id/participations/:memberId', patchedReq, res);
+});
+
+// Alias endpoint for consistency with frontend API calls
+adminRouter.patch('/events/:id/participants/:memberId', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  const memberId = req.params['memberId']!;
+  if (!(await assertCanManageEvent(user, eventId, res))) return;
+
+  const status = req.body?.status as EventMemberStatus;
+  const notes = req.body?.notes as string | undefined;
+  const force = req.body?.force as boolean | undefined;
+
+  if (!PARTICIPANT_DECISION_STATUSES.includes(status)) {
+    res.status(400).json({ error: 'Invalid participation status' });
+    return;
+  }
+
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  if (!event) {
+    res.status(404).json({ error: 'Event not found' });
+    return;
+  }
+
+  const membership = await prisma.eventMember.findUnique({
+    where: { id: memberId },
+    include: { user: { select: { id: true, name: true, email: true } } },
+  });
+
+  if (!membership || membership.eventId !== eventId || membership.role !== 'PARTICIPANT') {
+    res.status(404).json({ error: 'Participant not found' });
+    return;
+  }
+
+  // Type-safe access to participation config fields
+  const eventAny = event as any;
+  const limitMode = eventAny.participantLimitMode;
+  const targetLimit = eventAny.participantTarget ?? event.capacity;
+  if (status === 'ACTIVE' && limitMode === 'STRICT_LIMIT') {
+    const currentActive = await prisma.eventMember.count({
+      where: { eventId, role: 'PARTICIPANT', status: { in: [...ACTIVE_MEMBER_STATUSES] } },
+    });
+    if (currentActive >= targetLimit && !force) {
+      res.status(400).json({ error: 'Capacity reached', currentActive, participantTarget: targetLimit });
+      return;
+    }
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const data: Record<string, unknown> = {
+      status,
+      notes: notes ?? undefined,
+      approvedAt: status === 'ACTIVE' ? new Date() : null,
+      rejectedAt: status === 'REJECTED' ? new Date() : null,
+      removedAt: status === 'REMOVED' || status === 'CANCELLED' ? new Date() : null,
+    };
+
+    const result = await tx.eventMember.update({
+      where: { id: memberId },
+      data,
+      include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+    });
+
+    if (membership.status !== 'ACTIVE' && status === 'ACTIVE') {
+      await tx.event.update({ where: { id: eventId }, data: { registrationsCount: { increment: 1 } } });
+    } else if (membership.status === 'ACTIVE' && status !== 'ACTIVE') {
+      await tx.event.update({ where: { id: eventId }, data: { registrationsCount: { decrement: 1 } } });
+    }
+
+    return result;
+  });
+
+  res.json({ membership: updated });
+});
+
+adminRouter.post('/events/:id/participations/:memberId/cancel', async (req, res) => {
+  req.body = { ...req.body, status: 'CANCELLED' };
+  const next = { ...req, params: { ...req.params } };
+  return adminRouter.patch(`/events/:id/participations/:memberId`, next, (res as any));
+});
 // ─── Unified Teams Endpoint (fixes N+1) ──────────────────────────────────────
 
 adminRouter.get('/teams', async (req, res) => {
