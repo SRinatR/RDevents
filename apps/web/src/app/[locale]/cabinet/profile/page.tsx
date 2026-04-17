@@ -5,8 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../../hooks/useAuth';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import Link from 'next/link';
-import { FieldInput, FieldTextarea, Notice, Panel, SectionHeader, StatusBadge } from '@/components/ui/signal-primitives';
+import { FieldInput, FieldTextarea, Notice, SectionHeader, StatusBadge } from '@/components/ui/signal-primitives';
 
 export default function ProfilePage() {
   const { user, loading, updateProfile } = useAuth();
@@ -127,14 +126,8 @@ export default function ProfilePage() {
   return (
     <div className="profile-workspace">
       <div className="profile-workspace-topbar">
-        <div>
-          <h1 className="profile-workspace-title">{locale === 'ru' ? 'Профиль' : 'Profile'}</h1>
-          <p className="profile-workspace-subtitle">{locale === 'ru' ? 'Личные данные и модули участия' : 'Personal data and participation modules'}</p>
-        </div>
-        <div className="profile-workspace-actions">
-          <Link href={`/${locale}/cabinet/applications`} className="signal-chip-link">{locale === 'ru' ? 'Открыть заявки' : 'Open applications'}</Link>
-          <Link href={`/${locale}/cabinet/my-events`} className="signal-chip-link">{locale === 'ru' ? 'Перейти к участию' : 'Go to participations'}</Link>
-        </div>
+        <h1 className="profile-workspace-title">{locale === 'ru' ? 'Профиль' : 'Profile'}</h1>
+        <p className="profile-workspace-subtitle">{locale === 'ru' ? 'Личные данные и модули участия' : 'Personal data and participation modules'}</p>
       </div>
 
       {requiredFields.length > 0 ? (
@@ -148,8 +141,7 @@ export default function ProfilePage() {
       {error ? <Notice tone="danger">{error}</Notice> : null}
       {success ? <Notice tone="success">{locale === 'ru' ? 'Профиль обновлён.' : 'Profile updated.'}</Notice> : null}
 
-      <div className="profile-tab-area">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="cabinet-tabs-list">
             <TabsTrigger value="registration">{locale === 'ru' ? 'ФИО' : 'Name'}</TabsTrigger>
             <TabsTrigger value="general">{locale === 'ru' ? 'Общие данные' : 'General'}</TabsTrigger>
@@ -282,18 +274,16 @@ export default function ProfilePage() {
           </TabsContent>
 
           <TabsContent value="documents" className="cabinet-tab-content">
-            <Panel className="cabinet-module-panel">
-              <SectionHeader 
-                title={locale === 'ru' ? 'Модуль документов' : 'Documents module'} 
-                subtitle={locale === 'ru' ? 'Секция готова к подключению верификационных файлов.' : 'Section is ready for verification file integrations.'} 
-                actions={<StatusBadge tone="neutral">Coming next</StatusBadge>} 
-              />
-              <EmptyModule 
-                locale={locale} 
-                textRu="После включения document-flow здесь появятся загруженные и проверенные документы." 
-                textEn="Uploaded and verified files will appear here once document-flow is enabled." 
-              />
-            </Panel>
+            <SectionHeader
+              title={locale === 'ru' ? 'Модуль документов' : 'Documents module'}
+              subtitle={locale === 'ru' ? 'Секция готова к подключению верификационных файлов.' : 'Section is ready for verification file integrations.'}
+              actions={<StatusBadge tone="neutral">Coming next</StatusBadge>}
+            />
+            <EmptyModule
+              locale={locale}
+              textRu="После включения document-flow здесь появятся загруженные и проверенные документы."
+              textEn="Uploaded and verified files will appear here once document-flow is enabled."
+            />
           </TabsContent>
 
           <TabsContent value="contacts" className="cabinet-tab-content">
@@ -324,21 +314,18 @@ export default function ProfilePage() {
           </TabsContent>
 
           <TabsContent value="activity" className="cabinet-tab-content">
-            <Panel className="cabinet-module-panel">
-              <SectionHeader 
-                title={locale === 'ru' ? 'Модуль активности' : 'Activity module'} 
-                subtitle={locale === 'ru' ? 'История участия и персональные показатели будут отображаться здесь.' : 'Participation history and personal indicators will be displayed here.'} 
-                actions={<StatusBadge tone="info">Planned</StatusBadge>} 
-              />
-              <EmptyModule 
-                locale={locale} 
-                textRu="Текущий релиз сохраняет структуру и готовит интерфейс под будущую аналитику активности." 
-                textEn="Current release preserves structure and prepares UI for future activity analytics." 
-              />
-            </Panel>
+            <SectionHeader
+              title={locale === 'ru' ? 'Модуль активности' : 'Activity module'}
+              subtitle={locale === 'ru' ? 'История участия и персональные показатели будут отображаться здесь.' : 'Participation history and personal indicators will be displayed here.'}
+              actions={<StatusBadge tone="info">Planned</StatusBadge>}
+            />
+            <EmptyModule
+              locale={locale}
+              textRu="Текущий релиз сохраняет структуру и готовит интерфейс под будущую аналитику активности."
+              textEn="Current release preserves structure and prepares UI for future activity analytics."
+            />
           </TabsContent>
-        </Tabs>
-      </div>
+      </Tabs>
     </div>
   );
 }

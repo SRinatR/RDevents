@@ -5380,38 +5380,6 @@ body {
   flex-direction: column;
 }
 
-/* Section nav — embedded breadcrumb, not a competing row */
-.cabinet-scene-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 28px;
-}
-
-.cabinet-scene-nav .signal-chip-link {
-  font-size: 0.76rem;
-  padding: 4px 10px;
-  background: transparent;
-  border-color: transparent;
-  color: var(--color-text-faint);
-  font-weight: 600;
-  transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
-}
-
-.cabinet-scene-nav .signal-chip-link:hover {
-  color: var(--color-text-secondary);
-  background: var(--color-bg-soft);
-  border-color: var(--color-border-soft);
-  box-shadow: none;
-}
-
-.cabinet-scene-nav .signal-chip-link.active {
-  color: var(--color-primary);
-  background: var(--color-primary-subtle);
-  border-color: rgba(31, 83, 207, 0.22);
-  font-weight: 680;
-}
-
 /* ─── Profile workspace in scene context ─── */
 
 /* Title commands the full workspace canvas */
@@ -5432,21 +5400,12 @@ body {
   line-height: 1.56;
 }
 
-/* Topbar: no separator — whitespace does the job */
+/* Topbar: plain header block — no separator, no side actions */
 .cabinet-scene-main .profile-workspace-topbar {
+  display: block;
   padding-bottom: 0;
-  margin-bottom: 0;
+  margin-bottom: 24px;
   border-bottom: none;
-}
-
-/* Quick-action chips — clearly secondary */
-.cabinet-scene-main .profile-workspace-actions {
-  padding-top: 4px;
-}
-
-.cabinet-scene-main .profile-workspace-actions .signal-chip-link {
-  font-size: 0.8rem;
-  padding: 5px 12px;
 }
 
 /* Underline tab strip — editorial, surface-attached */
