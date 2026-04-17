@@ -4911,7 +4911,30 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0;
+  min-height: 100%;
   animation: fadeIn var(--transition-slow) both;
+}
+
+.profile-canvas {
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 16px;
+  min-height: 100%;
+}
+
+.profile-tab-workspace {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0;
+  min-height: 100%;
+}
+
+.profile-tab-panel {
+  display: grid;
+  gap: 22px;
+  align-content: start;
+  width: 100%;
+  min-width: 0;
 }
 
 .profile-workspace-topbar {
@@ -4978,6 +5001,7 @@ body {
 /* Entrance animation on tab switch */
 .profile-workspace .cabinet-tab-content {
   animation: fadeIn var(--transition-base) both;
+  margin-top: 0;
 }
 
 /* Equal-column name pairs — easier to scan */
@@ -5017,9 +5041,16 @@ body {
   margin: 0 auto;
 }
 
+.cabinet-fullbleed-workspace {
+  width: min(1460px, calc(100% - calc(var(--container-gutter-mobile) * 2)));
+}
+
 @media (min-width: 1024px) {
   .cabinet-fullbleed {
     width: min(var(--container-wide), calc(100% - calc(var(--container-gutter-desktop) * 2)));
+  }
+  .cabinet-fullbleed-workspace {
+    width: min(1460px, calc(100% - calc(var(--container-gutter-desktop) * 2)));
   }
 }
 
@@ -5271,7 +5302,7 @@ body {
 /* The one unified surface — replaces separate sidebar card + content card */
 .cabinet-scene-surface {
   display: grid;
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: 188px minmax(0, 1fr);
   min-height: calc(100vh - 130px);
   border-radius: 22px;
   border: 1px solid rgba(207, 217, 234, 0.58);
@@ -5380,6 +5411,10 @@ body {
   flex-direction: column;
 }
 
+.cabinet-scene-main-workspace {
+  padding: 24px 36px 40px 30px;
+}
+
 /* ─── Profile workspace in scene context ─── */
 
 /* Title commands the full workspace canvas */
@@ -5404,7 +5439,7 @@ body {
 .cabinet-scene-main .profile-workspace-topbar {
   display: block;
   padding-bottom: 0;
-  margin-bottom: 24px;
+  margin-bottom: 0;
   border-bottom: none;
 }
 
@@ -5414,8 +5449,8 @@ body {
   width: 100%;
   border-bottom: 2px solid var(--color-border-soft);
   padding-bottom: 0;
-  margin-top: 30px;
-  margin-bottom: 34px;
+  margin-top: 6px;
+  margin-bottom: 0;
   gap: 0;
 }
 
@@ -5487,6 +5522,7 @@ body {
 /* Tab content entrance */
 .cabinet-scene-main .profile-workspace .cabinet-tab-content {
   animation: fadeIn var(--transition-base) both;
+  padding-top: 24px;
 }
 
 /* Placeholder module panels */
@@ -5495,11 +5531,19 @@ body {
   border-radius: var(--radius-xl);
 }
 
+.cabinet-scene-main .profile-workspace .signal-notice {
+  margin: 0;
+}
+
+.cabinet-scene-main .profile-workspace .signal-section-header {
+  margin-bottom: 0;
+}
+
 /* Four-column name row — full-canvas spread */
 .profile-form-four-col {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
 }
 
 @media (max-width: 900px) {
@@ -5532,8 +5576,14 @@ body {
   .cabinet-scene-main {
     padding: 22px 22px 36px;
   }
+  .cabinet-scene-main-workspace {
+    padding: 20px 20px 32px;
+  }
   .cabinet-scene-main .profile-workspace-title {
     font-size: clamp(1.6rem, 1.35rem + 1vw, 2rem);
+  }
+  .cabinet-scene-main .profile-workspace .cabinet-tab-content {
+    padding-top: 18px;
   }
 }
 

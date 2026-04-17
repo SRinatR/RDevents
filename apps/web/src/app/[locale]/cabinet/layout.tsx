@@ -25,12 +25,12 @@ export default function CabinetLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="cabinet-shell app-shell">
-      <div className="cabinet-fullbleed">
+      <div className="cabinet-fullbleed cabinet-fullbleed-workspace">
         <div className="cabinet-scene-surface">
           <div className="cabinet-scene-rail">
             <Sidebar locale={locale} userName={user.name || user.fullNameCyrillic || user.email} userEmail={user.email} userAvatar={user.avatarUrl} />
           </div>
-          <div className="cabinet-scene-main">
+          <div className="cabinet-scene-main cabinet-scene-main-workspace">
             {children}
           </div>
         </div>

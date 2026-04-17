@@ -125,207 +125,219 @@ export default function ProfilePage() {
 
   return (
     <div className="profile-workspace">
-      <div className="profile-workspace-topbar">
-        <h1 className="profile-workspace-title">{locale === 'ru' ? 'Профиль' : 'Profile'}</h1>
-        <p className="profile-workspace-subtitle">{locale === 'ru' ? 'Личные данные и модули участия' : 'Personal data and participation modules'}</p>
-      </div>
+      <div className="profile-canvas">
+        <div className="profile-workspace-topbar">
+          <h1 className="profile-workspace-title">{locale === 'ru' ? 'Профиль' : 'Profile'}</h1>
+          <p className="profile-workspace-subtitle">{locale === 'ru' ? 'Личные данные и модули участия' : 'Personal data and participation modules'}</p>
+        </div>
 
-      {requiredFields.length > 0 ? (
-        <Notice tone="warning">
-          {locale === 'ru'
-            ? `Чтобы завершить участие${requiredEventTitle ? ` в "${requiredEventTitle}"` : ''}, заполните обязательные поля: ${requiredFields.join(', ')}.`
-            : `To complete participation${requiredEventTitle ? ` in "${requiredEventTitle}"` : ''}, fill required fields: ${requiredFields.join(', ')}.`}
-        </Notice>
-      ) : null}
+        {requiredFields.length > 0 ? (
+          <Notice tone="warning">
+            {locale === 'ru'
+              ? `Чтобы завершить участие${requiredEventTitle ? ` в "${requiredEventTitle}"` : ''}, заполните обязательные поля: ${requiredFields.join(', ')}.`
+              : `To complete participation${requiredEventTitle ? ` in "${requiredEventTitle}"` : ''}, fill required fields: ${requiredFields.join(', ')}.`}
+          </Notice>
+        ) : null}
 
-      {error ? <Notice tone="danger">{error}</Notice> : null}
-      {success ? <Notice tone="success">{locale === 'ru' ? 'Профиль обновлён.' : 'Profile updated.'}</Notice> : null}
+        {error ? <Notice tone="danger">{error}</Notice> : null}
+        {success ? <Notice tone="success">{locale === 'ru' ? 'Профиль обновлён.' : 'Profile updated.'}</Notice> : null}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="cabinet-tabs-list">
-            <TabsTrigger value="registration">{locale === 'ru' ? 'ФИО' : 'Name'}</TabsTrigger>
-            <TabsTrigger value="general">{locale === 'ru' ? 'Общие данные' : 'General'}</TabsTrigger>
-            <TabsTrigger value="documents">{locale === 'ru' ? 'Документы' : 'Documents'}</TabsTrigger>
-            <TabsTrigger value="contacts">{locale === 'ru' ? 'Контакты' : 'Contacts'}</TabsTrigger>
-            <TabsTrigger value="activity">{locale === 'ru' ? 'Активность' : 'Activity'}</TabsTrigger>
-          </TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="profile-tab-workspace">
+            <TabsList className="cabinet-tabs-list">
+              <TabsTrigger value="registration">{locale === 'ru' ? 'ФИО' : 'Name'}</TabsTrigger>
+              <TabsTrigger value="general">{locale === 'ru' ? 'Общие данные' : 'General'}</TabsTrigger>
+              <TabsTrigger value="documents">{locale === 'ru' ? 'Документы' : 'Documents'}</TabsTrigger>
+              <TabsTrigger value="contacts">{locale === 'ru' ? 'Контакты' : 'Contacts'}</TabsTrigger>
+              <TabsTrigger value="activity">{locale === 'ru' ? 'Активность' : 'Activity'}</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="registration" className="cabinet-tab-content">
-            <SectionHeader 
-              title={locale === 'ru' ? 'Фамилия, имя, отчество' : 'Full name'} 
-              subtitle={locale === 'ru' ? 'Заполните ФИО на русском и английском языках' : 'Fill in your name in Russian and English'} 
-            />
-            <form onSubmit={handleSave} className="signal-stack">
-              <div className="signal-section-label">{locale === 'ru' ? 'Кириллица (русский)' : 'Cyrillic (Russian)'}</div>
-              <div className="profile-form-four-col">
-                <FieldBlock label={locale === 'ru' ? 'Фамилия' : 'Last name'}>
-                  <FieldInput
-                    value={lastNameCyrillic}
-                    onChange={(event) => setLastNameCyrillic(event.target.value)}
-                    placeholder={locale === 'ru' ? 'Иванов' : 'Ivanov'}
-                    className={fieldToneClass('lastNameCyrillic')}
-                  />
-                  {requiredHint('lastNameCyrillic')}
-                </FieldBlock>
-                <FieldBlock label={locale === 'ru' ? 'Имя' : 'First name'} required>
-                  <FieldInput
-                    value={firstNameCyrillic}
-                    onChange={(event) => setFirstNameCyrillic(event.target.value)}
-                    placeholder={locale === 'ru' ? 'Иван' : 'Ivan'}
-                    className={fieldToneClass('firstNameCyrillic')}
-                  />
-                  {requiredHint('firstNameCyrillic')}
-                </FieldBlock>
-                <FieldBlock label={locale === 'ru' ? 'Отчество' : 'Patronymic'}>
-                  <FieldInput
-                    value={middleNameCyrillic}
-                    onChange={(event) => setMiddleNameCyrillic(event.target.value)}
-                    placeholder={locale === 'ru' ? 'Иванович' : 'Ivanovich'}
-                  />
-                </FieldBlock>
-                <FieldBlock label={locale === 'ru' ? 'Дата рождения' : 'Birth date'} required>
-                  <FieldInput
-                    value={birthDate}
-                    onChange={(event) => setBirthDate(event.target.value)}
-                    placeholder={locale === 'ru' ? 'ДД.ММ.ГГГГ' : 'DD.MM.YYYY'}
-                    className={fieldToneClass('birthDate')}
-                  />
-                  {requiredHint('birthDate')}
-                </FieldBlock>
-              </div>
-
-              <div className="signal-section-label">{locale === 'ru' ? 'Латиница (английский)' : 'Latin (English)'}</div>
-              <div className="profile-form-four-col">
-                <FieldBlock label={locale === 'ru' ? 'Фамилия (EN)' : 'Last name (EN)'}>
-                  <FieldInput
-                    value={lastNameLatin}
-                    onChange={(event) => setLastNameLatin(event.target.value)}
-                    placeholder="Ivanov"
-                  />
-                </FieldBlock>
-                <FieldBlock label={locale === 'ru' ? 'Имя (EN)' : 'First name (EN)'}>
-                  <FieldInput
-                    value={firstNameLatin}
-                    onChange={(event) => setFirstNameLatin(event.target.value)}
-                    placeholder="Ivan"
-                  />
-                </FieldBlock>
-                <FieldBlock label={locale === 'ru' ? 'Отчество (EN)' : 'Patronymic (EN)'}>
-                  <FieldInput
-                    value={middleNameLatin}
-                    onChange={(event) => setMiddleNameLatin(event.target.value)}
-                    placeholder="Ivanovich"
-                  />
-                </FieldBlock>
-                <FieldBlock label={locale === 'ru' ? 'Телефон' : 'Phone'} required>
-                  <FieldInput
-                    value={phone}
-                    onChange={(event) => setPhone(event.target.value)}
-                    className={fieldToneClass('phone')}
-                  />
-                  {requiredHint('phone')}
-                </FieldBlock>
-              </div>
-
-              <button type="submit" disabled={saving} className="btn btn-primary">
-                {saving 
-                  ? (locale === 'ru' ? 'Сохранение...' : 'Saving...') 
-                  : (locale === 'ru' ? 'Сохранить изменения' : 'Save changes')}
-              </button>
-            </form>
-          </TabsContent>
-
-          <TabsContent value="general" className="cabinet-tab-content">
-            <SectionHeader title={locale === 'ru' ? 'Общие данные профиля' : 'General profile data'} subtitle={locale === 'ru' ? 'Публичные и контактные атрибуты' : 'Public and contact attributes'} />
-            <div className="signal-stack">
-              <div className="signal-two-col">
-                <FieldBlock label={locale === 'ru' ? 'Город' : 'City'}>
-                  <FieldInput
-                    value={city}
-                    onChange={(event) => setCity(event.target.value)}
-                    className={fieldToneClass('city')}
-                  />
-                  {requiredHint('city')}
-                </FieldBlock>
-                <FieldBlock label={locale === 'ru' ? 'Ссылка на фото' : 'Avatar URL'}>
-                  <FieldInput
-                    value={avatarUrl}
-                    onChange={(event) => setAvatarUrl(event.target.value)}
-                    className={fieldToneClass('avatarUrl')}
-                    placeholder="https://..."
-                  />
-                  {requiredHint('avatarUrl')}
-                </FieldBlock>
-              </div>
-              <FieldBlock label={locale === 'ru' ? 'О себе' : 'About'}>
-                <FieldTextarea
-                  value={bio}
-                  onChange={(event) => setBio(event.target.value)}
-                  className={fieldToneClass('bio')}
+            <TabsContent value="registration" className="cabinet-tab-content">
+              <div className="profile-tab-panel">
+                <SectionHeader 
+                  title={locale === 'ru' ? 'Фамилия, имя, отчество' : 'Full name'} 
+                  subtitle={locale === 'ru' ? 'Заполните ФИО на русском и английском языках' : 'Fill in your name in Russian and English'} 
                 />
-                {requiredHint('bio')}
-              </FieldBlock>
-              <button onClick={handleSave} disabled={saving} className="btn btn-primary btn-sm">
-                {saving 
-                  ? (locale === 'ru' ? 'Сохранение...' : 'Saving...') 
-                  : (locale === 'ru' ? 'Сохранить' : 'Save')}
-              </button>
-            </div>
-          </TabsContent>
+                <form onSubmit={handleSave} className="signal-stack">
+                  <div className="signal-section-label">{locale === 'ru' ? 'Кириллица (русский)' : 'Cyrillic (Russian)'}</div>
+                  <div className="profile-form-four-col">
+                    <FieldBlock label={locale === 'ru' ? 'Фамилия' : 'Last name'}>
+                      <FieldInput
+                        value={lastNameCyrillic}
+                        onChange={(event) => setLastNameCyrillic(event.target.value)}
+                        placeholder={locale === 'ru' ? 'Иванов' : 'Ivanov'}
+                        className={fieldToneClass('lastNameCyrillic')}
+                      />
+                      {requiredHint('lastNameCyrillic')}
+                    </FieldBlock>
+                    <FieldBlock label={locale === 'ru' ? 'Имя' : 'First name'} required>
+                      <FieldInput
+                        value={firstNameCyrillic}
+                        onChange={(event) => setFirstNameCyrillic(event.target.value)}
+                        placeholder={locale === 'ru' ? 'Иван' : 'Ivan'}
+                        className={fieldToneClass('firstNameCyrillic')}
+                      />
+                      {requiredHint('firstNameCyrillic')}
+                    </FieldBlock>
+                    <FieldBlock label={locale === 'ru' ? 'Отчество' : 'Patronymic'}>
+                      <FieldInput
+                        value={middleNameCyrillic}
+                        onChange={(event) => setMiddleNameCyrillic(event.target.value)}
+                        placeholder={locale === 'ru' ? 'Иванович' : 'Ivanovich'}
+                      />
+                    </FieldBlock>
+                    <FieldBlock label={locale === 'ru' ? 'Дата рождения' : 'Birth date'} required>
+                      <FieldInput
+                        value={birthDate}
+                        onChange={(event) => setBirthDate(event.target.value)}
+                        placeholder={locale === 'ru' ? 'ДД.ММ.ГГГГ' : 'DD.MM.YYYY'}
+                        className={fieldToneClass('birthDate')}
+                      />
+                      {requiredHint('birthDate')}
+                    </FieldBlock>
+                  </div>
 
-          <TabsContent value="documents" className="cabinet-tab-content">
-            <SectionHeader
-              title={locale === 'ru' ? 'Модуль документов' : 'Documents module'}
-              subtitle={locale === 'ru' ? 'Секция готова к подключению верификационных файлов.' : 'Section is ready for verification file integrations.'}
-              actions={<StatusBadge tone="neutral">Coming next</StatusBadge>}
-            />
-            <EmptyModule
-              locale={locale}
-              textRu="После включения document-flow здесь появятся загруженные и проверенные документы."
-              textEn="Uploaded and verified files will appear here once document-flow is enabled."
-            />
-          </TabsContent>
+                  <div className="signal-section-label">{locale === 'ru' ? 'Латиница (английский)' : 'Latin (English)'}</div>
+                  <div className="profile-form-four-col">
+                    <FieldBlock label={locale === 'ru' ? 'Фамилия (EN)' : 'Last name (EN)'}>
+                      <FieldInput
+                        value={lastNameLatin}
+                        onChange={(event) => setLastNameLatin(event.target.value)}
+                        placeholder="Ivanov"
+                      />
+                    </FieldBlock>
+                    <FieldBlock label={locale === 'ru' ? 'Имя (EN)' : 'First name (EN)'}>
+                      <FieldInput
+                        value={firstNameLatin}
+                        onChange={(event) => setFirstNameLatin(event.target.value)}
+                        placeholder="Ivan"
+                      />
+                    </FieldBlock>
+                    <FieldBlock label={locale === 'ru' ? 'Отчество (EN)' : 'Patronymic (EN)'}>
+                      <FieldInput
+                        value={middleNameLatin}
+                        onChange={(event) => setMiddleNameLatin(event.target.value)}
+                        placeholder="Ivanovich"
+                      />
+                    </FieldBlock>
+                    <FieldBlock label={locale === 'ru' ? 'Телефон' : 'Phone'} required>
+                      <FieldInput
+                        value={phone}
+                        onChange={(event) => setPhone(event.target.value)}
+                        className={fieldToneClass('phone')}
+                      />
+                      {requiredHint('phone')}
+                    </FieldBlock>
+                  </div>
 
-          <TabsContent value="contacts" className="cabinet-tab-content">
-            <div className="signal-stack">
-              <div className="signal-two-col">
-                <FieldBlock label="Telegram">
-                  <FieldInput
-                    value={telegram}
-                    onChange={(event) => setTelegram(event.target.value)}
-                    placeholder="@username"
-                    className={fieldToneClass('telegram')}
-                  />
-                  {requiredHint('telegram')}
-                </FieldBlock>
-                <FieldBlock label={locale === 'ru' ? 'Телефон' : 'Phone'}>
-                  <FieldInput
-                    value={phone}
-                    onChange={(event) => setPhone(event.target.value)}
-                  />
-                </FieldBlock>
+                  <button type="submit" disabled={saving} className="btn btn-primary">
+                    {saving 
+                      ? (locale === 'ru' ? 'Сохранение...' : 'Saving...') 
+                      : (locale === 'ru' ? 'Сохранить изменения' : 'Save changes')}
+                  </button>
+                </form>
               </div>
-              <button onClick={handleSave} disabled={saving} className="btn btn-primary btn-sm">
-                {saving 
-                  ? (locale === 'ru' ? 'Сохранение...' : 'Saving...') 
-                  : (locale === 'ru' ? 'Сохранить' : 'Save')}
-              </button>
-            </div>
-          </TabsContent>
+            </TabsContent>
 
-          <TabsContent value="activity" className="cabinet-tab-content">
-            <SectionHeader
-              title={locale === 'ru' ? 'Модуль активности' : 'Activity module'}
-              subtitle={locale === 'ru' ? 'История участия и персональные показатели будут отображаться здесь.' : 'Participation history and personal indicators will be displayed here.'}
-              actions={<StatusBadge tone="info">Planned</StatusBadge>}
-            />
-            <EmptyModule
-              locale={locale}
-              textRu="Текущий релиз сохраняет структуру и готовит интерфейс под будущую аналитику активности."
-              textEn="Current release preserves structure and prepares UI for future activity analytics."
-            />
-          </TabsContent>
-      </Tabs>
+            <TabsContent value="general" className="cabinet-tab-content">
+              <div className="profile-tab-panel">
+                <SectionHeader title={locale === 'ru' ? 'Общие данные профиля' : 'General profile data'} subtitle={locale === 'ru' ? 'Публичные и контактные атрибуты' : 'Public and contact attributes'} />
+                <div className="signal-stack">
+                  <div className="signal-two-col">
+                    <FieldBlock label={locale === 'ru' ? 'Город' : 'City'}>
+                      <FieldInput
+                        value={city}
+                        onChange={(event) => setCity(event.target.value)}
+                        className={fieldToneClass('city')}
+                      />
+                      {requiredHint('city')}
+                    </FieldBlock>
+                    <FieldBlock label={locale === 'ru' ? 'Ссылка на фото' : 'Avatar URL'}>
+                      <FieldInput
+                        value={avatarUrl}
+                        onChange={(event) => setAvatarUrl(event.target.value)}
+                        className={fieldToneClass('avatarUrl')}
+                        placeholder="https://..."
+                      />
+                      {requiredHint('avatarUrl')}
+                    </FieldBlock>
+                  </div>
+                  <FieldBlock label={locale === 'ru' ? 'О себе' : 'About'}>
+                    <FieldTextarea
+                      value={bio}
+                      onChange={(event) => setBio(event.target.value)}
+                      className={fieldToneClass('bio')}
+                    />
+                    {requiredHint('bio')}
+                  </FieldBlock>
+                  <button onClick={handleSave} disabled={saving} className="btn btn-primary btn-sm">
+                    {saving 
+                      ? (locale === 'ru' ? 'Сохранение...' : 'Saving...') 
+                      : (locale === 'ru' ? 'Сохранить' : 'Save')}
+                  </button>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="documents" className="cabinet-tab-content">
+              <div className="profile-tab-panel">
+                <SectionHeader
+                  title={locale === 'ru' ? 'Модуль документов' : 'Documents module'}
+                  subtitle={locale === 'ru' ? 'Секция готова к подключению верификационных файлов.' : 'Section is ready for verification file integrations.'}
+                  actions={<StatusBadge tone="neutral">Coming next</StatusBadge>}
+                />
+                <EmptyModule
+                  locale={locale}
+                  textRu="После включения document-flow здесь появятся загруженные и проверенные документы."
+                  textEn="Uploaded and verified files will appear here once document-flow is enabled."
+                />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="contacts" className="cabinet-tab-content">
+              <div className="profile-tab-panel">
+                <div className="signal-stack">
+                  <div className="signal-two-col">
+                    <FieldBlock label="Telegram">
+                      <FieldInput
+                        value={telegram}
+                        onChange={(event) => setTelegram(event.target.value)}
+                        placeholder="@username"
+                        className={fieldToneClass('telegram')}
+                      />
+                      {requiredHint('telegram')}
+                    </FieldBlock>
+                    <FieldBlock label={locale === 'ru' ? 'Телефон' : 'Phone'}>
+                      <FieldInput
+                        value={phone}
+                        onChange={(event) => setPhone(event.target.value)}
+                      />
+                    </FieldBlock>
+                  </div>
+                  <button onClick={handleSave} disabled={saving} className="btn btn-primary btn-sm">
+                    {saving 
+                      ? (locale === 'ru' ? 'Сохранение...' : 'Saving...') 
+                      : (locale === 'ru' ? 'Сохранить' : 'Save')}
+                  </button>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="activity" className="cabinet-tab-content">
+              <div className="profile-tab-panel">
+                <SectionHeader
+                  title={locale === 'ru' ? 'Модуль активности' : 'Activity module'}
+                  subtitle={locale === 'ru' ? 'История участия и персональные показатели будут отображаться здесь.' : 'Participation history and personal indicators will be displayed here.'}
+                  actions={<StatusBadge tone="info">Planned</StatusBadge>}
+                />
+                <EmptyModule
+                  locale={locale}
+                  textRu="Текущий релиз сохраняет структуру и готовит интерфейс под будущую аналитику активности."
+                  textEn="Current release preserves structure and prepares UI for future activity analytics."
+                />
+              </div>
+            </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }
