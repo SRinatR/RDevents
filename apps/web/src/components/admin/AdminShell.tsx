@@ -269,10 +269,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
       },
     ];
 
-    if (currentEventId) {
-      const eventBase = `/${locale}/admin/events/${currentEventId}`;
+    // Current Event group — only when user is actually in event route (routeEventId)
+    // localStorage selectedEventId is used for selector/topbar/context-bar only, NOT for nav
+    if (routeEventId) {
+      const eventBase = `/${locale}/admin/events/${routeEventId}`;
+      const event = events.find((e) => e.id === routeEventId) ?? null;
       groups.push({
-        label: currentEvent?.title
+        label: event?.title
           ? (locale === 'ru' ? 'Текущее событие' : 'Current Event')
           : (locale === 'ru' ? 'Событие' : 'Event'),
         items: [
@@ -292,7 +295,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
     }
 
     return groups;
-  }, [locale, t, isPlatformAdmin, isSuperAdmin, currentEventId, currentEvent?.title]);
+  }, [locale, t, isPlatformAdmin, isSuperAdmin, routeEventId, events]);
 
   if (loading) {
     return (
