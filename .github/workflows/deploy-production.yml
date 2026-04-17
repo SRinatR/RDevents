@@ -120,7 +120,7 @@ jobs:
       - name: Wait for services to start
         run: sleep 30
 
-      - name: Smoke test - API health
+      - name: Smoke test - API container is running
         shell: bash
         env:
           PROD_HOST: ${{ secrets.PROD_HOST }}
@@ -128,14 +128,35 @@ jobs:
           PROD_USER: ${{ secrets.PROD_USER }}
         run: |
           set -euo pipefail
-          API_URL="http://$(ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" 'docker compose -f /opt/rdevents/app/docker-compose.prod.yml port api 4000 2>/dev/null | sed "s/.*://")"
-          API_HOST="$PROD_HOST"
-          
           ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "docker compose -f /opt/rdevents/app/docker-compose.prod.yml exec -T api curl -sf http://localhost:4000/health" \
+            "docker compose -f /opt/rdevents/app/docker-compose.prod.yml ps api | grep -q 'Up'" \
+            || { echo "API container is not running"; exit 1; }
+
+      - name: Smoke test - Web container is running
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
+            "docker compose -f /opt/rdevents/app/docker-compose.prod.yml ps web | grep -q 'Up'" \
+            || { echo "Web container is not running"; exit 1; }
+
+      - name: Smoke test - API health via wget
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
+            "docker compose -f /opt/rdevents/app/docker-compose.prod.yml exec -T api wget --spider -q http://localhost:4000/health" \
             || { echo "API health check failed"; exit 1; }
 
-      - name: Smoke test - API ready
+      - name: Smoke test - API ready via wget
         shell: bash
         env:
           PROD_HOST: ${{ secrets.PROD_HOST }}
@@ -144,10 +165,10 @@ jobs:
         run: |
           set -euo pipefail
           ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "docker compose -f /opt/rdevents/app/docker-compose.prod.yml exec -T api curl -sf http://localhost:4000/ready" \
+            "docker compose -f /opt/rdevents/app/docker-compose.prod.yml exec -T api wget --spider -q http://localhost:4000/ready" \
             || { echo "API ready check failed"; exit 1; }
 
-      - name: Smoke test - Web root
+      - name: Smoke test - Web root via wget
         shell: bash
         env:
           PROD_HOST: ${{ secrets.PROD_HOST }}
@@ -156,7 +177,7 @@ jobs:
         run: |
           set -euo pipefail
           ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "docker compose -f /opt/rdevents/app/docker-compose.prod.yml exec -T web curl -sf http://localhost:3000 | head -c 100" \
+            "docker compose -f /opt/rdevents/app/docker-compose.prod.yml exec -T web wget --spider -q http://localhost:3000" \
             || { echo "Web root check failed"; exit 1; }
 
       - name: Deployment complete

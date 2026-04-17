@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../../common/middleware.js';
+import { authRateLimits } from '../../common/rateLimiter.js';
 import {
   completeRegistrationSchema,
   loginSchema,
@@ -36,7 +37,7 @@ function setRefreshCookie(res: any, token: string) {
 }
 
 // POST /api/auth/register/start
-authRouter.post('/register/start', async (req, res) => {
+authRouter.post('/register/start', authRateLimits.registerStart, async (req, res) => {
   const parsed = startRegistrationSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
@@ -66,7 +67,7 @@ authRouter.post('/register/start', async (req, res) => {
 });
 
 // POST /api/auth/register/verify
-authRouter.post('/register/verify', async (req, res) => {
+authRouter.post('/register/verify', authRateLimits.registerVerify, async (req, res) => {
   const parsed = verifyRegistrationCodeSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
@@ -94,7 +95,7 @@ authRouter.post('/register/verify', async (req, res) => {
 });
 
 // POST /api/auth/register/complete
-authRouter.post('/register/complete', async (req, res) => {
+authRouter.post('/register/complete', authRateLimits.registerComplete, async (req, res) => {
   const parsed = completeRegistrationSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
@@ -123,7 +124,7 @@ authRouter.post('/register/complete', async (req, res) => {
 });
 
 // POST /api/auth/login
-authRouter.post('/login', async (req, res) => {
+authRouter.post('/login', authRateLimits.login, async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
@@ -154,7 +155,7 @@ authRouter.post('/logout', (_req, res) => {
 });
 
 // POST /api/auth/refresh — exchange refresh cookie for new access token
-authRouter.post('/refresh', async (req, res) => {
+authRouter.post('/refresh', authRateLimits.refresh, async (req, res) => {
   const token = req.cookies?.[REFRESH_COOKIE];
   if (!token) { res.status(401).json({ error: 'No refresh token' }); return; }
 
