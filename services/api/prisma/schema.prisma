@@ -7,6 +7,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 enum UserRole {
@@ -143,6 +144,7 @@ model User {
   captainedTeams       EventTeam[]       @relation("TeamCaptain")
   analyticsEvents      AnalyticsEvent[]
   registrationSubmissions EventRegistrationFormSubmission[]
+  refreshSessions      RefreshSession[]
 
   @@map("users")
 }
@@ -348,4 +350,25 @@ model AnalyticsEvent {
   @@index([createdAt])
   @@index([eventId])
   @@map("analytics_events")
+}
+
+model RefreshSession {
+  id           String    @id @default(cuid())
+  userId       String
+  tokenHash    String    @unique
+  deviceInfo   String?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy    RefreshSession? @relation("SessionRotation", fields: [replacedById], references: [id])
+  replacedSessions RefreshSession[] @relation("SessionRotation")
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("refresh_sessions")
 }

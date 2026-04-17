@@ -1,12 +1,13 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto';
 import type { AuthProvider } from '@prisma/client';
 import { hashPassword, verifyPassword } from '../../common/password.js';
-import { signAccessToken, signRefreshToken } from '../../common/jwt.js';
+import { signAccessToken } from '../../common/jwt.js';
 import { sendRegistrationCodeEmail } from '../../common/email.js';
 import { logger } from '../../common/logger.js';
 import { env } from '../../config/env.js';
 import { prisma } from '../../db/prisma.js';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
+import { createSession } from './auth.sessions.js';
 import type {
   CompleteRegistrationInput,
   LoginInput,
@@ -209,7 +210,7 @@ export async function completeEmailRegistration(input: CompleteRegistrationInput
     return created;
   });
 
-  const tokens = issueTokens(user);
+  const tokens = await issueTokens(user);
   return { user: sanitizeUser(user as any), ...tokens };
 }
 
@@ -233,7 +234,7 @@ export async function loginWithEmail(input: LoginInput) {
     meta: { source: 'email_password' },
   });
 
-  const tokens = issueTokens(user);
+  const tokens = await issueTokens(user);
   return { user: sanitizeUser(user as any), ...tokens };
 }
 
@@ -274,7 +275,7 @@ export async function loginWithProvider(
       userId: account.userId,
       authProvider: provider,
     });
-    const tokens = issueTokens(account.user);
+    const tokens = await issueTokens(account.user);
     return { user: sanitizeUser(account.user as any), ...tokens };
   }
 
@@ -323,7 +324,7 @@ export async function loginWithProvider(
     authProvider: provider,
   });
 
-  const tokens = issueTokens(user);
+  const tokens = await issueTokens(user);
   return { user: sanitizeUser(user as any), ...tokens };
 }
 
@@ -401,9 +402,12 @@ export async function updateProfile(userId: string, input: UpdateProfileInput) {
   return sanitizeUser(user as any);
 }
 
-function issueTokens(user: { id: string; email: string; role: string }) {
+async function issueTokens(
+  user: { id: string; email: string; role: string },
+  context: { ipAddress?: string; userAgent?: string; deviceInfo?: string } = {}
+) {
   const accessToken = signAccessToken({ sub: user.id, email: user.email, role: user.role });
-  const refreshToken = signRefreshToken({ sub: user.id });
+  const { token: refreshToken } = await createSession(user.id, context);
   return { accessToken, refreshToken };
 }
 

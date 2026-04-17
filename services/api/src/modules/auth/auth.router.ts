@@ -18,13 +18,28 @@ import {
   updateProfile,
   verifyEmailRegistrationCode,
 } from './auth.service.js';
-import { verifyRefreshToken, signAccessToken } from '../../common/jwt.js';
+import { signAccessToken } from '../../common/jwt.js';
 import { prisma } from '../../db/prisma.js';
 import { env } from '../../config/env.js';
+import {
+  createSession,
+  verifySession,
+  revokeSession,
+  revokeAllUserSessions,
+  hashToken,
+} from './auth.sessions.js';
 
 export const authRouter = Router();
 
 const REFRESH_COOKIE = 'refresh_token';
+
+function getClientContext(req: any) {
+  return {
+    ipAddress: req.ip ?? req.connection?.remoteAddress ?? null,
+    userAgent: req.get('User-Agent') ?? null,
+    deviceInfo: req.get('User-Agent') ?? null,
+  };
+}
 
 function setRefreshCookie(res: any, token: string) {
   res.cookie(REFRESH_COOKIE, token, {
@@ -149,25 +164,78 @@ authRouter.post('/login', authRateLimits.login, async (req, res) => {
 });
 
 // POST /api/auth/logout
-authRouter.post('/logout', (_req, res) => {
+authRouter.post('/logout', async (req, res) => {
+  const token = req.cookies?.[REFRESH_COOKIE];
+  if (token) {
+    try {
+      const tokenHash = hashToken(token);
+      await revokeSession(tokenHash);
+    } catch {
+      // Session already invalid, just clear cookie
+    }
+  }
   res.clearCookie(REFRESH_COOKIE, { path: '/' });
   res.json({ ok: true });
 });
 
-// POST /api/auth/refresh — exchange refresh cookie for new access token
-authRouter.post('/refresh', authRateLimits.refresh, async (req, res) => {
+// POST /api/auth/logout-all — revoke all sessions for the current user
+authRouter.post('/logout-all', authenticate, async (req, res) => {
+  const user = (req as any).user;
   const token = req.cookies?.[REFRESH_COOKIE];
-  if (!token) { res.status(401).json({ error: 'No refresh token' }); return; }
+
+  // Revoke all sessions
+  await revokeAllUserSessions(user.id);
+
+  // Clear current cookie
+  res.clearCookie(REFRESH_COOKIE, { path: '/' });
+  res.json({ ok: true });
+});
+
+// POST /api/auth/refresh — rotate refresh token and issue new access token
+authRouter.post('/refresh', authRateLimits.refresh, async (req, res) => {
+  const oldToken = req.cookies?.[REFRESH_COOKIE];
+  if (!oldToken) {
+    res.status(401).json({ error: 'No refresh token' });
+    return;
+  }
 
   try {
-    const payload = verifyRefreshToken(token);
-    const user = await prisma.user.findUnique({ where: { id: payload.sub } });
-    if (!user || !user.isActive) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    // Verify the old token against DB
+    const { userId: verifiedUserId, sessionId: oldSessionId } = await verifySession(oldToken);
 
-    const accessToken = signAccessToken({ sub: user.id, email: user.email, role: user.role });
+    // Fetch fresh user data for access token
+    const user = await prisma.user.findUnique({ where: { id: verifiedUserId } });
+    if (!user || !user.isActive) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    // Rotate: create new session, revoke old one
+    const oldTokenHash = hashToken(oldToken);
+    const context = getClientContext(req);
+    const { token: newToken, sessionId: newSessionId } = await createSession(
+      user.id,
+      context,
+      oldTokenHash
+    );
+
+    // Issue new access token
+    const accessToken = signAccessToken({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    setRefreshCookie(res, newToken);
     res.json({ accessToken });
-  } catch {
-    res.status(401).json({ error: 'Invalid refresh token' });
+  } catch (err: any) {
+    if (err.message === 'SESSION_REVOKED_REUSE_DETECTED') {
+      res.status(401).json({
+        error: 'Token reuse detected. All sessions have been revoked for security. Please log in again.',
+      });
+      return;
+    }
+    res.status(401).json({ error: 'Invalid or expired refresh token' });
   }
 });
 
