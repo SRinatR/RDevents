@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteLocale } from '@/hooks/useRouteParams';
+import { adminApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -23,6 +24,19 @@ type NavGroup = {
   items: NavItem[];
 };
 
+type AdminEventOption = {
+  id: string;
+  title: string;
+  slug?: string | null;
+  category?: string | null;
+  status?: string | null;
+  startsAt?: string | null;
+  location?: string | null;
+};
+
+const CURRENT_EVENT_STORAGE_KEY = 'rd-admin-current-event-id';
+const RECENT_EVENTS_STORAGE_KEY = 'rd-admin-recent-event-ids';
+
 // ─── Icon components ────────────────────────────────────────────────────────────
 
 function IconFrame({ children }: { children: ReactNode }) {
@@ -37,6 +51,7 @@ function TeamIcon() { return <IconFrame><path d="M16 21v-2a4 4 0 0 0-4-4H4a4 4 0
 function MailIcon() { return <IconFrame><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" /></IconFrame>; }
 function InboxIcon() { return <IconFrame><polyline points="22 12 16 12 14 15 10 15 8 12 2 12" /><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" /></IconFrame>; }
 function TemplateIcon() { return <IconFrame><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></IconFrame>; }
+function FormIcon() { return <IconFrame><path d="M9 11h6M9 15h6M7 7h10" /><rect x="4" y="3" width="16" height="18" rx="2" /></IconFrame>; }
 function BroadcastIcon() { return <IconFrame><path d="M4 11a9 9 0 0 1 9 9" /><path d="M4 4a16 16 0 0 1 16 16" /><circle cx="5" cy="19" r="1" /><circle cx="19" cy="5" r="1" /></IconFrame>; }
 function AutomationIcon() { return <IconFrame><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></IconFrame>; }
 function AudienceIcon() { return <IconFrame><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></IconFrame>; }
@@ -49,6 +64,29 @@ function SettingsIcon() { return <IconFrame><circle cx="12" cy="12" r="3" /><pat
 function AuditIcon() { return <IconFrame><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></IconFrame>; }
 function MenuIcon() { return <IconFrame><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></IconFrame>; }
 
+function getEventIdFromPath(pathname: string, locale: string) {
+  const prefix = `/${locale}/admin/events/`;
+  if (!pathname.startsWith(prefix)) return '';
+  const id = pathname.slice(prefix.length).split('/')[0] ?? '';
+  return id === 'new' ? '' : id;
+}
+
+function getStatusTone(status?: string | null) {
+  if (status === 'PUBLISHED') return 'success';
+  if (status === 'DRAFT') return 'warning';
+  if (status === 'CANCELLED') return 'danger';
+  return 'info';
+}
+
+function formatEventDate(value?: string | null, locale = 'ru') {
+  if (!value) return '';
+  try {
+    return new Intl.DateTimeFormat(locale, { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(value));
+  } catch {
+    return '';
+  }
+}
+
 // ─── AdminShell component ──────────────────────────────────────────────────────
 
 export function AdminShell({ children }: { children: ReactNode }) {
@@ -58,6 +96,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [events, setEvents] = useState<AdminEventOption[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventsLoaded, setEventsLoaded] = useState(false);
+  const [selectedEventId, setSelectedEventId] = useState('');
+  const [recentEventIds, setRecentEventIds] = useState<string[]>([]);
+  const [eventQuery, setEventQuery] = useState('');
+  const [selectorOpen, setSelectorOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) {
@@ -69,43 +114,188 @@ export function AdminShell({ children }: { children: ReactNode }) {
     setSidebarOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    if (!user || !isAdmin) return;
+    let active = true;
+    setEventsLoading(true);
+    setEventsLoaded(false);
+
+    adminApi.listEvents({ limit: 100 })
+      .then((result) => {
+        if (!active) return;
+        setEvents(result.data ?? []);
+      })
+      .catch(() => {
+        if (active) setEvents([]);
+      })
+      .finally(() => {
+        if (active) {
+          setEventsLoading(false);
+          setEventsLoaded(true);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [user, isAdmin]);
+
+  useEffect(() => {
+    try {
+      const storedEventId = window.localStorage.getItem(CURRENT_EVENT_STORAGE_KEY) ?? '';
+      const storedRecent = JSON.parse(window.localStorage.getItem(RECENT_EVENTS_STORAGE_KEY) ?? '[]');
+      setSelectedEventId(storedEventId);
+      setRecentEventIds(Array.isArray(storedRecent) ? storedRecent.filter(Boolean).slice(0, 6) : []);
+    } catch {
+      setSelectedEventId('');
+      setRecentEventIds([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    const routeEventId = getEventIdFromPath(pathname, locale);
+    if (!routeEventId) return;
+
+    setSelectedEventId(routeEventId);
+    try {
+      window.localStorage.setItem(CURRENT_EVENT_STORAGE_KEY, routeEventId);
+      setRecentEventIds((previous) => {
+        const nextRecent = [routeEventId, ...previous.filter((id) => id !== routeEventId)].slice(0, 6);
+        if (nextRecent.join('|') === previous.join('|')) return previous;
+        window.localStorage.setItem(RECENT_EVENTS_STORAGE_KEY, JSON.stringify(nextRecent));
+        return nextRecent;
+      });
+    } catch {}
+  }, [pathname, locale]);
+
+  useEffect(() => {
+    if (!eventsLoaded || !selectedEventId) return;
+    if (events.some((event) => event.id === selectedEventId)) return;
+
+    setSelectedEventId('');
+    try {
+      window.localStorage.removeItem(CURRENT_EVENT_STORAGE_KEY);
+    } catch {}
+  }, [events, eventsLoaded, selectedEventId]);
+
+  const routeEventId = getEventIdFromPath(pathname, locale);
+  const currentEventId = routeEventId || selectedEventId;
+  const currentEvent = events.find((event) => event.id === currentEventId) ?? null;
+
+  useEffect(() => {
+    if (!selectorOpen) {
+      setEventQuery(currentEvent?.title ?? '');
+    }
+  }, [currentEvent, selectorOpen]);
+
+  const filteredEvents = useMemo(() => {
+    const normalized = eventQuery.trim().toLowerCase();
+    const recentRank = new Map(recentEventIds.map((id, index) => [id, index]));
+    const visible = events.filter((event) => {
+      if (!normalized) return true;
+      return [event.title, event.slug, event.category]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(normalized));
+    });
+
+    return visible
+      .sort((left, right) => {
+        const leftRank = recentRank.get(left.id) ?? 999;
+        const rightRank = recentRank.get(right.id) ?? 999;
+        if (leftRank !== rightRank) return leftRank - rightRank;
+        return (left.title ?? '').localeCompare(right.title ?? '');
+      })
+      .slice(0, 8);
+  }, [events, eventQuery, recentEventIds]);
+
+  const selectEvent = (event: AdminEventOption) => {
+    setSelectedEventId(event.id);
+    setEventQuery(event.title);
+    setSelectorOpen(false);
+    try {
+      window.localStorage.setItem(CURRENT_EVENT_STORAGE_KEY, event.id);
+      const nextRecent = [event.id, ...recentEventIds.filter((id) => id !== event.id)].slice(0, 6);
+      setRecentEventIds(nextRecent);
+      window.localStorage.setItem(RECENT_EVENTS_STORAGE_KEY, JSON.stringify(nextRecent));
+    } catch {}
+    router.push(`/${locale}/admin/events/${event.id}/overview`);
+  };
+
+  const clearSelectedEvent = () => {
+    setSelectedEventId('');
+    setEventQuery('');
+    setSelectorOpen(false);
+    try {
+      window.localStorage.removeItem(CURRENT_EVENT_STORAGE_KEY);
+    } catch {}
+    if (pathname.includes('/admin/events/')) {
+      router.push(`/${locale}/admin/events`);
+    }
+  };
+
   // ─── Grouped navigation ───────────────────────────────────────────────────────
   
-  const navGroups = useMemo<NavGroup[]>(() => [
-    {
-      label: 'Core',
-      items: [
-        { href: `/${locale}/admin`, label: t('admin.title'), icon: <DashboardIcon />, allow: true },
-        { href: `/${locale}/admin/events`, label: t('admin.events'), icon: <CalendarIcon />, allow: true },
-        { href: `/${locale}/admin/participants`, label: t('admin.participants'), icon: <HandshakeIcon />, allow: true },
-        { href: `/${locale}/admin/volunteers`, label: t('admin.volunteers'), icon: <UsersIcon />, allow: true },
-        { href: `/${locale}/admin/teams`, label: t('admin.teams'), icon: <TeamIcon />, allow: true },
-      ],
-    },
-    {
-      label: 'Communications',
-      items: [
-        { href: `/${locale}/admin/email`, label: t('admin.email'), icon: <MailIcon />, allow: isPlatformAdmin },
-        { href: `/${locale}/admin/email/messages`, label: t('admin.messages'), icon: <InboxIcon />, allow: isPlatformAdmin },
-        { href: `/${locale}/admin/email/templates`, label: t('admin.templates'), icon: <TemplateIcon />, allow: isPlatformAdmin },
-        { href: `/${locale}/admin/email/broadcasts`, label: t('admin.broadcasts'), icon: <BroadcastIcon />, allow: isPlatformAdmin },
-        { href: `/${locale}/admin/email/automations`, label: t('admin.automations'), icon: <AutomationIcon />, allow: isPlatformAdmin },
-        { href: `/${locale}/admin/email/audience`, label: t('admin.audience'), icon: <AudienceIcon />, allow: isPlatformAdmin },
-        { href: `/${locale}/admin/email/domains`, label: t('admin.domains'), icon: <GlobeIcon />, allow: isPlatformAdmin },
-        { href: `/${locale}/admin/email/webhooks`, label: t('admin.webhooks'), icon: <WebhookIcon />, allow: isPlatformAdmin },
-      ],
-    },
-    {
-      label: 'Management',
-      items: [
-        { href: `/${locale}/admin/analytics`, label: t('admin.analytics'), icon: <ChartIcon />, allow: true },
-        { href: `/${locale}/admin/users`, label: t('admin.users'), icon: <UserCogIcon />, allow: isPlatformAdmin },
-        { href: `/${locale}/admin/admins`, label: t('admin.admins'), icon: <ShieldIcon />, allow: isSuperAdmin },
-        { href: `/${locale}/admin/settings`, label: t('admin.settings'), icon: <SettingsIcon />, allow: isPlatformAdmin },
-        { href: `/${locale}/admin/audit`, label: t('admin.audit'), icon: <AuditIcon />, allow: isPlatformAdmin },
-      ],
-    },
-  ], [locale, t, isPlatformAdmin, isSuperAdmin]);
+  const navGroups = useMemo<NavGroup[]>(() => {
+    const groups: NavGroup[] = [
+      {
+        label: 'Platform',
+        items: [
+          { href: `/${locale}/admin`, label: t('admin.title'), icon: <DashboardIcon />, allow: true },
+          { href: `/${locale}/admin/events`, label: t('admin.events'), icon: <CalendarIcon />, allow: true },
+          { href: `/${locale}/admin/analytics`, label: t('admin.analytics'), icon: <ChartIcon />, allow: true },
+        ],
+      },
+      {
+        label: 'Communications',
+        items: [
+          { href: `/${locale}/admin/email`, label: t('admin.email'), icon: <MailIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/email/messages`, label: t('admin.messages'), icon: <InboxIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/email/templates`, label: t('admin.templates'), icon: <TemplateIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/email/broadcasts`, label: t('admin.broadcasts'), icon: <BroadcastIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/email/automations`, label: t('admin.automations'), icon: <AutomationIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/email/audience`, label: t('admin.audience'), icon: <AudienceIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/email/domains`, label: t('admin.domains'), icon: <GlobeIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/email/webhooks`, label: t('admin.webhooks'), icon: <WebhookIcon />, allow: isPlatformAdmin },
+        ],
+      },
+      {
+        label: 'Management',
+        items: [
+          { href: `/${locale}/admin/users`, label: t('admin.users'), icon: <UserCogIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/admins`, label: t('admin.admins'), icon: <ShieldIcon />, allow: isSuperAdmin },
+          { href: `/${locale}/admin/settings`, label: t('admin.settings'), icon: <SettingsIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/audit`, label: t('admin.audit'), icon: <AuditIcon />, allow: isPlatformAdmin },
+        ],
+      },
+    ];
+
+    // Current Event group — only when user is actually in event route (routeEventId)
+    // localStorage selectedEventId is used for selector/topbar/context-bar only, NOT for nav
+    if (routeEventId) {
+      const eventBase = `/${locale}/admin/events/${routeEventId}`;
+      const event = events.find((e) => e.id === routeEventId) ?? null;
+      groups.push({
+        label: event?.title
+          ? (locale === 'ru' ? 'Текущее событие' : 'Current Event')
+          : (locale === 'ru' ? 'Событие' : 'Event'),
+        items: [
+          { href: `${eventBase}/overview`, label: locale === 'ru' ? 'Обзор' : 'Overview', icon: <DashboardIcon />, allow: true },
+          { href: `${eventBase}/participants`, label: t('admin.participants'), icon: <HandshakeIcon />, allow: true },
+          { href: `${eventBase}/volunteers`, label: t('admin.volunteers'), icon: <UsersIcon />, allow: true },
+          { href: `${eventBase}/teams`, label: t('admin.teams'), icon: <TeamIcon />, allow: true },
+          { href: `${eventBase}/registrations`, label: locale === 'ru' ? 'Регистрации' : 'Registrations', icon: <InboxIcon />, allow: true },
+          { href: `${eventBase}/analytics`, label: t('admin.analytics'), icon: <ChartIcon />, allow: true },
+          { href: `${eventBase}/forms`, label: locale === 'ru' ? 'Формы' : 'Forms', icon: <FormIcon />, allow: true },
+          { href: `${eventBase}/content`, label: locale === 'ru' ? 'Контент' : 'Content', icon: <TemplateIcon />, allow: true },
+          { href: `${eventBase}/communications`, label: locale === 'ru' ? 'Коммуникации' : 'Communications', icon: <BroadcastIcon />, allow: true },
+          { href: `${eventBase}/settings`, label: t('admin.settings'), icon: <SettingsIcon />, allow: true },
+          { href: `${eventBase}/audit`, label: t('admin.audit'), icon: <AuditIcon />, allow: true },
+        ],
+      });
+    }
+
+    return groups;
+  }, [locale, t, isPlatformAdmin, isSuperAdmin, routeEventId, events]);
 
   if (loading) {
     return (
@@ -118,6 +308,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
   if (!user || !isAdmin) return null;
 
   const roleLabel = isSuperAdmin ? 'Super Admin' : isPlatformAdmin ? 'Platform Admin' : 'Event Admin';
+  const topbarTitle = currentEvent ? currentEvent.title : (locale === 'ru' ? 'Панель администратора' : 'Admin panel');
+  const topbarSubtitle = currentEvent
+    ? [currentEvent.category, currentEvent.slug ? `/${currentEvent.slug}` : ''].filter(Boolean).join(' · ')
+    : (user.name || user.email);
 
   return (
     <div className="admin-app-shell app-shell app-shell-admin" data-shell="admin">
@@ -142,8 +336,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
               <div key={group.label} className="admin-nav-group">
                 <div className="admin-nav-group-label">{group.label}</div>
                 {visibleItems.map((item) => {
-                  const isActive = pathname === item.href || 
-                    (item.href !== `/${locale}/admin` && pathname.startsWith(item.href));
+                  const adminHomeHref = `/${locale}/admin`;
+                  const adminEventsHref = `/${locale}/admin/events`;
+                  const isPlatformEventsHref = item.href === adminEventsHref;
+                  const isActive = pathname === item.href
+                    || (isPlatformEventsHref && pathname === `${adminEventsHref}/new`)
+                    || (!isPlatformEventsHref && item.href !== adminHomeHref && pathname.startsWith(item.href))
+                    || (item.href.endsWith('/overview') && pathname === item.href.replace('/overview', ''));
                   return (
                     <Link 
                       key={item.href} 
@@ -182,9 +381,66 @@ export function AdminShell({ children }: { children: ReactNode }) {
           </button>
           <div className="admin-topbar-title-wrap">
             <div className="admin-topbar-title">
-              {locale === 'ru' ? 'Панель администратора' : 'Admin panel'}
+              {topbarTitle}
             </div>
-            <div className="admin-topbar-subtitle">{user.name || user.email}</div>
+            <div className="admin-topbar-subtitle">{topbarSubtitle}</div>
+          </div>
+          <div className="admin-event-selector" onBlur={() => window.setTimeout(() => setSelectorOpen(false), 120)}>
+            <label className="admin-event-selector-label" htmlFor="admin-event-selector-input">
+              {locale === 'ru' ? 'Ивент' : 'Event'}
+            </label>
+            <div className="admin-event-selector-control">
+              <input
+                id="admin-event-selector-input"
+                value={selectorOpen ? eventQuery : currentEvent?.title ?? eventQuery}
+                onFocus={() => {
+                  setSelectorOpen(true);
+                  setEventQuery('');
+                }}
+                onChange={(event) => {
+                  setEventQuery(event.target.value);
+                  setSelectorOpen(true);
+                }}
+                placeholder={eventsLoading ? (locale === 'ru' ? 'Загрузка...' : 'Loading...') : (locale === 'ru' ? 'Найти событие' : 'Find event')}
+                className="admin-event-selector-input"
+                autoComplete="off"
+              />
+              {currentEventId ? (
+                <button type="button" className="admin-event-clear" onMouseDown={(event) => event.preventDefault()} onClick={clearSelectedEvent}>
+                  {locale === 'ru' ? 'Сброс' : 'Clear'}
+                </button>
+              ) : null}
+            </div>
+            {selectorOpen ? (
+              <div className="admin-event-selector-popover">
+                <div className="admin-event-selector-hint">
+                  {eventQuery.trim()
+                    ? (locale === 'ru' ? 'Результаты поиска' : 'Search results')
+                    : (locale === 'ru' ? 'Недавние и доступные события' : 'Recent and available events')}
+                </div>
+                {filteredEvents.length === 0 ? (
+                  <div className="admin-event-selector-empty">
+                    {locale === 'ru' ? 'События не найдены' : 'No events found'}
+                  </div>
+                ) : (
+                  filteredEvents.map((event) => (
+                    <button
+                      key={event.id}
+                      type="button"
+                      className={cn('admin-event-option', event.id === currentEventId && 'active')}
+                      onMouseDown={(mouseEvent) => mouseEvent.preventDefault()}
+                      onClick={() => selectEvent(event)}
+                    >
+                      <span>
+                        <strong>{event.title}</strong>
+                        <small>{[event.slug ? `/${event.slug}` : '', event.category].filter(Boolean).join(' · ')}</small>
+                      </span>
+                      <span className={cn('signal-status-badge size-sm', `tone-${getStatusTone(event.status)}`)}>{event.status ?? 'EVENT'}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            ) : null}
           </div>
           <div className="admin-topbar-role">
             <span className="signal-status-badge tone-info">{roleLabel}</span>
@@ -193,6 +449,32 @@ export function AdminShell({ children }: { children: ReactNode }) {
             {t('admin.createEvent')}
           </Link>
         </header>
+
+        {currentEvent ? (
+          <section className="admin-event-context-bar">
+            <div className="admin-event-context-main">
+              <div className="admin-event-breadcrumb">
+                <Link href={`/${locale}/admin`}>Admin</Link>
+                <span>/</span>
+                <Link href={`/${locale}/admin/events`}>{t('admin.events')}</Link>
+                <span>/</span>
+                <strong>{currentEvent.title}</strong>
+              </div>
+              <div className="admin-event-context-meta">
+                <span className={cn('signal-status-badge size-sm', `tone-${getStatusTone(currentEvent.status)}`)}>{currentEvent.status ?? 'EVENT'}</span>
+                {currentEvent.startsAt ? <span>{formatEventDate(currentEvent.startsAt, locale)}</span> : null}
+                {currentEvent.location ? <span>{currentEvent.location}</span> : null}
+                {currentEvent.category ? <span>{currentEvent.category}</span> : null}
+              </div>
+            </div>
+            <div className="admin-event-context-actions">
+              {currentEvent.slug ? <Link href={`/${locale}/events/${currentEvent.slug}`} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Публичная' : 'Public'}</Link> : null}
+              <Link href={`/${locale}/admin/events/${currentEvent.id}/overview`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Обзор' : 'Overview'}</Link>
+              <Link href={`/${locale}/admin/events/${currentEvent.id}/analytics`} className="btn btn-secondary btn-sm">{t('admin.analytics')}</Link>
+              <Link href={`/${locale}/admin/events/${currentEvent.id}/edit`} className="btn btn-primary btn-sm">{t('common.edit')}</Link>
+            </div>
+          </section>
+        ) : null}
 
         {/* Main content - scrollable */}
         <main className="admin-main">{children}</main>
