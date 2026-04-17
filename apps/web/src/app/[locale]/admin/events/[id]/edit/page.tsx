@@ -212,7 +212,7 @@ export default function EditEventPage() {
     <div style={{ minHeight: 'calc(100vh - 60px)', padding: '40px 0 60px' }}>
       <div className="container" style={{ maxWidth: 720 }}>
         <div style={{ marginBottom: 32 }}>
-          <a href={`/${locale}/admin/events`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--color-text-muted)', textDecoration: 'none', fontSize: '0.9rem', marginBottom: 12 }}>
+          <a href={`/${locale}/admin/events/${eventId}/overview`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--color-text-muted)', textDecoration: 'none', fontSize: '0.9rem', marginBottom: 12 }}>
             ← {t('common.back')}
           </a>
           <h1 style={{ margin: 0, fontSize: 'clamp(1.6rem, 4vw, 2.2rem)', fontWeight: 900, letterSpacing: 0 }}>
@@ -456,7 +456,7 @@ export default function EditEventPage() {
               <button type="submit" disabled={submitting} style={{ padding: '12px 28px', borderRadius: 'var(--radius-lg)', background: 'var(--color-primary)', color: '#fff', fontWeight: 700, border: 'none', cursor: 'pointer', opacity: submitting ? 0.6 : 1 }}>
                 {submitting ? 'Saving...' : t('common.save')}
               </button>
-              <a href={`/${locale}/admin/events`} style={{ padding: '12px 28px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)', fontWeight: 700, textDecoration: 'none' }}>
+              <a href={`/${locale}/admin/events/${eventId}/settings`} style={{ padding: '12px 28px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)', fontWeight: 700, textDecoration: 'none' }}>
                 {t('common.cancel')}
               </a>
             </div>

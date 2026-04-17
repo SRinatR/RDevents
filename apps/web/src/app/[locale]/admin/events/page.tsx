@@ -140,7 +140,9 @@ export default function AdminEventsPage() {
                   <tr key={event.id}>
                     <td>
                       <div className="admin-table-primary">
-                        <strong>{event.title}</strong>
+                        <Link href={`/${locale}/admin/events/${event.id}/overview`} className="admin-table-title-link">
+                          <strong>{event.title}</strong>
+                        </Link>
                         <div className="signal-muted">/{event.slug}</div>
                       </div>
                     </td>
@@ -150,7 +152,8 @@ export default function AdminEventsPage() {
                     <td>{event._count?.registrations ?? 0}</td>
                     <td className="right">
                       <div className="signal-row-actions">
-                        <Link href={`/${locale}/events/${event.slug}`} className="btn btn-ghost btn-sm">View</Link>
+                        <Link href={`/${locale}/admin/events/${event.id}/overview`} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Открыть' : 'Open'}</Link>
+                        <Link href={`/${locale}/events/${event.slug}`} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Публичная' : 'Public'}</Link>
                         <Link href={`/${locale}/admin/events/${event.id}/edit`} className="btn btn-secondary btn-sm">{t('common.edit')}</Link>
                         {isPlatformAdmin && (
                           <button onClick={() => setPendingDeleteEvent(event)} className="btn btn-danger btn-sm" disabled={deletingId === event.id}>
