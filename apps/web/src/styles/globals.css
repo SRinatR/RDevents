@@ -1595,10 +1595,6 @@ body {
   box-shadow: 0 16px 34px rgba(17, 29, 54, 0.09);
   background: rgba(247, 251, 255, 0.92);
 }
-.public-logo-mark {
-  box-shadow: 0 8px 18px rgba(31, 88, 216, 0.2);
-}
-
 .public-hero {
   padding: 62px 0 40px;
 }
