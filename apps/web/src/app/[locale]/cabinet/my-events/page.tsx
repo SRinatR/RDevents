@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../../hooks/useAuth';
 import { eventsApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
-import { EmptyState, LoadingLines, Notice, PageHeader, Panel, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, Notice, PageHeader, Panel, ToolbarRow } from '@/components/ui/signal-primitives';
 
 export default function MyEventsPage() {
   const { user, loading } = useAuth();
@@ -63,7 +63,7 @@ export default function MyEventsPage() {
                     <div className="signal-muted">{event.location ? `${event.location} · ` : ''}{event.startsAt && event.endsAt ? `${formatDate(event.startsAt)} — ${formatDate(event.endsAt)}` : ''}</div>
                   </div>
                   <ToolbarRow>
-                    <StatusBadge tone={registration.status === 'ACTIVE' || registration.status === 'APPROVED' ? 'success' : registration.status === 'PENDING' ? 'warning' : registration.status === 'REJECTED' ? 'danger' : 'neutral'}>{registration.status}</StatusBadge>
+                    
                     <span className="signal-chip-link">{locale === 'ru' ? 'Открыть' : 'Open'}</span>
                   </ToolbarRow>
                 </Link>

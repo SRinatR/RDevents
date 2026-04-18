@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, FieldInput, FieldSelect, LoadingLines, PageHeader, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, PageHeader, Panel, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 
 interface Participant {
   id: string;
@@ -181,8 +181,8 @@ export default function AdminParticipantsPage() {
                         <div className="signal-muted">{p.userEmail}</div>
                       </td>
                       <td className="signal-overflow-ellipsis">{p.eventTitle}</td>
-                      <td><StatusBadge tone="info">{p.role}</StatusBadge></td>
-                      <td><StatusBadge tone={toneByStatus[p.status] ?? 'neutral'}>{p.status}</StatusBadge></td>
+                      <td></td>
+                      <td></td>
                       <td className="signal-muted">{new Date(p.assignedAt).toLocaleDateString()}</td>
                       <td className="right">
                         <div className="signal-row-actions">

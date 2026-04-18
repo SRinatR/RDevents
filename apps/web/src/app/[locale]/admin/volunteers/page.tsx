@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../../hooks/useAuth';
 import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
-import { EmptyState, FieldSelect, LoadingLines, Notice, PageHeader, Panel, SectionHeader, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldSelect, LoadingLines, Notice, PageHeader, Panel, SectionHeader, ToolbarRow } from '@/components/ui/signal-primitives';
 
 const STATUS_FILTERS = ['PENDING', 'ACTIVE', 'REJECTED', 'REMOVED'] as const;
 
@@ -91,7 +91,7 @@ export default function AdminVolunteersPage() {
                 {STATUS_FILTERS.map((item) => <option key={item} value={item}>{item}</option>)}
               </FieldSelect>
               {selectedEventId ? <Link href={`/${locale}/admin/events/${selectedEventId}/edit`} className="btn btn-secondary btn-sm">{t('common.edit')} event</Link> : null}
-              <StatusBadge tone="info">{volunteers.length} records</StatusBadge>
+              
             </ToolbarRow>
 
             {loadingVolunteers ? <LoadingLines rows={5} /> : volunteers.length === 0 ? (
@@ -111,7 +111,7 @@ export default function AdminVolunteersPage() {
                       </div>
                     </div>
                     <ToolbarRow>
-                      <StatusBadge tone={membership.status === 'ACTIVE' ? 'success' : membership.status === 'REJECTED' ? 'danger' : membership.status === 'PENDING' ? 'warning' : 'neutral'}>{membership.status}</StatusBadge>
+                      
                       {membership.status === 'PENDING' ? (
                         <>
                           <button onClick={() => updateStatus(membership.id, 'ACTIVE')} disabled={actionId === membership.id} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Одобрить' : 'Approve'}</button>

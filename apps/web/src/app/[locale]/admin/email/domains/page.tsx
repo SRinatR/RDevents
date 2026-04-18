@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, LoadingLines, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, Panel, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { AdminToolbarSearch } from '@/components/admin/AdminToolbar';
 
@@ -77,7 +77,7 @@ export default function AdminEmailDomainsPage() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder={locale === 'ru' ? 'Поиск по домену...' : 'Search by domain...'}
           />
-          <StatusBadge tone="info">{filteredDomains.length} {locale === 'ru' ? 'доменов' : 'domains'}</StatusBadge>
+          
         </ToolbarRow>
 
         {loadingData ? (
@@ -111,11 +111,11 @@ export default function AdminEmailDomainsPage() {
                   <tr key={d.id}>
                     <td><strong>{d.domain}</strong></td>
                     <td className="signal-muted">{d.provider}</td>
-                    <td><StatusBadge tone={toneByVerification[d.verificationStatus] ?? 'neutral'}>{d.verificationStatus}</StatusBadge></td>
-                    <td><StatusBadge tone={d.spf ? 'success' : 'warning'}>{d.spf ? '✓' : '—'}</StatusBadge></td>
-                    <td><StatusBadge tone={d.dkim ? 'success' : 'warning'}>{d.dkim ? '✓' : '—'}</StatusBadge></td>
-                    <td><StatusBadge tone={d.dmarc ? 'success' : 'warning'}>{d.dmarc ? '✓' : '—'}</StatusBadge></td>
-                    <td>{d.isDefault && <StatusBadge tone="info">{locale === 'ru' ? 'Да' : 'Yes'}</StatusBadge>}</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td>{d.isDefault ? '✓' : '—'}</td>
                   </tr>
                 ))}
               </tbody>

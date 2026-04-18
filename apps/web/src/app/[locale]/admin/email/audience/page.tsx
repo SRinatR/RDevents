@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, LoadingLines, MetricCard, PageHeader, Panel, StatusBadge, TableShell } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, MetricCard, PageHeader, Panel, TableShell } from '@/components/ui/signal-primitives';
 
 export default function AdminEmailAudiencePage() {
   const t = useTranslations();
@@ -97,7 +97,7 @@ export default function AdminEmailAudiencePage() {
                 {audience.segments.map((seg: any) => (
                   <tr key={seg.id}>
                     <td><strong>{seg.name}</strong></td>
-                    <td><StatusBadge tone="info">{seg.size}</StatusBadge></td>
+                    <td></td>
                     <td className="signal-muted">{seg.source}</td>
                     <td className="signal-muted">{new Date(seg.updatedAt).toLocaleDateString()}</td>
                   </tr>

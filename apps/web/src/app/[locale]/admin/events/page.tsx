@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../../hooks/useAuth';
 import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
-import { EmptyState, FieldInput, FieldSelect, LoadingLines, Notice, PageHeader, Panel, SectionHeader, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, Notice, PageHeader, Panel, SectionHeader, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 
 export default function AdminEventsPage() {
   const t = useTranslations();
@@ -111,7 +111,7 @@ export default function AdminEventsPage() {
             <option value="date_asc">Oldest first</option>
             <option value="title">Title A-Z</option>
           </FieldSelect>
-          <StatusBadge tone="info">{filteredEvents.length} visible</StatusBadge>
+          
         </ToolbarRow>
 
         {eventsLoading ? (
@@ -147,7 +147,7 @@ export default function AdminEventsPage() {
                       </div>
                     </td>
                     <td>{event.category}</td>
-                    <td><StatusBadge tone={toneByStatus[event.status] ?? 'info'}>{event.status}</StatusBadge></td>
+                    <td></td>
                     <td>{new Date(event.startsAt).toLocaleDateString()}</td>
                     <td>{event._count?.registrations ?? 0}</td>
                     <td className="right">

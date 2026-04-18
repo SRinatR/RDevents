@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminApi, adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, LoadingLines, MetricCard, Panel, StatusBadge } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, MetricCard, Panel } from '@/components/ui/signal-primitives';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 
 interface EmailOverview {
@@ -170,7 +170,7 @@ export default function AdminPage() {
       <AdminPageHeader
         title={t('admin.title')}
         subtitle={t('admin.subtitle') ?? (locale === 'ru' ? 'Операционная панель платформы' : 'Platform operational dashboard')}
-        actions={<StatusBadge tone="info">{scopeLabel}</StatusBadge>}
+       
       />
 
       {/* Platform KPIs - visible to all admins */}
@@ -239,12 +239,8 @@ export default function AdminPage() {
               </p>
             </div>
             <div className="signal-row-gap">
-              <StatusBadge tone={emailOverview.providerStatus === 'connected' ? 'success' : emailOverview.providerStatus === 'not_configured' ? 'neutral' : 'warning'}>
-                {emailOverview.providerStatus}
-              </StatusBadge>
-              <StatusBadge tone={emailOverview.webhookStatus === 'active' ? 'success' : emailOverview.webhookStatus === 'not_configured' ? 'neutral' : 'warning'}>
-                {emailOverview.webhookStatus}
-              </StatusBadge>
+              
+              
             </div>
           </div>
         </Panel>
@@ -268,7 +264,7 @@ export default function AdminPage() {
                 <div className="signal-ranked-item" key={event.eventId ?? `${event.title}-${index}`}>
                   <span className="signal-rank">{index + 1}</span>
                   <span className="signal-overflow-ellipsis">{event.title}</span>
-                  <StatusBadge tone="info">{event.viewCount}</StatusBadge>
+                  
                 </div>
               ))}
             </div>
@@ -296,7 +292,7 @@ export default function AdminPage() {
                 <div className="signal-ranked-item" key={event.eventId ?? `${event.title}-${index}`}>
                   <span className="signal-rank">{index + 1}</span>
                   <span className="signal-overflow-ellipsis">{event.title}</span>
-                  <StatusBadge tone="success">{event.registrationCount}</StatusBadge>
+                  
                 </div>
               ))}
             </div>
@@ -323,13 +319,7 @@ export default function AdminPage() {
               <div className="signal-ranked-item" key={`${activity.type}-${index}`}>
                 <span className="signal-rank">{new Date(activity.timestamp).toLocaleTimeString()}</span>
                 <span className="signal-overflow-ellipsis">{activity.type}</span>
-                <StatusBadge tone={
-                  activity.status === 'delivered' || activity.status === 'opened' ? 'success' :
-                  activity.status === 'clicked' ? 'info' :
-                  activity.status === 'bounced' ? 'danger' : 'neutral'
-                }>
-                  {activity.status}
-                </StatusBadge>
+                
               </div>
             ))}
           </div>

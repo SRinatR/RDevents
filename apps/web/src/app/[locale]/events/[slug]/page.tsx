@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { eventsApi, analyticsApi, ApiError } from '../../../../lib/api';
 import { useAuth } from '../../../../hooks/useAuth';
 import { useRouteParams } from '../../../../hooks/useRouteParams';
-import { EmptyState, FieldTextarea, LoadingLines, Notice, Panel, SectionHeader, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldTextarea, LoadingLines, Notice, Panel, SectionHeader, ToolbarRow } from '@/components/ui/signal-primitives';
 import { PublicFooter } from '../../../../components/layout/PublicFooter';
 
 type MissingField = {
@@ -310,9 +310,7 @@ export default function EventDetailPage() {
           <div className="container-wide event-v4-masthead-inner">
             <div className="event-v4-title-zone">
               <div className="public-meta-row public-gap-after-xs">
-                <StatusBadge tone="neutral">{event.category}</StatusBadge>
-                <StatusBadge tone={statusTone}>{event.status}</StatusBadge>
-                {event.isFeatured ? <StatusBadge tone="info">{locale === 'ru' ? 'Рекомендуемое' : 'Featured'}</StatusBadge> : null}
+                {event.category ? <span className="signal-muted">{event.category}</span> : null}
               </div>
               <h1>{event.title}</h1>
               <p>{event.shortDescription}</p>
@@ -353,7 +351,7 @@ export default function EventDetailPage() {
                   <SectionHeader title={locale === 'ru' ? 'Практические условия' : 'Practical essentials'} subtitle={locale === 'ru' ? 'Что важно проверить перед подачей' : 'What to verify before submitting'} />
                   <div className="event-v4-essentials-grid">
                     <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Категория' : 'Category'}</span><strong>{event.category}</strong></div>
-                    <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Статус события' : 'Event status'}</span><StatusBadge tone={statusTone}>{event.status}</StatusBadge></div>
+                    <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Статус события' : 'Event status'}</span></div>
                     <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Волонтёрский трек' : 'Volunteer track'}</span><strong>{locale === 'ru' ? 'Доступен через панель участия' : 'Available in participation rail'}</strong></div>
                     <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Доступ к регистрации' : 'Registration access'}</span><strong>{registrationBlocked ? (locale === 'ru' ? 'Закрыт' : 'Closed') : (locale === 'ru' ? 'Открыт' : 'Open')}</strong></div>
                   </div>
@@ -450,7 +448,7 @@ export default function EventDetailPage() {
                       <SectionHeader title={locale === 'ru' ? 'Требуются дополнительные поля' : 'Additional fields required'} subtitle={locale === 'ru' ? 'Заполните профиль и анкету события' : 'Complete profile and event form fields'} />
                       <div className="signal-stack">
                         {missingFields.map((field) => (
-                          <div key={`${field.scope}-${field.key}`} className="signal-ranked-item"><span>{fieldLabel(field)}</span><StatusBadge tone="neutral">{field.scope}</StatusBadge></div>
+                          <div key={`${field.scope}-${field.key}`} className="signal-ranked-item"><span>{fieldLabel(field)}</span></div>
                         ))}
                         {profileMissing.length > 0 ? <Link href={profileLink} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Заполнить профиль' : 'Complete profile'}</Link> : null}
                         {eventFormMissing.length > 0 ? eventFormMissing.map((field) => (

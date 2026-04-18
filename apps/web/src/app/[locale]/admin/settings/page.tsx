@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, LoadingLines, PageHeader, Panel, StatusBadge } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, PageHeader, Panel } from '@/components/ui/signal-primitives';
 
 export default function AdminSettingsPage() {
   const t = useTranslations();
@@ -72,7 +72,7 @@ export default function AdminSettingsPage() {
                 <h2>{section.title}</h2>
                 <p className="signal-muted">{section.description}</p>
               </div>
-              <StatusBadge tone="warning">{locale === 'ru' ? 'В разработке' : 'In development'}</StatusBadge>
+              
             </div>
             <p className="signal-muted">
               {locale === 'ru' 
@@ -93,15 +93,15 @@ export default function AdminSettingsPage() {
         <div className="signal-stack">
           <div className="signal-ranked-item">
             <span>{locale === 'ru' ? 'Режим работы' : 'Operation mode'}</span>
-            <StatusBadge tone="info">Production</StatusBadge>
+            
           </div>
           <div className="signal-ranked-item">
             <span>{locale === 'ru' ? 'Версия API' : 'API version'}</span>
-            <StatusBadge tone="neutral">v1</StatusBadge>
+            
           </div>
           <div className="signal-ranked-item">
             <span>{locale === 'ru' ? 'Регион данных' : 'Data region'}</span>
-            <StatusBadge tone="neutral">EU</StatusBadge>
+            
           </div>
         </div>
       </Panel>

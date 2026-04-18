@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
 import { adminApi } from '@/lib/api';
-import { EmptyState, FieldInput, FieldSelect, LoadingLines, MetricCard, Notice, Panel, SectionHeader, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, MetricCard, Notice, Panel, SectionHeader, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 import { EventNotFound, EventWorkspaceHeader, formatAdminDateTime, memberStatusTone, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
 
 const STATUS_FILTERS = ['ALL', 'PENDING', 'ACTIVE', 'RESERVE', 'REJECTED', 'CANCELLED', 'REMOVED'] as const;
@@ -146,7 +146,7 @@ export default function EventRegistrationsPage() {
                   <option key={status} value={status}>{status === 'ALL' ? (locale === 'ru' ? 'Все статусы' : 'All statuses') : status}</option>
                 ))}
               </FieldSelect>
-              <StatusBadge tone="info">{requiredEventFields.length} required</StatusBadge>
+              
             </ToolbarRow>
 
             {filteredMembers.length === 0 ? (
@@ -176,8 +176,8 @@ export default function EventRegistrationsPage() {
                               <strong>{member.user?.name ?? member.user?.email ?? '—'}</strong>
                               <div className="signal-muted">{member.user?.email}</div>
                             </td>
-                            <td><StatusBadge tone={memberStatusTone(member.status)}>{member.status}</StatusBadge></td>
-                            <td><StatusBadge tone={percent === 100 ? 'success' : 'warning'}>{percent}%</StatusBadge></td>
+                            <td></td>
+                            <td></td>
                             <td className="signal-muted">{formatAdminDateTime(member.assignedAt, locale)}</td>
                             <td className="right">
                               <div className="signal-row-actions">
