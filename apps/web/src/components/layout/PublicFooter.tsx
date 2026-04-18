@@ -19,7 +19,7 @@ export function PublicFooter({ locale }: { locale: string }) {
               <h4>{locale === 'ru' ? 'Навигация' : 'Navigation'}</h4>
               <Link href={`/${locale}/events`}>{locale === 'ru' ? 'Мероприятия' : 'Events'}</Link>
               <Link href={`/${locale}/login`}>{locale === 'ru' ? 'Вход' : 'Login'}</Link>
-              <Link href="/doc/privacy-policy-ru.pdf" target="_blank">{locale === 'ru' ? 'Политика конфиденциальности' : 'Privacy Policy'}</Link>
+              <Link href={`/${locale}/privacy-policy`}>{locale === 'ru' ? 'Политика конфиденциальности' : 'Privacy Policy'}</Link>
             </div>
           </div>
         </div>
