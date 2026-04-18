@@ -209,7 +209,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <aside className={cn('admin-sidebar admin-shell-sidebar', sidebarOpen && 'open')}>
         {/* Brand */}
         <div className="admin-sidebar-brand">
-          <img src="/logo.svg" alt="Русский Дом" width="34" height="34" className="admin-brand-mark" />
+          <img src="/site-logo.png" alt="Русский Дом" width="34" height="34" className="admin-brand-mark" />
           <div>
             <div className="admin-brand-title">Русский Дом</div>
             <div className="admin-brand-subtitle">{locale === 'ru' ? 'Панель управления' : 'Control center'}</div>

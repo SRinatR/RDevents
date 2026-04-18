@@ -159,7 +159,7 @@ export default function RegisterPage() {
     <div className="auth-shell">
       <div className="auth-brand-panel">
           <Link href={`/${locale}`} className="public-logo">
-            <img src="/logo.svg" alt="Русский Дом" width="32" height="32" className="public-logo-mark" />
+            <img src="/site-logo.png" alt="Русский Дом" width="32" height="32" className="public-logo-mark" />
             <span className="public-logo-text">Русский Дом</span>
           </Link>
         <div className="auth-brand-content">

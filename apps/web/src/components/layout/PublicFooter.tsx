@@ -7,7 +7,7 @@ export function PublicFooter({ locale }: { locale: string }) {
         <div className="public-footer-grid">
           <div>
             <div className="public-footer-brand">
-              <img src="/logo.svg" alt="Русский Дом" width="32" height="32" className="public-logo-mark" />
+              <img src="/site-logo.png" alt="Русский Дом" width="32" height="32" className="public-logo-mark" />
               <div>
                 <div className="public-footer-title">Русский Дом</div>
                 <div className="public-footer-subtitle">
