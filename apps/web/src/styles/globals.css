@@ -5074,11 +5074,11 @@ body {
 
 .profile-address-grid {
   display: grid;
-  grid-template-columns: minmax(0, 280px) minmax(0, 400px);
-  gap: 12px 14px;
+  grid-template-columns: minmax(0, 280px) minmax(0, 320px);
+  gap: 12px 28px;
   justify-content: start;
   align-items: start;
-  width: min(100%, 694px);
+  width: min(100%, 700px);
 }
 
 .profile-address-field {
@@ -5091,11 +5091,15 @@ body {
 }
 
 .profile-address-field-factual {
-  --address-field-max: 400px;
+  --address-field-max: 300px;
+  padding-left: 10px;
 }
 
 .profile-address-field-factual .signal-textarea {
+  width: 300px;
+  max-width: 420px;
   min-height: 96px;
+  resize: both;
 }
 
 @media (max-width: 1024px) {
@@ -5106,6 +5110,16 @@ body {
 
   .profile-address-field {
     --address-field-max: 100%;
+  }
+
+  .profile-address-field-factual {
+    padding-left: 0;
+  }
+
+  .profile-address-field-factual .signal-textarea {
+    width: 100%;
+    max-width: 100%;
+    resize: vertical;
   }
 }
 
