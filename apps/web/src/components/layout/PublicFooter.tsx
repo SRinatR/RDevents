@@ -7,13 +7,7 @@ export function PublicFooter({ locale }: { locale: string }) {
         <div className="public-footer-grid">
           <div>
             <div className="public-footer-brand">
-              <img src="/logo.svg" alt="Русский Дом" width="32" height="32" className="public-logo-mark" />
-              <div>
-                <div className="public-footer-title">Русский Дом</div>
-                <div className="public-footer-subtitle">
-                  {locale === 'ru' ? 'Культура и образование' : 'Culture and Education'}
-                </div>
-              </div>
+              <img src="/site-logo.png" alt="Русский Дом" className="public-logo-mark public-logo-mark-footer" />
             </div>
             <a href="mailto:support@russkiydom.local" className="btn btn-secondary btn-sm public-footer-feedback">
               {locale === 'ru' ? 'Обратная связь' : 'Feedback'}
