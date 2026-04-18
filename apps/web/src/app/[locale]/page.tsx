@@ -1,3 +1,5 @@
+import { access } from 'node:fs/promises';
+import path from 'node:path';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { PublicFooter } from '../../components/layout/PublicFooter';
@@ -25,6 +27,7 @@ export default async function HomePage({ params }: HomePageProps) {
   const t = await getTranslations();
   const heroEvent = previewEvents[0] ?? null;
   const streamEvents = previewEvents.slice(1, 5);
+  const heroImageSrc = await resolveHomeHeroImageSrc(heroEvent?.coverImageUrl ?? null);
 
   return (
     <div className="public-page-shell route-shell route-home route-home-v3">
@@ -33,8 +36,8 @@ export default async function HomePage({ params }: HomePageProps) {
         {/* Hero: catalog-first — primary action is browsing events */}
         <section className="home-v3-hero motion-fade-up">
           <div className="home-v3-hero-media">
-            {heroEvent?.coverImageUrl
-              ? <img src={heroEvent.coverImageUrl} alt={heroEvent.title} />
+            {heroImageSrc
+              ? <img src={heroImageSrc} alt={heroEvent?.title ?? t('home.heroTitle')} />
               : <div className="home-v3-hero-fallback-art" />}
             <div className="home-v3-hero-overlay" />
           </div>
@@ -167,6 +170,20 @@ export default async function HomePage({ params }: HomePageProps) {
 
 function CoverFallback({ title }: { title: string }) {
   return <div className="cover-fallback"><span>{title.slice(0, 2).toUpperCase()}</span></div>;
+}
+
+
+const HOME_HERO_LOCAL_IMAGE_PUBLIC_PATH = '/images/home-hero-russian-house.jpg';
+
+async function resolveHomeHeroImageSrc(fallbackImageUrl: string | null) {
+  const localHeroFilePath = path.join(process.cwd(), 'public', 'images', 'home-hero-russian-house.jpg');
+
+  try {
+    await access(localHeroFilePath);
+    return HOME_HERO_LOCAL_IMAGE_PUBLIC_PATH;
+  } catch {
+    return fallbackImageUrl;
+  }
 }
 
 async function getPreviewEvents(): Promise<PreviewEvent[]> {
