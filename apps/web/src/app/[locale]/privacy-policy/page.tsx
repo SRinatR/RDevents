@@ -35,43 +35,43 @@ export default async function PrivacyPolicyPage({ params }: PrivacyPolicyPagePro
   return (
     <div className="public-page-shell route-shell route-privacy-policy">
       <main className="public-main privacy-main">
-        <div className="privacy-workspace">
-          <header className="privacy-header">
-            <h1>{privacy.title}</h1>
+        <div className="privacy-shell">
+          <aside className="privacy-rail" aria-label={privacy.quickNavTitle}>
+            <div className="privacy-rail-inner">
+              <h2>{privacy.quickNavTitle}</h2>
+              <ol>
+                {privacy.sections.map((section) => (
+                  <li key={section.id}>
+                    <a href={`#${section.id}`}>{section.title}</a>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </aside>
 
-            <dl className="privacy-meta-grid">
-              <div>
-                <dt>{privacy.effectiveDateLabel}</dt>
-                <dd>[Effective Date]</dd>
-              </div>
-              <div>
-                <dt>{privacy.operatorLabel}</dt>
-                <dd>[Legal Entity Name]</dd>
-              </div>
-              <div>
-                <dt>{privacy.contactEmailLabel}</dt>
-                <dd>[Contact Email]</dd>
-              </div>
-              <div>
-                <dt>{privacy.postalAddressLabel}</dt>
-                <dd>[Postal Address]</dd>
-              </div>
-            </dl>
-          </header>
+          <div className="privacy-pane">
+            <header className="privacy-header">
+              <h1>{privacy.title}</h1>
 
-          <div className="privacy-workspace-grid">
-            <aside className="privacy-toc" aria-label={privacy.quickNavTitle}>
-              <div className="privacy-toc-inner">
-                <h2>{privacy.quickNavTitle}</h2>
-                <ol>
-                  {privacy.sections.map((section) => (
-                    <li key={section.id}>
-                      <a href={`#${section.id}`}>{section.title}</a>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            </aside>
+              <dl className="privacy-meta-grid">
+                <div>
+                  <dt>{privacy.effectiveDateLabel}</dt>
+                  <dd>[Effective Date]</dd>
+                </div>
+                <div>
+                  <dt>{privacy.operatorLabel}</dt>
+                  <dd>[Legal Entity Name]</dd>
+                </div>
+                <div>
+                  <dt>{privacy.contactEmailLabel}</dt>
+                  <dd>[Contact Email]</dd>
+                </div>
+                <div>
+                  <dt>{privacy.postalAddressLabel}</dt>
+                  <dd>[Postal Address]</dd>
+                </div>
+              </dl>
+            </header>
 
             <article className="privacy-content">
               {privacy.sections.map((section) => (
