@@ -33,23 +33,20 @@ export default async function HomePage({ params }: HomePageProps) {
 
   return (
     <div className="public-page-shell route-shell route-home route-home-v3">
-      <main className="public-main home-v3-main">
-
-        {/* Hero: catalog-first — primary action is browsing events */}
-        <section className="home-v3-hero motion-fade-up">
-          <div className="home-v3-hero-media">
+      <main className="public-main home-landing-main">
+        <section className="home-landing-stage motion-fade-up">
+          <div className="home-landing-backdrop">
             {heroImageSrc
               ? <img src={heroImageSrc} alt={heroEvent?.title ?? t('home.heroTitle')} />
               : <div className="home-v3-hero-fallback-art" />}
-            <div className="home-v3-hero-overlay" />
           </div>
 
-          <div className="container-wide home-v3-hero-inner">
-            <div className="home-v3-hero-copy">
-              <span className="home-v3-kicker">{t('home.heroKicker')}</span>
+          <div className="container-wide home-landing-inner">
+            <div className="home-landing-copy">
+              <span className="home-landing-kicker">{t('home.heroKicker')}</span>
               <h1>{t('home.heroTitle')}</h1>
               <p>{t('home.heroSubtitle')}</p>
-              <div className="home-v3-hero-actions">
+              <div className="home-landing-actions">
                 <Link href={`/${locale}/events`} className="btn btn-primary">
                   {t('home.exploreCta')}
                 </Link>
@@ -59,9 +56,9 @@ export default async function HomePage({ params }: HomePageProps) {
               </div>
             </div>
 
-            <div className="home-v3-hero-dock">
+            <div className="home-landing-feature">
               {heroEvent ? (
-                <Link href={`/${locale}/events/${heroEvent.slug}`} className="home-v3-hero-dock-card">
+                <Link href={`/${locale}/events/${heroEvent.slug}`} className="home-landing-feature-card">
                   <small>{t('home.featuredLabel')}</small>
                   <h2>{heroEvent.title}</h2>
                   <p>
@@ -75,23 +72,19 @@ export default async function HomePage({ params }: HomePageProps) {
                   </div>
                 </Link>
               ) : (
-                <div className="home-v3-hero-dock-card home-v3-hero-dock-fallback">
+                <div className="home-landing-feature-card home-landing-feature-fallback">
                   <small>{t('home.featuredLabel')}</small>
                   <h2>{t('home.featuredFallbackTitle')}</h2>
                   <p>{t('home.featuredFallbackDesc')}</p>
-                  <Link href={`/${locale}/events`} className="signal-chip-link">
-                    {t('events.title')}
-                  </Link>
                 </div>
               )}
             </div>
           </div>
         </section>
 
-        {/* Event stream: upcoming events catalog preview */}
-        <section className="home-v3-stream motion-fade-up-fast">
-          <div className="container-wide">
-            <div className="home-v3-stream-head">
+        <section className="home-events-stage motion-fade-up-fast">
+          <div className="container-wide home-events-shell">
+            <div className="home-events-head">
               <div>
                 <h2>{t('home.upcomingTitle')}</h2>
                 <p>{t('home.upcomingSubtitle')}</p>
@@ -166,27 +159,28 @@ export default async function HomePage({ params }: HomePageProps) {
           </div>
         </section>
 
-        {/* How to start: 3 real steps backed by existing functionality */}
-        <section className="home-v3-steps motion-fade-up-fast">
-          <div className="container-wide">
-            <h2 className="home-v3-steps-title">{t('home.howItWorksTitle')}</h2>
-            <div className="home-v3-steps-grid">
-              <div className="home-v3-step-card">
-                <span className="home-v3-step-num">01</span>
-                <strong>{t('home.howItWorks.step1')}</strong>
+        <section className="home-journey-stage motion-fade-up-fast">
+          <div className="container-wide home-journey-shell">
+            <div className="home-journey-head">
+              <h2>{t('home.howItWorksTitle')}</h2>
+              <p>{t('home.howItWorksSubtitle')}</p>
+            </div>
+            <div className="home-journey-grid">
+              <div className="home-journey-card">
+                <h3>{t('home.howItWorks.step1Title')}</h3>
+                <p>{t('home.howItWorks.step1Text')}</p>
               </div>
-              <div className="home-v3-step-card">
-                <span className="home-v3-step-num">02</span>
-                <strong>{t('home.howItWorks.step2')}</strong>
+              <div className="home-journey-card">
+                <h3>{t('home.howItWorks.step2Title')}</h3>
+                <p>{t('home.howItWorks.step2Text')}</p>
               </div>
-              <div className="home-v3-step-card">
-                <span className="home-v3-step-num">03</span>
-                <strong>{t('home.howItWorks.step3')}</strong>
+              <div className="home-journey-card">
+                <h3>{t('home.howItWorks.step3Title')}</h3>
+                <p>{t('home.howItWorks.step3Text')}</p>
               </div>
             </div>
           </div>
         </section>
-
       </main>
 
       <PublicFooter locale={locale} />
