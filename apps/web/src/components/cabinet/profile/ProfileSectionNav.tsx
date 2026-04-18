@@ -32,7 +32,7 @@ export function ProfileSectionNav({
             onClick={() => onSectionChange(section.key)}
             aria-selected={isActive}
           >
-            <strong>{section.title}</strong>
+            <strong className="profile-section-tab-title">{section.title}</strong>
             <StatusBadge tone={statusCopy.tone} size="sm">{statusCopy.label[localeKey]}</StatusBadge>
           </button>
         );
