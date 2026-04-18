@@ -920,19 +920,13 @@ img { display: block; max-width: 100%; }
 
 .admin-sidebar-brand { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid rgba(148, 163, 184, 0.22); background: rgba(148, 163, 184, 0.08); }
 .admin-brand-mark {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  color: white;
-  background: linear-gradient(145deg, #1f5fe0, #c62828);
+  height: 36px;
+  width: auto;
+  max-width: min(100%, 210px);
+  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
 }
-.admin-brand-title { font-size: 0.92rem; font-weight: 700; color: #edf2fb; }
 .admin-brand-subtitle { font-size: 0.74rem; color: #8f9cb3; }
 
 .admin-nav { display: flex; flex-direction: column; gap: 6px; }
@@ -1123,22 +1117,16 @@ img { display: block; max-width: 100%; }
 .public-navbar-inner { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .public-logo { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; color: var(--color-text-primary); }
 .public-logo-mark {
-  width: 34px;
-  height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  overflow: hidden;
+  height: 36px;
+  width: auto;
+  max-width: min(100%, 220px);
+  object-fit: contain;
+  display: block;
   flex-shrink: 0;
 }
-.public-logo-mark img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  border-radius: 8px;
-}
-.public-logo-text { font-size: 0.98rem; letter-spacing: -0.01em; }
+.public-logo-mark-nav { height: 38px; }
+.public-logo-mark-footer { height: 40px; }
+.public-logo-mark-auth { height: 44px; }
 .public-nav-links { display: flex; align-items: center; gap: 4px; }
 .public-nav-link {
   padding: 8px 12px;
@@ -1352,9 +1340,7 @@ img { display: block; max-width: 100%; }
 
 .public-footer { margin-top: 40px; padding: 32px 0 22px; border-top: 1px solid rgba(209, 218, 234, 0.95); background: linear-gradient(180deg, rgba(243, 247, 253, 0.96), rgba(236, 242, 250, 0.98)); }
 .public-footer-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 18px; }
-.public-footer-brand { display: flex; align-items: center; gap: 10px; }
-.public-footer-title { font-weight: 700; color: var(--color-text-primary); }
-.public-footer-subtitle { font-size: 0.84rem; color: var(--color-text-muted); }
+.public-footer-brand { display: flex; align-items: center; }
 .public-footer-feedback { margin-top: 14px; }
 .public-footer-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .public-footer-links h4 { margin: 0 0 8px; font-size: 0.82rem; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -1644,18 +1630,7 @@ body {
   background: rgba(247, 251, 255, 0.92);
 }
 .public-logo-mark {
-  box-shadow: 0 8px 18px rgba(31, 88, 216, 0.26);
-}
-.public-logo-text-wrap {
-  display: grid;
-  line-height: 1.1;
-}
-.public-logo-caption {
-  font-size: 0.68rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-text-faint);
-  font-weight: 700;
+  box-shadow: 0 8px 18px rgba(31, 88, 216, 0.2);
 }
 
 .public-hero {
@@ -5678,10 +5653,6 @@ body {
 .admin-sidebar-brand {
   border: 1px solid rgba(199, 211, 230, 0.92);
   background: rgba(255, 255, 255, 0.82);
-}
-
-.admin-brand-title {
-  color: var(--color-text-primary);
 }
 
 .admin-brand-subtitle {
