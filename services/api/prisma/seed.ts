@@ -266,7 +266,7 @@ async function main() {
       fullDescription: `Квест создаётся как живое путешествие по русской культуре. Участники получают «Паспорт гостя Русского дома» и проходят шесть культурных пространств. Каждая станция раскрывает отдельную грань общей идеи — дом как место языка, традиций, музыки, творчества, общения и характера.
 
 После прохождения всех точек команда открывает финальную страницу маршрута, участвует в награждении и становится частью общего праздничного события к юбилею Русского дома.`,
-      category: 'Arts & Culture',
+      category: 'Community',
       location: 'Русский дом в Ташкенте, ул. Нукус, 83',
       coverImageUrl: '/dom-gde-zhivet-rossiya.jpg',
       capacity: 180,
@@ -276,7 +276,7 @@ async function main() {
       registrationEnabled: true,
       volunteerApplicationsEnabled: false,
       allowSoloParticipation: true,
-      isTeamBased: false,
+      isTeamBased: true,
       tags: ['квест', 'культура', 'русский-дом'],
       contactEmail: 'platform@example.com',
       status: EventStatus.PUBLISHED,
