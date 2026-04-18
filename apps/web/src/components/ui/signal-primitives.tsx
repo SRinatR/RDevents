@@ -55,18 +55,6 @@ export function MetricCard({ label, value, tone = 'neutral' }: { label: string; 
 
 type StatusTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
-export function StatusBadge({
-  children,
-  tone = 'neutral',
-  size = 'md',
-}: {
-  children: ReactNode;
-  tone?: StatusTone;
-  size?: 'sm' | 'md';
-}) {
-  return <span className={cn('signal-status-badge', `tone-${tone}`, `size-${size}`)}>{children}</span>;
-}
-
 export function ToolbarRow({ children }: { children: ReactNode }) {
   return <div className="signal-toolbar-row">{children}</div>;
 }

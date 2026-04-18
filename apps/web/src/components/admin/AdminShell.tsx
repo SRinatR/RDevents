@@ -68,13 +68,6 @@ function getEventIdFromPath(pathname: string, locale: string) {
   return id === 'new' ? '' : id;
 }
 
-function getStatusTone(status?: string | null) {
-  if (status === 'PUBLISHED') return 'success';
-  if (status === 'DRAFT') return 'warning';
-  if (status === 'CANCELLED') return 'danger';
-  return 'info';
-}
-
 function formatEventDate(value?: string | null, locale = 'ru') {
   if (!value) return '';
   try {
@@ -277,9 +270,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
               <strong>{currentEvent.title}</strong>
             </div>
           ) : null}
-          <div className="admin-topbar-role">
-            <span className="signal-status-badge tone-info">{roleLabel}</span>
-          </div>
+          <div className="admin-topbar-role">{roleLabel}</div>
           <Link href={`/${locale}/admin/events/new`} className="btn btn-primary btn-sm admin-topbar-action">
             {t('admin.createEvent')}
           </Link>
@@ -296,7 +287,6 @@ export function AdminShell({ children }: { children: ReactNode }) {
                 <strong>{currentEvent.title}</strong>
               </div>
               <div className="admin-event-context-meta">
-                <span className={cn('signal-status-badge size-sm', `tone-${getStatusTone(currentEvent.status)}`)}>{currentEvent.status ?? 'EVENT'}</span>
                 {currentEvent.startsAt ? <span>{formatEventDate(currentEvent.startsAt, locale)}</span> : null}
                 {currentEvent.location ? <span>{currentEvent.location}</span> : null}
                 {currentEvent.category ? <span>{currentEvent.category}</span> : null}

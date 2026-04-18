@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
 import { adminApi } from '@/lib/api';
-import { EmptyState, FieldInput, FieldSelect, LoadingLines, MetricCard, Notice, Panel, SectionHeader, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, MetricCard, Notice, Panel, SectionHeader, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 import { EventNotFound, EventWorkspaceHeader, formatAdminDateTime, memberStatusTone, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
 
 const STATUS_FILTERS = ['ALL', 'PENDING', 'ACTIVE', 'RESERVE', 'REJECTED', 'CANCELLED', 'REMOVED'] as const;
@@ -150,7 +150,7 @@ export default function EventParticipantsPage() {
                   <option key={status} value={status}>{status === 'ALL' ? (locale === 'ru' ? 'Все статусы' : 'All statuses') : status}</option>
                 ))}
               </FieldSelect>
-              <StatusBadge tone="info">{filteredParticipants.length} {locale === 'ru' ? 'строк' : 'rows'}</StatusBadge>
+              
             </ToolbarRow>
 
             {filteredParticipants.length === 0 ? (
@@ -179,7 +179,7 @@ export default function EventParticipantsPage() {
                             <div className="signal-muted">{participant.user?.email}</div>
                           </td>
                           <td>{participant.user?.city ?? '—'}</td>
-                          <td><StatusBadge tone={memberStatusTone(participant.status)}>{participant.status}</StatusBadge></td>
+                          <td></td>
                           <td className="signal-muted">{formatAdminDateTime(participant.assignedAt, locale)}</td>
                           <td className="right">
                             <div className="signal-row-actions">

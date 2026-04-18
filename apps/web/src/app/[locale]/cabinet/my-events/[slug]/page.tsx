@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../../../hooks/useAuth';
 import { eventsApi } from '../../../../../lib/api';
 import { useRouteLocale } from '../../../../../hooks/useRouteParams';
-import { EmptyState, FieldInput, Notice, PageHeader, Panel, SectionHeader, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldInput, Notice, PageHeader, Panel, SectionHeader, ToolbarRow } from '@/components/ui/signal-primitives';
 
 export default function CabinetEventDashboard({ params }: { params: Promise<{ slug: string }> }) {
   const { user, loading } = useAuth();
@@ -108,7 +108,7 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
           {myTeam ? (
             <div className="signal-stack">
               <Notice tone="success">{locale === 'ru' ? 'Вы состоите в команде' : 'You are in team'}: {myTeam.name}</Notice>
-              <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Код приглашения' : 'Invite code'}</span><StatusBadge tone="info">{myTeam.joinCode}</StatusBadge></div>
+              <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Код приглашения' : 'Invite code'}</span></div>
             </div>
           ) : (
             <div className="signal-stack">
@@ -149,7 +149,7 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
         <Panel variant="elevated" className="workspace-event-panel">
           <SectionHeader title={locale === 'ru' ? 'Волонтёрский статус' : 'Volunteer status'} />
           {isVolunteer ? (
-            <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Текущий статус' : 'Current status'}</span><StatusBadge tone={isVolunteer.status === 'PENDING' ? 'warning' : isVolunteer.status === 'ACTIVE' || isVolunteer.status === 'APPROVED' ? 'success' : 'danger'}>{isVolunteer.status}</StatusBadge></div>
+            <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Текущий статус' : 'Current status'}</span></div>
           ) : (
             <EmptyState title={locale === 'ru' ? 'Заявка не подана' : 'No volunteer request'} description={locale === 'ru' ? 'Подайте заявку на публичной странице мероприятия.' : 'Apply from the public event page.'} actions={<Link href={`/${locale}/events/${event.slug}`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Открыть страницу события' : 'Open event page'}</Link>} />
           )}

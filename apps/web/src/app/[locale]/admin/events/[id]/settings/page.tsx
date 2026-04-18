@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
 import { adminApi } from '@/lib/api';
-import { EmptyState, LoadingLines, Notice, Panel, SectionHeader, StatusBadge } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, Notice, Panel, SectionHeader } from '@/components/ui/signal-primitives';
 import { EventNotFound, EventWorkspaceHeader, formatAdminDateTime, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
 
 export default function EventSettingsPage() {
@@ -81,7 +81,7 @@ export default function EventSettingsPage() {
               <div><small>{locale === 'ru' ? 'Открытие регистрации' : 'Registration opens'}</small><strong>{formatAdminDateTime(event.registrationOpensAt, locale)}</strong></div>
               <div><small>{locale === 'ru' ? 'Дедлайн' : 'Deadline'}</small><strong>{formatAdminDateTime(event.registrationDeadline, locale)}</strong></div>
             </div>
-            {tags.length ? <div className="admin-chip-grid">{tags.map((tag) => <StatusBadge key={tag} tone="info">{tag}</StatusBadge>)}</div> : null}
+            {tags.length ? <div className="signal-muted">{tags.join(', ')}</div> : null}
           </Panel>
 
           <Panel variant="elevated" className="admin-command-panel">
@@ -104,7 +104,7 @@ export default function EventSettingsPage() {
                 {admins.map((admin) => (
                   <div className="signal-ranked-item" key={admin.id}>
                     <span>{admin.user?.name ?? admin.user?.email}</span>
-                    <StatusBadge tone="success">{admin.status}</StatusBadge>
+                    
                   </div>
                 ))}
               </div>

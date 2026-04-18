@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, LoadingLines, MetricCard, PageHeader, Panel, StatusBadge } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, MetricCard, PageHeader, Panel } from '@/components/ui/signal-primitives';
 
 export default function AdminEmailPage() {
   const t = useTranslations();
@@ -118,19 +118,15 @@ export default function AdminEmailPage() {
           <div className="signal-stack">
             <div className="signal-ranked-item">
               <span>{locale === 'ru' ? 'Провайдер' : 'Provider'}</span>
-              <StatusBadge tone="info">{overview.provider ?? 'Not configured'}</StatusBadge>
+              
             </div>
             <div className="signal-ranked-item">
               <span>{locale === 'ru' ? 'Отправляющий домен' : 'Sending domain'}</span>
-              <StatusBadge tone={overview.sendingDomainStatus === 'verified' ? 'success' : 'warning'}>
-                {overview.sendingDomain ?? 'Not configured'}
-              </StatusBadge>
+              
             </div>
             <div className="signal-ranked-item">
               <span>{locale === 'ru' ? 'Вебхук endpoint' : 'Webhook endpoint'}</span>
-              <StatusBadge tone={overview.webhookStatus === 'active' ? 'success' : 'neutral'}>
-                {overview.webhookEndpoint ?? 'Not configured'}
-              </StatusBadge>
+              
             </div>
           </div>
         ) : (
@@ -154,9 +150,7 @@ export default function AdminEmailPage() {
               <div className="signal-ranked-item" key={index}>
                 <span className="signal-rank">{index + 1}</span>
                 <span className="signal-overflow-ellipsis">{event.type}</span>
-                <StatusBadge tone={event.status === 'delivered' ? 'success' : event.status === 'failed' ? 'danger' : 'neutral'}>
-                  {event.status}
-                </StatusBadge>
+                
               </div>
             ))}
           </div>

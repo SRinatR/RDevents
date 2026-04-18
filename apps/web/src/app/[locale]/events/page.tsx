@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { eventsApi } from '../../../lib/api';
 import { analyticsApi } from '../../../lib/api';
 import { useRouteLocale } from '../../../hooks/useRouteParams';
-import { EmptyState, FieldInput, FieldSelect, LoadingLines, StatusBadge } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines } from '@/components/ui/signal-primitives';
 import { PublicFooter } from '../../../components/layout/PublicFooter';
 
 const CATEGORIES = ['Tech', 'Community', 'Business', 'Design', 'Arts & Culture', 'Sports'];
@@ -195,7 +195,7 @@ export default function EventsPage() {
                             <span>{event.location}</span>
                           </div>
                           <div className="catalog-v6-card-footer">
-                            <StatusBadge tone={visualState.tone} size="sm">{visualState.label}</StatusBadge>
+                            
                             <span className="catalog-v5-card-category">{event.category}</span>
                           </div>
                           {showProgress && (

@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
 import { adminApi } from '@/lib/api';
-import { EmptyState, LoadingLines, MetricCard, Notice, Panel, SectionHeader, StatusBadge } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, MetricCard, Notice, Panel, SectionHeader } from '@/components/ui/signal-primitives';
 import { EventNotFound, EventWorkspaceHeader, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
 
 function statusCount(items: any[], status: string) {
@@ -124,7 +124,7 @@ export default function EventAnalyticsPage() {
                 ].map(([label, value, tone]) => (
                   <div className="signal-ranked-item" key={String(label)}>
                     <span>{label}</span>
-                    <StatusBadge tone={tone as any}>{Number(value).toLocaleString()}</StatusBadge>
+                    
                   </div>
                 ))}
               </div>
@@ -133,10 +133,10 @@ export default function EventAnalyticsPage() {
             <Panel variant="elevated" className="admin-command-panel">
               <SectionHeader title={locale === 'ru' ? 'Команды и волонтёры' : 'Teams and volunteers'} subtitle={locale === 'ru' ? 'Операционный разрез события' : 'Operational breakdown for this event'} />
               <div className="admin-funnel-list">
-                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Команд' : 'Teams'}</span><StatusBadge tone="info">{teams.length}</StatusBadge></div>
-                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Участников в командах' : 'Team members'}</span><StatusBadge tone="neutral">{teams.reduce((sum, team) => sum + Number(team._count?.members ?? team.members?.length ?? 0), 0)}</StatusBadge></div>
-                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Волонтёров активных' : 'Active volunteers'}</span><StatusBadge tone="success">{metrics.volunteersApproved}</StatusBadge></div>
-                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Волонтёров в очереди' : 'Volunteer queue'}</span><StatusBadge tone="warning">{metrics.volunteersPending}</StatusBadge></div>
+                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Команд' : 'Teams'}</span></div>
+                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Участников в командах' : 'Team members'}</span></div>
+                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Волонтёров активных' : 'Active volunteers'}</span></div>
+                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Волонтёров в очереди' : 'Volunteer queue'}</span></div>
               </div>
             </Panel>
           </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { EmptyState, Notice, StatusBadge } from '@/components/ui/signal-primitives';
+import { EmptyState, Notice } from '@/components/ui/signal-primitives';
 import { ProfileSectionLayout } from './ProfileSectionLayout';
 import type { ProfileDocument, ProfileSectionStatus } from './profile.types';
 
@@ -85,7 +85,7 @@ export function ProfileDocumentsSection({
                   <span>{formatBytes(document.sizeBytes)} · {formatDate(document.createdAt, locale)}</span>
                 </div>
                 <div className="profile-document-actions">
-                  <StatusBadge tone="success" size="sm">{locale === 'ru' ? 'Активен' : 'Active'}</StatusBadge>
+                  
                   <a className="btn btn-secondary btn-sm" href={document.publicUrl} target="_blank" rel="noreferrer">
                     {locale === 'ru' ? 'Открыть' : 'Open'}
                   </a>

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
 import { adminApi } from '@/lib/api';
-import { EmptyState, LoadingLines, Notice, Panel, SectionHeader, StatusBadge } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, Notice, Panel, SectionHeader } from '@/components/ui/signal-primitives';
 import { EventNotFound, EventWorkspaceHeader, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
 
 export default function EventFormsPage() {
@@ -75,9 +75,7 @@ export default function EventFormsPage() {
               {profileFields.length === 0 ? (
                 <EmptyState title={locale === 'ru' ? 'Нет обязательных полей профиля' : 'No required profile fields'} description={locale === 'ru' ? 'Пользователю достаточно базового аккаунта.' : 'A basic account is enough for registration.'} />
               ) : (
-                <div className="admin-chip-grid">
-                  {profileFields.map((field) => <StatusBadge key={field} tone="info">{field}</StatusBadge>)}
-                </div>
+                <div className="signal-muted">{profileFields.join(', ')}</div>
               )}
             </Panel>
 
@@ -86,9 +84,7 @@ export default function EventFormsPage() {
               {eventFields.length === 0 ? (
                 <EmptyState title={locale === 'ru' ? 'Нет дополнительных вопросов' : 'No extra questions'} description={locale === 'ru' ? 'Регистрация не просит отдельные ответы по событию.' : 'Registration does not ask event-specific questions.'} />
               ) : (
-                <div className="admin-chip-grid">
-                  {eventFields.map((field) => <StatusBadge key={field} tone="warning">{field}</StatusBadge>)}
-                </div>
+                <div className="signal-muted">{eventFields.join(', ')}</div>
               )}
             </Panel>
           </div>
