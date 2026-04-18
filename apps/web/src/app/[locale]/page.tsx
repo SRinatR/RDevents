@@ -26,7 +26,9 @@ export default async function HomePage({ params }: HomePageProps) {
   const previewEvents = await getPreviewEvents();
   const t = await getTranslations();
   const heroEvent = previewEvents[0] ?? null;
-  const streamEvents = previewEvents.slice(1, 5);
+  const hasSinglePreviewEvent = previewEvents.length === 1;
+  const streamEvents = hasSinglePreviewEvent ? [previewEvents[0]] : previewEvents.slice(1, 5);
+  const streamSingleEvent = hasSinglePreviewEvent ? previewEvents[0] : null;
   const heroImageSrc = await resolveHomeHeroImageSrc(heroEvent?.coverImageUrl ?? null);
 
   return (
@@ -99,7 +101,31 @@ export default async function HomePage({ params }: HomePageProps) {
               </Link>
             </div>
 
-            {streamEvents.length === 0 ? (
+            {streamSingleEvent ? (
+              <div className="home-v3-stream-layout motion-stagger">
+                <Link
+                  href={`/${locale}/events/${streamSingleEvent.slug}`}
+                  className="home-v3-stream-card is-full"
+                >
+                  <div className="home-v3-stream-card-cover">
+                    {streamSingleEvent.coverImageUrl
+                      ? <img src={streamSingleEvent.coverImageUrl} alt={streamSingleEvent.title} />
+                      : <CoverFallback title={streamSingleEvent.title} />}
+                  </div>
+                  <div className="home-v3-stream-card-body">
+                    <h3>{streamSingleEvent.title}</h3>
+                    {streamSingleEvent.shortDescription && (
+                      <p className="home-v3-stream-card-desc">{streamSingleEvent.shortDescription}</p>
+                    )}
+                    <div className="home-meta-row">
+                      <span>{formatPreviewDate(streamSingleEvent.startsAt, locale)}</span>
+                      <span>{streamSingleEvent.location}</span>
+                      <span>{streamSingleEvent.category}</span>
+                    </div>
+                  </div>
+                </Link>
+              </div>
+            ) : streamEvents.length === 0 ? (
               <div className="signal-empty-state">
                 <h3>{t('home.streamEmptyTitle')}</h3>
                 <p>{t('home.streamEmptyDesc')}</p>
