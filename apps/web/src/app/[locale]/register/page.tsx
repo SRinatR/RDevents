@@ -159,8 +159,7 @@ export default function RegisterPage() {
     <div className="auth-shell">
       <div className="auth-brand-panel">
           <Link href={`/${locale}`} className="public-logo">
-            <img src="/logo.svg" alt="Русский Дом" width="32" height="32" className="public-logo-mark" />
-            <span className="public-logo-text">Русский Дом</span>
+            <img src="/site-logo.png" alt="Русский Дом" className="public-logo-mark public-logo-mark-auth" />
           </Link>
         <div className="auth-brand-content">
           <h1>{isRu ? 'Создайте аккаунт участника' : 'Create your participant account'}</h1>
