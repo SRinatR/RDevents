@@ -1090,10 +1090,13 @@ img { display: block; max-width: 100%; }
   object-fit: contain;
   display: block;
   flex-shrink: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
-.public-logo-mark-nav { height: 38px; }
-.public-logo-mark-footer { height: 40px; }
-.public-logo-mark-auth { height: 44px; }
+.public-logo-mark-nav { height: 38px; box-shadow: none; }
+.public-logo-mark-footer { height: 40px; box-shadow: none; }
+.public-logo-mark-auth { height: 44px; box-shadow: none; }
 .public-nav-links { display: flex; align-items: center; gap: 4px; }
 .public-nav-link {
   padding: 8px 12px;
@@ -1718,10 +1721,6 @@ body {
   box-shadow: 0 16px 34px rgba(17, 29, 54, 0.09);
   background: rgba(247, 251, 255, 0.92);
 }
-.public-logo-mark {
-  box-shadow: 0 8px 18px rgba(31, 88, 216, 0.2);
-}
-
 .public-hero {
   padding: 62px 0 40px;
 }
