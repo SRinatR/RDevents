@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { authApi } from '../lib/api';
 import { useAuth } from './useAuth';
 import type {
-  ProfileActivity,
   ProfileDocument,
   ProfileSectionKey,
   ProfileSectionState,
@@ -20,7 +19,6 @@ export function useProfileSections(locale = 'ru') {
   const localeKey = getLocaleKey(locale);
   const [sections, setSections] = useState<ProfileSectionState[]>(getDefaultSections(localeKey));
   const [documents, setDocuments] = useState<ProfileDocument[]>([]);
-  const [activity, setActivity] = useState<ProfileActivity>({ events: [], teams: [], volunteerApplications: [] });
   const [loading, setLoading] = useState(true);
   const [savingSection, setSavingSection] = useState<ProfileSectionKey | null>(null);
   const [error, setError] = useState('');
@@ -48,16 +46,6 @@ export function useProfileSections(locale = 'ru') {
     setDocuments(nextDocuments as ProfileDocument[]);
   }, [user]);
 
-  const reloadActivity = useCallback(async () => {
-    if (!user) return;
-    const nextActivity = await authApi.getProfileActivity();
-    setActivity({
-      events: Array.isArray(nextActivity.events) ? nextActivity.events : [],
-      teams: Array.isArray(nextActivity.teams) ? nextActivity.teams : [],
-      volunteerApplications: Array.isArray(nextActivity.volunteerApplications) ? nextActivity.volunteerApplications : [],
-    });
-  }, [user]);
-
   const reloadAll = useCallback(async () => {
     if (!user) {
       setLoading(false);
@@ -67,13 +55,13 @@ export function useProfileSections(locale = 'ru') {
     setLoading(true);
     setError('');
     try {
-      await Promise.all([reloadSections(), reloadDocuments(), reloadActivity()]);
+      await Promise.all([reloadSections(), reloadDocuments()]);
     } catch (err: any) {
       setError(err.message || 'Failed to load profile');
     } finally {
       setLoading(false);
     }
-  }, [reloadActivity, reloadDocuments, reloadSections, user]);
+  }, [reloadDocuments, reloadSections, user]);
 
   useEffect(() => {
     void reloadAll();
@@ -133,14 +121,12 @@ export function useProfileSections(locale = 'ru') {
   return {
     sections,
     documents,
-    activity,
     loading,
     savingSection,
     error,
     success,
     reloadSections,
     reloadDocuments,
-    reloadActivity,
     saveSection,
     uploadAvatar,
     deleteAvatar,

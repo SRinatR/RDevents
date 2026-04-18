@@ -67,7 +67,6 @@ export function ProfilePhotoSection({
       return objectUrl;
     });
     await onUpload(file);
-    setPreviewUrl('');
     if (inputRef.current) inputRef.current.value = '';
   }
 

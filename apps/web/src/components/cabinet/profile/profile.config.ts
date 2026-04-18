@@ -7,12 +7,10 @@ export const PROFILE_SECTION_ORDER: ProfileSectionKey[] = [
   'address',
   'languages',
   'documents',
-  'consents',
-  'activity',
 ];
 
 export const PROFILE_SECTION_COPY: Record<
-  ProfileSectionKey,
+  (typeof PROFILE_SECTION_ORDER)[number],
   {
     title: Record<'ru' | 'en', string>;
     description: Record<'ru' | 'en', string>;
@@ -41,14 +39,6 @@ export const PROFILE_SECTION_COPY: Record<
   documents: {
     title: { ru: 'Документы', en: 'Documents' },
     description: { ru: 'Файлы для участия и проверки', en: 'Files for participation and checks' },
-  },
-  consents: {
-    title: { ru: 'Согласия', en: 'Consents' },
-    description: { ru: 'Персональные данные и правила клиента', en: 'Personal data and client rules' },
-  },
-  activity: {
-    title: { ru: 'Активность', en: 'Activity' },
-    description: { ru: 'Мероприятия, заявки и команды', en: 'Events, applications, and teams' },
   },
 };
 

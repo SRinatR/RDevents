@@ -1,5 +1,5 @@
 import { prisma } from '../../db/prisma.js';
-import { getMyEvents, getMyTeams, getMyVolunteerApplications } from '../events/events.service.js';
+import { buildPublicMediaUrl } from '../../common/storage.js';
 import { sanitizeUser } from './auth.service.js';
 import {
   PROFILE_SECTION_KEYS,
@@ -52,13 +52,7 @@ export async function updateProfileSection(userId: string, sectionKey: ProfileSe
   if (sectionKey === 'basic') {
     await updateBasicSection(userId, data);
   } else if (sectionKey === 'contacts') {
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        ...(data['phone'] !== undefined && { phone: nullableString(data['phone']) }),
-        ...(data['telegram'] !== undefined && { telegram: nullableString(data['telegram']) }),
-      },
-    });
+    await updateContactsSection(userId, data);
   } else if (sectionKey === 'address') {
     await prisma.user.update({
       where: { id: userId },
@@ -75,8 +69,6 @@ export async function updateProfileSection(userId: string, sectionKey: ProfileSe
         ...(data['communicationLanguage'] !== undefined && { communicationLanguage: nullableString(data['communicationLanguage']) }),
       },
     });
-  } else if (sectionKey === 'consents') {
-    await updateConsentsSection(userId, data);
   }
 
   const user = await getProfileUserForResponse(userId);
@@ -129,22 +121,6 @@ export async function removeProfileDocument(userId: string, assetId: string) {
   return upsertSectionState(userId, 'documents', getSectionStatus('documents', statusUser as ProfileUser));
 }
 
-export async function getProfileActivity(userId: string) {
-  const [events, teams, volunteerApplications] = await Promise.all([
-    getMyEvents(userId),
-    getMyTeams(userId),
-    getMyVolunteerApplications(userId),
-  ]);
-
-  await upsertSectionState(userId, 'activity', 'COMPLETED');
-
-  return {
-    events,
-    teams,
-    volunteerApplications,
-  };
-}
-
 async function updateBasicSection(userId: string, input: Record<string, any>) {
   const existing = await prisma.user.findUnique({ where: { id: userId } });
   if (!existing) throw new Error('NOT_FOUND');
@@ -183,27 +159,32 @@ async function updateBasicSection(userId: string, input: Record<string, any>) {
   });
 }
 
-async function updateConsentsSection(userId: string, input: Record<string, any>) {
+async function updateContactsSection(userId: string, input: Record<string, any>) {
   const existing = await prisma.user.findUnique({
     where: { id: userId },
     select: {
-      consentPersonalDataAt: true,
-      consentClientRulesAt: true,
+      phone: true,
+      telegram: true,
     },
   });
   if (!existing) throw new Error('NOT_FOUND');
 
-  const now = new Date();
-  const consentPersonalData = Boolean(input['consentPersonalData']);
-  const consentClientRules = Boolean(input['consentClientRules']);
+  const nextPhone = input['phone'] !== undefined ? normalizeUzbekPhone(input['phone']) : existing.phone;
+  const nextTelegram = input['telegram'] !== undefined ? normalizeTelegramUsername(input['telegram']) : existing.telegram;
+  const phoneChanged = normalizeComparable(nextPhone) !== normalizeComparable(existing.phone);
+  const telegramChanged = normalizeComparable(nextTelegram) !== normalizeComparable(existing.telegram);
 
   await prisma.user.update({
     where: { id: userId },
     data: {
-      consentPersonalData,
-      consentClientRules,
-      consentPersonalDataAt: consentPersonalData ? existing.consentPersonalDataAt ?? now : null,
-      consentClientRulesAt: consentClientRules ? existing.consentClientRulesAt ?? now : null,
+      ...(input['phone'] !== undefined && {
+        phone: nextPhone,
+        ...(phoneChanged ? { phoneVerifiedAt: null } : {}),
+      }),
+      ...(input['telegram'] !== undefined && {
+        telegram: nextTelegram,
+        ...(telegramChanged ? { telegramVerifiedAt: null } : {}),
+      }),
     },
   });
 }
@@ -258,11 +239,6 @@ function getSectionStatus(sectionKey: ProfileSectionKey, user: ProfileUser): Pro
       return hasText(user.communicationLanguage) ? 'COMPLETED' : 'IN_PROGRESS';
     case 'documents':
       return Array.isArray(user.mediaAssets) && user.mediaAssets.length > 0 ? 'COMPLETED' : 'NOT_STARTED';
-    case 'consents':
-      if (!user.consentPersonalData && !user.consentClientRules) return 'NOT_STARTED';
-      return user.consentPersonalData && user.consentClientRules ? 'COMPLETED' : 'IN_PROGRESS';
-    case 'activity':
-      return 'COMPLETED';
   }
 }
 
@@ -319,13 +295,43 @@ function hasText(value: unknown) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+function normalizeComparable(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeUzbekPhone(value: unknown) {
+  if (typeof value !== 'string') return null;
+  const digits = value.replace(/\D/g, '');
+  const local = digits.startsWith('998') ? digits.slice(3) : digits;
+  const normalized = local.slice(0, 9);
+  if (normalized.length === 0) return null;
+  if (normalized.length !== 9) throw new Error('INVALID_UZBEK_PHONE');
+  return `+998${normalized}`;
+}
+
+function normalizeTelegramUsername(value: unknown) {
+  if (typeof value !== 'string') return null;
+  const cleaned = value
+    .trim()
+    .replace(/^https?:\/\/(t\.me|telegram\.me)\//i, '')
+    .replace(/^t\.me\//i, '')
+    .replace(/[/?#].*$/, '')
+    .replace(/^@+/, '')
+    .replace(/[^a-zA-Z0-9_]/g, '')
+    .toLowerCase()
+    .slice(0, 32);
+  if (!cleaned) return null;
+  if (cleaned.length < 5) throw new Error('INVALID_TELEGRAM_USERNAME');
+  return `@${cleaned}`;
+}
+
 function publicMediaAsset(asset: Record<string, any>) {
   return {
     id: asset.id,
     originalFilename: asset.originalFilename,
     mimeType: asset.mimeType,
     sizeBytes: asset.sizeBytes,
-    publicUrl: asset.publicUrl,
+    publicUrl: typeof asset.storageKey === 'string' ? buildPublicMediaUrl(asset.storageKey) : asset.publicUrl,
     createdAt: asset.createdAt,
     status: asset.status,
   };

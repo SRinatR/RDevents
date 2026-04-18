@@ -20,8 +20,12 @@ const FIELD_LABELS_RU: Record<string, string> = {
   name: 'Имя',
   phone: 'Телефон',
   city: 'Город',
+  factualAddress: 'Фактический адрес',
   telegram: 'Telegram',
+  nativeLanguage: 'Родной язык',
+  communicationLanguage: 'Язык коммуникации',
   birthDate: 'Дата рождения',
+  avatarUrl: 'Фото профиля',
   bio: 'Био',
   motivation: 'Мотивация участия',
   experience: 'Опыт',
@@ -243,11 +247,14 @@ export default function EventDetailPage() {
     ? Math.min((event.registrationsCount / event.capacity) * 100, 100)
     : 0;
   const isFull = event.registrationsCount >= event.capacity;
+  const registrationEnabled = event.registrationEnabled !== false;
+  const registrationNotOpen = event.registrationOpensAt ? new Date(event.registrationOpensAt).getTime() > Date.now() : false;
+  const registrationExpired = event.registrationDeadline ? new Date(event.registrationDeadline).getTime() < Date.now() : false;
   const hasActiveVolunteer = ['PENDING', 'APPROVED', 'ACTIVE'].includes(volunteerStatus ?? '');
   const profileMissing = missingFields.filter((field) => field.scope === 'PROFILE');
   const eventFormMissing = missingFields.filter((field) => field.scope === 'EVENT_FORM');
   const profileLink = profileMissing.length > 0
-    ? `/${locale}/cabinet?${new URLSearchParams({
+    ? `/${locale}/cabinet/profile?${new URLSearchParams({
         required: profileMissing.map((field) => field.key).join(','),
         event: event.title,
       }).toString()}`
@@ -267,6 +274,7 @@ export default function EventDetailPage() {
   const isStrictLimit = limitMode === 'STRICT_LIMIT';
   const isGoalLimit = limitMode === 'GOAL_LIMIT';
   const isUnlimited = limitMode === 'UNLIMITED';
+  const registrationBlocked = !registrationEnabled || registrationNotOpen || registrationExpired || (isFull && isStrictLimit);
   
   // Status labels
   const getParticipationStatusLabel = (status: string | null) => {
@@ -347,7 +355,7 @@ export default function EventDetailPage() {
                     <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Категория' : 'Category'}</span><strong>{event.category}</strong></div>
                     <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Статус события' : 'Event status'}</span><StatusBadge tone={statusTone}>{event.status}</StatusBadge></div>
                     <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Волонтёрский трек' : 'Volunteer track'}</span><strong>{locale === 'ru' ? 'Доступен через панель участия' : 'Available in participation rail'}</strong></div>
-                    <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Доступ к регистрации' : 'Registration access'}</span><strong>{isFull ? (locale === 'ru' ? 'Лимит достигнут' : 'Capacity reached') : (locale === 'ru' ? 'Открыт' : 'Open')}</strong></div>
+                    <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Доступ к регистрации' : 'Registration access'}</span><strong>{registrationBlocked ? (locale === 'ru' ? 'Закрыт' : 'Closed') : (locale === 'ru' ? 'Открыт' : 'Open')}</strong></div>
                   </div>
                 </Panel>
               </div>
@@ -380,6 +388,10 @@ export default function EventDetailPage() {
                   ) : null}
 
                   {/* User participation status */}
+                  {!registrationEnabled ? <Notice tone="warning">{locale === 'ru' ? 'Регистрация закрыта организатором.' : 'Registration is closed by organizer.'}</Notice> : null}
+                  {registrationNotOpen ? <Notice tone="warning">{locale === 'ru' ? 'Регистрация ещё не открыта.' : 'Registration is not open yet.'}</Notice> : null}
+                  {registrationExpired ? <Notice tone="warning">{locale === 'ru' ? 'Дедлайн регистрации прошёл.' : 'Registration deadline has passed.'}</Notice> : null}
+
                   {myTeam ? <Notice tone="success">{locale === 'ru' ? 'Вы состоите в команде' : 'You are on team'}: {myTeam.name}</Notice>
                     : participationStatus === 'ACTIVE' ? <Notice tone="success">{getParticipationStatusLabel('ACTIVE')}</Notice>
                     : participationStatus === 'PENDING' ? (
@@ -396,9 +408,9 @@ export default function EventDetailPage() {
                           <>
                             {teamState === 'IDLE' ? (
                               <ToolbarRow>
-                                <button onClick={() => setTeamState('CREATING')} disabled={isFull && isStrictLimit} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Создать команду' : 'Create team'}</button>
-                                <button onClick={() => setTeamState('JOINING')} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Вступить по коду' : 'Join by code'}</button>
-                                {event.allowSoloParticipation ? <button onClick={handleRegister} disabled={registering || (isFull && isStrictLimit)} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Участвовать одному' : 'Participate solo'}</button> : null}
+                                <button onClick={() => setTeamState('CREATING')} disabled={registrationBlocked} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Создать команду' : 'Create team'}</button>
+                                <button onClick={() => setTeamState('JOINING')} disabled={registrationBlocked} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Вступить по коду' : 'Join by code'}</button>
+                                {event.allowSoloParticipation ? <button onClick={handleRegister} disabled={registering || registrationBlocked} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Участвовать одному' : 'Participate solo'}</button> : null}
                               </ToolbarRow>
                             ) : null}
 
@@ -423,8 +435,8 @@ export default function EventDetailPage() {
                             ) : null}
                           </>
                         ) : (
-                          <button onClick={handleRegister} disabled={registering || (isFull && isStrictLimit)} className="btn btn-primary">
-                            {registering ? t('common.loading') : isFull && isStrictLimit ? (locale === 'ru' ? 'Мест нет' : 'No spots left') : requireApproval ? (locale === 'ru' ? 'Подать заявку' : 'Apply now') : t('events.join')}
+                          <button onClick={handleRegister} disabled={registering || registrationBlocked} className="btn btn-primary">
+                            {registering ? t('common.loading') : registrationBlocked ? (locale === 'ru' ? 'Регистрация закрыта' : 'Registration closed') : requireApproval ? (locale === 'ru' ? 'Подать заявку' : 'Apply now') : t('events.join')}
                           </button>
                         )}
 
@@ -454,9 +466,11 @@ export default function EventDetailPage() {
 
                   {hasActiveVolunteer
                     ? <Notice tone="info">{locale === 'ru' ? 'Заявка волонтёра' : 'Volunteer request'}: {volunteerStatus}</Notice>
-                    : user
+                    : user && event.volunteerApplicationsEnabled
                       ? <button onClick={handleVolunteerApply} disabled={volunteering} className="btn btn-secondary btn-sm">{volunteering ? t('common.loading') : locale === 'ru' ? 'Откликнуться как волонтёр' : 'Apply as volunteer'}</button>
-                      : <Link href={`/${locale}/login`} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Войти для волонтёрства' : 'Login to volunteer'}</Link>}
+                      : !user && event.volunteerApplicationsEnabled
+                        ? <Link href={`/${locale}/login`} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Войти для волонтёрства' : 'Login to volunteer'}</Link>
+                        : null}
 
                   {volunteerError ? <Notice tone="danger">{volunteerError}</Notice> : null}
                 </Panel>

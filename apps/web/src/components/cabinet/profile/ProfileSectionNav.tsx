@@ -19,7 +19,7 @@ export function ProfileSectionNav({
   const localeKey = getLocaleKey(locale);
 
   return (
-    <nav className="profile-section-nav" aria-label={locale === 'ru' ? 'Разделы профиля' : 'Profile sections'}>
+    <nav className="profile-section-tabs" role="tablist" aria-label={locale === 'ru' ? 'Вкладки профиля' : 'Profile tabs'}>
       {sections.map((section) => {
         const statusCopy = PROFILE_STATUS_COPY[section.status];
         const isActive = activeSection === section.key;
@@ -27,14 +27,12 @@ export function ProfileSectionNav({
           <button
             key={section.key}
             type="button"
-            className={cn('profile-section-nav-item', isActive && 'active')}
+            role="tab"
+            className={cn('profile-section-tab', isActive && 'active')}
             onClick={() => onSectionChange(section.key)}
-            aria-current={isActive ? 'page' : undefined}
+            aria-selected={isActive}
           >
-            <span>
-              <strong>{section.title}</strong>
-              {section.description ? <small>{section.description}</small> : null}
-            </span>
+            <strong>{section.title}</strong>
             <StatusBadge tone={statusCopy.tone} size="sm">{statusCopy.label[localeKey]}</StatusBadge>
           </button>
         );

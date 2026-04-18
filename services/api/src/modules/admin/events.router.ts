@@ -4,10 +4,12 @@ import { canManageEvent, requirePlatformAdmin } from '../../common/middleware.js
 import { prisma } from '../../db/prisma.js';
 import { createEventSchema, updateEventSchema } from '../events/events.schemas.js';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
+import { notifyParticipantStatusChanged } from '../events/notifications.service.js';
 
 export const adminEventsRouter = Router();
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
+const DEPRECATED_PROFILE_REQUIREMENT_FIELDS = new Set(['consentPersonalData', 'consentClientRules']);
 
 function normalizeStringArray(value: unknown) {
   if (Array.isArray(value)) {
@@ -19,13 +21,17 @@ function normalizeStringArray(value: unknown) {
   return [];
 }
 
+function normalizeRequiredProfileFields(value: unknown) {
+  return normalizeStringArray(value).filter(field => !DEPRECATED_PROFILE_REQUIREMENT_FIELDS.has(field));
+}
+
 function normalizeEventBody(body: any) {
   return {
     ...body,
     fullDescription: body.fullDescription ?? body.description,
     coverImageUrl: body.coverImageUrl || '',
     tags: normalizeStringArray(body.tags),
-    requiredProfileFields: normalizeStringArray(body.requiredProfileFields),
+    requiredProfileFields: normalizeRequiredProfileFields(body.requiredProfileFields),
     requiredEventFields: normalizeStringArray(body.requiredEventFields),
   };
 }
@@ -153,6 +159,7 @@ adminEventsRouter.post('/', requirePlatformAdmin, async (req, res) => {
         coverImageUrl: parsed.data.coverImageUrl || null,
         conditions: parsed.data.conditions || null,
         contactEmail: parsed.data.contactEmail || null,
+        contactPhone: parsed.data.contactPhone || null,
         createdById: user.id,
         publishedAt: parsed.data.status === 'PUBLISHED' ? new Date() : null,
       },
@@ -197,6 +204,7 @@ adminEventsRouter.patch('/:id', async (req, res) => {
   if (parsed.data.coverImageUrl !== undefined) data['coverImageUrl'] = parsed.data.coverImageUrl || null;
   if (parsed.data.conditions !== undefined) data['conditions'] = parsed.data.conditions || null;
   if (parsed.data.contactEmail !== undefined) data['contactEmail'] = parsed.data.contactEmail || null;
+  if (parsed.data.contactPhone !== undefined) data['contactPhone'] = parsed.data.contactPhone || null;
   if (parsed.data.status === 'PUBLISHED' && existing.status !== 'PUBLISHED') data['publishedAt'] = new Date();
 
   const event = await prisma.event.update({ where: { id: eventId }, data: data as any });
@@ -243,7 +251,26 @@ adminEventsRouter.get('/:id/members', async (req, res) => {
     },
     orderBy: [{ role: 'asc' }, { assignedAt: 'desc' }],
   });
-  res.json({ members });
+  const submissions = await prisma.eventRegistrationFormSubmission.findMany({
+    where: {
+      eventId,
+      userId: { in: [...new Set(members.map(member => member.userId))] },
+    },
+    select: { userId: true, answersJson: true, isComplete: true, updatedAt: true },
+  });
+  const submissionsByUserId = new Map(submissions.map(item => [item.userId, item]));
+
+  res.json({
+    members: members.map(member => {
+      const submission = submissionsByUserId.get(member.userId);
+      return {
+        ...member,
+        answers: submission?.answersJson ?? {},
+        answersComplete: submission?.isComplete ?? false,
+        answersUpdatedAt: submission?.updatedAt ?? null,
+      };
+    }),
+  });
 });
 
 // GET /admin/events/:id/registrations (backward compatible)
@@ -539,6 +566,7 @@ adminEventsRouter.patch('/:id/volunteers/:memberId', async (req, res) => {
     return updated;
   });
 
+  await notifyParticipantStatusChanged(eventId, membership.userId, membership.status, membership.notes);
   res.json({ membership });
 });
 
@@ -583,6 +611,7 @@ adminEventsRouter.post('/:id/volunteer-applications/:userId/approve', async (req
     return updated;
   });
 
+  await notifyParticipantStatusChanged(eventId, membership.userId, membership.status, membership.notes);
   res.json({ membership });
 });
 
@@ -627,6 +656,7 @@ adminEventsRouter.post('/:id/volunteer-applications/:userId/reject', async (req,
     return updated;
   });
 
+  await notifyParticipantStatusChanged(eventId, membership.userId, membership.status, membership.notes);
   res.json({ membership });
 });
 
