@@ -268,7 +268,7 @@ async function main() {
 После прохождения всех точек команда открывает финальную страницу маршрута, участвует в награждении и становится частью общего праздничного события к юбилею Русского дома.`,
       category: 'Arts & Culture',
       location: 'Русский дом в Ташкенте, ул. Нукус, 83',
-      coverImageUrl: '/events/dom-gde-zhivet-rossiya.jpg',
+      coverImageUrl: '/dom-gde-zhivet-rossiya.jpg',
       capacity: 180,
       startsAt: new Date('2026-09-20T10:00:00Z'),
       endsAt: new Date('2026-09-20T15:00:00Z'),
