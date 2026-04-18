@@ -36,7 +36,10 @@ export const env = {
 
   MEDIA_STORAGE_DRIVER: optional_env('MEDIA_STORAGE_DRIVER', 'local'),
   MEDIA_UPLOAD_DIR: optional_env('MEDIA_UPLOAD_DIR', './uploads'),
-  MEDIA_PUBLIC_BASE_URL: optional_env('MEDIA_PUBLIC_BASE_URL', 'http://localhost:4000/uploads'),
+  MEDIA_PUBLIC_BASE_URL: optional_env(
+    'MEDIA_PUBLIC_BASE_URL',
+    process.env['NODE_ENV'] === 'production' ? 'https://api.rdevents.uz/uploads' : 'http://localhost:4000/uploads',
+  ),
   MAX_AVATAR_UPLOAD_MB: parseInt(optional_env('MAX_AVATAR_UPLOAD_MB', '3'), 10),
   MAX_DOCUMENT_UPLOAD_MB: parseInt(optional_env('MAX_DOCUMENT_UPLOAD_MB', '10'), 10),
 

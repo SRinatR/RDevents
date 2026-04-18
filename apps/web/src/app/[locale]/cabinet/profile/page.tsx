@@ -3,10 +3,8 @@
 import { useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LoadingLines, Notice } from '@/components/ui/signal-primitives';
-import { ProfileActivitySection } from '@/components/cabinet/profile/ProfileActivitySection';
 import { ProfileAddressSection } from '@/components/cabinet/profile/ProfileAddressSection';
 import { ProfileBasicSection } from '@/components/cabinet/profile/ProfileBasicSection';
-import { ProfileConsentsSection } from '@/components/cabinet/profile/ProfileConsentsSection';
 import { ProfileContactsSection } from '@/components/cabinet/profile/ProfileContactsSection';
 import { ProfileDocumentsSection } from '@/components/cabinet/profile/ProfileDocumentsSection';
 import { ProfileLanguagesSection } from '@/components/cabinet/profile/ProfileLanguagesSection';
@@ -29,7 +27,6 @@ export default function ProfilePage() {
   const {
     sections,
     documents,
-    activity,
     loading: sectionsLoading,
     savingSection,
     error,
@@ -39,7 +36,6 @@ export default function ProfilePage() {
     deleteAvatar,
     uploadDocument,
     deleteDocument,
-    verifyContact,
   } = useProfileSections(locale);
 
   if (loading || !user) return null;
@@ -83,13 +79,11 @@ export default function ProfilePage() {
           requiredFields,
           eventTitle,
           documents,
-          activity,
           saveSection,
           uploadAvatar,
           deleteAvatar,
           uploadDocument,
           deleteDocument,
-          verifyContact,
         })
       )}
     </ProfileWorkspaceShell>
@@ -105,13 +99,11 @@ function renderSection({
   requiredFields,
   eventTitle,
   documents,
-  activity,
   saveSection,
   uploadAvatar,
   deleteAvatar,
   uploadDocument,
   deleteDocument,
-  verifyContact,
 }: {
   activeSection: ProfileSectionKey;
   locale: string;
@@ -121,13 +113,11 @@ function renderSection({
   requiredFields: string[];
   eventTitle: string;
   documents: any[];
-  activity: any;
   saveSection: (section: ProfileSectionKey, payload: Record<string, unknown>) => Promise<void>;
   uploadAvatar: (file: File) => Promise<void>;
   deleteAvatar: () => Promise<void>;
   uploadDocument: (file: File) => Promise<void>;
   deleteDocument: (assetId: string) => Promise<void>;
-  verifyContact: (channel: 'email' | 'phone' | 'telegram') => Promise<void>;
 }) {
   if (activeSection === 'basic') {
     return (
@@ -168,7 +158,6 @@ function renderSection({
         requiredFields={requiredFields}
         eventTitle={eventTitle}
         onSave={(payload) => saveSection('contacts', payload)}
-        onVerifyContact={verifyContact}
       />
     );
   }
@@ -214,19 +203,7 @@ function renderSection({
     );
   }
 
-  if (activeSection === 'consents') {
-    return (
-      <ProfileConsentsSection
-        locale={locale}
-        user={user}
-        status={status}
-        saving={savingSection === 'consents'}
-        onSave={(payload) => saveSection('consents', payload)}
-      />
-    );
-  }
-
-  return <ProfileActivitySection locale={locale} status={status} activity={activity} />;
+  return null;
 }
 
 function resolveInitialSectionFromQuery(searchParams: ReturnType<typeof useSearchParams>): ProfileSectionKey {
@@ -242,7 +219,6 @@ function mapRequiredFieldsToSection(fields: string[]): ProfileSectionKey | null 
   if (fields.some((field) => ['phone', 'telegram'].includes(field))) return 'contacts';
   if (fields.some((field) => ['city', 'factualAddress'].includes(field))) return 'address';
   if (fields.some((field) => ['nativeLanguage', 'communicationLanguage'].includes(field))) return 'languages';
-  if (fields.some((field) => ['consentPersonalData', 'consentClientRules'].includes(field))) return 'consents';
   return null;
 }
 

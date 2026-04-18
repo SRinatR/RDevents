@@ -16,7 +16,6 @@ type ProfileContactsSectionProps = {
   requiredFields: string[];
   eventTitle?: string;
   onSave: (payload: Record<string, unknown>) => Promise<void>;
-  onVerifyContact: (channel: 'email' | 'phone' | 'telegram') => Promise<void>;
 };
 
 export function ProfileContactsSection({
@@ -27,14 +26,13 @@ export function ProfileContactsSection({
   requiredFields,
   eventTitle,
   onSave,
-  onVerifyContact,
 }: ProfileContactsSectionProps) {
   const [phone, setPhone] = useState('');
   const [telegram, setTelegram] = useState('');
 
   useEffect(() => {
-    setPhone(user.phone ?? '');
-    setTelegram(user.telegram ?? '');
+    setPhone(formatUzbekPhone(user.phone ?? ''));
+    setTelegram(formatTelegramUsername(user.telegram ?? ''));
   }, [user]);
 
   const isRequired = (field: string) => requiredFields.includes(field);
@@ -50,7 +48,7 @@ export function ProfileContactsSection({
         className="signal-stack"
         onSubmit={(event) => {
           event.preventDefault();
-          void onSave({ phone, telegram });
+          void onSave({ phone: normalizeUzbekPhone(phone), telegram: formatTelegramUsername(telegram) });
         }}
       >
         <div className="profile-contacts-grid">
@@ -62,9 +60,10 @@ export function ProfileContactsSection({
             >
               <FieldInput
                 value={phone}
-                onChange={(event) => setPhone(event.target.value)}
+                onChange={(event) => setPhone(formatUzbekPhone(event.target.value))}
                 className={isRequired('phone') ? 'signal-field-required' : ''}
-                placeholder="+998"
+                placeholder="+998 90 123 45 67"
+                inputMode="tel"
               />
             </FieldBlock>
             <FieldBlock
@@ -75,6 +74,7 @@ export function ProfileContactsSection({
               <FieldInput
                 value={telegram}
                 onChange={(event) => setTelegram(event.target.value)}
+                onBlur={() => setTelegram(formatTelegramUsername(telegram))}
                 className={isRequired('telegram') ? 'signal-field-required' : ''}
                 placeholder="@username"
               />
@@ -89,34 +89,28 @@ export function ProfileContactsSection({
             <h3>{locale === 'ru' ? 'Подтверждение' : 'Confirmation'}</h3>
             <p>
               {locale === 'ru'
-                ? 'Статус хранится в профиле. Если контакт изменён, подтверждение нужно пройти снова.'
-                : 'Status is stored in your profile. If a contact changes, confirmation is required again.'}
+                ? 'Email подтверждается кодом при регистрации. Телефон и Telegram пока сохраняются как контакты без проверки.'
+                : 'Email is confirmed with a code during signup. Phone and Telegram are saved as contacts without verification for now.'}
             </p>
             <VerificationRow
               locale={locale}
               label="Email"
               value={user.email}
               verifiedAt={user.emailVerifiedAt}
-              saving={saving}
-              onVerify={() => onVerifyContact('email')}
             />
             <VerificationRow
               locale={locale}
               label={locale === 'ru' ? 'Телефон' : 'Phone'}
               value={phone}
-              savedValue={user.phone ?? ''}
-              verifiedAt={user.phoneVerifiedAt}
-              saving={saving}
-              onVerify={() => onVerifyContact('phone')}
+              verifiedAt={null}
+              unavailable
             />
             <VerificationRow
               locale={locale}
               label="Telegram"
               value={telegram}
-              savedValue={user.telegram ?? ''}
-              verifiedAt={user.telegramVerifiedAt}
-              saving={saving}
-              onVerify={() => onVerifyContact('telegram')}
+              verifiedAt={null}
+              unavailable
             />
           </aside>
         </div>
@@ -131,42 +125,68 @@ function VerificationRow({
   locale,
   label,
   value,
-  savedValue,
   verifiedAt,
-  saving,
-  onVerify,
+  unavailable,
 }: {
   locale: string;
   label: string;
   value: string;
-  savedValue?: string;
   verifiedAt?: string | null;
-  saving: boolean;
-  onVerify: () => Promise<void>;
+  unavailable?: boolean;
 }) {
   const hasValue = value.trim().length > 0;
-  const hasUnsavedChange = savedValue !== undefined && value.trim() !== savedValue.trim();
-  const isVerified = Boolean(verifiedAt) && hasValue && !hasUnsavedChange;
-  const disabled = saving || !hasValue || hasUnsavedChange || isVerified;
+  const isVerified = Boolean(verifiedAt) && hasValue && !unavailable;
 
   return (
     <div className="profile-verification-row">
       <div>
         <strong>{label}</strong>
         <span className={isVerified ? 'verified' : 'unverified'}>
-          {isVerified
-            ? (locale === 'ru' ? 'Подтверждён' : 'Confirmed')
-            : (locale === 'ru' ? 'Не подтверждён' : 'Not confirmed')}
+          {unavailable
+            ? (locale === 'ru' ? 'Без проверки' : 'Not verified')
+            : isVerified
+              ? (locale === 'ru' ? 'Подтверждён' : 'Confirmed')
+              : (locale === 'ru' ? 'Не подтверждён' : 'Not confirmed')}
         </span>
-        {hasUnsavedChange ? (
-          <small>{locale === 'ru' ? 'Сначала сохраните изменение' : 'Save the change first'}</small>
+        {unavailable ? (
+          <small>{locale === 'ru' ? 'SMS/Telegram OTP ещё не подключены.' : 'SMS/Telegram OTP is not connected yet.'}</small>
         ) : null}
       </div>
-      <button type="button" className="btn btn-secondary btn-sm" disabled={disabled} onClick={() => void onVerify()}>
-        {isVerified ? (locale === 'ru' ? 'Готово' : 'Done') : (locale === 'ru' ? 'Подтвердить' : 'Confirm')}
-      </button>
     </div>
   );
+}
+
+function normalizeUzbekPhone(value: string) {
+  const digits = value.replace(/\D/g, '');
+  const withoutPrefix = digits.startsWith('998') ? digits.slice(3) : digits;
+  const local = withoutPrefix.slice(0, 9);
+  return local.length ? `+998${local}` : '';
+}
+
+function formatUzbekPhone(value: string) {
+  const normalized = normalizeUzbekPhone(value);
+  const local = normalized.replace('+998', '');
+  if (!local) return '';
+  return [
+    '+998',
+    local.slice(0, 2),
+    local.slice(2, 5),
+    local.slice(5, 7),
+    local.slice(7, 9),
+  ].filter(Boolean).join(' ');
+}
+
+function formatTelegramUsername(value: string) {
+  const cleaned = value
+    .trim()
+    .replace(/^https?:\/\/(t\.me|telegram\.me)\//i, '')
+    .replace(/^t\.me\//i, '')
+    .replace(/[/?#].*$/, '')
+    .replace(/^@+/, '')
+    .replace(/[^a-zA-Z0-9_]/g, '')
+    .toLowerCase()
+    .slice(0, 32);
+  return cleaned ? `@${cleaned}` : '';
 }
 
 function FieldBlock({

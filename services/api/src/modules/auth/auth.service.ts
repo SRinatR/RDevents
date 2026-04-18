@@ -4,6 +4,7 @@ import { hashPassword, verifyPassword } from '../../common/password.js';
 import { signAccessToken } from '../../common/jwt.js';
 import { sendRegistrationCodeEmail } from '../../common/email.js';
 import { logger } from '../../common/logger.js';
+import { buildPublicMediaUrl } from '../../common/storage.js';
 import { env } from '../../config/env.js';
 import { prisma } from '../../db/prisma.js';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
@@ -26,7 +27,10 @@ export function sanitizeUser(user: Record<string, unknown>) {
     profileSectionStates: _profileSectionStates,
     ...safe
   } = user;
-  const resolvedAvatarUrl = (avatarAsset as any)?.publicUrl ?? safe.avatarUrl ?? null;
+  const avatarStorageKey = (avatarAsset as any)?.storageKey;
+  const resolvedAvatarUrl = typeof avatarStorageKey === 'string'
+    ? buildPublicMediaUrl(avatarStorageKey)
+    : ((avatarAsset as any)?.publicUrl ?? safe.avatarUrl ?? null);
   const base = {
     ...safe,
     avatarUrl: resolvedAvatarUrl,
@@ -398,10 +402,8 @@ export async function updateProfile(userId: string, input: UpdateProfileInput) {
       ...(input.bio !== undefined && { bio: input.bio }),
       ...(input.city !== undefined && { city: input.city }),
       ...(input.factualAddress !== undefined && { factualAddress: input.factualAddress || null }),
-      ...(input.phone !== undefined && { phone: input.phone, phoneVerifiedAt: null }),
-      ...(input.telegram !== undefined && { telegram: input.telegram || null, telegramVerifiedAt: null }),
-      ...(input.phoneVerifiedAt !== undefined && { phoneVerifiedAt: input.phoneVerifiedAt ? new Date(input.phoneVerifiedAt) : null }),
-      ...(input.telegramVerifiedAt !== undefined && { telegramVerifiedAt: input.telegramVerifiedAt ? new Date(input.telegramVerifiedAt) : null }),
+      ...(input.phone !== undefined && { phone: normalizeUzbekPhone(input.phone), phoneVerifiedAt: null }),
+      ...(input.telegram !== undefined && { telegram: normalizeTelegramUsername(input.telegram), telegramVerifiedAt: null }),
       ...(input.nativeLanguage !== undefined && { nativeLanguage: input.nativeLanguage || null }),
       ...(input.communicationLanguage !== undefined && { communicationLanguage: input.communicationLanguage || null }),
       ...(input.consentPersonalData !== undefined && {
@@ -428,6 +430,32 @@ export async function updateProfile(userId: string, input: UpdateProfileInput) {
     },
   });
   return sanitizeUser(user as any);
+}
+
+function normalizeUzbekPhone(value: unknown) {
+  if (typeof value !== 'string') return null;
+  const digits = value.replace(/\D/g, '');
+  const local = digits.startsWith('998') ? digits.slice(3) : digits;
+  const normalized = local.slice(0, 9);
+  if (normalized.length === 0) return null;
+  if (normalized.length !== 9) throw new Error('INVALID_UZBEK_PHONE');
+  return `+998${normalized}`;
+}
+
+function normalizeTelegramUsername(value: unknown) {
+  if (typeof value !== 'string') return null;
+  const cleaned = value
+    .trim()
+    .replace(/^https?:\/\/(t\.me|telegram\.me)\//i, '')
+    .replace(/^t\.me\//i, '')
+    .replace(/[/?#].*$/, '')
+    .replace(/^@+/, '')
+    .replace(/[^a-zA-Z0-9_]/g, '')
+    .toLowerCase()
+    .slice(0, 32);
+  if (!cleaned) return null;
+  if (cleaned.length < 5) throw new Error('INVALID_TELEGRAM_USERNAME');
+  return `@${cleaned}`;
 }
 
 async function issueTokens(

@@ -20,6 +20,10 @@ export function getMediaUploadDir() {
   return path.resolve(process.cwd(), env.MEDIA_UPLOAD_DIR);
 }
 
+export function buildPublicMediaUrl(storageKey: string) {
+  return `${env.MEDIA_PUBLIC_BASE_URL.replace(/\/$/, '')}/${storageKey.replace(/^\/+/, '')}`;
+}
+
 export async function saveUploadedFile(input: StoredFileInput): Promise<StoredFileResult> {
   if (env.MEDIA_STORAGE_DRIVER !== 'local') {
     throw new Error('Unsupported media storage driver');
@@ -39,7 +43,7 @@ export async function saveUploadedFile(input: StoredFileInput): Promise<StoredFi
   return {
     storageDriver: 'local',
     storageKey,
-    publicUrl: `${env.MEDIA_PUBLIC_BASE_URL.replace(/\/$/, '')}/${storageKey}`,
+    publicUrl: buildPublicMediaUrl(storageKey),
   };
 }
 

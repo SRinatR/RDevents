@@ -281,6 +281,7 @@ model Event {
   customRegistrationFields         Json?
   conditions                       String?
   contactEmail                     String?
+  contactPhone                     String?
   tags                             String[]
   status                           EventStatus                @default(DRAFT)
   isFeatured                       Boolean                    @default(false)

@@ -24,8 +24,6 @@ const FIELD_LABELS_RU: Record<string, string> = {
   telegram: 'Telegram',
   nativeLanguage: 'Родной язык',
   communicationLanguage: 'Язык коммуникации',
-  consentPersonalData: 'Согласие на персональные данные',
-  consentClientRules: 'Согласие с правилами клиента',
   birthDate: 'Дата рождения',
   avatarUrl: 'Фото профиля',
   bio: 'Био',

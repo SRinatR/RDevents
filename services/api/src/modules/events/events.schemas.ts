@@ -27,6 +27,7 @@ export const createEventSchema = z.object({
   volunteerApplicationsEnabled: z.boolean().default(false),
   conditions: z.string().optional().or(z.literal('')),
   contactEmail: z.string().email().optional().or(z.literal('')),
+  contactPhone: z.string().max(40).optional().or(z.literal('')),
   tags: z.array(z.string()).default([]),
   status: z.enum(['DRAFT', 'PUBLISHED', 'CANCELLED', 'COMPLETED']).default('DRAFT'),
   isFeatured: z.boolean().default(false),

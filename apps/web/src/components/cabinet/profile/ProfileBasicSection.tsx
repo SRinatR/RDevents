@@ -112,7 +112,6 @@ export function ProfileBasicSection({
 
         <div className="profile-latin-heading">
           <div className="signal-section-label">{locale === 'ru' ? 'Латиница' : 'Latin'}</div>
-          <span>{locale === 'ru' ? 'Заполняется автоматически' : 'Filled automatically'}</span>
         </div>
         <div className="profile-form-three-col">
           <FieldBlock label={locale === 'ru' ? 'Фамилия' : 'Last name'}>
@@ -167,6 +166,8 @@ function ProfileDatePicker({
   const weekDays = locale === 'ru'
     ? ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
     : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: currentYear - 1939 }, (_, index) => currentYear - index);
 
   useEffect(() => {
     if (selectedDate) setViewDate(selectedDate);
@@ -198,7 +199,22 @@ function ProfileDatePicker({
         <div className="profile-calendar-popover">
           <div className="profile-calendar-header">
             <button type="button" onClick={() => moveMonth(-1)} aria-label={locale === 'ru' ? 'Предыдущий месяц' : 'Previous month'}>&lt;</button>
-            <strong>{monthNames[viewDate.getMonth()]} {viewDate.getFullYear()}</strong>
+            <div className="profile-calendar-selectors">
+              <select
+                value={viewDate.getMonth()}
+                onChange={(event) => setViewDate((current) => new Date(current.getFullYear(), Number(event.target.value), 1))}
+                aria-label={locale === 'ru' ? 'Месяц' : 'Month'}
+              >
+                {monthNames.map((month, index) => <option key={month} value={index}>{month}</option>)}
+              </select>
+              <select
+                value={viewDate.getFullYear()}
+                onChange={(event) => setViewDate((current) => new Date(Number(event.target.value), current.getMonth(), 1))}
+                aria-label={locale === 'ru' ? 'Год' : 'Year'}
+              >
+                {years.map((year) => <option key={year} value={year}>{year}</option>)}
+              </select>
+            </div>
             <button type="button" onClick={() => moveMonth(1)} aria-label={locale === 'ru' ? 'Следующий месяц' : 'Next month'}>&gt;</button>
           </div>
           <div className="profile-calendar-weekdays">

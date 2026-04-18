@@ -30,7 +30,6 @@ import {
   hashToken,
 } from './auth.sessions.js';
 import {
-  getProfileActivity,
   getProfileSections,
   listProfileDocuments,
   removeProfileAvatar,
@@ -38,7 +37,6 @@ import {
   updateProfileSection,
   uploadProfileAvatar,
   uploadProfileDocument,
-  verifyProfileContact,
 } from './profile.service.js';
 import { isProfileSectionKey } from './profile.sections.js';
 import { ProfileMediaError } from './profile.media.js';
@@ -273,8 +271,20 @@ authRouter.patch('/profile', authenticate, async (req, res) => {
   }
 
   const user = (req as any).user;
-  const updated = await updateProfile(user.id, parsed.data);
-  res.json({ user: updated });
+  try {
+    const updated = await updateProfile(user.id, parsed.data);
+    res.json({ user: updated });
+  } catch (err: any) {
+    if (err.message === 'INVALID_UZBEK_PHONE') {
+      res.status(400).json({ error: 'Введите номер в формате +998 XX XXX XX XX' });
+      return;
+    }
+    if (err.message === 'INVALID_TELEGRAM_USERNAME') {
+      res.status(400).json({ error: 'Введите Telegram username от 5 до 32 символов.' });
+      return;
+    }
+    throw err;
+  }
 });
 
 // GET /api/auth/profile/sections
@@ -299,6 +309,14 @@ authRouter.patch('/profile/sections/:sectionKey', authenticate, async (req, res)
   } catch (err: any) {
     if (err.message === 'Profile section validation failed') {
       res.status(400).json({ error: 'Validation failed', details: err.details });
+      return;
+    }
+    if (err.message === 'INVALID_UZBEK_PHONE') {
+      res.status(400).json({ error: 'Введите номер в формате +998 XX XXX XX XX' });
+      return;
+    }
+    if (err.message === 'INVALID_TELEGRAM_USERNAME') {
+      res.status(400).json({ error: 'Введите Telegram username от 5 до 32 символов.' });
       return;
     }
     throw err;
@@ -339,27 +357,6 @@ authRouter.get('/profile/documents', authenticate, async (req, res) => {
   res.json({ documents });
 });
 
-// POST /api/auth/profile/contacts/verify/:channel
-authRouter.post('/profile/contacts/verify/:channel', authenticate, async (req, res) => {
-  const user = (req as any).user;
-  const channel = String(req.params.channel ?? '');
-  if (!['email', 'phone', 'telegram'].includes(channel)) {
-    res.status(400).json({ error: 'Invalid contact channel' });
-    return;
-  }
-
-  try {
-    const updated = await verifyProfileContact(user.id, channel as 'email' | 'phone' | 'telegram');
-    res.json({ user: updated });
-  } catch (err: any) {
-    if (err.message === 'CONTACT_VALUE_REQUIRED') {
-      res.status(400).json({ error: 'Fill and save this contact before confirmation' });
-      return;
-    }
-    throw err;
-  }
-});
-
 // POST /api/auth/profile/documents/upload
 authRouter.post('/profile/documents/upload', authenticate, upload.single('file'), async (req, res) => {
   const user = (req as any).user;
@@ -385,13 +382,6 @@ authRouter.delete('/profile/documents/:assetId', authenticate, async (req, res) 
   const user = (req as any).user;
   await removeProfileDocument(user.id, String(req.params.assetId));
   res.json({ ok: true });
-});
-
-// GET /api/auth/profile/activity
-authRouter.get('/profile/activity', authenticate, async (req, res) => {
-  const user = (req as any).user;
-  const activity = await getProfileActivity(user.id);
-  res.json(activity);
 });
 
 // POST /api/auth/google
