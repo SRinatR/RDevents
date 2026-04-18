@@ -1594,6 +1594,18 @@ img { display: block; max-width: 100%; }
   justify-self: flex-start;
 }
 
+.login-workspace-panel {
+  align-content: start;
+}
+
+.login-panel-head {
+  grid-template-columns: 1fr;
+}
+
+.login-rail-list .register-step-item {
+  min-height: 42px;
+}
+
 @media (max-width: 1024px) {
   .cabinet-layout-grid { grid-template-columns: 1fr; }
   .cabinet-sidebar-card { position: static; }
@@ -5062,11 +5074,11 @@ body {
 
 .profile-address-grid {
   display: grid;
-  grid-template-columns: minmax(0, 300px) minmax(0, 430px);
+  grid-template-columns: minmax(0, 280px) minmax(0, 400px);
   gap: 12px 14px;
   justify-content: start;
   align-items: start;
-  width: min(100%, 744px);
+  width: min(100%, 694px);
 }
 
 .profile-address-field {
@@ -5075,11 +5087,11 @@ body {
 }
 
 .profile-address-field-city {
-  --address-field-max: 300px;
+  --address-field-max: 280px;
 }
 
 .profile-address-field-factual {
-  --address-field-max: 430px;
+  --address-field-max: 400px;
 }
 
 .profile-address-field-factual .signal-textarea {
