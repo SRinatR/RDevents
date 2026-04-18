@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { EventMemberStatus, User } from '@prisma/client';
 import { canManageEvent } from '../../common/middleware.js';
 import { prisma } from '../../db/prisma.js';
+import { notifyParticipantStatusChanged } from '../events/notifications.service.js';
 import { listParticipantsQuerySchema } from './participants.schemas.js';
 
 export const adminParticipantsRouter = Router();
@@ -203,6 +204,7 @@ adminParticipantsRouter.patch('/events/:id/participations/:memberId', async (req
     return result;
   });
 
+  await notifyParticipantStatusChanged(eventId, updated.userId, updated.status, updated.notes);
   res.json({ membership: updated });
 });
 
@@ -265,6 +267,7 @@ adminParticipantsRouter.post('/events/:id/participations/:memberId/approve', asy
     return result;
   });
 
+  await notifyParticipantStatusChanged(eventId, updated.userId, updated.status, updated.notes);
   res.json({ membership: updated });
 });
 
@@ -308,6 +311,7 @@ adminParticipantsRouter.post('/events/:id/participations/:memberId/reject', asyn
     return result;
   });
 
+  await notifyParticipantStatusChanged(eventId, updated.userId, updated.status, updated.notes);
   res.json({ membership: updated });
 });
 
@@ -351,6 +355,7 @@ adminParticipantsRouter.post('/events/:id/participations/:memberId/reserve', asy
     return result;
   });
 
+  await notifyParticipantStatusChanged(eventId, updated.userId, updated.status, updated.notes);
   res.json({ membership: updated });
 });
 
@@ -394,6 +399,7 @@ adminParticipantsRouter.post('/events/:id/participations/:memberId/cancel', asyn
     return result;
   });
 
+  await notifyParticipantStatusChanged(eventId, updated.userId, updated.status, updated.notes);
   res.json({ membership: updated });
 });
 
@@ -469,5 +475,6 @@ adminParticipantsRouter.patch('/events/:id/participants/:memberId', async (req, 
     return result;
   });
 
+  await notifyParticipantStatusChanged(eventId, updated.userId, updated.status, updated.notes);
   res.json({ membership: updated });
 });

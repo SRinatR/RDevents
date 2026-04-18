@@ -20,6 +20,7 @@
     "clean": "corepack pnpm --filter @event-platform/shared run clean && corepack pnpm --filter @event-platform/ui run clean && corepack pnpm --filter @event-platform/api run clean && corepack pnpm --filter @event-platform/web run clean && node -e \"const fs=require('fs'); ['node_modules','.turbo'].forEach(p=>fs.rmSync(p,{recursive:true,force:true}))\"",
     "db:generate": "corepack pnpm --filter @event-platform/api prisma generate",
     "db:migrate": "corepack pnpm --filter @event-platform/api prisma migrate dev",
+    "db:deploy": "corepack pnpm --filter @event-platform/api prisma migrate deploy",
     "db:push": "corepack pnpm --filter @event-platform/api prisma db push",
     "db:seed": "corepack pnpm --filter @event-platform/api prisma db seed",
     "db:studio": "corepack pnpm --filter @event-platform/api prisma studio",

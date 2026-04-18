@@ -111,7 +111,8 @@ export default function AdminTeamsPage() {
   // Status colors - fixed mapping
   const toneByStatus: Record<string, 'success' | 'warning' | 'neutral'> = {
     ACTIVE: 'success',
-    COMPLETED: 'neutral',
+    PENDING: 'warning',
+    REJECTED: 'neutral',
     ARCHIVED: 'warning',
   };
 
@@ -139,7 +140,8 @@ export default function AdminTeamsPage() {
           <FieldSelect value={statusFilter} onChange={(e) => updateFilter('status', e.target.value)} className="admin-filter-select">
             <option value="ALL">{locale === 'ru' ? 'Все статусы' : 'All statuses'}</option>
             <option value="ACTIVE">{locale === 'ru' ? 'Активные' : 'Active'}</option>
-            <option value="COMPLETED">{locale === 'ru' ? 'Завершённые' : 'Completed'}</option>
+            <option value="PENDING">{locale === 'ru' ? 'На проверке' : 'Pending'}</option>
+            <option value="REJECTED">{locale === 'ru' ? 'Отклонённые' : 'Rejected'}</option>
             <option value="ARCHIVED">{locale === 'ru' ? 'Архивные' : 'Archived'}</option>
           </FieldSelect>
         </ToolbarRow>

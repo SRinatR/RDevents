@@ -38,6 +38,7 @@ import {
   updateProfileSection,
   uploadProfileAvatar,
   uploadProfileDocument,
+  verifyProfileContact,
 } from './profile.service.js';
 import { isProfileSectionKey } from './profile.sections.js';
 import { ProfileMediaError } from './profile.media.js';
@@ -336,6 +337,27 @@ authRouter.get('/profile/documents', authenticate, async (req, res) => {
   const user = (req as any).user;
   const documents = await listProfileDocuments(user.id);
   res.json({ documents });
+});
+
+// POST /api/auth/profile/contacts/verify/:channel
+authRouter.post('/profile/contacts/verify/:channel', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  const channel = String(req.params.channel ?? '');
+  if (!['email', 'phone', 'telegram'].includes(channel)) {
+    res.status(400).json({ error: 'Invalid contact channel' });
+    return;
+  }
+
+  try {
+    const updated = await verifyProfileContact(user.id, channel as 'email' | 'phone' | 'telegram');
+    res.json({ user: updated });
+  } catch (err: any) {
+    if (err.message === 'CONTACT_VALUE_REQUIRED') {
+      res.status(400).json({ error: 'Fill and save this contact before confirmation' });
+      return;
+    }
+    throw err;
+  }
 });
 
 // POST /api/auth/profile/documents/upload

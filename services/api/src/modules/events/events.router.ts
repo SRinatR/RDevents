@@ -37,6 +37,7 @@ const registrationFlowErrors: Record<string, [number, string]> = {
   INVALID_JOIN_CODE: [403, 'Invalid join code'],
   EVENT_FULL: [400, 'Event is at full capacity'],
   ALREADY_REGISTERED: [409, 'You are already registered for this event'],
+  ALREADY_HAS_PENDING_APPLICATION: [409, 'You already have a pending application for this event'],
   ALREADY_IN_TEAM: [409, 'You are already in a team for this event'],
   USER_NOT_FOUND: [404, 'User not found'],
 };

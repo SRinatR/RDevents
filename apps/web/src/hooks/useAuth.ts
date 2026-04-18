@@ -14,6 +14,9 @@ export interface AuthUser {
   factualAddress?: string | null;
   phone?: string | null;
   telegram?: string | null;
+  emailVerifiedAt?: string | null;
+  phoneVerifiedAt?: string | null;
+  telegramVerifiedAt?: string | null;
   nativeLanguage?: string | null;
   communicationLanguage?: string | null;
   consentPersonalData?: boolean;

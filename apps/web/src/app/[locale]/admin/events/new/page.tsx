@@ -11,8 +11,14 @@ const PROFILE_REQUIREMENT_OPTIONS = [
   { key: 'name', label: 'Full name' },
   { key: 'phone', label: 'Phone' },
   { key: 'city', label: 'City' },
+  { key: 'factualAddress', label: 'Factual address' },
   { key: 'telegram', label: 'Telegram' },
+  { key: 'nativeLanguage', label: 'Native language' },
+  { key: 'communicationLanguage', label: 'Communication language' },
+  { key: 'consentPersonalData', label: 'Personal data consent' },
+  { key: 'consentClientRules', label: 'Client rules consent' },
   { key: 'birthDate', label: 'Date of birth' },
+  { key: 'avatarUrl', label: 'Profile photo' },
 ];
 
 const EVENT_REQUIREMENT_HINT = 'motivation, experience, teamPreference, tshirtSize, emergencyContact, preferredSlot';
@@ -44,6 +50,8 @@ export default function NewEventPage() {
     contactEmail: '',
     contactPhone: '',
     tags: '',
+    registrationEnabled: true,
+    volunteerApplicationsEnabled: false,
     isTeamBased: false,
     minTeamSize: 1,
     maxTeamSize: 1,
@@ -225,6 +233,16 @@ export default function NewEventPage() {
             <p style={{ margin: '0 0 16px', color: 'var(--color-text-muted)', fontSize: '0.85rem', lineHeight: 1.5 }}>
               Configure how users join this event. Different modes control approval flow and capacity limits.
             </p>
+            <div style={{ display: 'grid', gap: 10, marginBottom: 14 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700 }}>
+                <input name="registrationEnabled" checked={form.registrationEnabled} onChange={handleChange} type="checkbox" />
+                Registration enabled
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700 }}>
+                <input name="volunteerApplicationsEnabled" checked={form.volunteerApplicationsEnabled} onChange={handleChange} type="checkbox" />
+                Volunteer applications enabled
+              </label>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 14 }}>
               <div>
                 <label style={{ display: 'block', fontWeight: 700, fontSize: '0.9rem', marginBottom: 6 }}>Limit mode</label>

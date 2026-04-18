@@ -158,6 +158,9 @@ export const authApi = {
   deleteProfileDocument: (assetId: string) =>
     request<{ ok: boolean }>(`/api/auth/profile/documents/${assetId}`, { method: 'DELETE', auth: true }),
 
+  verifyProfileContact: (channel: 'email' | 'phone' | 'telegram') =>
+    request<{ user: any }>(`/api/auth/profile/contacts/verify/${channel}`, { method: 'POST', auth: true }),
+
   getProfileActivity: () =>
     request<any>('/api/auth/profile/activity', { auth: true }),
 
@@ -269,10 +272,19 @@ export const adminApi = {
     request<{ members: any[] }>(`/api/admin/events/${eventId}/members`, { auth: true }),
 
   updateParticipantStatus: (eventId: string, memberId: string, body: { status: string; notes?: string }) =>
-    request<{ membership: any }>(`/api/admin/events/${eventId}/participants/${memberId}`, { method: 'PATCH', auth: true, body }),
+    request<{ membership: any }>(`/api/admin/participants/events/${eventId}/participants/${memberId}`, { method: 'PATCH', auth: true, body }),
 
   listEventTeams: (eventId: string) =>
     request<{ teams: any[] }>(`/api/admin/events/${eventId}/teams`, { auth: true }),
+
+  approveEventTeamMember: (eventId: string, teamId: string, userId: string) =>
+    request<{ member: any }>(`/api/events/${eventId}/teams/${teamId}/members/${userId}/approve`, { method: 'POST', auth: true }),
+
+  rejectEventTeamMember: (eventId: string, teamId: string, userId: string) =>
+    request<{ ok: boolean }>(`/api/events/${eventId}/teams/${teamId}/members/${userId}/reject`, { method: 'POST', auth: true }),
+
+  removeEventTeamMember: (eventId: string, teamId: string, userId: string) =>
+    request<{ ok: boolean }>(`/api/events/${eventId}/teams/${teamId}/members/${userId}`, { method: 'DELETE', auth: true }),
 
   getEventAnalytics: (eventId: string) =>
     request<any>(`/api/admin/events/${eventId}/analytics`, { auth: true }),

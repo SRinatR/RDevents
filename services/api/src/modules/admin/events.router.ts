@@ -4,6 +4,7 @@ import { canManageEvent, requirePlatformAdmin } from '../../common/middleware.js
 import { prisma } from '../../db/prisma.js';
 import { createEventSchema, updateEventSchema } from '../events/events.schemas.js';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
+import { notifyParticipantStatusChanged } from '../events/notifications.service.js';
 
 export const adminEventsRouter = Router();
 
@@ -243,7 +244,26 @@ adminEventsRouter.get('/:id/members', async (req, res) => {
     },
     orderBy: [{ role: 'asc' }, { assignedAt: 'desc' }],
   });
-  res.json({ members });
+  const submissions = await prisma.eventRegistrationFormSubmission.findMany({
+    where: {
+      eventId,
+      userId: { in: [...new Set(members.map(member => member.userId))] },
+    },
+    select: { userId: true, answersJson: true, isComplete: true, updatedAt: true },
+  });
+  const submissionsByUserId = new Map(submissions.map(item => [item.userId, item]));
+
+  res.json({
+    members: members.map(member => {
+      const submission = submissionsByUserId.get(member.userId);
+      return {
+        ...member,
+        answers: submission?.answersJson ?? {},
+        answersComplete: submission?.isComplete ?? false,
+        answersUpdatedAt: submission?.updatedAt ?? null,
+      };
+    }),
+  });
 });
 
 // GET /admin/events/:id/registrations (backward compatible)
@@ -539,6 +559,7 @@ adminEventsRouter.patch('/:id/volunteers/:memberId', async (req, res) => {
     return updated;
   });
 
+  await notifyParticipantStatusChanged(eventId, membership.userId, membership.status, membership.notes);
   res.json({ membership });
 });
 
@@ -583,6 +604,7 @@ adminEventsRouter.post('/:id/volunteer-applications/:userId/approve', async (req
     return updated;
   });
 
+  await notifyParticipantStatusChanged(eventId, membership.userId, membership.status, membership.notes);
   res.json({ membership });
 });
 
@@ -627,6 +649,7 @@ adminEventsRouter.post('/:id/volunteer-applications/:userId/reject', async (req,
     return updated;
   });
 
+  await notifyParticipantStatusChanged(eventId, membership.userId, membership.status, membership.notes);
   res.json({ membership });
 });
 
