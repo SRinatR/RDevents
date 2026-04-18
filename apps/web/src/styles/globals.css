@@ -4938,6 +4938,34 @@ body {
   grid-template-columns: 1fr 1fr;
 }
 
+.profile-address-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 360px) minmax(0, 520px);
+  gap: 14px;
+}
+
+.profile-address-field {
+  width: min(100%, var(--address-field-max, 100%));
+}
+
+.profile-address-field-city {
+  --address-field-max: 360px;
+}
+
+.profile-address-field-factual {
+  --address-field-max: 520px;
+}
+
+@media (max-width: 1024px) {
+  .profile-address-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-address-field {
+    --address-field-max: 100%;
+  }
+}
+
 @media (max-width: 640px) {
   .profile-workspace-topbar {
     flex-direction: column;

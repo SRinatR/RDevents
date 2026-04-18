@@ -51,8 +51,9 @@ export function ProfileAddressSection({
           void onSave({ city, factualAddress });
         }}
       >
-        <div className="signal-two-col">
+        <div className="profile-address-grid">
           <FieldBlock
+            className="profile-address-field profile-address-field-city"
             label={locale === 'ru' ? 'Город' : 'City'}
             required={isRequired('city')}
             hint={requiredHint(locale, 'city', requiredFields, eventTitle)}
@@ -64,6 +65,7 @@ export function ProfileAddressSection({
             />
           </FieldBlock>
           <FieldBlock
+            className="profile-address-field profile-address-field-factual"
             label={locale === 'ru' ? 'Фактический адрес' : 'Factual address'}
             required={isRequired('factualAddress')}
             hint={requiredHint(locale, 'factualAddress', requiredFields, eventTitle)}
@@ -83,18 +85,20 @@ export function ProfileAddressSection({
 }
 
 function FieldBlock({
+  className,
   label,
   required,
   hint,
   children,
 }: {
+  className?: string;
   label: string;
   required?: boolean;
   hint?: string | null;
   children: ReactNode;
 }) {
   return (
-    <label className="signal-stack cabinet-field-block">
+    <label className={`signal-stack cabinet-field-block ${className ?? ''}`}>
       <span className="cabinet-field-label">
         {label} {required ? <span className="cabinet-field-required">*</span> : null}
       </span>
