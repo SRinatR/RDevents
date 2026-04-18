@@ -52,13 +52,7 @@ export async function updateProfileSection(userId: string, sectionKey: ProfileSe
   if (sectionKey === 'basic') {
     await updateBasicSection(userId, data);
   } else if (sectionKey === 'contacts') {
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        ...(data['phone'] !== undefined && { phone: nullableString(data['phone']) }),
-        ...(data['telegram'] !== undefined && { telegram: nullableString(data['telegram']) }),
-      },
-    });
+    await updateContactsSection(userId, data);
   } else if (sectionKey === 'address') {
     await prisma.user.update({
       where: { id: userId },
@@ -145,6 +139,46 @@ export async function getProfileActivity(userId: string) {
   };
 }
 
+export async function verifyProfileContact(userId: string, channel: 'email' | 'phone' | 'telegram') {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      phone: true,
+      telegram: true,
+      emailVerifiedAt: true,
+      phoneVerifiedAt: true,
+      telegramVerifiedAt: true,
+    },
+  });
+  if (!user) throw new Error('NOT_FOUND');
+
+  if (channel === 'email') {
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { emailVerifiedAt: user.emailVerifiedAt ?? new Date() },
+    });
+    return sanitizeUser(updated as any);
+  }
+
+  if (channel === 'phone') {
+    if (!hasText(user.phone)) throw new Error('CONTACT_VALUE_REQUIRED');
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { phoneVerifiedAt: new Date() },
+    });
+    return sanitizeUser(updated as any);
+  }
+
+  if (!hasText(user.telegram)) throw new Error('CONTACT_VALUE_REQUIRED');
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: { telegramVerifiedAt: new Date() },
+  });
+  return sanitizeUser(updated as any);
+}
+
 async function updateBasicSection(userId: string, input: Record<string, any>) {
   const existing = await prisma.user.findUnique({ where: { id: userId } });
   if (!existing) throw new Error('NOT_FOUND');
@@ -179,6 +213,36 @@ async function updateBasicSection(userId: string, input: Record<string, any>) {
       fullNameCyrillic,
       fullNameLatin,
       name: fullNameCyrillic,
+    },
+  });
+}
+
+async function updateContactsSection(userId: string, input: Record<string, any>) {
+  const existing = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      phone: true,
+      telegram: true,
+    },
+  });
+  if (!existing) throw new Error('NOT_FOUND');
+
+  const nextPhone = input['phone'] !== undefined ? nullableString(input['phone']) : existing.phone;
+  const nextTelegram = input['telegram'] !== undefined ? nullableString(input['telegram']) : existing.telegram;
+  const phoneChanged = normalizeComparable(nextPhone) !== normalizeComparable(existing.phone);
+  const telegramChanged = normalizeComparable(nextTelegram) !== normalizeComparable(existing.telegram);
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      ...(input['phone'] !== undefined && {
+        phone: nextPhone,
+        ...(phoneChanged ? { phoneVerifiedAt: null } : {}),
+      }),
+      ...(input['telegram'] !== undefined && {
+        telegram: nextTelegram,
+        ...(telegramChanged ? { telegramVerifiedAt: null } : {}),
+      }),
     },
   });
 }
@@ -317,6 +381,10 @@ function nullableString(value: unknown) {
 
 function hasText(value: unknown) {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+function normalizeComparable(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 function publicMediaAsset(asset: Record<string, any>) {

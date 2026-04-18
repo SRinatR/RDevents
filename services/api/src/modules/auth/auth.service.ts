@@ -398,8 +398,10 @@ export async function updateProfile(userId: string, input: UpdateProfileInput) {
       ...(input.bio !== undefined && { bio: input.bio }),
       ...(input.city !== undefined && { city: input.city }),
       ...(input.factualAddress !== undefined && { factualAddress: input.factualAddress || null }),
-      ...(input.phone !== undefined && { phone: input.phone }),
-      ...(input.telegram !== undefined && { telegram: input.telegram || null }),
+      ...(input.phone !== undefined && { phone: input.phone, phoneVerifiedAt: null }),
+      ...(input.telegram !== undefined && { telegram: input.telegram || null, telegramVerifiedAt: null }),
+      ...(input.phoneVerifiedAt !== undefined && { phoneVerifiedAt: input.phoneVerifiedAt ? new Date(input.phoneVerifiedAt) : null }),
+      ...(input.telegramVerifiedAt !== undefined && { telegramVerifiedAt: input.telegramVerifiedAt ? new Date(input.telegramVerifiedAt) : null }),
       ...(input.nativeLanguage !== undefined && { nativeLanguage: input.nativeLanguage || null }),
       ...(input.communicationLanguage !== undefined && { communicationLanguage: input.communicationLanguage || null }),
       ...(input.consentPersonalData !== undefined && {

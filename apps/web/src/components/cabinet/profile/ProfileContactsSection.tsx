@@ -16,6 +16,7 @@ type ProfileContactsSectionProps = {
   requiredFields: string[];
   eventTitle?: string;
   onSave: (payload: Record<string, unknown>) => Promise<void>;
+  onVerifyContact: (channel: 'email' | 'phone' | 'telegram') => Promise<void>;
 };
 
 export function ProfileContactsSection({
@@ -26,6 +27,7 @@ export function ProfileContactsSection({
   requiredFields,
   eventTitle,
   onSave,
+  onVerifyContact,
 }: ProfileContactsSectionProps) {
   const [phone, setPhone] = useState('');
   const [telegram, setTelegram] = useState('');
@@ -51,41 +53,119 @@ export function ProfileContactsSection({
           void onSave({ phone, telegram });
         }}
       >
-        <div className="signal-two-col">
-          <FieldBlock
-            label={locale === 'ru' ? 'Телефон' : 'Phone'}
-            required={isRequired('phone')}
-            hint={requiredHint(locale, 'phone', requiredFields, eventTitle)}
-          >
-            <FieldInput
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
-              className={isRequired('phone') ? 'signal-field-required' : ''}
-              placeholder="+998"
-            />
-          </FieldBlock>
-          <FieldBlock
-            label="Telegram"
-            required={isRequired('telegram')}
-            hint={requiredHint(locale, 'telegram', requiredFields, eventTitle)}
-          >
-            <FieldInput
-              value={telegram}
-              onChange={(event) => setTelegram(event.target.value)}
-              className={isRequired('telegram') ? 'signal-field-required' : ''}
-              placeholder="@username"
-            />
-          </FieldBlock>
-        </div>
+        <div className="profile-contacts-grid">
+          <div className="profile-contact-form">
+            <FieldBlock
+              label={locale === 'ru' ? 'Телефон' : 'Phone'}
+              required={isRequired('phone')}
+              hint={requiredHint(locale, 'phone', requiredFields, eventTitle)}
+            >
+              <FieldInput
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                className={isRequired('phone') ? 'signal-field-required' : ''}
+                placeholder="+998"
+              />
+            </FieldBlock>
+            <FieldBlock
+              label="Telegram"
+              required={isRequired('telegram')}
+              hint={requiredHint(locale, 'telegram', requiredFields, eventTitle)}
+            >
+              <FieldInput
+                value={telegram}
+                onChange={(event) => setTelegram(event.target.value)}
+                className={isRequired('telegram') ? 'signal-field-required' : ''}
+                placeholder="@username"
+              />
+            </FieldBlock>
+            <div className="profile-readonly-line">
+              <span>{locale === 'ru' ? 'Email' : 'Email'}</span>
+              <strong>{user.email}</strong>
+            </div>
+          </div>
 
-        <div className="profile-readonly-line">
-          <span>{locale === 'ru' ? 'Email' : 'Email'}</span>
-          <strong>{user.email}</strong>
+          <aside className="profile-verification-panel">
+            <h3>{locale === 'ru' ? 'Подтверждение' : 'Confirmation'}</h3>
+            <p>
+              {locale === 'ru'
+                ? 'Статус хранится в профиле. Если контакт изменён, подтверждение нужно пройти снова.'
+                : 'Status is stored in your profile. If a contact changes, confirmation is required again.'}
+            </p>
+            <VerificationRow
+              locale={locale}
+              label="Email"
+              value={user.email}
+              verifiedAt={user.emailVerifiedAt}
+              saving={saving}
+              onVerify={() => onVerifyContact('email')}
+            />
+            <VerificationRow
+              locale={locale}
+              label={locale === 'ru' ? 'Телефон' : 'Phone'}
+              value={phone}
+              savedValue={user.phone ?? ''}
+              verifiedAt={user.phoneVerifiedAt}
+              saving={saving}
+              onVerify={() => onVerifyContact('phone')}
+            />
+            <VerificationRow
+              locale={locale}
+              label="Telegram"
+              value={telegram}
+              savedValue={user.telegram ?? ''}
+              verifiedAt={user.telegramVerifiedAt}
+              saving={saving}
+              onVerify={() => onVerifyContact('telegram')}
+            />
+          </aside>
         </div>
 
         <ProfileSectionActions locale={locale} saving={saving} />
       </form>
     </ProfileSectionLayout>
+  );
+}
+
+function VerificationRow({
+  locale,
+  label,
+  value,
+  savedValue,
+  verifiedAt,
+  saving,
+  onVerify,
+}: {
+  locale: string;
+  label: string;
+  value: string;
+  savedValue?: string;
+  verifiedAt?: string | null;
+  saving: boolean;
+  onVerify: () => Promise<void>;
+}) {
+  const hasValue = value.trim().length > 0;
+  const hasUnsavedChange = savedValue !== undefined && value.trim() !== savedValue.trim();
+  const isVerified = Boolean(verifiedAt) && hasValue && !hasUnsavedChange;
+  const disabled = saving || !hasValue || hasUnsavedChange || isVerified;
+
+  return (
+    <div className="profile-verification-row">
+      <div>
+        <strong>{label}</strong>
+        <span className={isVerified ? 'verified' : 'unverified'}>
+          {isVerified
+            ? (locale === 'ru' ? 'Подтверждён' : 'Confirmed')
+            : (locale === 'ru' ? 'Не подтверждён' : 'Not confirmed')}
+        </span>
+        {hasUnsavedChange ? (
+          <small>{locale === 'ru' ? 'Сначала сохраните изменение' : 'Save the change first'}</small>
+        ) : null}
+      </div>
+      <button type="button" className="btn btn-secondary btn-sm" disabled={disabled} onClick={() => void onVerify()}>
+        {isVerified ? (locale === 'ru' ? 'Готово' : 'Done') : (locale === 'ru' ? 'Подтвердить' : 'Confirm')}
+      </button>
+    </div>
   );
 }
 

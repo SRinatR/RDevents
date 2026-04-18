@@ -1,6 +1,11 @@
 import { prisma } from '../../db/prisma.js';
 import type { Prisma } from '@prisma/client';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
+import {
+  notifyParticipantAnswersUpdated,
+  notifyParticipantApplicationSubmitted,
+  notifyParticipantStatusChanged,
+} from './notifications.service.js';
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
 
@@ -90,6 +95,7 @@ export async function getRegistrationPrecheck(
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) throw new Error('EVENT_NOT_FOUND');
   if (event.status !== 'PUBLISHED') throw new Error('EVENT_NOT_AVAILABLE');
+  if (!event.registrationEnabled) throw new Error('EVENT_NOT_AVAILABLE');
   if (event.registrationOpensAt && event.registrationOpensAt > new Date()) {
     throw new Error('REGISTRATION_NOT_OPEN');
   }
@@ -119,6 +125,7 @@ export async function getRegistrationPrecheck(
         consentClientRules: true,
         birthDate: true,
         avatarUrl: true,
+        avatarAssetId: true,
         bio: true,
       },
     }),
@@ -139,7 +146,7 @@ export async function getRegistrationPrecheck(
     ...normalizeAnswers(answersInput),
   };
   const missingFields = [
-    ...buildMissingProfileFields(user, event.requiredProfileFields),
+    ...buildMissingProfileFields({ ...user, avatarUrl: user.avatarUrl ?? user.avatarAssetId }, event.requiredProfileFields),
     ...buildMissingEventFields(answers, event.requiredEventFields),
   ];
 
@@ -187,6 +194,7 @@ export async function registerForEvent(eventId: string, userId: string, answers?
 
   // Check timing gates
   if (event.status !== 'PUBLISHED') throw new Error('EVENT_NOT_AVAILABLE');
+  if (!event.registrationEnabled) throw new Error('EVENT_NOT_AVAILABLE');
   if (event.registrationOpensAt && event.registrationOpensAt > new Date()) {
     throw new Error('REGISTRATION_NOT_OPEN');
   }
@@ -271,6 +279,8 @@ export async function registerForEvent(eventId: string, userId: string, answers?
       }
     });
 
+    await notifyParticipantApplicationSubmitted(eventId, userId, 'PENDING');
+
     return {
       status: 'PENDING',
       participantCount: activeCount,
@@ -282,7 +292,7 @@ export async function registerForEvent(eventId: string, userId: string, answers?
   // Auto-approve (no approval required)
   const precheck = await assertRegistrationRequirements(eventId, userId, answers);
 
-  const result = await prisma.$transaction(async (tx: any) => {
+  await prisma.$transaction(async (tx: any) => {
     if (event.requiredEventFields.length > 0) {
       await tx.eventRegistrationFormSubmission.upsert({
         where: { eventId_userId: { eventId, userId } },
@@ -339,6 +349,8 @@ export async function registerForEvent(eventId: string, userId: string, answers?
     });
   });
 
+  await notifyParticipantApplicationSubmitted(eventId, userId, 'ACTIVE');
+
   const newActiveCount = activeCount + 1;
   const goalReached = isGoalLimit && newActiveCount >= target;
 
@@ -359,7 +371,7 @@ export async function unregisterFromEvent(eventId: string, userId: string) {
 
   const shouldDecrement = ACTIVE_MEMBER_STATUSES.includes(membership.status as any);
 
-  return prisma.$transaction(async (tx: any) => {
+  const updated = await prisma.$transaction(async (tx: any) => {
     const updated = await tx.eventMember.update({
       where: { id: membership.id },
       data: {
@@ -377,6 +389,9 @@ export async function unregisterFromEvent(eventId: string, userId: string) {
 
     return updated;
   });
+
+  await notifyParticipantStatusChanged(eventId, userId, 'REMOVED');
+  return updated;
 }
 
 export async function getEventMembership(eventId: string, userId: string) {
@@ -426,7 +441,7 @@ export async function saveRegistrationAnswers(eventId: string, userId: string, a
   });
   if (!event) throw new Error('EVENT_NOT_FOUND');
 
-  return prisma.eventRegistrationFormSubmission.upsert({
+  const saved = await prisma.eventRegistrationFormSubmission.upsert({
     where: { eventId_userId: { eventId, userId } },
     create: {
       eventId,
@@ -438,4 +453,7 @@ export async function saveRegistrationAnswers(eventId: string, userId: string, a
       answersJson: normalizeAnswers(answers) as Prisma.InputJsonValue,
     },
   });
+
+  await notifyParticipantAnswersUpdated(eventId, userId);
+  return saved;
 }

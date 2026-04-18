@@ -143,6 +143,8 @@ model User {
   factualAddress        String?
   phone                 String?
   telegram              String?
+  phoneVerifiedAt       DateTime?
+  telegramVerifiedAt    DateTime?
   nativeLanguage        String?
   communicationLanguage String?
   consentPersonalData   Boolean  @default(false)

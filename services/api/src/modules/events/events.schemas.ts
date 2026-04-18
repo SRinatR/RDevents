@@ -23,6 +23,8 @@ export const createEventSchema = z.object({
   endsAt: z.string().min(1),
   registrationOpensAt: z.string().min(1).optional().or(z.literal('')),
   registrationDeadline: z.string().min(1).optional().or(z.literal('')),
+  registrationEnabled: z.boolean().default(true),
+  volunteerApplicationsEnabled: z.boolean().default(false),
   conditions: z.string().optional().or(z.literal('')),
   contactEmail: z.string().email().optional().or(z.literal('')),
   tags: z.array(z.string()).default([]),

@@ -2,6 +2,11 @@ import { prisma } from '../../db/prisma.js';
 import type { Prisma } from '@prisma/client';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 import { assertRegistrationRequirements, getRegistrationPrecheck } from './registration.service.js';
+import {
+  notifyTeamCreated,
+  notifyTeamMemberChanged,
+  notifyTeamUpdated,
+} from './notifications.service.js';
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
 const ACTIVE_TEAM_MEMBER_STATUSES = ['ACTIVE', 'PENDING'] as const;
@@ -66,6 +71,7 @@ export async function createTeam(
   if (!event) throw new Error('EVENT_NOT_FOUND');
   if (!event.isTeamBased) throw new Error('EVENT_NOT_TEAM_BASED');
   if (event.status !== 'PUBLISHED') throw new Error('EVENT_NOT_AVAILABLE');
+  if (!event.registrationEnabled) throw new Error('EVENT_NOT_AVAILABLE');
   const precheck = await assertRegistrationRequirements(eventId, userId, data.answers, { allowExistingParticipant: true });
 
   if (event.registrationDeadline && event.registrationDeadline < new Date()) {
@@ -82,7 +88,7 @@ export async function createTeam(
   const slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') + '-' + Math.random().toString(36).substring(2, 6);
   const joinCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-  return prisma.$transaction(async (tx: any) => {
+  const team = await prisma.$transaction(async (tx: any) => {
     const participantCount = await tx.eventMember.count({
       where: { eventId, role: 'PARTICIPANT', status: { in: [...ACTIVE_MEMBER_STATUSES] } },
     });
@@ -163,6 +169,9 @@ export async function createTeam(
 
     return team;
   });
+
+  await notifyTeamCreated(eventId, team.id);
+  return team;
 }
 
 export async function joinTeam(
@@ -176,6 +185,7 @@ export async function joinTeam(
   if (!event) throw new Error('EVENT_NOT_FOUND');
   if (!event.isTeamBased) throw new Error('EVENT_NOT_TEAM_BASED');
   if (event.status !== 'PUBLISHED') throw new Error('EVENT_NOT_AVAILABLE');
+  if (!event.registrationEnabled) throw new Error('EVENT_NOT_AVAILABLE');
   const precheck = await assertRegistrationRequirements(eventId, userId, answers, { allowExistingParticipant: true });
 
   if (event.registrationDeadline && event.registrationDeadline < new Date()) {
@@ -197,7 +207,7 @@ export async function joinTeam(
   });
   if (existingTeamMember) throw new Error('ALREADY_IN_TEAM');
 
-  return prisma.$transaction(async (tx: any) => {
+  const member = await prisma.$transaction(async (tx: any) => {
     const isPending = event.teamJoinMode === 'BY_REQUEST';
 
     if (event.requiredEventFields.length > 0) {
@@ -254,6 +264,9 @@ export async function joinTeam(
 
     return member;
   });
+
+  await notifyTeamMemberChanged(eventId, teamId, userId, member.status);
+  return member;
 }
 
 export async function joinTeamByCode(
@@ -277,13 +290,16 @@ export async function updateTeam(eventId: string, teamId: string, userId: string
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
   if (team.captainUserId !== userId) throw new Error('NOT_TEAM_CAPTAIN');
 
-  return prisma.eventTeam.update({
+  const updated = await prisma.eventTeam.update({
     where: { id: teamId },
     data: {
       name: data.name ?? undefined,
       description: data.description !== undefined ? data.description : undefined,
     }
   });
+
+  await notifyTeamUpdated(eventId, teamId);
+  return updated;
 }
 
 export async function leaveTeam(eventId: string, teamId: string, userId: string) {
@@ -300,6 +316,7 @@ export async function leaveTeam(eventId: string, teamId: string, userId: string)
     where: { id: member.id },
     data: { status: 'LEFT', removedAt: new Date() }
   });
+  await notifyTeamMemberChanged(eventId, teamId, userId, 'LEFT');
 }
 
 export async function approveTeamMember(eventId: string, teamId: string, captainId: string, memberUserId: string) {
@@ -316,7 +333,7 @@ export async function approveTeamMember(eventId: string, teamId: string, captain
   });
   if (!member) throw new Error('MEMBER_NOT_FOUND');
 
-  return prisma.$transaction(async (tx: any) => {
+  const updatedMember = await prisma.$transaction(async (tx: any) => {
     const updatedMember = await tx.eventTeamMember.update({
       where: { id: member.id },
       data: { status: 'ACTIVE', approvedAt: new Date() }
@@ -352,6 +369,9 @@ export async function approveTeamMember(eventId: string, teamId: string, captain
 
     return updatedMember;
   });
+
+  await notifyTeamMemberChanged(eventId, teamId, memberUserId, 'ACTIVE');
+  return updatedMember;
 }
 
 export async function rejectTeamMember(eventId: string, teamId: string, captainId: string, memberUserId: string) {
@@ -368,6 +388,7 @@ export async function rejectTeamMember(eventId: string, teamId: string, captainI
     where: { id: member.id },
     data: { status: 'REJECTED' }
   });
+  await notifyTeamMemberChanged(eventId, teamId, memberUserId, 'REJECTED');
 }
 
 export async function removeTeamMember(eventId: string, teamId: string, captainId: string, memberUserId: string) {
@@ -385,4 +406,5 @@ export async function removeTeamMember(eventId: string, teamId: string, captainI
     where: { id: member.id },
     data: { status: 'REMOVED', removedAt: new Date() }
   });
+  await notifyTeamMemberChanged(eventId, teamId, memberUserId, 'REMOVED');
 }

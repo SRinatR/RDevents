@@ -1,12 +1,33 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
 import { adminApi } from '@/lib/api';
-import { EmptyState, FieldInput, LoadingLines, MetricCard, Notice, Panel, SectionHeader, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
-import { EventNotFound, EventWorkspaceHeader, formatAdminDateTime, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
+import {
+  EmptyState,
+  FieldInput,
+  FieldSelect,
+  LoadingLines,
+  MetricCard,
+  Notice,
+  Panel,
+  SectionHeader,
+  StatusBadge,
+  TableShell,
+  ToolbarRow,
+} from '@/components/ui/signal-primitives';
+import {
+  EventNotFound,
+  EventWorkspaceHeader,
+  formatAdminDateTime,
+  memberStatusTone,
+  type AdminEventRecord,
+} from '@/components/admin/AdminEventWorkspace';
+
+const TEAM_STATUS_FILTERS = ['ALL', 'ACTIVE', 'PENDING', 'REJECTED', 'ARCHIVED'] as const;
 
 export default function EventTeamsPage() {
   const { user, loading, isAdmin } = useAuth();
@@ -18,7 +39,11 @@ export default function EventTeamsPage() {
   const [teams, setTeams] = useState<any[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<(typeof TEAM_STATUS_FILTERS)[number]>('ALL');
+  const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
+  const [actionKey, setActionKey] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) router.push(`/${locale}`);
@@ -50,15 +75,54 @@ export default function EventTeamsPage() {
 
   const filteredTeams = useMemo(() => {
     const normalized = search.trim().toLowerCase();
-    if (!normalized) return teams;
-    return teams.filter((team) => team.name?.toLowerCase().includes(normalized)
-      || team.captainUser?.name?.toLowerCase().includes(normalized)
-      || team.captainUser?.email?.toLowerCase().includes(normalized));
-  }, [teams, search]);
+    return teams.filter((team) => {
+      const status = team.status ?? 'ACTIVE';
+      const statusMatches = statusFilter === 'ALL' || status === statusFilter;
+      const searchMatches = !normalized
+        || team.name?.toLowerCase().includes(normalized)
+        || team.joinCode?.toLowerCase().includes(normalized)
+        || team.captainUser?.name?.toLowerCase().includes(normalized)
+        || team.captainUser?.email?.toLowerCase().includes(normalized)
+        || team.members?.some((member: any) => member.user?.name?.toLowerCase().includes(normalized)
+          || member.user?.email?.toLowerCase().includes(normalized));
+      return statusMatches && searchMatches;
+    });
+  }, [teams, search, statusFilter]);
 
-  const activeTeams = teams.filter((team) => (team.status ?? 'ACTIVE') === 'ACTIVE').length;
-  const totalMembers = teams.reduce((sum, team) => sum + Number(team._count?.members ?? team.members?.length ?? 0), 0);
-  const teamsWithCaptain = teams.filter((team) => team.captainUser).length;
+  const stats = useMemo(() => {
+    const activeTeams = teams.filter((team) => (team.status ?? 'ACTIVE') === 'ACTIVE').length;
+    const activeMembers = teams.reduce((sum, team) => sum + getTeamMemberCount(team, 'ACTIVE'), 0);
+    const pendingMembers = teams.reduce((sum, team) => sum + getTeamMemberCount(team, 'PENDING'), 0);
+    const slots = teams.reduce((sum, team) => sum + Number(team.maxSize ?? 0), 0);
+    return { activeTeams, activeMembers, pendingMembers, slots };
+  }, [teams]);
+
+  async function handleTeamMemberAction(teamId: string, memberUserId: string, action: 'approve' | 'reject' | 'remove') {
+    if (!eventId) return;
+    const nextActionKey = `${teamId}:${memberUserId}:${action}`;
+    setActionKey(nextActionKey);
+    setError('');
+    setSuccess('');
+
+    try {
+      if (action === 'approve') await adminApi.approveEventTeamMember(eventId, teamId, memberUserId);
+      if (action === 'reject') await adminApi.rejectEventTeamMember(eventId, teamId, memberUserId);
+      if (action === 'remove') await adminApi.removeEventTeamMember(eventId, teamId, memberUserId);
+      setSuccess(locale === 'ru' ? 'Состав команды обновлён. Уведомление отправлено.' : 'Team roster updated. Notification sent.');
+      await loadData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to update team member');
+    } finally {
+      setActionKey(null);
+    }
+  }
+
+  async function copyJoinCode(code?: string | null) {
+    if (!code) return;
+    await navigator.clipboard.writeText(code);
+    setSuccess(locale === 'ru' ? 'Код команды скопирован.' : 'Team code copied.');
+    window.setTimeout(() => setSuccess(''), 2500);
+  }
 
   if (loading || !user || !isAdmin) return <div className="admin-loading-screen"><div className="spinner" /></div>;
   if (!loadingData && !event) return <EventNotFound locale={locale} />;
@@ -73,6 +137,7 @@ export default function EventTeamsPage() {
       />
 
       {error ? <Notice tone="danger">{error}</Notice> : null}
+      {success ? <Notice tone="success">{success}</Notice> : null}
 
       {loadingData ? (
         <LoadingLines rows={8} />
@@ -80,22 +145,44 @@ export default function EventTeamsPage() {
         <>
           <div className="signal-kpi-grid">
             <MetricCard tone="info" label={locale === 'ru' ? 'Всего команд' : 'Total teams'} value={teams.length} />
-            <MetricCard tone="success" label={locale === 'ru' ? 'Активные' : 'Active'} value={activeTeams} />
-            <MetricCard tone="neutral" label={locale === 'ru' ? 'Участники в командах' : 'Team members'} value={totalMembers} />
-            <MetricCard tone="warning" label={locale === 'ru' ? 'С капитаном' : 'With captain'} value={teamsWithCaptain} />
+            <MetricCard tone="success" label={locale === 'ru' ? 'Активные команды' : 'Active teams'} value={stats.activeTeams} />
+            <MetricCard tone="warning" label={locale === 'ru' ? 'Ожидают решения' : 'Pending requests'} value={stats.pendingMembers} />
+            <MetricCard tone="neutral" label={locale === 'ru' ? 'Места в командах' : 'Team slots'} value={`${stats.activeMembers}/${stats.slots || '—'}`} />
           </div>
 
+          <Panel variant="elevated" className="admin-command-panel admin-team-settings-panel">
+            <SectionHeader
+              title={locale === 'ru' ? 'Параметры командного набора' : 'Team registration settings'}
+              subtitle={locale === 'ru' ? 'Как участники создают команды и вступают в них' : 'How participants create and join teams'}
+            />
+            <div className="admin-team-settings-grid">
+              <SettingTile label={locale === 'ru' ? 'Формат' : 'Format'} value={(event as any)?.isTeamBased ? (locale === 'ru' ? 'Командный' : 'Team-based') : (locale === 'ru' ? 'Индивидуальный' : 'Individual')} />
+              <SettingTile label={locale === 'ru' ? 'Размер команды' : 'Team size'} value={`${(event as any)?.minTeamSize ?? 1}-${(event as any)?.maxTeamSize ?? 1}`} />
+              <SettingTile label={locale === 'ru' ? 'Вступление' : 'Join mode'} value={formatTeamJoinMode((event as any)?.teamJoinMode, locale)} />
+              <SettingTile label={locale === 'ru' ? 'Одиночное участие' : 'Solo participation'} value={(event as any)?.allowSoloParticipation ? (locale === 'ru' ? 'Разрешено' : 'Allowed') : (locale === 'ru' ? 'Запрещено' : 'Disabled')} />
+              <SettingTile label={locale === 'ru' ? 'Одобрение команд' : 'Team approval'} value={(event as any)?.requireAdminApprovalForTeams ? (locale === 'ru' ? 'Требуется' : 'Required') : (locale === 'ru' ? 'Автоматически' : 'Automatic')} />
+            </div>
+          </Panel>
+
           <Panel variant="elevated" className="admin-command-panel admin-data-panel">
-            <SectionHeader title={locale === 'ru' ? 'Состав команд' : 'Team roster'} subtitle={locale === 'ru' ? 'Команды, капитаны и размер состава' : 'Teams, captains, and roster size'} />
+            <SectionHeader
+              title={locale === 'ru' ? 'Состав команд' : 'Team roster'}
+              subtitle={locale === 'ru' ? 'Команды, капитаны, коды и заявки на вступление' : 'Teams, captains, codes, and join requests'}
+            />
 
             <ToolbarRow>
               <FieldInput
                 value={search}
                 onChange={(inputEvent) => setSearch(inputEvent.target.value)}
-                placeholder={locale === 'ru' ? 'Поиск по команде или капитану' : 'Search by team or captain'}
+                placeholder={locale === 'ru' ? 'Поиск по команде, коду, капитану или участнику' : 'Search team, code, captain, or member'}
                 className="admin-filter-search"
               />
-              <StatusBadge tone="info">{filteredTeams.length} {locale === 'ru' ? 'строк' : 'rows'}</StatusBadge>
+              <FieldSelect value={statusFilter} onChange={(selectEvent) => setStatusFilter(selectEvent.target.value as (typeof TEAM_STATUS_FILTERS)[number])} className="admin-filter-select">
+                {TEAM_STATUS_FILTERS.map((status) => (
+                  <option key={status} value={status}>{status === 'ALL' ? (locale === 'ru' ? 'Все статусы' : 'All statuses') : status}</option>
+                ))}
+              </FieldSelect>
+              <StatusBadge tone="info">{filteredTeams.length} {locale === 'ru' ? 'команд' : 'teams'}</StatusBadge>
             </ToolbarRow>
 
             {filteredTeams.length === 0 ? (
@@ -104,40 +191,172 @@ export default function EventTeamsPage() {
                 description={locale === 'ru' ? 'Команды появятся после создания участниками.' : 'Teams will appear after participants create them.'}
               />
             ) : (
-              <TableShell>
-                <table className="signal-table">
-                  <thead>
-                    <tr>
-                      <th>{locale === 'ru' ? 'Команда' : 'Team'}</th>
-                      <th>{locale === 'ru' ? 'Капитан' : 'Captain'}</th>
-                      <th>{locale === 'ru' ? 'Участников' : 'Members'}</th>
-                      <th>{locale === 'ru' ? 'Статус' : 'Status'}</th>
-                      <th>{locale === 'ru' ? 'Создана' : 'Created'}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredTeams.map((team) => (
-                      <tr key={team.id}>
-                        <td>
-                          <strong>{team.name}</strong>
-                          {team.description ? <div className="signal-muted signal-overflow-ellipsis">{team.description}</div> : null}
-                        </td>
-                        <td>
-                          <strong>{team.captainUser?.name ?? '—'}</strong>
-                          {team.captainUser?.email ? <div className="signal-muted">{team.captainUser.email}</div> : null}
-                        </td>
-                        <td><StatusBadge tone="info">{team._count?.members ?? team.members?.length ?? 0}</StatusBadge></td>
-                        <td><StatusBadge tone={(team.status ?? 'ACTIVE') === 'ACTIVE' ? 'success' : 'neutral'}>{team.status ?? 'ACTIVE'}</StatusBadge></td>
-                        <td className="signal-muted">{formatAdminDateTime(team.createdAt, locale)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </TableShell>
+              <div className="admin-team-board">
+                {filteredTeams.map((team) => {
+                  const members = Array.isArray(team.members) ? team.members : [];
+                  const activeMembers = members.filter((member: any) => member.status === 'ACTIVE');
+                  const pendingMembers = members.filter((member: any) => member.status === 'PENDING');
+                  const isExpanded = expandedTeamId === team.id;
+
+                  return (
+                    <article key={team.id} className="admin-team-card">
+                      <header className="admin-team-card-head">
+                        <div>
+                          <div className="admin-team-title-line">
+                            <h3>{team.name}</h3>
+                            <StatusBadge tone={teamStatusTone(team.status)}>{team.status ?? 'ACTIVE'}</StatusBadge>
+                          </div>
+                          {team.description ? <p>{team.description}</p> : null}
+                        </div>
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setExpandedTeamId(isExpanded ? null : team.id)}>
+                          {isExpanded ? (locale === 'ru' ? 'Свернуть' : 'Collapse') : (locale === 'ru' ? 'Состав' : 'Roster')}
+                        </button>
+                      </header>
+
+                      <div className="admin-team-meta-grid">
+                        <TeamMeta label={locale === 'ru' ? 'Капитан' : 'Captain'} value={team.captainUser?.name || team.captainUser?.email || '—'} subvalue={team.captainUser?.email} />
+                        <TeamMeta label={locale === 'ru' ? 'Участники' : 'Members'} value={`${activeMembers.length}/${team.maxSize ?? '—'}`} subvalue={pendingMembers.length ? `${pendingMembers.length} pending` : undefined} />
+                        <TeamMeta label={locale === 'ru' ? 'Код' : 'Code'} value={team.joinCode || '—'} action={team.joinCode ? (
+                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => void copyJoinCode(team.joinCode)}>
+                            {locale === 'ru' ? 'Копировать' : 'Copy'}
+                          </button>
+                        ) : null} />
+                        <TeamMeta label={locale === 'ru' ? 'Создана' : 'Created'} value={formatAdminDateTime(team.createdAt, locale)} />
+                      </div>
+
+                      {isExpanded ? (
+                        <div className="admin-team-members">
+                          {members.length === 0 ? (
+                            <EmptyState
+                              title={locale === 'ru' ? 'Состав пуст' : 'Roster is empty'}
+                              description={locale === 'ru' ? 'У команды пока нет участников.' : 'This team has no members yet.'}
+                            />
+                          ) : (
+                            <TableShell>
+                              <table className="signal-table">
+                                <thead>
+                                  <tr>
+                                    <th>{locale === 'ru' ? 'Участник' : 'Member'}</th>
+                                    <th>{locale === 'ru' ? 'Роль' : 'Role'}</th>
+                                    <th>{locale === 'ru' ? 'Статус' : 'Status'}</th>
+                                    <th>{locale === 'ru' ? 'Вступил' : 'Joined'}</th>
+                                    <th className="right">{locale === 'ru' ? 'Действия' : 'Actions'}</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {members.map((member: any) => (
+                                    <Fragment key={member.id}>
+                                      <tr>
+                                        <td>
+                                          <strong>{member.user?.name || member.user?.email || '—'}</strong>
+                                          {member.user?.email ? <div className="signal-muted">{member.user.email}</div> : null}
+                                        </td>
+                                        <td>{member.role}</td>
+                                        <td><StatusBadge tone={memberStatusTone(member.status)}>{member.status}</StatusBadge></td>
+                                        <td className="signal-muted">{formatAdminDateTime(member.joinedAt, locale)}</td>
+                                        <td className="right">
+                                          <div className="signal-row-actions">
+                                            {member.status === 'PENDING' ? (
+                                              <>
+                                                <button
+                                                  type="button"
+                                                  className="btn btn-primary btn-sm"
+                                                  disabled={actionKey === `${team.id}:${member.userId}:approve`}
+                                                  onClick={() => void handleTeamMemberAction(team.id, member.userId, 'approve')}
+                                                >
+                                                  {locale === 'ru' ? 'Принять' : 'Approve'}
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  className="btn btn-danger btn-sm"
+                                                  disabled={actionKey === `${team.id}:${member.userId}:reject`}
+                                                  onClick={() => void handleTeamMemberAction(team.id, member.userId, 'reject')}
+                                                >
+                                                  {locale === 'ru' ? 'Отклонить' : 'Reject'}
+                                                </button>
+                                              </>
+                                            ) : null}
+                                            {member.status === 'ACTIVE' && member.role !== 'CAPTAIN' ? (
+                                              <button
+                                                type="button"
+                                                className="btn btn-secondary btn-sm"
+                                                disabled={actionKey === `${team.id}:${member.userId}:remove`}
+                                                onClick={() => void handleTeamMemberAction(team.id, member.userId, 'remove')}
+                                              >
+                                                {locale === 'ru' ? 'Удалить' : 'Remove'}
+                                              </button>
+                                            ) : null}
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    </Fragment>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </TableShell>
+                          )}
+                        </div>
+                      ) : null}
+                    </article>
+                  );
+                })}
+              </div>
             )}
           </Panel>
         </>
       )}
     </div>
   );
+}
+
+function SettingTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="admin-team-setting-tile">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function TeamMeta({
+  label,
+  value,
+  subvalue,
+  action,
+}: {
+  label: string;
+  value: string;
+  subvalue?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="admin-team-meta-tile">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {subvalue ? <small>{subvalue}</small> : null}
+      {action}
+    </div>
+  );
+}
+
+function getTeamMemberCount(team: any, status: string) {
+  if (Array.isArray(team.members)) {
+    return team.members.filter((member: any) => member.status === status).length;
+  }
+  if (status === 'ACTIVE') return Number(team._count?.members ?? 0);
+  return 0;
+}
+
+function teamStatusTone(status?: string | null): 'success' | 'warning' | 'danger' | 'info' | 'neutral' {
+  if (!status || status === 'ACTIVE') return 'success';
+  if (status === 'PENDING') return 'warning';
+  if (status === 'REJECTED') return 'danger';
+  if (status === 'ARCHIVED') return 'neutral';
+  return 'info';
+}
+
+function formatTeamJoinMode(value: string | null | undefined, locale: string) {
+  if (value === 'BY_CODE') return locale === 'ru' ? 'По коду' : 'By code';
+  if (value === 'BY_REQUEST') return locale === 'ru' ? 'По заявке' : 'By request';
+  return locale === 'ru' ? 'Открыто' : 'Open';
 }

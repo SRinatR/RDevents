@@ -28,6 +28,8 @@ export const updateProfileSchema = z.object({
   factualAddress: z.string().max(255).optional().or(z.literal('')),
   phone: z.string().max(20).optional(),
   telegram: z.string().max(64).optional(),
+  phoneVerifiedAt: z.string().datetime().optional().or(z.literal('')),
+  telegramVerifiedAt: z.string().datetime().optional().or(z.literal('')),
   nativeLanguage: z.string().max(100).optional().or(z.literal('')),
   communicationLanguage: z.string().max(100).optional().or(z.literal('')),
   consentPersonalData: z.boolean().optional(),

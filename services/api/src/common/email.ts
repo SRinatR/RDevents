@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import { env } from '../config/env.js';
+import { logger } from './logger.js';
 
 let resendClient: Resend | null = null;
 
@@ -38,6 +39,57 @@ export async function sendRegistrationCodeEmail(input: {
     html,
     ...(env.RESEND_REPLY_TO_EMAIL ? { replyTo: env.RESEND_REPLY_TO_EMAIL } : {}),
   });
+}
+
+export async function sendEventNotificationEmail(input: {
+  to: string;
+  subject: string;
+  title: string;
+  body: string[];
+  actionUrl?: string | null;
+  actionLabel?: string;
+}) {
+  const client = getResendClient();
+  if (!client) {
+    throw new Error('EMAIL_DELIVERY_NOT_CONFIGURED');
+  }
+  if (!env.RESEND_FROM_EMAIL) {
+    throw new Error('EMAIL_SENDER_NOT_CONFIGURED');
+  }
+
+  const from = formatFromAddress(env.RESEND_FROM_NAME, env.RESEND_FROM_EMAIL);
+  const text = buildNotificationText(input);
+  const html = buildNotificationHtml(input);
+
+  await client.emails.send({
+    from,
+    to: [input.to],
+    subject: input.subject,
+    text,
+    html,
+    ...(env.RESEND_REPLY_TO_EMAIL ? { replyTo: env.RESEND_REPLY_TO_EMAIL } : {}),
+  });
+}
+
+export async function sendEventNotificationEmailSafe(
+  input: Parameters<typeof sendEventNotificationEmail>[0],
+  context: { userId?: string; eventId?: string; action?: string } = {},
+) {
+  try {
+    await sendEventNotificationEmail(input);
+  } catch (error) {
+    logger.warn('Event notification email was not sent', {
+      module: 'email',
+      action: context.action ?? 'event_notification_email_failed',
+      userId: context.userId,
+      eventId: context.eventId,
+      meta: {
+        to: input.to,
+        subject: input.subject,
+        reason: error instanceof Error ? error.message : String(error),
+      },
+    });
+  }
 }
 
 function formatFromAddress(name: string, email: string) {
@@ -80,4 +132,49 @@ function buildRegistrationCodeHtml(code: string, ttlMinutes: number) {
       </div>
     </div>
   `;
+}
+
+function buildNotificationText(input: {
+  title: string;
+  body: string[];
+  actionUrl?: string | null;
+  actionLabel?: string;
+}) {
+  return [
+    'RDEvents',
+    '',
+    input.title,
+    '',
+    ...input.body,
+    ...(input.actionUrl ? ['', `${input.actionLabel ?? 'Открыть'}: ${input.actionUrl}`] : []),
+  ].join('\n');
+}
+
+function buildNotificationHtml(input: {
+  title: string;
+  body: string[];
+  actionUrl?: string | null;
+  actionLabel?: string;
+}) {
+  const body = input.body.map(line => `<p style="margin: 0 0 10px;">${escapeHtml(line)}</p>`).join('');
+  const action = input.actionUrl
+    ? `<p style="margin: 18px 0 0;"><a href="${escapeHtml(input.actionUrl)}" style="display: inline-block; background: #1f58d8; color: #ffffff; text-decoration: none; padding: 10px 14px; border-radius: 8px; font-weight: 700;">${escapeHtml(input.actionLabel ?? 'Открыть')}</a></p>`
+    : '';
+
+  return `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
+      <h2 style="margin: 0 0 12px;">RDEvents</h2>
+      <h3 style="margin: 0 0 12px;">${escapeHtml(input.title)}</h3>
+      ${body}
+      ${action}
+    </div>
+  `;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }

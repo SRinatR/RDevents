@@ -130,6 +130,13 @@ export function useProfileSections(locale = 'ru') {
     }, localeKey === 'ru' ? 'Документ удалён.' : 'Document deleted.');
   }, [localeKey, reloadDocuments, reloadSections]);
 
+  const verifyContact = useCallback(async (channel: 'email' | 'phone' | 'telegram') => {
+    await runSectionAction('contacts', async () => {
+      await authApi.verifyProfileContact(channel);
+      await refreshUser();
+    }, localeKey === 'ru' ? 'Контакт подтверждён.' : 'Contact confirmed.');
+  }, [localeKey, refreshUser, reloadSections]);
+
   return {
     sections,
     documents,
@@ -146,6 +153,7 @@ export function useProfileSections(locale = 'ru') {
     deleteAvatar,
     uploadDocument,
     deleteDocument,
+    verifyContact,
     clearFeedback: () => {
       setError('');
       setSuccess('');

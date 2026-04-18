@@ -39,6 +39,7 @@ export default function ProfilePage() {
     deleteAvatar,
     uploadDocument,
     deleteDocument,
+    verifyContact,
   } = useProfileSections(locale);
 
   if (loading || !user) return null;
@@ -88,6 +89,7 @@ export default function ProfilePage() {
           deleteAvatar,
           uploadDocument,
           deleteDocument,
+          verifyContact,
         })
       )}
     </ProfileWorkspaceShell>
@@ -109,6 +111,7 @@ function renderSection({
   deleteAvatar,
   uploadDocument,
   deleteDocument,
+  verifyContact,
 }: {
   activeSection: ProfileSectionKey;
   locale: string;
@@ -124,6 +127,7 @@ function renderSection({
   deleteAvatar: () => Promise<void>;
   uploadDocument: (file: File) => Promise<void>;
   deleteDocument: (assetId: string) => Promise<void>;
+  verifyContact: (channel: 'email' | 'phone' | 'telegram') => Promise<void>;
 }) {
   if (activeSection === 'basic') {
     return (
@@ -164,6 +168,7 @@ function renderSection({
         requiredFields={requiredFields}
         eventTitle={eventTitle}
         onSave={(payload) => saveSection('contacts', payload)}
+        onVerifyContact={verifyContact}
       />
     );
   }

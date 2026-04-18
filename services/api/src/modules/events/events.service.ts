@@ -1,6 +1,7 @@
 // Core event query functions
 import { prisma } from '../../db/prisma.js';
 import type { EventQuery } from './events.schemas.js';
+import { notifyParticipantApplicationSubmitted } from './notifications.service.js';
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
 
@@ -175,6 +176,7 @@ export async function applyForVolunteer(eventId: string, userId: string, notes?:
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) throw new Error('EVENT_NOT_FOUND');
   if (event.status !== 'PUBLISHED') throw new Error('EVENT_NOT_AVAILABLE');
+  if (!event.volunteerApplicationsEnabled) throw new Error('EVENT_NOT_AVAILABLE');
 
   const existing = await prisma.eventMember.findUnique({
     where: { eventId_userId_role: { eventId, userId, role: 'VOLUNTEER' } },
@@ -185,7 +187,7 @@ export async function applyForVolunteer(eventId: string, userId: string, notes?:
   }
 
   if (existing) {
-    return prisma.$transaction(async (tx: any) => {
+    const membership = await prisma.$transaction(async (tx: any) => {
       const membership = await tx.eventMember.update({
         where: { id: existing.id },
         data: {
@@ -210,9 +212,11 @@ export async function applyForVolunteer(eventId: string, userId: string, notes?:
 
       return membership;
     });
+    await notifyParticipantApplicationSubmitted(eventId, userId, 'PENDING');
+    return membership;
   }
 
-  return prisma.$transaction(async (tx: any) => {
+  const membership = await prisma.$transaction(async (tx: any) => {
     const membership = await tx.eventMember.create({
       data: {
         eventId,
@@ -235,6 +239,8 @@ export async function applyForVolunteer(eventId: string, userId: string, notes?:
 
     return membership;
   });
+  await notifyParticipantApplicationSubmitted(eventId, userId, 'PENDING');
+  return membership;
 }
 
 export async function getMyEvents(userId: string) {
