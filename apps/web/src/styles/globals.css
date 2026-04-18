@@ -5062,25 +5062,34 @@ body {
 
 .profile-address-grid {
   display: grid;
-  grid-template-columns: minmax(0, 360px) minmax(0, 520px);
-  gap: 14px;
+  grid-template-columns: minmax(0, 300px) minmax(0, 430px);
+  gap: 12px 14px;
+  justify-content: start;
+  align-items: start;
+  width: min(100%, 744px);
 }
 
 .profile-address-field {
-  width: min(100%, var(--address-field-max, 100%));
+  width: 100%;
+  max-width: var(--address-field-max, 100%);
 }
 
 .profile-address-field-city {
-  --address-field-max: 360px;
+  --address-field-max: 300px;
 }
 
 .profile-address-field-factual {
-  --address-field-max: 520px;
+  --address-field-max: 430px;
+}
+
+.profile-address-field-factual .signal-textarea {
+  min-height: 96px;
 }
 
 @media (max-width: 1024px) {
   .profile-address-grid {
     grid-template-columns: 1fr;
+    width: 100%;
   }
 
   .profile-address-field {
