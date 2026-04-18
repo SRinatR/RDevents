@@ -6728,20 +6728,11 @@ body {
   padding-bottom: clamp(3.4rem, 5.2vw, 5.2rem);
 }
 
-.privacy-viewport {
-  width: min(1560px, calc(100% - 48px));
-  margin: 0 auto;
-}
-
-.privacy-shell {
-  display: flex;
-  flex-direction: column;
-  gap: clamp(1.4rem, 2.4vw, 2.1rem);
-}
-
-.privacy-scene {
+.privacy-workspace {
+  width: 100%;
   display: grid;
-  gap: clamp(1rem, 1.8vw, 1.4rem);
+  gap: clamp(1rem, 1.8vw, 1.45rem);
+  padding-inline: clamp(1rem, 2vw, 1.6rem);
 }
 
 .privacy-header {
@@ -6790,14 +6781,14 @@ body {
   color: var(--color-text-primary);
 }
 
-.privacy-layout {
+.privacy-toc {
+  display: none;
+}
+
+.privacy-workspace-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 1.2rem;
-}
-
-.privacy-toc {
-  display: none;
 }
 
 .privacy-content {
@@ -6828,7 +6819,7 @@ body {
 
 .privacy-section p,
 .privacy-section li {
-  max-width: 100ch;
+  max-width: 120ch;
   color: var(--color-text-secondary);
   font-size: 0.97rem;
   line-height: 1.74;
@@ -6868,7 +6859,7 @@ body {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .privacy-layout {
+  .privacy-workspace-grid {
     grid-template-columns: 280px minmax(0, 1fr);
     align-items: start;
     gap: 1.5rem;
@@ -6921,7 +6912,11 @@ body {
 }
 
 @media (min-width: 1320px) {
-  .privacy-layout {
+  .privacy-workspace {
+    padding-inline: clamp(1.2rem, 2vw, 2rem);
+  }
+
+  .privacy-workspace-grid {
     grid-template-columns: 300px minmax(0, 1fr);
     gap: 1.8rem;
   }
@@ -6938,12 +6933,12 @@ body {
 }
 
 @media (max-width: 859px) {
-  .privacy-viewport {
-    width: calc(100% - 32px);
-  }
-
   .privacy-meta-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .privacy-workspace {
+    padding-inline: 0.75rem;
   }
 
   .privacy-content {
