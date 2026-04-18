@@ -25,8 +25,13 @@ export const updateProfileSchema = z.object({
   name: z.string().min(2).optional().or(z.literal('')),
   bio: z.string().max(500).optional(),
   city: z.string().max(100).optional(),
+  factualAddress: z.string().max(255).optional().or(z.literal('')),
   phone: z.string().max(20).optional(),
   telegram: z.string().max(64).optional(),
+  nativeLanguage: z.string().max(100).optional().or(z.literal('')),
+  communicationLanguage: z.string().max(100).optional().or(z.literal('')),
+  consentPersonalData: z.boolean().optional(),
+  consentClientRules: z.boolean().optional(),
   birthDate: z.string().datetime().optional().or(z.literal('')),
   avatarUrl: z.string().url().optional().or(z.literal('')),
   // Cyrillic name fields

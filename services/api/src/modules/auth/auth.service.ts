@@ -18,11 +18,23 @@ import type {
 
 // Strip sensitive fields before sending user to client
 export function sanitizeUser(user: Record<string, unknown>) {
-  const { passwordHash: _ph, eventMemberships, ...safe } = user;
-  if (!Array.isArray(eventMemberships)) return safe;
+  const {
+    passwordHash: _ph,
+    eventMemberships,
+    avatarAsset,
+    mediaAssets: _mediaAssets,
+    profileSectionStates: _profileSectionStates,
+    ...safe
+  } = user;
+  const resolvedAvatarUrl = (avatarAsset as any)?.publicUrl ?? safe.avatarUrl ?? null;
+  const base = {
+    ...safe,
+    avatarUrl: resolvedAvatarUrl,
+  };
+  if (!Array.isArray(eventMemberships)) return base;
 
   return {
-    ...safe,
+    ...base,
     eventRoles: eventMemberships.map((membership: any) => ({
       eventId: membership.eventId,
       eventSlug: membership.event?.slug,
@@ -334,6 +346,7 @@ export async function getMe(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
+      avatarAsset: true,
       accounts: { select: { provider: true, providerEmail: true, linkedAt: true } },
       eventMemberships: {
         where: { status: { not: 'REMOVED' } },
@@ -384,8 +397,19 @@ export async function updateProfile(userId: string, input: UpdateProfileInput) {
       ...(input.name !== undefined && { name: syncName }),
       ...(input.bio !== undefined && { bio: input.bio }),
       ...(input.city !== undefined && { city: input.city }),
+      ...(input.factualAddress !== undefined && { factualAddress: input.factualAddress || null }),
       ...(input.phone !== undefined && { phone: input.phone }),
       ...(input.telegram !== undefined && { telegram: input.telegram || null }),
+      ...(input.nativeLanguage !== undefined && { nativeLanguage: input.nativeLanguage || null }),
+      ...(input.communicationLanguage !== undefined && { communicationLanguage: input.communicationLanguage || null }),
+      ...(input.consentPersonalData !== undefined && {
+        consentPersonalData: input.consentPersonalData,
+        consentPersonalDataAt: input.consentPersonalData ? new Date() : null,
+      }),
+      ...(input.consentClientRules !== undefined && {
+        consentClientRules: input.consentClientRules,
+        consentClientRulesAt: input.consentClientRules ? new Date() : null,
+      }),
       ...(input.birthDate !== undefined && { birthDate: input.birthDate ? new Date(input.birthDate) : null }),
       ...(input.avatarUrl !== undefined && { avatarUrl: input.avatarUrl || null }),
       // Cyrillic name fields

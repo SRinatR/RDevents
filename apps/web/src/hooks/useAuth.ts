@@ -11,8 +11,14 @@ export interface AuthUser {
   name?: string | null;
   bio?: string | null;
   city?: string | null;
+  factualAddress?: string | null;
   phone?: string | null;
   telegram?: string | null;
+  nativeLanguage?: string | null;
+  communicationLanguage?: string | null;
+  consentPersonalData?: boolean;
+  consentClientRules?: boolean;
+  avatarAssetId?: string | null;
   birthDate?: string | null;
   avatarUrl?: string | null;
   role: string;

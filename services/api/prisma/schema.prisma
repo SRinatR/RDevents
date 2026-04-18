@@ -106,6 +106,22 @@ enum AnalyticsEventType {
   EVENT_ADMIN_ASSIGNED
 }
 
+enum ProfileSectionStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum MediaAssetPurpose {
+  AVATAR
+  DOCUMENT
+}
+
+enum MediaAssetStatus {
+  ACTIVE
+  DELETED
+}
+
 model User {
   id                    String   @id @default(cuid())
   email                 String   @unique
@@ -124,10 +140,18 @@ model User {
 
   bio                   String?
   city                  String?
+  factualAddress        String?
   phone                 String?
   telegram              String?
+  nativeLanguage        String?
+  communicationLanguage String?
+  consentPersonalData   Boolean  @default(false)
+  consentPersonalDataAt DateTime?
+  consentClientRules    Boolean  @default(false)
+  consentClientRulesAt  DateTime?
   birthDate             DateTime?
   avatarUrl             String?
+  avatarAssetId         String?
   role                  UserRole @default(USER)
   isActive              Boolean  @default(true)
   emailVerifiedAt       DateTime?
@@ -145,8 +169,48 @@ model User {
   analyticsEvents       AnalyticsEvent[]
   registrationSubmissions EventRegistrationFormSubmission[]
   refreshSessions       RefreshSession[]
+  avatarAsset           MediaAsset? @relation("UserAvatar", fields: [avatarAssetId], references: [id], onDelete: SetNull)
+  profileSectionStates  UserProfileSectionState[]
+  mediaAssets           MediaAsset[] @relation("MediaAssetOwner")
 
   @@map("users")
+}
+
+model UserProfileSectionState {
+  id         String               @id @default(cuid())
+  userId     String
+  sectionKey String
+  status     ProfileSectionStatus @default(NOT_STARTED)
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sectionKey])
+  @@index([userId])
+  @@map("user_profile_section_states")
+}
+
+model MediaAsset {
+  id               String            @id @default(cuid())
+  ownerUserId      String
+  purpose          MediaAssetPurpose
+  status           MediaAssetStatus  @default(ACTIVE)
+  originalFilename String
+  mimeType         String
+  sizeBytes        Int
+  storageDriver    String
+  storageKey       String
+  publicUrl        String
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  deletedAt        DateTime?
+
+  ownerUser        User              @relation("MediaAssetOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  avatarForUsers   User[]            @relation("UserAvatar")
+
+  @@index([ownerUserId, purpose, status])
+  @@map("media_assets")
 }
 
 model UserAccount {
