@@ -173,10 +173,10 @@ function CoverFallback({ title }: { title: string }) {
 }
 
 
-const HOME_HERO_LOCAL_IMAGE_PUBLIC_PATH = '/images/home-hero-russian-house.jpg';
+const HOME_HERO_LOCAL_IMAGE_PUBLIC_PATH = '/home-hero-russian-house.jpg';
 
 async function resolveHomeHeroImageSrc(fallbackImageUrl: string | null) {
-  const localHeroFilePath = path.join(process.cwd(), 'public', 'images', 'home-hero-russian-house.jpg');
+  const localHeroFilePath = path.join(process.cwd(), 'public', 'home-hero-russian-house.jpg');
 
   try {
     await access(localHeroFilePath);
