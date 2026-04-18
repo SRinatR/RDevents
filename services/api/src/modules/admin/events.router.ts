@@ -9,6 +9,7 @@ import { notifyParticipantStatusChanged } from '../events/notifications.service.
 export const adminEventsRouter = Router();
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
+const DEPRECATED_PROFILE_REQUIREMENT_FIELDS = new Set(['consentPersonalData', 'consentClientRules']);
 
 function normalizeStringArray(value: unknown) {
   if (Array.isArray(value)) {
@@ -20,13 +21,17 @@ function normalizeStringArray(value: unknown) {
   return [];
 }
 
+function normalizeRequiredProfileFields(value: unknown) {
+  return normalizeStringArray(value).filter(field => !DEPRECATED_PROFILE_REQUIREMENT_FIELDS.has(field));
+}
+
 function normalizeEventBody(body: any) {
   return {
     ...body,
     fullDescription: body.fullDescription ?? body.description,
     coverImageUrl: body.coverImageUrl || '',
     tags: normalizeStringArray(body.tags),
-    requiredProfileFields: normalizeStringArray(body.requiredProfileFields),
+    requiredProfileFields: normalizeRequiredProfileFields(body.requiredProfileFields),
     requiredEventFields: normalizeStringArray(body.requiredEventFields),
   };
 }
@@ -154,6 +159,7 @@ adminEventsRouter.post('/', requirePlatformAdmin, async (req, res) => {
         coverImageUrl: parsed.data.coverImageUrl || null,
         conditions: parsed.data.conditions || null,
         contactEmail: parsed.data.contactEmail || null,
+        contactPhone: parsed.data.contactPhone || null,
         createdById: user.id,
         publishedAt: parsed.data.status === 'PUBLISHED' ? new Date() : null,
       },
@@ -198,6 +204,7 @@ adminEventsRouter.patch('/:id', async (req, res) => {
   if (parsed.data.coverImageUrl !== undefined) data['coverImageUrl'] = parsed.data.coverImageUrl || null;
   if (parsed.data.conditions !== undefined) data['conditions'] = parsed.data.conditions || null;
   if (parsed.data.contactEmail !== undefined) data['contactEmail'] = parsed.data.contactEmail || null;
+  if (parsed.data.contactPhone !== undefined) data['contactPhone'] = parsed.data.contactPhone || null;
   if (parsed.data.status === 'PUBLISHED' && existing.status !== 'PUBLISHED') data['publishedAt'] = new Date();
 
   const event = await prisma.event.update({ where: { id: eventId }, data: data as any });

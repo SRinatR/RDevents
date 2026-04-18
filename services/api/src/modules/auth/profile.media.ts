@@ -1,6 +1,6 @@
 import { env } from '../../config/env.js';
 import { prisma } from '../../db/prisma.js';
-import { deleteStoredFile, saveUploadedFile } from '../../common/storage.js';
+import { buildPublicMediaUrl, deleteStoredFile, saveUploadedFile } from '../../common/storage.js';
 
 type MediaPurpose = 'AVATAR' | 'DOCUMENT';
 
@@ -83,7 +83,7 @@ export async function attachAvatarToUser(userId: string, assetId: string) {
     where: { id: userId },
     data: {
       avatarAssetId: asset.id,
-      avatarUrl: asset.publicUrl,
+      avatarUrl: buildPublicMediaUrl(asset.storageKey),
     },
   });
 

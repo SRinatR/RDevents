@@ -5,15 +5,13 @@ export const PROFILE_SECTION_KEYS = [
   'address',
   'languages',
   'documents',
-  'consents',
-  'activity',
 ] as const;
 
 export type ProfileSectionKey = typeof PROFILE_SECTION_KEYS[number];
 
 export type ProfileSectionStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
 
-export const PROFILE_SECTION_FIELDS: Record<Exclude<ProfileSectionKey, 'documents' | 'activity'>, string[]> = {
+export const PROFILE_SECTION_FIELDS: Record<Exclude<ProfileSectionKey, 'documents'>, string[]> = {
   basic: [
     'lastNameCyrillic',
     'firstNameCyrillic',
@@ -27,7 +25,6 @@ export const PROFILE_SECTION_FIELDS: Record<Exclude<ProfileSectionKey, 'document
   contacts: ['phone', 'telegram'],
   address: ['city', 'factualAddress'],
   languages: ['nativeLanguage', 'communicationLanguage'],
-  consents: ['consentPersonalData', 'consentClientRules'],
 };
 
 export const PROFILE_SECTION_META: Record<ProfileSectionKey, { title: string; description: string }> = {
@@ -54,14 +51,6 @@ export const PROFILE_SECTION_META: Record<ProfileSectionKey, { title: string; de
   documents: {
     title: 'Documents',
     description: 'Uploaded profile files',
-  },
-  consents: {
-    title: 'Consents',
-    description: 'Personal data and client rules',
-  },
-  activity: {
-    title: 'Activity',
-    description: 'Events, applications, and teams',
   },
 };
 

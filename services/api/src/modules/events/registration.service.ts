@@ -8,6 +8,7 @@ import {
 } from './notifications.service.js';
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
+const DEPRECATED_PROFILE_REQUIREMENT_FIELDS = new Set(['consentPersonalData', 'consentClientRules']);
 
 const PROFILE_FIELD_LABELS: Record<string, string> = {
   name: 'Full name',
@@ -17,8 +18,6 @@ const PROFILE_FIELD_LABELS: Record<string, string> = {
   telegram: 'Telegram',
   nativeLanguage: 'Native language',
   communicationLanguage: 'Communication language',
-  consentPersonalData: 'Personal data consent',
-  consentClientRules: 'Client rules consent',
   birthDate: 'Date of birth',
   avatarUrl: 'Avatar',
   bio: 'Bio',
@@ -62,6 +61,7 @@ function normalizeAnswers(answers?: Record<string, unknown> | null) {
 
 function buildMissingProfileFields(user: Record<string, unknown>, requiredFields: string[]) {
   return requiredFields
+    .filter(field => !DEPRECATED_PROFILE_REQUIREMENT_FIELDS.has(field))
     .filter(field => !hasValue(user[field]))
     .map(field => ({
       key: field,
@@ -69,6 +69,10 @@ function buildMissingProfileFields(user: Record<string, unknown>, requiredFields
       scope: 'PROFILE' as const,
       action: 'PROFILE' as const,
     }));
+}
+
+function activeProfileRequirementFields(requiredFields: string[]) {
+  return requiredFields.filter(field => !DEPRECATED_PROFILE_REQUIREMENT_FIELDS.has(field));
 }
 
 function buildMissingEventFields(answers: Record<string, unknown>, requiredFields: string[]) {
@@ -121,8 +125,6 @@ export async function getRegistrationPrecheck(
         telegram: true,
         nativeLanguage: true,
         communicationLanguage: true,
-        consentPersonalData: true,
-        consentClientRules: true,
         birthDate: true,
         avatarUrl: true,
         avatarAssetId: true,
@@ -145,15 +147,16 @@ export async function getRegistrationPrecheck(
     ...normalizeAnswers(storedAnswers?.answersJson as Record<string, unknown> | undefined),
     ...normalizeAnswers(answersInput),
   };
+  const requiredProfileFields = activeProfileRequirementFields(event.requiredProfileFields);
   const missingFields = [
-    ...buildMissingProfileFields({ ...user, avatarUrl: user.avatarUrl ?? user.avatarAssetId }, event.requiredProfileFields),
+    ...buildMissingProfileFields({ ...user, avatarUrl: user.avatarUrl ?? user.avatarAssetId }, requiredProfileFields),
     ...buildMissingEventFields(answers, event.requiredEventFields),
   ];
 
   return {
     ok: missingFields.length === 0,
     eventId,
-    requiredProfileFields: event.requiredProfileFields,
+    requiredProfileFields,
     requiredEventFields: event.requiredEventFields,
     missingFields,
     answers,

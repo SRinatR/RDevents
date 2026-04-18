@@ -25,11 +25,6 @@ export const profileLanguagesSectionSchema = z.object({
   communicationLanguage: z.string().max(100).optional().or(z.literal('')),
 });
 
-export const profileConsentsSectionSchema = z.object({
-  consentPersonalData: z.boolean(),
-  consentClientRules: z.boolean(),
-});
-
 export const profileSectionSchemaMap = {
   basic: profileBasicSectionSchema,
   photo: z.object({}).strict(),
@@ -37,12 +32,9 @@ export const profileSectionSchemaMap = {
   address: profileAddressSectionSchema,
   languages: profileLanguagesSectionSchema,
   documents: z.object({}).strict(),
-  consents: profileConsentsSectionSchema,
-  activity: z.object({}).strict(),
 } as const;
 
 export type ProfileBasicSectionInput = z.infer<typeof profileBasicSectionSchema>;
 export type ProfileContactsSectionInput = z.infer<typeof profileContactsSectionSchema>;
 export type ProfileAddressSectionInput = z.infer<typeof profileAddressSectionSchema>;
 export type ProfileLanguagesSectionInput = z.infer<typeof profileLanguagesSectionSchema>;
-export type ProfileConsentsSectionInput = z.infer<typeof profileConsentsSectionSchema>;

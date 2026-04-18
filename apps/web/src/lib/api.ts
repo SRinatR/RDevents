@@ -158,12 +158,6 @@ export const authApi = {
   deleteProfileDocument: (assetId: string) =>
     request<{ ok: boolean }>(`/api/auth/profile/documents/${assetId}`, { method: 'DELETE', auth: true }),
 
-  verifyProfileContact: (channel: 'email' | 'phone' | 'telegram') =>
-    request<{ user: any }>(`/api/auth/profile/contacts/verify/${channel}`, { method: 'POST', auth: true }),
-
-  getProfileActivity: () =>
-    request<any>('/api/auth/profile/activity', { auth: true }),
-
   loginWithGoogle: (payload: { providerAccountId: string; providerEmail?: string; providerUsername?: string }) =>
     request<{ user: any; accessToken: string }>('/api/auth/google', { method: 'POST', body: payload }),
 

@@ -2,11 +2,21 @@
 
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { FieldInput } from '@/components/ui/signal-primitives';
+import { FieldSelect } from '@/components/ui/signal-primitives';
 import type { AuthUser } from '@/hooks/useAuth';
 import { ProfileSectionActions } from './ProfileSectionActions';
 import { ProfileSectionLayout } from './ProfileSectionLayout';
 import type { ProfileSectionStatus } from './profile.types';
+
+const LANGUAGE_OPTIONS = [
+  { value: '', ru: 'Выберите язык', en: 'Choose language' },
+  { value: 'uz', ru: 'Узбекский', en: 'Uzbek' },
+  { value: 'ru', ru: 'Русский', en: 'Russian' },
+  { value: 'en', ru: 'Английский', en: 'English' },
+  { value: 'kaa', ru: 'Каракалпакский', en: 'Karakalpak' },
+  { value: 'tg', ru: 'Таджикский', en: 'Tajik' },
+  { value: 'kk', ru: 'Казахский', en: 'Kazakh' },
+];
 
 type ProfileLanguagesSectionProps = {
   locale: string;
@@ -57,22 +67,26 @@ export function ProfileLanguagesSection({
             required={isRequired('nativeLanguage')}
             hint={requiredHint(locale, 'nativeLanguage', requiredFields, eventTitle)}
           >
-            <FieldInput
+            <FieldSelect
               value={nativeLanguage}
               onChange={(event) => setNativeLanguage(event.target.value)}
               className={isRequired('nativeLanguage') ? 'signal-field-required' : ''}
-            />
+            >
+              {LANGUAGE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{locale === 'ru' ? option.ru : option.en}</option>)}
+            </FieldSelect>
           </FieldBlock>
           <FieldBlock
             label={locale === 'ru' ? 'Язык коммуникации' : 'Communication language'}
             required={isRequired('communicationLanguage')}
             hint={requiredHint(locale, 'communicationLanguage', requiredFields, eventTitle)}
           >
-            <FieldInput
+            <FieldSelect
               value={communicationLanguage}
               onChange={(event) => setCommunicationLanguage(event.target.value)}
               className={isRequired('communicationLanguage') ? 'signal-field-required' : ''}
-            />
+            >
+              {LANGUAGE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{locale === 'ru' ? option.ru : option.en}</option>)}
+            </FieldSelect>
           </FieldBlock>
         </div>
 
