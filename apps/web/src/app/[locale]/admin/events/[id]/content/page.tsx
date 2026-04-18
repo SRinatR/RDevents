@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
 import { adminApi } from '@/lib/api';
-import { EmptyState, LoadingLines, Notice, Panel, SectionHeader, StatusBadge } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, Notice, Panel, SectionHeader } from '@/components/ui/signal-primitives';
 import { EventNotFound, EventWorkspaceHeader, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
 
 export default function EventContentPage() {
@@ -71,11 +71,7 @@ export default function EventContentPage() {
             ) : (
               <EmptyState title={locale === 'ru' ? 'Обложка не задана' : 'No cover image'} description={locale === 'ru' ? 'Добавьте изображение в настройках события.' : 'Add an image from event settings.'} />
             )}
-            <div className="admin-chip-grid">
-              <StatusBadge tone="info">{event.category ?? 'CATEGORY'}</StatusBadge>
-              <StatusBadge tone="neutral">{event.status ?? 'STATUS'}</StatusBadge>
-              {tags.map((tag) => <StatusBadge key={tag} tone="warning">{tag}</StatusBadge>)}
-            </div>
+            {tags.length ? <div className="signal-muted">{tags.join(', ')}</div> : null}
           </Panel>
 
           <Panel variant="elevated" className="admin-command-panel">

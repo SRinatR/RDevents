@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, LoadingLines, Panel, StatusBadge, TableShell } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, Panel, TableShell } from '@/components/ui/signal-primitives';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 
 export default function AdminEmailAutomationsPage() {
@@ -97,7 +97,7 @@ export default function AdminEmailAutomationsPage() {
                   <tr key={auto.id}>
                     <td><strong>{auto.name}</strong></td>
                     <td className="signal-muted">{auto.trigger}</td>
-                    <td><StatusBadge tone={toneByStatus[auto.status] ?? 'neutral'}>{auto.status}</StatusBadge></td>
+                    <td></td>
                     <td className="signal-muted">{auto.lastRunAt ? new Date(auto.lastRunAt).toLocaleString() : '—'}</td>
                     <td className="signal-muted">{auto.nextRunAt ? new Date(auto.nextRunAt).toLocaleString() : '—'}</td>
                     <td className="right">

@@ -1,6 +1,4 @@
 import type { ReactNode } from 'react';
-import { StatusBadge } from '@/components/ui/signal-primitives';
-import { PROFILE_STATUS_COPY, getLocaleKey } from './profile.config';
 import type { ProfileSectionStatus } from './profile.types';
 
 type ProfileSectionLayoutProps = {
@@ -12,15 +10,10 @@ type ProfileSectionLayoutProps = {
 };
 
 export function ProfileSectionLayout({
-  locale,
   title,
   description,
-  status = 'NOT_STARTED',
   children,
 }: ProfileSectionLayoutProps) {
-  const localeKey = getLocaleKey(locale);
-  const statusCopy = PROFILE_STATUS_COPY[status];
-
   return (
     <section className="profile-section-panel">
       <header className="profile-section-heading">
@@ -28,7 +21,6 @@ export function ProfileSectionLayout({
           <h2>{title}</h2>
           <p>{description}</p>
         </div>
-        <StatusBadge tone={statusCopy.tone}>{statusCopy.label[localeKey]}</StatusBadge>
       </header>
       {children}
     </section>

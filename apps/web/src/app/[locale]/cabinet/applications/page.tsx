@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../../hooks/useAuth';
 import { eventsApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
-import { EmptyState, LoadingLines, Notice, PageHeader, Panel, SectionHeader, StatusBadge } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, Notice, PageHeader, Panel, SectionHeader } from '@/components/ui/signal-primitives';
 
 export default function CabinetApplicationsPage() {
   const { user, loading } = useAuth();
@@ -61,7 +61,7 @@ export default function CabinetApplicationsPage() {
       {!loadingData && !error ? (
         <div className="workspace-board-grid">
           <Panel variant="elevated" className="cabinet-workspace-panel workspace-board-column">
-            <SectionHeader title={locale === 'ru' ? 'Командные заявки' : 'Team memberships'} actions={<StatusBadge tone="info">{teams.length}</StatusBadge>} />
+            <SectionHeader title={locale === 'ru' ? 'Командные заявки' : 'Team memberships'} />
             {teams.length === 0 ? <EmptyState title={locale === 'ru' ? 'Команд пока нет' : 'No teams yet'} description={locale === 'ru' ? 'После вступления в команду статус появится здесь.' : 'After joining a team, status will appear here.'} /> : (
               <div className="signal-stack cabinet-list-stack cabinet-list-stack-premium">
                 {teams.map((membership: any) => (
@@ -70,7 +70,7 @@ export default function CabinetApplicationsPage() {
                       <strong>{membership.team?.name || 'Team'}</strong>
                       <div className="signal-muted">{membership.team?.event?.title || 'Event'} · {membership.role || 'Member'}</div>
                     </div>
-                    <StatusBadge tone={toneByStatus[membership.status] ?? 'neutral'}>{membership.status}</StatusBadge>
+                    
                   </Link>
                 ))}
               </div>
@@ -78,7 +78,7 @@ export default function CabinetApplicationsPage() {
           </Panel>
 
           <Panel variant="elevated" className="cabinet-workspace-panel workspace-board-column">
-            <SectionHeader title={locale === 'ru' ? 'Волонтёрские заявки' : 'Volunteer applications'} actions={<StatusBadge tone="info">{volunteerApplications.length}</StatusBadge>} />
+            <SectionHeader title={locale === 'ru' ? 'Волонтёрские заявки' : 'Volunteer applications'} />
             {volunteerApplications.length === 0 ? <EmptyState title={locale === 'ru' ? 'Заявки отсутствуют' : 'No applications'} description={locale === 'ru' ? 'Статусы волонтёрства появятся здесь после подачи.' : 'Volunteer statuses appear here after applying.'} /> : (
               <div className="signal-stack cabinet-list-stack cabinet-list-stack-premium">
                 {volunteerApplications.map((application: any) => (
@@ -87,7 +87,7 @@ export default function CabinetApplicationsPage() {
                       <strong>{application.event?.title || 'Event'}</strong>
                       <div className="signal-muted">{application.event?.location || 'Location'} · {formatDate(application.assignedAt || new Date().toISOString())}</div>
                     </div>
-                    <StatusBadge tone={toneByStatus[application.status] ?? 'neutral'}>{application.status}</StatusBadge>
+                    
                   </Link>
                 ))}
               </div>

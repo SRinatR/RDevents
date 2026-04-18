@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../../hooks/useAuth';
 import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
-import { EmptyState, FieldInput, FieldSelect, LoadingLines, Notice, PageHeader, Panel, SectionHeader, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, Notice, PageHeader, Panel, SectionHeader, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 
 export default function AdminUsersPage() {
   const t = useTranslations();
@@ -87,7 +87,7 @@ export default function AdminUsersPage() {
             <option value="PLATFORM_ADMIN">Platform Admin</option>
             <option value="SUPER_ADMIN">Super Admin</option>
           </FieldSelect>
-          <StatusBadge tone="info">{filteredUsers.length} visible</StatusBadge>
+          
         </ToolbarRow>
 
         {usersLoading ? (
@@ -122,14 +122,14 @@ export default function AdminUsersPage() {
                         </div>
                       </div>
                     </td>
-                    <td><StatusBadge tone={toneByRole[entry.role] ?? 'neutral'}>{entry.role}</StatusBadge></td>
+                    <td></td>
                     <td>{entry.city || '—'}</td>
                     <td>{entry.createdAt ? new Date(entry.createdAt).toLocaleDateString() : '—'}</td>
                     <td>{entry.lastLoginAt ? new Date(entry.lastLoginAt).toLocaleDateString() : '—'}</td>
                     <td>
                       <div className="admin-provider-list">
                         {entry.accounts?.length
-                          ? entry.accounts.map((account: any) => <StatusBadge key={account.id} tone="neutral">{account.provider}</StatusBadge>)
+                          ? entry.accounts.map((account: any) => <span key={account.id} className="signal-muted">{account.provider}</span>)
                           : <span className="signal-muted">No linked providers</span>}
                       </div>
                     </td>

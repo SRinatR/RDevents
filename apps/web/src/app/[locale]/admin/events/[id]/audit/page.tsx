@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
 import { adminApi } from '@/lib/api';
-import { EmptyState, LoadingLines, Notice, Panel, SectionHeader, StatusBadge, TableShell } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, Notice, Panel, SectionHeader, TableShell } from '@/components/ui/signal-primitives';
 import { EventNotFound, EventWorkspaceHeader, formatAdminDateTime, memberStatusTone, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
 
 export default function EventAuditPage() {
@@ -129,9 +129,9 @@ export default function EventAuditPage() {
                   {timeline.map((row) => (
                     <tr key={row.id}>
                       <td className="signal-muted">{formatAdminDateTime(row.at, locale)}</td>
-                      <td><StatusBadge tone="info">{row.type}</StatusBadge></td>
+                      <td></td>
                       <td>{row.actor}</td>
-                      <td><StatusBadge tone={memberStatusTone(row.status)}>{row.status}</StatusBadge></td>
+                      <td></td>
                       <td className="signal-muted">{row.detail}</td>
                     </tr>
                   ))}

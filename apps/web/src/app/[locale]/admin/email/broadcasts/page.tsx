@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, LoadingLines, Panel, StatusBadge, TableShell } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, Panel, TableShell } from '@/components/ui/signal-primitives';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 
 export default function AdminEmailBroadcastsPage() {
@@ -98,7 +98,7 @@ export default function AdminEmailBroadcastsPage() {
                   <tr key={bc.id}>
                     <td><strong>{bc.title}</strong></td>
                     <td className="signal-muted">{bc.audience}</td>
-                    <td><StatusBadge tone={toneByStatus[bc.status] ?? 'neutral'}>{bc.status}</StatusBadge></td>
+                    <td></td>
                     <td className="signal-muted">{bc.scheduledAt ? new Date(bc.scheduledAt).toLocaleString() : '—'}</td>
                     <td>{bc.sentCount ?? 0}</td>
                     <td className="right">

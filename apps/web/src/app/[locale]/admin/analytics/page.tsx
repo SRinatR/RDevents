@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../../hooks/useAuth';
 import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
-import { EmptyState, LoadingLines, MetricCard, Notice, PageHeader, Panel, SectionHeader, StatusBadge } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, MetricCard, Notice, PageHeader, Panel, SectionHeader } from '@/components/ui/signal-primitives';
 
 export default function AdminAnalyticsPage() {
   const t = useTranslations();
@@ -77,7 +77,7 @@ export default function AdminAnalyticsPage() {
       <PageHeader
         title={t('admin.analytics')}
         subtitle={isPlatformAdmin ? 'Platform performance overview' : 'Event performance overview'}
-        actions={<StatusBadge tone="info">{stats?.eventScope ? 'Event scope' : 'Platform scope'}</StatusBadge>}
+       
       />
 
       <div className="admin-control-strip">
@@ -109,7 +109,7 @@ export default function AdminAnalyticsPage() {
               {Object.entries(stats.registrationsByProvider).map(([provider, count]) => (
                 <div key={provider} className="signal-ranked-item">
                   <span>{provider}</span>
-                  <StatusBadge tone="info">{Number(count).toLocaleString()}</StatusBadge>
+                  
                 </div>
               ))}
             </div>
@@ -123,7 +123,7 @@ export default function AdminAnalyticsPage() {
               {Object.entries(stats.loginsByProvider).map(([provider, count]) => (
                 <div key={provider} className="signal-ranked-item">
                   <span>{provider}</span>
-                  <StatusBadge tone="neutral">{Number(count).toLocaleString()}</StatusBadge>
+                  
                 </div>
               ))}
             </div>
@@ -140,7 +140,7 @@ export default function AdminAnalyticsPage() {
                 <div className="signal-ranked-item" key={event.eventId ?? `${event.title}-${index}`}>
                   <span className="signal-rank">{index + 1}</span>
                   <span>{event.title}</span>
-                  <StatusBadge tone="info">{Number(event.viewCount).toLocaleString()}</StatusBadge>
+                  
                 </div>
               ))}
             </div>
@@ -155,7 +155,7 @@ export default function AdminAnalyticsPage() {
                 <div className="signal-ranked-item" key={event.eventId ?? `${event.title}-${index}`}>
                   <span className="signal-rank">{index + 1}</span>
                   <span>{event.title}</span>
-                  <StatusBadge tone="success">{Number(event.registrationCount).toLocaleString()}</StatusBadge>
+                  
                 </div>
               ))}
             </div>

@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, FieldSelect, LoadingLines, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldSelect, LoadingLines, Panel, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { AdminToolbarSearch, AdminToolbarSelect } from '@/components/admin/AdminToolbar';
 
@@ -105,7 +105,7 @@ export default function AdminEmailMessagesPage() {
             <option value="7d">{locale === 'ru' ? '7 дней' : '7 days'}</option>
             <option value="30d">{locale === 'ru' ? '30 дней' : '30 days'}</option>
           </AdminToolbarSelect>
-          <StatusBadge tone="info">{filteredMessages.length} {locale === 'ru' ? 'записей' : 'records'}</StatusBadge>
+          
         </ToolbarRow>
 
         {loadingData ? (
@@ -132,7 +132,7 @@ export default function AdminEmailMessagesPage() {
                 {filteredMessages.map((msg) => (
                   <tr key={msg.id}>
                     <td className="signal-overflow-ellipsis">{msg.to}</td>
-                    <td><StatusBadge tone={toneByStatus[msg.status] ?? 'neutral'}>{msg.status}</StatusBadge></td>
+                    <td></td>
                     <td className="signal-overflow-ellipsis">{msg.subject}</td>
                     <td>{msg.source}</td>
                     <td className="signal-muted">{new Date(msg.sentAt).toLocaleString()}</td>
