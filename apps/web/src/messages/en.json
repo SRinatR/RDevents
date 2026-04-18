@@ -161,5 +161,342 @@
     "product": "Product",
     "company": "Company",
     "support": "Support"
+  },
+  "privacy": {
+    "title": "Privacy Policy",
+    "effectiveDateLabel": "Effective Date",
+    "operatorLabel": "Controller / Operator",
+    "contactEmailLabel": "Contact Email",
+    "postalAddressLabel": "Postal Address",
+    "quickNavTitle": "Contents",
+    "sections": [
+      {
+        "id": "introduction",
+        "title": "1. Introduction",
+        "paragraphs": [
+          "This Privacy Policy explains how [Legal Entity Name] (“we”, “us”, “our”) collects, uses, stores, shares, and otherwise processes personal data when you use the RDEvents platform, including the public website, user account, event registration workflows, volunteer workflows, team features, profile tools, analytics features, and administrator functions.",
+          "This Privacy Policy applies to personal data processed through the platform in connection with:"
+        ],
+        "bullets": [
+          "browsing public event pages;",
+          "creating and using an account;",
+          "verifying registration by email;",
+          "signing in through supported identity providers;",
+          "completing a user profile;",
+          "uploading profile and document files;",
+          "registering for events;",
+          "applying as a volunteer;",
+          "creating, joining, and managing teams;",
+          "using the user cabinet and administrator features;",
+          "interacting with the platform’s analytics and communication workflows."
+        ]
+      },
+      {
+        "id": "personal-data",
+        "title": "2. Personal Data We Process",
+        "paragraphs": [
+          "Depending on how you use the platform, we may process the following categories of personal data:"
+        ],
+        "subsections": [
+          {
+            "title": "2.1 Account and identity data",
+            "bullets": [
+              "email address;",
+              "password hash;",
+              "account role;",
+              "account status;",
+              "registration date;",
+              "last login date;",
+              "linked sign-in provider information."
+            ]
+          },
+          {
+            "title": "2.2 Profile data",
+            "bullets": [
+              "first name, last name, and middle name / patronymic in Cyrillic and Latin formats;",
+              "full name in Cyrillic and Latin formats;",
+              "city;",
+              "factual address;",
+              "phone number;",
+              "Telegram username or contact;",
+              "date of birth;",
+              "biography / profile description;",
+              "native language;",
+              "communication language;",
+              "avatar URL or avatar file reference;",
+              "consent records related to personal data and platform rules."
+            ]
+          },
+          {
+            "title": "2.3 Authentication and provider data",
+            "paragraphs": [
+              "If you sign in through a supported provider, we may process:"
+            ],
+            "bullets": [
+              "provider name;",
+              "provider account ID;",
+              "provider email;",
+              "provider username;",
+              "provider avatar URL;",
+              "account linking timestamps and last-used timestamps."
+            ]
+          },
+          {
+            "title": "2.4 Registration verification data",
+            "paragraphs": [
+              "When you register by email, we process:"
+            ],
+            "bullets": [
+              "your email address;",
+              "hashed verification code data;",
+              "code send time;",
+              "code expiry time;",
+              "verification status;",
+              "verification attempt counts;",
+              "hashed completion token data and expiry data."
+            ]
+          },
+          {
+            "title": "2.5 Event participation data",
+            "bullets": [
+              "event registrations;",
+              "answers submitted through event registration forms;",
+              "participant, volunteer, or event-admin role within an event;",
+              "participation status values such as pending, approved, active, reserve, rejected, cancelled, or removed;",
+              "timestamps associated with assignment, approval, rejection, removal, or updates;",
+              "event-specific notes where applicable."
+            ]
+          },
+          {
+            "title": "2.6 Team and volunteer data",
+            "bullets": [
+              "team name, slug, join code, description, captain reference, team status, and team size information;",
+              "team membership records, team role, membership status, and related timestamps;",
+              "volunteer application and moderation status."
+            ]
+          },
+          {
+            "title": "2.7 Uploaded files and media",
+            "bullets": [
+              "avatar uploads;",
+              "document uploads;",
+              "original filename;",
+              "MIME type;",
+              "file size;",
+              "storage driver;",
+              "storage key;",
+              "public URL;",
+              "media status and timestamps."
+            ]
+          },
+          {
+            "title": "2.8 Session, device, and security data",
+            "bullets": [
+              "refresh session identifiers;",
+              "hashed refresh tokens;",
+              "IP address;",
+              "user agent;",
+              "device information;",
+              "expiry, revocation, and session replacement data."
+            ]
+          },
+          {
+            "title": "2.9 Usage and analytics data",
+            "bullets": [
+              "analytics event type;",
+              "event ID and user ID where applicable;",
+              "authentication provider used;",
+              "session ID;",
+              "locale;",
+              "page path;",
+              "event metadata related to feature usage and platform actions."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sources",
+        "title": "3. Sources of Personal Data",
+        "paragraphs": [
+          "We collect personal data:"
+        ],
+        "bullets": [
+          "directly from you when you register, log in, complete your profile, upload files, register for events, submit volunteer applications, create or join teams, or otherwise use the platform;",
+          "from supported authentication providers when you choose provider-based sign-in;",
+          "from your use of the platform through session, security, and analytics records;",
+          "from administrator and event-management workflows when participation roles and statuses are assigned or updated inside the platform."
+        ]
+      },
+      {
+        "id": "purposes",
+        "title": "4. Purposes of Processing",
+        "paragraphs": [
+          "We process personal data for the following purposes:"
+        ],
+        "subsections": [
+          {
+            "title": "4.1 To create and manage user accounts",
+            "paragraphs": [
+              "We use account and authentication data to register users, verify ownership of an email address, authenticate logins, link provider accounts, manage sessions, and maintain account access."
+            ]
+          },
+          {
+            "title": "4.2 To deliver event functionality",
+            "paragraphs": [
+              "We use profile, registration, and event participation data to let users register for events, submit event-related forms, apply as volunteers, participate individually or in teams, and manage their activity within events."
+            ]
+          },
+          {
+            "title": "4.3 To operate team features",
+            "paragraphs": [
+              "We use team and membership data to create teams, manage captain and member roles, process join requests, and maintain team participation records."
+            ]
+          },
+          {
+            "title": "4.4 To support profile completion and participation readiness",
+            "paragraphs": [
+              "We use profile fields, consent records, documents, and section-state data to help users complete profile workflows and satisfy event or participation requirements."
+            ]
+          },
+          {
+            "title": "4.5 To store and serve uploaded files",
+            "paragraphs": [
+              "We use media and file metadata to manage profile avatars and uploaded documents connected with user accounts and participation workflows."
+            ]
+          },
+          {
+            "title": "4.6 To secure the platform",
+            "paragraphs": [
+              "We use refresh-session, device, IP, and user-agent data to issue, rotate, verify, and revoke sessions, detect abnormal session reuse, and protect user accounts and platform integrity."
+            ]
+          },
+          {
+            "title": "4.7 To send service communications",
+            "paragraphs": [
+              "We use email address and verification-related data to send registration verification codes and account-related service messages necessary to complete registration and use the platform."
+            ]
+          },
+          {
+            "title": "4.8 To measure and improve the service",
+            "paragraphs": [
+              "We use analytics data to understand usage of the home page, events list, event details, registrations, authentication methods, team flows, volunteer workflows, and related platform functionality."
+            ]
+          },
+          {
+            "title": "4.9 To administer the platform",
+            "paragraphs": [
+              "We use account, event, role, participation, and analytics data to support administrative functions, moderation workflows, event management, user and role management, and reporting."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "legal-basis",
+        "title": "5. Legal Bases for Processing",
+        "paragraphs": [
+          "Where applicable law requires a legal basis, we rely on one or more of the following:"
+        ],
+        "bullets": [
+          "performance of a contract or steps taken at your request, where processing is necessary to create your account, authenticate you, manage your profile, and provide the event platform and its features;",
+          "consent, where you actively provide permissions or confirmations inside the service, including consent fields recorded in your profile or where a particular processing activity depends on your consent;",
+          "legitimate interests, including platform security, fraud prevention, service analytics, account protection, operational logging, service improvement, and administrative management;",
+          "compliance with legal obligations, where retention, security, disclosure, or audit obligations apply."
+        ]
+      },
+      {
+        "id": "recipients",
+        "title": "6. Recipients and Sharing",
+        "paragraphs": [
+          "We may share personal data with the following categories of recipients, to the extent relevant to the service:"
+        ],
+        "bullets": [
+          "internal administrators and authorized personnel who operate and support the platform;",
+          "designated event administrators and moderators, where access is necessary to manage registrations, volunteers, teams, participants, or event operations;",
+          "infrastructure, hosting, storage, email delivery, and technical service providers that support the operation of the platform;",
+          "supported authentication providers when you choose provider-based sign-in;",
+          "professional advisers, auditors, or legal service providers where needed for legitimate business, security, or compliance purposes;",
+          "competent authorities, courts, regulators, or law-enforcement bodies where disclosure is required or justified under applicable law."
+        ]
+      },
+      {
+        "id": "transfers",
+        "title": "7. International Transfers",
+        "paragraphs": [
+          "Because the platform may rely on external technical providers and online infrastructure, personal data may be processed in countries outside your own jurisdiction. Where such transfers occur, we will apply the safeguards required by applicable law and provide additional information where legally required."
+        ]
+      },
+      {
+        "id": "retention",
+        "title": "8. Retention",
+        "paragraphs": [
+          "We keep personal data for as long as necessary for the purposes described in this Privacy Policy, including to operate the platform, maintain event and account records, secure the service, support moderation and administration, and comply with legal, security, or audit obligations.",
+          "In practice, this means:"
+        ],
+        "bullets": [
+          "registration verification records are kept for the duration of the verification flow and its expiry lifecycle;",
+          "refresh-session and related security records are kept for the life of the relevant session and related security handling needs;",
+          "profile, event participation, team, volunteer, media, and analytics records are kept while the relevant account, event, or platform function remains active and thereafter as needed for operational, security, reporting, and compliance reasons;",
+          "deleted or deactivated assets may remain in records for audit, integrity, or restoration handling where appropriate."
+        ]
+      },
+      {
+        "id": "security",
+        "title": "9. Security",
+        "paragraphs": [
+          "We use technical and organizational measures designed to protect personal data, including account authentication controls, hashed password storage, hashed refresh-token storage, session rotation and revocation logic, structured logging, role-based access controls, and operational safeguards around event administration and profile handling."
+        ]
+      },
+      {
+        "id": "rights",
+        "title": "10. Your Rights",
+        "paragraphs": [
+          "Depending on your location and the law that applies to you, you may have rights to:"
+        ],
+        "bullets": [
+          "request access to your personal data;",
+          "request correction of inaccurate or incomplete data;",
+          "request deletion of personal data in certain cases;",
+          "request restriction of processing in certain cases;",
+          "object to certain processing;",
+          "withdraw consent where processing relies on consent;",
+          "request portability of data where applicable;",
+          "lodge a complaint with a competent supervisory authority or regulator.",
+          "To exercise your rights, contact us at [Contact Email]. We may need to verify your identity before acting on a request."
+        ]
+      },
+      {
+        "id": "event-admin",
+        "title": "11. Event and Participation Administration",
+        "paragraphs": [
+          "The platform is built to manage registrations, volunteer workflows, teams, participant statuses, and administrator roles. As a result, personal data you submit through participation workflows may be made available inside the platform to platform administrators and authorized event administrators where needed to manage events, participants, volunteers, teams, and operational decisions connected with the event."
+        ]
+      },
+      {
+        "id": "communications",
+        "title": "12. Communications",
+        "paragraphs": [
+          "The platform uses email communications to support account registration and verification. Administrative and operational features may also rely on communication and messaging functions connected with the platform’s event and administration workflows."
+        ]
+      },
+      {
+        "id": "changes",
+        "title": "13. Changes to This Privacy Policy",
+        "paragraphs": [
+          "We may update this Privacy Policy from time to time to reflect changes in the platform, legal requirements, operational practices, or service providers. When we update it, we will publish the updated version and change the Effective Date above."
+        ]
+      },
+      {
+        "id": "contact",
+        "title": "14. Contact",
+        "paragraphs": [
+          "If you have questions about this Privacy Policy or about how your personal data is processed, contact:"
+        ],
+        "bullets": [
+          "[Legal Entity Name]",
+          "Email: [Contact Email]",
+          "Address: [Postal Address]"
+        ]
+      }
+    ]
   }
 }
