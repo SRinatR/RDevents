@@ -4829,22 +4829,25 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
+  min-width: 0;
 }
 
 .catalog-v6-card-footer .signal-status-badge {
   flex: 0 0 auto;
   white-space: nowrap;
+  max-width: 100%;
 }
 
 .catalog-v6-card-footer .catalog-v5-card-category {
   flex: 1 1 auto;
   min-width: 0;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .catalog-v6-card .public-event-progress {
-  margin-top: 6px;
+  margin-top: 0;
 }
 
 /* Breakpoints */
@@ -6277,15 +6280,16 @@ body {
 }
 
 .profile-readiness-card {
-  min-width: 152px;
+  min-width: 180px;
+  flex-shrink: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
     "count badge"
     "meta badge";
-  column-gap: 10px;
+  column-gap: 12px;
   row-gap: 4px;
-  align-items: start;
+  align-items: center;
   padding: 12px 14px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
@@ -6294,7 +6298,8 @@ body {
 
 .profile-readiness-card strong {
   grid-area: count;
-  justify-self: end;
+  justify-self: start;
+  align-self: end;
   font-size: 1.35rem;
   line-height: 1;
   color: var(--color-text-primary);
@@ -6302,17 +6307,19 @@ body {
 
 .profile-readiness-card span {
   grid-area: meta;
-  justify-self: end;
-  text-align: right;
+  justify-self: start;
+  align-self: start;
+  text-align: left;
   font-size: 0.78rem;
   color: var(--color-text-muted);
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .profile-readiness-card .signal-status-badge {
   grid-area: badge;
   justify-self: end;
   align-self: center;
-  max-width: 100%;
   white-space: nowrap;
 }
 
@@ -6333,10 +6340,9 @@ body {
 .profile-section-nav-item {
   width: 100%;
   min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 10px;
   align-items: start;
   text-align: left;
   border: 1px solid rgba(201, 213, 232, 0.9);
@@ -6349,12 +6355,11 @@ body {
 }
 
 .profile-section-nav-item > span:first-child {
-  flex: 1 1 150px;
   min-width: 0;
 }
 
 .profile-section-nav-item .signal-status-badge {
-  flex: 0 0 auto;
+  justify-self: end;
   max-width: 100%;
   white-space: nowrap;
 }
@@ -6397,6 +6402,7 @@ body {
   display: grid;
   gap: 18px;
   padding: 20px;
+  min-width: 0;
   border: 1px solid rgba(201, 213, 232, 0.9);
   border-radius: 8px;
   background: #ffffff;
@@ -6668,10 +6674,12 @@ body {
   }
 
   .profile-section-nav-item {
-    gap: 8px;
+    grid-template-columns: 1fr;
+    gap: 5px;
   }
 
   .profile-section-nav-item .signal-status-badge {
+    justify-self: start;
     white-space: normal;
   }
 }
