@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import { AuthProvider, PrismaClient, UserRole } from '@prisma/client';
+import { AuthProvider, EventStatus, PrismaClient, UserRole } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import argon2 from 'argon2';
 import pg from 'pg';
@@ -258,11 +258,40 @@ async function main() {
     ],
   });
 
+  const singleEvent = await prisma.event.create({
+    data: {
+      slug: 'dom-gde-zhivet-rossiya',
+      title: 'Дом, где живёт Россия',
+      shortDescription: 'Культурный квест по шести пространствам Русского дома с финальным маршрутом и праздничным награждением.',
+      fullDescription: `Квест создаётся как живое путешествие по русской культуре. Участники получают «Паспорт гостя Русского дома» и проходят шесть культурных пространств. Каждая станция раскрывает отдельную грань общей идеи — дом как место языка, традиций, музыки, творчества, общения и характера.
+
+После прохождения всех точек команда открывает финальную страницу маршрута, участвует в награждении и становится частью общего праздничного события к юбилею Русского дома.`,
+      category: 'Arts & Culture',
+      location: 'Русский дом в Ташкенте, ул. Нукус, 83',
+      coverImageUrl: '/events/dom-gde-zhivet-rossiya.jpg',
+      capacity: 180,
+      startsAt: new Date('2026-09-20T10:00:00Z'),
+      endsAt: new Date('2026-09-20T15:00:00Z'),
+      registrationDeadline: new Date('2026-09-18T18:00:00Z'),
+      registrationEnabled: true,
+      volunteerApplicationsEnabled: false,
+      allowSoloParticipation: true,
+      isTeamBased: false,
+      tags: ['квест', 'культура', 'русский-дом'],
+      contactEmail: 'platform@example.com',
+      status: EventStatus.PUBLISHED,
+      isFeatured: true,
+      publishedAt: new Date(),
+      createdById: superAdmin.id,
+    },
+  });
+
   await prisma.analyticsEvent.createMany({
     data: [
       { type: 'HOME_VIEW', userId: superAdmin.id, locale: 'en', path: '/en' },
       { type: 'HOME_VIEW', userId: participant.id, locale: 'ru', path: '/ru' },
       { type: 'EVENTS_LIST_VIEW', userId: participant.id, locale: 'en', path: '/en/events' },
+      { type: 'EVENT_DETAIL_VIEW', userId: participant.id, eventId: singleEvent.id, locale: 'ru', path: '/ru/events/dom-gde-zhivet-rossiya' },
       { type: 'USER_REGISTER', userId: participant.id, authProvider: 'EMAIL' },
       { type: 'USER_REGISTER', userId: socialUser.id, authProvider: 'GOOGLE' },
       { type: 'USER_LOGIN', userId: superAdmin.id, authProvider: 'EMAIL' },
@@ -273,8 +302,8 @@ async function main() {
     ],
   });
 
-  console.log('Created 0 events');
-  console.log('Skipped event-scoped seed data by design');
+  console.log('Created 1 event');
+  console.log(`Seeded event: ${singleEvent.title} (${singleEvent.slug})`);
   console.log('');
   console.log('Demo credentials:');
   console.log('  Super admin:    admin@example.com / admin123');
