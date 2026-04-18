@@ -191,20 +191,11 @@ export function AdminShell({ children }: { children: ReactNode }) {
   if (!user || !isAdmin) return null;
 
   const roleLabel = isSuperAdmin ? 'Super Admin' : isPlatformAdmin ? 'Platform Admin' : 'Event Admin';
-  const topbarTitle = currentEvent ? currentEvent.title : (locale === 'ru' ? 'Панель администратора' : 'Admin panel');
-  const topbarSubtitle = currentEvent
-    ? [currentEvent.category, currentEvent.slug ? `/${currentEvent.slug}` : ''].filter(Boolean).join(' · ')
-    : (user.name || user.email);
 
   return (
     <div className="admin-app-shell app-shell app-shell-admin" data-shell="admin">
       {/* ── Sticky Sidebar ── */}
       <aside className={cn('admin-sidebar admin-shell-sidebar', sidebarOpen && 'open')}>
-        {/* Brand */}
-        <div className="admin-sidebar-brand">
-          <div className="admin-brand-subtitle">{locale === 'ru' ? 'Панель управления' : 'Control center'}</div>
-        </div>
-
         {/* Navigation */}
         <nav className="admin-nav" aria-label="Admin">
           {navGroups.map((group) => {
@@ -248,33 +239,14 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
       {/* ── Content area ── */}
       <div className="admin-content-shell admin-shell-content">
-        {/* Topbar */}
-        <header className="admin-topbar admin-shell-topbar">
-          <button 
-            className="admin-menu-button" 
-            onClick={() => setSidebarOpen((value) => !value)} 
-            type="button" 
-            aria-label="Toggle navigation"
-          >
-            <MenuIcon />
-          </button>
-          <div className="admin-topbar-title-wrap">
-            <div className="admin-topbar-title">
-              {topbarTitle}
-            </div>
-            <div className="admin-topbar-subtitle">{topbarSubtitle}</div>
-          </div>
-          {currentEvent ? (
-            <div className="admin-route-event-pill">
-              <span>{locale === 'ru' ? 'Событие из URL' : 'Route event'}</span>
-              <strong>{currentEvent.title}</strong>
-            </div>
-          ) : null}
-          <div className="admin-topbar-role">{roleLabel}</div>
-          <Link href={`/${locale}/admin/events/new`} className="btn btn-primary btn-sm admin-topbar-action">
-            {t('admin.createEvent')}
-          </Link>
-        </header>
+        <button
+          className="admin-menu-button admin-menu-floating"
+          onClick={() => setSidebarOpen((value) => !value)}
+          type="button"
+          aria-label="Toggle navigation"
+        >
+          <MenuIcon />
+        </button>
 
         {currentEvent ? (
           <section className="admin-event-context-bar">
