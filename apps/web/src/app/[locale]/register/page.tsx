@@ -155,82 +155,101 @@ export default function RegisterPage() {
         : /[A-Z]/.test(password) && /[0-9]/.test(password) ? 4
           : 3;
 
+  const stepItems = [
+    { id: 1, title: 'Email' },
+    { id: 2, title: isRu ? 'Код подтверждения' : 'Verification code' },
+    { id: 3, title: isRu ? 'Пароль' : 'Password' },
+  ] as const;
+
   return (
-    <div className="auth-shell">
-      <div className="auth-brand-panel">
+    <section className="register-workspace">
+      <div className="register-shell">
+        <aside className="register-rail">
           <Link href={`/${locale}`} className="public-logo">
             <img src="/site-logo.png" alt="Русский Дом" className="public-logo-mark public-logo-mark-auth" />
           </Link>
-        <div className="auth-brand-content">
-          <h1>{isRu ? 'Создайте аккаунт участника' : 'Create your participant account'}</h1>
-          <p>{isRu ? 'Быстрая регистрация. Полный профиль можно заполнить позже в кабинете.' : 'Fast signup. Full profile can be completed later in cabinet.'}</p>
-          <div className="auth-brand-badges">
-            <span>{isRu ? 'Быстрый старт' : 'Quick start'}</span>
-            <span>{isRu ? 'Гибкий профиль' : 'Flexible profile'}</span>
-            <span>{isRu ? 'Рабочий кабинет' : 'Workspace ready'}</span>
-          </div>
-        </div>
-      </div>
 
-      <div className="auth-form-panel">
-        <div className="auth-card">
-          <div className="auth-progress-top">
-            <span>{isRu ? `Шаг ${step} из ${TOTAL_STEPS}` : `Step ${step} of ${TOTAL_STEPS}`}</span>
-            <div className="progress-bar"><div className="progress-bar-fill" style={{ width: `${(step / TOTAL_STEPS) * 100}%` }} /></div>
+          <div className="register-rail-copy">
+            <h1>{isRu ? 'Создайте аккаунт участника' : 'Create your participant account'}</h1>
+            <p>{isRu ? 'Быстрая регистрация. Полный профиль можно заполнить позже в кабинете.' : 'Fast signup. Full profile can be completed later in cabinet.'}</p>
           </div>
 
-          <h2>{getStepTitle(step, isRu)}</h2>
-          <p>{isRu ? 'Уже есть аккаунт?' : 'Already have an account?'} <Link href={`/${locale}/login`}>{isRu ? 'Войти' : 'Sign in'}</Link></p>
+          <ol className="register-step-list" aria-label={isRu ? 'Этапы регистрации' : 'Registration steps'}>
+            {stepItems.map((item) => {
+              const state = step > item.id ? 'done' : step === item.id ? 'active' : 'upcoming';
+              return (
+                <li key={item.id} className={`register-step-item is-${state}`}>
+                  <span className="register-step-index">{item.id}</span>
+                  <span className="register-step-text">{item.title}</span>
+                </li>
+              );
+            })}
+          </ol>
+        </aside>
 
-          <form onSubmit={handleSubmit} className="signal-stack">
-            {step === 1 ? (
-              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" className="signal-field" autoFocus />
-            ) : null}
+        <div className="register-main">
+          <div className="register-panel">
+            <header className="register-panel-head">
+              <div className="register-panel-heading">
+                <h2>{getStepTitle(step, isRu)}</h2>
+                <p>{isRu ? 'Уже есть аккаунт?' : 'Already have an account?'} <Link href={`/${locale}/login`}>{isRu ? 'Войти' : 'Sign in'}</Link></p>
+              </div>
+              <div className="register-progress-block">
+                <span>{isRu ? `Шаг ${step} из ${TOTAL_STEPS}` : `Step ${step} of ${TOTAL_STEPS}`}</span>
+                <div className="progress-bar"><div className="progress-bar-fill" style={{ width: `${(step / TOTAL_STEPS) * 100}%` }} /></div>
+              </div>
+            </header>
 
-            {step === 2 ? (
-              <>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={code}
-                  onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder={isRu ? '6-значный код' : '6-digit code'}
-                  className="signal-field"
-                  autoFocus
-                />
-                <div className="signal-muted">
-                  {isRu ? `Мы отправили код на ${email}` : `We sent a verification code to ${email}`}
-                </div>
-                {devCode ? (
-                  <div className="signal-notice auth-inline-notice">
-                    {isRu ? `Dev-код: ${devCode}` : `Dev code: ${devCode}`}
+            <form onSubmit={handleSubmit} className="signal-stack register-form-stack">
+              {step === 1 ? (
+                <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" className="signal-field" autoFocus />
+              ) : null}
+
+              {step === 2 ? (
+                <>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={code}
+                    onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder={isRu ? '6-значный код' : '6-digit code'}
+                    className="signal-field"
+                    autoFocus
+                  />
+                  <div className="signal-muted">
+                    {isRu ? `Мы отправили код на ${email}` : `We sent a verification code to ${email}`}
                   </div>
-                ) : null}
-                <button type="button" onClick={handleResendCode} className="btn btn-secondary btn-sm" disabled={loading}>
-                  {isRu ? 'Отправить код заново' : 'Resend code'}
-                </button>
-              </>
-            ) : null}
+                  {devCode ? (
+                    <div className="signal-notice auth-inline-notice">
+                      {isRu ? `Dev-код: ${devCode}` : `Dev code: ${devCode}`}
+                    </div>
+                  ) : null}
+                  <button type="button" onClick={handleResendCode} className="btn btn-secondary btn-sm register-resend-button" disabled={loading}>
+                    {isRu ? 'Отправить код заново' : 'Resend code'}
+                  </button>
+                </>
+              ) : null}
 
-            {step === 3 ? (
-              <>
-                <div className="signal-field-wrap">
-                  <input type={showPass ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={t('auth.password')} className="signal-field signal-field-with-action" autoFocus />
-                  <button type="button" onClick={() => setShowPass((value) => !value)} className="auth-eye-toggle">{showPass ? 'Hide' : 'Show'}</button>
-                </div>
-                <div className="signal-muted">{isRu ? 'Сложность пароля' : 'Password strength'}: {['', 'Weak', 'Fair', 'Good', 'Strong'][strength]}</div>
-              </>
-            ) : null}
+              {step === 3 ? (
+                <>
+                  <div className="signal-field-wrap">
+                    <input type={showPass ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={t('auth.password')} className="signal-field signal-field-with-action" autoFocus />
+                    <button type="button" onClick={() => setShowPass((value) => !value)} className="auth-eye-toggle">{showPass ? 'Hide' : 'Show'}</button>
+                  </div>
+                  <div className="signal-muted">{isRu ? 'Сложность пароля' : 'Password strength'}: {['', 'Weak', 'Fair', 'Good', 'Strong'][strength]}</div>
+                </>
+              ) : null}
 
-            {error ? <div className="signal-notice tone-danger auth-inline-notice">{error}</div> : null}
-            {success ? <div className="signal-notice auth-inline-notice">{success}</div> : null}
+              {error ? <div className="signal-notice tone-danger auth-inline-notice">{error}</div> : null}
+              {success ? <div className="signal-notice auth-inline-notice">{success}</div> : null}
 
-            <Toolbar step={step} onBack={handleBack} loading={loading} isRu={isRu} />
-          </form>
+              <Toolbar step={step} onBack={handleBack} loading={loading} isRu={isRu} />
+            </form>
+          </div>
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 
