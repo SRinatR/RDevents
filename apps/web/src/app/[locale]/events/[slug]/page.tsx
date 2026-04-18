@@ -262,7 +262,6 @@ export default function EventDetailPage() {
   const fieldLabel = (field: MissingField) => locale === 'ru'
     ? FIELD_LABELS_RU[field.key] ?? field.label
     : field.label;
-  const statusTone = event.status === 'PUBLISHED' ? 'success' : event.status === 'CANCELLED' ? 'danger' : 'warning';
   const eventDateRange = `${formatDate(event.startsAt)} · ${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}`;
   const spotsLeft = Math.max((event.capacity ?? 0) - (event.registrationsCount ?? 0), 0);
   const isRussiaHouseEvent = event.slug === 'dom-gde-zhivet-rossiya';
@@ -274,7 +273,6 @@ export default function EventDetailPage() {
   const participantTarget = event.participantTarget ?? event.capacity;
   const isStrictLimit = limitMode === 'STRICT_LIMIT';
   const isGoalLimit = limitMode === 'GOAL_LIMIT';
-  const isUnlimited = limitMode === 'UNLIMITED';
   const registrationBlocked = !registrationEnabled || registrationNotOpen || registrationExpired || (isFull && isStrictLimit);
   
   // Status labels
@@ -311,15 +309,11 @@ export default function EventDetailPage() {
           <div className="container-wide event-v4-masthead-inner">
             <div className="event-v4-title-zone">
               <div className="public-meta-row public-gap-after-xs">
-                {isRussiaHouseEvent ? <span className="signal-muted">{locale === 'ru' ? 'Регистрация открыта' : 'Registration open'}</span> : null}
+                {isRussiaHouseEvent ? <span className="event-v4-status-badge">{locale === 'ru' ? 'Регистрация открыта' : 'Registration open'}</span> : null}
                 {!isRussiaHouseEvent && event.category ? <span className="signal-muted">{event.category}</span> : null}
               </div>
               <h1>{event.title}</h1>
               <p>{event.shortDescription}</p>
-              <div className="event-v4-title-actions">
-                <a href="#event-participation" className="btn btn-primary btn-sm">{locale === 'ru' ? 'Перейти к участию' : 'Go to participation'}</a>
-                <button onClick={handleCopyLink} className="btn btn-secondary btn-sm">{copied ? (locale === 'ru' ? 'Ссылка скопирована' : 'Link copied') : t('events.copyLink')}</button>
-              </div>
             </div>
 
             <div className="event-v4-fact-grid">
@@ -333,48 +327,24 @@ export default function EventDetailPage() {
 
         <section className="event-v4-content motion-fade-up-fast">
           <div className="container-wide">
-            <div className="event-v4-editorial-layout">
-              <div className="event-v4-story-lane motion-stagger">
-                <Panel className="event-v4-overview-panel">
-                  <SectionHeader title={locale === 'ru' ? 'Обзор события' : 'Event overview'} subtitle={locale === 'ru' ? 'Ключевые параметры для подготовки участия' : 'Key parameters for participation planning'} />
-                  <div className="event-v4-overview-grid">
-                    {!isRussiaHouseEvent ? <div><small>{locale === 'ru' ? 'Регистрации' : 'Registrations'}</small><strong>{event.registrationsCount}/{event.capacity}</strong></div> : null}
-                    <div><small>{locale === 'ru' ? 'Временное окно' : 'Time window'}</small><strong>{formatTime(event.startsAt)} – {formatTime(event.endsAt)}</strong></div>
-                    <div><small>{locale === 'ru' ? 'Режим участия' : 'Mode'}</small><strong>{(isRussiaHouseEvent || event.isTeamBased) ? (locale === 'ru' ? 'Командный набор' : 'Team onboarding') : (locale === 'ru' ? 'Индивидуальный набор' : 'Individual onboarding')}</strong></div>
-                  </div>
-                </Panel>
-
+            <div className="event-v4-main-layout motion-stagger">
+              <div className="event-v4-story-lane">
                 <Panel className="event-v4-description-panel">
                   <SectionHeader title={t('events.description')} subtitle={locale === 'ru' ? 'Полная программа и содержание события' : 'Full story, context, and event structure'} />
                   <div className="signal-prose-copy">{event.fullDescription}</div>
                 </Panel>
-
-                {!isRussiaHouseEvent ? (
-                  <Panel className="event-v4-essentials-panel">
-                    <SectionHeader title={locale === 'ru' ? 'Практические условия' : 'Practical essentials'} subtitle={locale === 'ru' ? 'Что важно проверить перед подачей' : 'What to verify before submitting'} />
-                    <div className="event-v4-essentials-grid">
-                      <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Категория' : 'Category'}</span><strong>{event.category}</strong></div>
-                      <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Статус события' : 'Event status'}</span></div>
-                      <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Волонтёрский трек' : 'Volunteer track'}</span><strong>{locale === 'ru' ? 'Доступен через панель участия' : 'Available in participation rail'}</strong></div>
-                      <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Доступ к регистрации' : 'Registration access'}</span><strong>{registrationBlocked ? (locale === 'ru' ? 'Закрыт' : 'Closed') : (locale === 'ru' ? 'Открыт' : 'Open')}</strong></div>
-                    </div>
-                  </Panel>
-                ) : null}
               </div>
-
-              <aside className="public-sticky-panel event-v4-action-lane motion-fade-up-fast">
-                <Panel id="event-participation" className="public-participation-panel event-v4-participation-panel">
+              <section id="event-participation" className="event-v4-registration-stack motion-fade-up-fast">
+                <Panel className="public-participation-panel event-v4-participation-panel">
                   <SectionHeader title={locale === 'ru' ? 'Участие' : 'Participation'} subtitle={locale === 'ru' ? 'Действия и текущий статус' : 'Actions and current status'} />
-                  
-                  {/* Progress bar - only show publicly if configured */}
+
                   {showCountPublicly && (
                     <>
                       <div className="progress-bar signal-gap-after-2xs public-participation-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
                       {!isRussiaHouseEvent ? <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div> : null}
                     </>
                   )}
-                  
-                  {/* Mode indicator */}
+
                   {requireApproval ? (
                     <div className="signal-muted" style={{ fontSize: '0.85rem', marginBottom: 12 }}>
                       {locale === 'ru' ? 'Требуется одобрение организатора' : 'Requires organizer approval'}
@@ -389,7 +359,6 @@ export default function EventDetailPage() {
                     </div>
                   ) : null}
 
-                  {/* User participation status */}
                   {!registrationEnabled ? <Notice tone="warning">{locale === 'ru' ? 'Регистрация закрыта организатором.' : 'Registration is closed by organizer.'}</Notice> : null}
                   {registrationNotOpen ? <Notice tone="warning">{locale === 'ru' ? 'Регистрация ещё не открыта.' : 'Registration is not open yet.'}</Notice> : null}
                   {registrationExpired ? <Notice tone="warning">{locale === 'ru' ? 'Дедлайн регистрации прошёл.' : 'Registration deadline has passed.'}</Notice> : null}
@@ -476,7 +445,13 @@ export default function EventDetailPage() {
 
                   {volunteerError ? <Notice tone="danger">{volunteerError}</Notice> : null}
                 </Panel>
-              </aside>
+
+                <div className="event-v4-share-action">
+                  <button onClick={handleCopyLink} className="btn btn-secondary">
+                    {copied ? (locale === 'ru' ? 'Ссылка скопирована' : 'Link copied') : (locale === 'ru' ? 'Поделиться событием' : 'Share event')}
+                  </button>
+                </div>
+              </section>
             </div>
           </div>
         </section>
