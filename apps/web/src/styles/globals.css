@@ -5691,7 +5691,10 @@ body {
 }
 
 .admin-brand-subtitle {
-  color: var(--color-text-muted);
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-text-primary);
 }
 
 .admin-nav-group {
