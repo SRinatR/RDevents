@@ -54,8 +54,7 @@ export default function LoginPage() {
     <div className="auth-shell">
       <div className="auth-brand-panel">
           <Link href={`/${locale}`} className="public-logo">
-            <img src="/site-logo.png" alt="Русский Дом" width="32" height="32" className="public-logo-mark" />
-            <span className="public-logo-text">Русский Дом</span>
+            <img src="/site-logo.png" alt="Русский Дом" className="public-logo-mark public-logo-mark-auth" />
           </Link>
         <div className="auth-brand-content">
           <h1>{locale === 'ru' ? 'Вход в рабочее пространство' : 'Access your workspace'}</h1>

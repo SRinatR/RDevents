@@ -68,11 +68,7 @@ export function Navbar({ locale }: NavbarProps) {
       <header className={`public-navbar public-shell-header ${scrolled ? 'scrolled' : ''}`} data-scrolled={scrolled ? 'true' : 'false'}>
         <div className="container public-navbar-inner">
           <Link href={`/${locale}`} className="public-logo">
-            <img src="/site-logo.png" alt="Русский Дом" width="32" height="32" className="public-logo-mark" />
-            <span className="public-logo-text-wrap">
-              <span className="public-logo-text">Русский Дом</span>
-              <span className="public-logo-caption">{locale === 'ru' ? 'Культура и образование' : 'Culture and Education'}</span>
-            </span>
+            <img src="/site-logo.png" alt="Русский Дом" className="public-logo-mark public-logo-mark-nav" />
           </Link>
 
           <nav className="public-nav-links" aria-label={locale === 'ru' ? 'Основная навигация' : 'Primary navigation'}>
