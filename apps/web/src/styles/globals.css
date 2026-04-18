@@ -5074,11 +5074,11 @@ body {
 
 .profile-address-grid {
   display: grid;
-  grid-template-columns: minmax(0, 280px) minmax(0, 320px);
-  gap: 12px 28px;
+  grid-template-columns: minmax(0, 272px) minmax(0, 300px);
+  gap: 12px 40px;
   justify-content: start;
   align-items: start;
-  width: min(100%, 700px);
+  width: min(100%, 652px);
 }
 
 .profile-address-field {
@@ -5087,18 +5087,18 @@ body {
 }
 
 .profile-address-field-city {
-  --address-field-max: 280px;
+  --address-field-max: 272px;
 }
 
 .profile-address-field-factual {
-  --address-field-max: 300px;
-  padding-left: 10px;
+  --address-field-max: 280px;
+  padding-left: 20px;
 }
 
 .profile-address-field-factual .signal-textarea {
-  width: 300px;
-  max-width: 420px;
-  min-height: 96px;
+  width: 280px;
+  max-width: 380px;
+  min-height: 52px;
   resize: both;
 }
 
