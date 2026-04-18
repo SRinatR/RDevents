@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { authenticate } from '../../common/middleware.js';
 import { authRateLimits } from '../../common/rateLimiter.js';
 import {
@@ -28,10 +29,26 @@ import {
   revokeAllUserSessions,
   hashToken,
 } from './auth.sessions.js';
+import {
+  getProfileActivity,
+  getProfileSections,
+  listProfileDocuments,
+  removeProfileAvatar,
+  removeProfileDocument,
+  updateProfileSection,
+  uploadProfileAvatar,
+  uploadProfileDocument,
+} from './profile.service.js';
+import { isProfileSectionKey } from './profile.sections.js';
+import { ProfileMediaError } from './profile.media.js';
 
 export const authRouter = Router();
 
 const REFRESH_COOKIE = 'refresh_token';
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: env.MAX_DOCUMENT_UPLOAD_MB * 1024 * 1024 },
+});
 
 function getClientContext(req: any) {
   return {
@@ -257,6 +274,102 @@ authRouter.patch('/profile', authenticate, async (req, res) => {
   const user = (req as any).user;
   const updated = await updateProfile(user.id, parsed.data);
   res.json({ user: updated });
+});
+
+// GET /api/auth/profile/sections
+authRouter.get('/profile/sections', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  const sections = await getProfileSections(user.id);
+  res.json({ sections });
+});
+
+// PATCH /api/auth/profile/sections/:sectionKey
+authRouter.patch('/profile/sections/:sectionKey', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  const sectionKey = String(req.params.sectionKey ?? '');
+  if (!isProfileSectionKey(sectionKey)) {
+    res.status(400).json({ error: 'Invalid profile section' });
+    return;
+  }
+
+  try {
+    const result = await updateProfileSection(user.id, sectionKey, req.body);
+    res.json(result);
+  } catch (err: any) {
+    if (err.message === 'Profile section validation failed') {
+      res.status(400).json({ error: 'Validation failed', details: err.details });
+      return;
+    }
+    throw err;
+  }
+});
+
+// POST /api/auth/profile/avatar/upload
+authRouter.post('/profile/avatar/upload', authenticate, upload.single('file'), async (req, res) => {
+  const user = (req as any).user;
+  if (!req.file) {
+    res.status(400).json({ error: 'File is required' });
+    return;
+  }
+
+  try {
+    const result = await uploadProfileAvatar(user.id, req.file);
+    res.status(201).json(result);
+  } catch (err: any) {
+    if (err instanceof ProfileMediaError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+// DELETE /api/auth/profile/avatar
+authRouter.delete('/profile/avatar', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  await removeProfileAvatar(user.id);
+  res.json({ ok: true });
+});
+
+// GET /api/auth/profile/documents
+authRouter.get('/profile/documents', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  const documents = await listProfileDocuments(user.id);
+  res.json({ documents });
+});
+
+// POST /api/auth/profile/documents/upload
+authRouter.post('/profile/documents/upload', authenticate, upload.single('file'), async (req, res) => {
+  const user = (req as any).user;
+  if (!req.file) {
+    res.status(400).json({ error: 'File is required' });
+    return;
+  }
+
+  try {
+    const result = await uploadProfileDocument(user.id, req.file);
+    res.status(201).json(result);
+  } catch (err: any) {
+    if (err instanceof ProfileMediaError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+// DELETE /api/auth/profile/documents/:assetId
+authRouter.delete('/profile/documents/:assetId', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  await removeProfileDocument(user.id, String(req.params.assetId));
+  res.json({ ok: true });
+});
+
+// GET /api/auth/profile/activity
+authRouter.get('/profile/activity', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  const activity = await getProfileActivity(user.id);
+  res.json(activity);
 });
 
 // POST /api/auth/google

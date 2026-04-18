@@ -181,6 +181,10 @@ export function errorHandler(err: unknown, req: Request, res: Response, next: Ne
     statusCode = 404;
     errorCode = 'RECORD_NOT_FOUND';
     safeMessage = 'The requested record was not found';
+  } else if (error.name === 'MulterError') {
+    statusCode = 400;
+    errorCode = 'UPLOAD_ERROR';
+    safeMessage = 'Uploaded file is invalid or too large';
   } else if (error.message.includes('validation')) {
     statusCode = 400;
     errorCode = 'VALIDATION_ERROR';

@@ -34,9 +34,6 @@ type AdminEventOption = {
   location?: string | null;
 };
 
-const CURRENT_EVENT_STORAGE_KEY = 'rd-admin-current-event-id';
-const RECENT_EVENTS_STORAGE_KEY = 'rd-admin-recent-event-ids';
-
 // ─── Icon components ────────────────────────────────────────────────────────────
 
 function IconFrame({ children }: { children: ReactNode }) {
@@ -96,13 +93,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [events, setEvents] = useState<AdminEventOption[]>([]);
-  const [eventsLoading, setEventsLoading] = useState(false);
-  const [eventsLoaded, setEventsLoaded] = useState(false);
-  const [selectedEventId, setSelectedEventId] = useState('');
-  const [recentEventIds, setRecentEventIds] = useState<string[]>([]);
-  const [eventQuery, setEventQuery] = useState('');
-  const [selectorOpen, setSelectorOpen] = useState(false);
+  const routeEventId = getEventIdFromPath(pathname, locale);
+  const [currentEvent, setCurrentEvent] = useState<AdminEventOption | null>(null);
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) {
@@ -115,123 +107,26 @@ export function AdminShell({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   useEffect(() => {
-    if (!user || !isAdmin) return;
-    let active = true;
-    setEventsLoading(true);
-    setEventsLoaded(false);
+    if (!user || !isAdmin || !routeEventId) {
+      setCurrentEvent(null);
+      return;
+    }
 
-    adminApi.listEvents({ limit: 100 })
+    let active = true;
+
+    adminApi.listEvents({ id: routeEventId, limit: 1 })
       .then((result) => {
         if (!active) return;
-        setEvents(result.data ?? []);
+        setCurrentEvent((result.data?.[0] as AdminEventOption | undefined) ?? null);
       })
       .catch(() => {
-        if (active) setEvents([]);
-      })
-      .finally(() => {
-        if (active) {
-          setEventsLoading(false);
-          setEventsLoaded(true);
-        }
+        if (active) setCurrentEvent(null);
       });
 
     return () => {
       active = false;
     };
-  }, [user, isAdmin]);
-
-  useEffect(() => {
-    try {
-      const storedEventId = window.localStorage.getItem(CURRENT_EVENT_STORAGE_KEY) ?? '';
-      const storedRecent = JSON.parse(window.localStorage.getItem(RECENT_EVENTS_STORAGE_KEY) ?? '[]');
-      setSelectedEventId(storedEventId);
-      setRecentEventIds(Array.isArray(storedRecent) ? storedRecent.filter(Boolean).slice(0, 6) : []);
-    } catch {
-      setSelectedEventId('');
-      setRecentEventIds([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    const routeEventId = getEventIdFromPath(pathname, locale);
-    if (!routeEventId) return;
-
-    setSelectedEventId(routeEventId);
-    try {
-      window.localStorage.setItem(CURRENT_EVENT_STORAGE_KEY, routeEventId);
-      setRecentEventIds((previous) => {
-        const nextRecent = [routeEventId, ...previous.filter((id) => id !== routeEventId)].slice(0, 6);
-        if (nextRecent.join('|') === previous.join('|')) return previous;
-        window.localStorage.setItem(RECENT_EVENTS_STORAGE_KEY, JSON.stringify(nextRecent));
-        return nextRecent;
-      });
-    } catch {}
-  }, [pathname, locale]);
-
-  useEffect(() => {
-    if (!eventsLoaded || !selectedEventId) return;
-    if (events.some((event) => event.id === selectedEventId)) return;
-
-    setSelectedEventId('');
-    try {
-      window.localStorage.removeItem(CURRENT_EVENT_STORAGE_KEY);
-    } catch {}
-  }, [events, eventsLoaded, selectedEventId]);
-
-  const routeEventId = getEventIdFromPath(pathname, locale);
-  const currentEventId = routeEventId || selectedEventId;
-  const currentEvent = events.find((event) => event.id === currentEventId) ?? null;
-
-  useEffect(() => {
-    if (!selectorOpen) {
-      setEventQuery(currentEvent?.title ?? '');
-    }
-  }, [currentEvent, selectorOpen]);
-
-  const filteredEvents = useMemo(() => {
-    const normalized = eventQuery.trim().toLowerCase();
-    const recentRank = new Map(recentEventIds.map((id, index) => [id, index]));
-    const visible = events.filter((event) => {
-      if (!normalized) return true;
-      return [event.title, event.slug, event.category]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(normalized));
-    });
-
-    return visible
-      .sort((left, right) => {
-        const leftRank = recentRank.get(left.id) ?? 999;
-        const rightRank = recentRank.get(right.id) ?? 999;
-        if (leftRank !== rightRank) return leftRank - rightRank;
-        return (left.title ?? '').localeCompare(right.title ?? '');
-      })
-      .slice(0, 8);
-  }, [events, eventQuery, recentEventIds]);
-
-  const selectEvent = (event: AdminEventOption) => {
-    setSelectedEventId(event.id);
-    setEventQuery(event.title);
-    setSelectorOpen(false);
-    try {
-      window.localStorage.setItem(CURRENT_EVENT_STORAGE_KEY, event.id);
-      const nextRecent = [event.id, ...recentEventIds.filter((id) => id !== event.id)].slice(0, 6);
-      setRecentEventIds(nextRecent);
-      window.localStorage.setItem(RECENT_EVENTS_STORAGE_KEY, JSON.stringify(nextRecent));
-    } catch {}
-    router.push(`/${locale}/admin/events/${event.id}/overview`);
-  };
-
-  const clearSelectedEvent = () => {
-    setSelectedEventId('');
-    setEventQuery('');
-    setSelectorOpen(false);
-    try {
-      window.localStorage.removeItem(CURRENT_EVENT_STORAGE_KEY);
-    } catch {}
-    if (pathname.includes('/admin/events/')) {
-      router.push(`/${locale}/admin/events`);
-    }
-  };
+  }, [user, isAdmin, routeEventId]);
 
   // ─── Grouped navigation ───────────────────────────────────────────────────────
   
@@ -269,15 +164,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
       },
     ];
 
-    // Current Event group — only when user is actually in event route (routeEventId)
-    // localStorage selectedEventId is used for selector/topbar/context-bar only, NOT for nav
     if (routeEventId) {
       const eventBase = `/${locale}/admin/events/${routeEventId}`;
-      const event = events.find((e) => e.id === routeEventId) ?? null;
       groups.push({
-        label: event?.title
-          ? (locale === 'ru' ? 'Текущее событие' : 'Current Event')
-          : (locale === 'ru' ? 'Событие' : 'Event'),
+        label: locale === 'ru' ? 'Текущее событие' : 'Current Event',
         items: [
           { href: `${eventBase}/overview`, label: locale === 'ru' ? 'Обзор' : 'Overview', icon: <DashboardIcon />, allow: true },
           { href: `${eventBase}/participants`, label: t('admin.participants'), icon: <HandshakeIcon />, allow: true },
@@ -295,7 +185,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
     }
 
     return groups;
-  }, [locale, t, isPlatformAdmin, isSuperAdmin, routeEventId, events]);
+  }, [locale, t, isPlatformAdmin, isSuperAdmin, routeEventId]);
 
   if (loading) {
     return (
@@ -385,63 +275,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
             </div>
             <div className="admin-topbar-subtitle">{topbarSubtitle}</div>
           </div>
-          <div className="admin-event-selector" onBlur={() => window.setTimeout(() => setSelectorOpen(false), 120)}>
-            <label className="admin-event-selector-label" htmlFor="admin-event-selector-input">
-              {locale === 'ru' ? 'Ивент' : 'Event'}
-            </label>
-            <div className="admin-event-selector-control">
-              <input
-                id="admin-event-selector-input"
-                value={selectorOpen ? eventQuery : currentEvent?.title ?? eventQuery}
-                onFocus={() => {
-                  setSelectorOpen(true);
-                  setEventQuery('');
-                }}
-                onChange={(event) => {
-                  setEventQuery(event.target.value);
-                  setSelectorOpen(true);
-                }}
-                placeholder={eventsLoading ? (locale === 'ru' ? 'Загрузка...' : 'Loading...') : (locale === 'ru' ? 'Найти событие' : 'Find event')}
-                className="admin-event-selector-input"
-                autoComplete="off"
-              />
-              {currentEventId ? (
-                <button type="button" className="admin-event-clear" onMouseDown={(event) => event.preventDefault()} onClick={clearSelectedEvent}>
-                  {locale === 'ru' ? 'Сброс' : 'Clear'}
-                </button>
-              ) : null}
+          {currentEvent ? (
+            <div className="admin-route-event-pill">
+              <span>{locale === 'ru' ? 'Событие из URL' : 'Route event'}</span>
+              <strong>{currentEvent.title}</strong>
             </div>
-            {selectorOpen ? (
-              <div className="admin-event-selector-popover">
-                <div className="admin-event-selector-hint">
-                  {eventQuery.trim()
-                    ? (locale === 'ru' ? 'Результаты поиска' : 'Search results')
-                    : (locale === 'ru' ? 'Недавние и доступные события' : 'Recent and available events')}
-                </div>
-                {filteredEvents.length === 0 ? (
-                  <div className="admin-event-selector-empty">
-                    {locale === 'ru' ? 'События не найдены' : 'No events found'}
-                  </div>
-                ) : (
-                  filteredEvents.map((event) => (
-                    <button
-                      key={event.id}
-                      type="button"
-                      className={cn('admin-event-option', event.id === currentEventId && 'active')}
-                      onMouseDown={(mouseEvent) => mouseEvent.preventDefault()}
-                      onClick={() => selectEvent(event)}
-                    >
-                      <span>
-                        <strong>{event.title}</strong>
-                        <small>{[event.slug ? `/${event.slug}` : '', event.category].filter(Boolean).join(' · ')}</small>
-                      </span>
-                      <span className={cn('signal-status-badge size-sm', `tone-${getStatusTone(event.status)}`)}>{event.status ?? 'EVENT'}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            ) : null}
-          </div>
+          ) : null}
           <div className="admin-topbar-role">
             <span className="signal-status-badge tone-info">{roleLabel}</span>
           </div>

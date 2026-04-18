@@ -63,6 +63,28 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return res.json() as Promise<T>;
 }
 
+async function requestForm<T>(path: string, formData: FormData, auth = false): Promise<T> {
+  const headers: Record<string, string> = {};
+
+  if (auth && _accessToken) {
+    headers['Authorization'] = `Bearer ${_accessToken}`;
+  }
+
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({ error: 'Unknown error' }));
+    throw new ApiError(res.status, data.error ?? 'Request failed', data.details);
+  }
+
+  return res.json() as Promise<T>;
+}
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export const authApi = {
@@ -91,8 +113,13 @@ export const authApi = {
     name?: string;
     bio?: string;
     city?: string;
+    factualAddress?: string;
     phone?: string;
     telegram?: string;
+    nativeLanguage?: string;
+    communicationLanguage?: string;
+    consentPersonalData?: boolean;
+    consentClientRules?: boolean;
     birthDate?: string;
     avatarUrl?: string;
     lastNameCyrillic?: string;
@@ -103,6 +130,36 @@ export const authApi = {
     middleNameLatin?: string;
   }) =>
     request<{ user: any }>('/api/auth/profile', { method: 'PATCH', auth: true, body }),
+
+  getProfileSections: () =>
+    request<{ sections: any[] }>('/api/auth/profile/sections', { auth: true }),
+
+  updateProfileSection: (sectionKey: string, body: Record<string, unknown>) =>
+    request<any>(`/api/auth/profile/sections/${sectionKey}`, { method: 'PATCH', auth: true, body }),
+
+  uploadAvatar: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return requestForm<any>('/api/auth/profile/avatar/upload', formData, true);
+  },
+
+  deleteAvatar: () =>
+    request<{ ok: boolean }>('/api/auth/profile/avatar', { method: 'DELETE', auth: true }),
+
+  listProfileDocuments: () =>
+    request<{ documents: any[] }>('/api/auth/profile/documents', { auth: true }),
+
+  uploadProfileDocument: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return requestForm<any>('/api/auth/profile/documents/upload', formData, true);
+  },
+
+  deleteProfileDocument: (assetId: string) =>
+    request<{ ok: boolean }>(`/api/auth/profile/documents/${assetId}`, { method: 'DELETE', auth: true }),
+
+  getProfileActivity: () =>
+    request<any>('/api/auth/profile/activity', { auth: true }),
 
   loginWithGoogle: (payload: { providerAccountId: string; providerEmail?: string; providerUsername?: string }) =>
     request<{ user: any; accessToken: string }>('/api/auth/google', { method: 'POST', body: payload }),

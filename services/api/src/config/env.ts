@@ -34,6 +34,12 @@ export const env = {
   RESEND_FROM_NAME: optional_env('RESEND_FROM_NAME', 'RDEvents'),
   RESEND_REPLY_TO_EMAIL: process.env['RESEND_REPLY_TO_EMAIL'] ?? '',
 
+  MEDIA_STORAGE_DRIVER: optional_env('MEDIA_STORAGE_DRIVER', 'local'),
+  MEDIA_UPLOAD_DIR: optional_env('MEDIA_UPLOAD_DIR', './uploads'),
+  MEDIA_PUBLIC_BASE_URL: optional_env('MEDIA_PUBLIC_BASE_URL', 'http://localhost:4000/uploads'),
+  MAX_AVATAR_UPLOAD_MB: parseInt(optional_env('MAX_AVATAR_UPLOAD_MB', '3'), 10),
+  MAX_DOCUMENT_UPLOAD_MB: parseInt(optional_env('MAX_DOCUMENT_UPLOAD_MB', '10'), 10),
+
   // Social auth — optional, dev mock is used when empty
   GOOGLE_CLIENT_ID: process.env['GOOGLE_CLIENT_ID'] ?? '',
   GOOGLE_CLIENT_SECRET: process.env['GOOGLE_CLIENT_SECRET'] ?? '',

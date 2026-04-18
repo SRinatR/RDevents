@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import { env } from './config/env.js';
 import { errorHandler, requestIdMiddleware, requestLogger } from './common/middleware.js';
+import { getMediaUploadDir } from './common/storage.js';
 
 import { authRouter } from './modules/auth/auth.router.js';
 import { eventsRouter } from './modules/events/events.router.js';
@@ -29,6 +30,7 @@ export function createApp() {
   app.use(express.json({ limit: '2mb' }));
   app.use(morgan(env.isDev ? 'dev' : 'combined'));
   app.use(requestLogger);
+  app.use('/uploads', express.static(getMediaUploadDir(), { fallthrough: true }));
 
   // ─── Health check ─────────────────────────────────────────────────────────
   const healthHandler = (_req: express.Request, res: express.Response) => {
