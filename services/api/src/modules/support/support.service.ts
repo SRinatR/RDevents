@@ -1,4 +1,5 @@
 import { prisma } from '../../db/prisma.js';
+import { saveUploadedFile } from '../../common/storage.js';
 import type { SupportThreadStatus } from '@prisma/client';
 import type { CreateThreadInput, AddMessageInput, ThreadQuery, AdminThreadQuery } from './support.schemas.js';
 
@@ -11,12 +12,63 @@ const THREAD_INCLUDE = {
   _count: { select: { messages: true } },
 } as const;
 
+const MESSAGE_INCLUDE = {
+  sender: { select: USER_SELECT },
+  attachments: true,
+} as const;
+
 function lastMessageSubquery(threadId: string) {
   return prisma.supportMessage.findFirst({
     where: { threadId },
     orderBy: { createdAt: 'desc' },
     select: { body: true, createdAt: true, senderType: true },
   });
+}
+
+// ─── Attachments ─────────────────────────────────────────────────────────────
+
+export async function uploadSupportAttachments(
+  uploaderId: string,
+  threadId: string,
+  files: Express.Multer.File[],
+  role: 'USER' | 'ADMIN',
+) {
+  const thread = await prisma.supportThread.findUnique({
+    where: { id: threadId },
+    select: { id: true, userId: true },
+  });
+  if (!thread) return null;
+  if (role === 'USER' && thread.userId !== uploaderId) return null;
+
+  const savedFiles = await Promise.all(
+    files.map((file) =>
+      saveUploadedFile({
+        buffer: file.buffer,
+        mimeType: file.mimetype,
+        originalFilename: file.originalname,
+        folder: `support/${threadId}`,
+      }),
+    ),
+  );
+
+  const attachments = await prisma.$transaction(
+    files.map((file, i) =>
+      prisma.supportAttachment.create({
+        data: {
+          threadId,
+          uploaderId,
+          messageId: null,
+          filename: file.originalname || 'upload',
+          mimeType: file.mimetype,
+          sizeBytes: file.size,
+          storageKey: savedFiles[i]!.storageKey,
+          publicUrl: savedFiles[i]!.publicUrl,
+        },
+      }),
+    ),
+  );
+
+  return { attachments };
 }
 
 // ─── User-facing service functions ───────────────────────────────────────────
@@ -37,10 +89,7 @@ export async function listUserThreads(userId: string, query: ThreadQuery) {
   ]);
 
   const threadsWithLastMessage = await Promise.all(
-    threads.map(async (t) => ({
-      ...t,
-      lastMessage: await lastMessageSubquery(t.id),
-    })),
+    threads.map(async (t) => ({ ...t, lastMessage: await lastMessageSubquery(t.id) })),
   );
 
   return { data: threadsWithLastMessage, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
@@ -49,21 +98,12 @@ export async function listUserThreads(userId: string, query: ThreadQuery) {
 export async function createThread(userId: string, input: CreateThreadInput) {
   return prisma.$transaction(async (tx) => {
     const thread = await tx.supportThread.create({
-      data: {
-        userId,
-        subject: input.subject,
-        status: 'OPEN',
-      },
+      data: { userId, subject: input.subject, status: 'OPEN' },
       include: THREAD_INCLUDE,
     });
 
     await tx.supportMessage.create({
-      data: {
-        threadId: thread.id,
-        senderId: userId,
-        senderType: 'USER',
-        body: input.body,
-      },
+      data: { threadId: thread.id, senderId: userId, senderType: 'USER', body: input.body },
     });
 
     return thread;
@@ -76,13 +116,7 @@ export async function getUserThread(userId: string, threadId: string) {
     include: {
       user: { select: USER_SELECT },
       assignedAdmin: { select: ADMIN_SELECT },
-      messages: {
-        include: {
-          sender: { select: USER_SELECT },
-          attachments: true,
-        },
-        orderBy: { createdAt: 'asc' },
-      },
+      messages: { include: MESSAGE_INCLUDE, orderBy: { createdAt: 'asc' } },
     },
   });
 
@@ -99,27 +133,40 @@ export async function addUserMessage(userId: string, threadId: string, input: Ad
   if (!thread || thread.userId !== userId) return null;
   if (thread.status === 'CLOSED') return { error: 'THREAD_CLOSED' as const };
 
+  const attachmentIds = input.attachmentIds ?? [];
+  if (attachmentIds.length > 0) {
+    const valid = await prisma.supportAttachment.findMany({
+      where: { id: { in: attachmentIds }, threadId, uploaderId: userId, messageId: null },
+      select: { id: true },
+    });
+    if (valid.length !== attachmentIds.length) return { error: 'INVALID_ATTACHMENTS' as const };
+  }
+
   const nextStatus: SupportThreadStatus =
     thread.status === 'WAITING_USER' || thread.status === 'OPEN' ? 'IN_PROGRESS' : thread.status;
 
-  const [message] = await prisma.$transaction([
-    prisma.supportMessage.create({
-      data: {
-        threadId,
-        senderId: userId,
-        senderType: 'USER',
-        body: input.body,
-      },
-      include: {
-        sender: { select: USER_SELECT },
-        attachments: true,
-      },
-    }),
-    prisma.supportThread.update({
+  const message = await prisma.$transaction(async (tx) => {
+    const msg = await tx.supportMessage.create({
+      data: { threadId, senderId: userId, senderType: 'USER', body: input.body },
+    });
+
+    if (attachmentIds.length > 0) {
+      await tx.supportAttachment.updateMany({
+        where: { id: { in: attachmentIds } },
+        data: { messageId: msg.id },
+      });
+    }
+
+    await tx.supportThread.update({
       where: { id: threadId },
       data: { status: nextStatus, updatedAt: new Date() },
-    }),
-  ]);
+    });
+
+    return tx.supportMessage.findUnique({
+      where: { id: msg.id },
+      include: MESSAGE_INCLUDE,
+    });
+  });
 
   return { message };
 }
@@ -162,10 +209,7 @@ export async function listAdminThreads(query: AdminThreadQuery) {
   ]);
 
   const threadsWithLastMessage = await Promise.all(
-    threads.map(async (t) => ({
-      ...t,
-      lastMessage: await lastMessageSubquery(t.id),
-    })),
+    threads.map(async (t) => ({ ...t, lastMessage: await lastMessageSubquery(t.id) })),
   );
 
   return { data: threadsWithLastMessage, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
@@ -177,13 +221,7 @@ export async function getAdminThread(threadId: string) {
     include: {
       user: { select: USER_SELECT },
       assignedAdmin: { select: ADMIN_SELECT },
-      messages: {
-        include: {
-          sender: { select: USER_SELECT },
-          attachments: true,
-        },
-        orderBy: { createdAt: 'asc' },
-      },
+      messages: { include: MESSAGE_INCLUDE, orderBy: { createdAt: 'asc' } },
     },
   });
 }
@@ -197,24 +235,37 @@ export async function addAdminReply(adminId: string, threadId: string, input: Ad
   if (!thread) return null;
   if (thread.status === 'CLOSED') return { error: 'THREAD_CLOSED' as const };
 
-  const [message] = await prisma.$transaction([
-    prisma.supportMessage.create({
-      data: {
-        threadId,
-        senderId: adminId,
-        senderType: 'ADMIN',
-        body: input.body,
-      },
-      include: {
-        sender: { select: USER_SELECT },
-        attachments: true,
-      },
-    }),
-    prisma.supportThread.update({
+  const attachmentIds = input.attachmentIds ?? [];
+  if (attachmentIds.length > 0) {
+    const valid = await prisma.supportAttachment.findMany({
+      where: { id: { in: attachmentIds }, threadId, uploaderId: adminId, messageId: null },
+      select: { id: true },
+    });
+    if (valid.length !== attachmentIds.length) return { error: 'INVALID_ATTACHMENTS' as const };
+  }
+
+  const message = await prisma.$transaction(async (tx) => {
+    const msg = await tx.supportMessage.create({
+      data: { threadId, senderId: adminId, senderType: 'ADMIN', body: input.body },
+    });
+
+    if (attachmentIds.length > 0) {
+      await tx.supportAttachment.updateMany({
+        where: { id: { in: attachmentIds } },
+        data: { messageId: msg.id },
+      });
+    }
+
+    await tx.supportThread.update({
       where: { id: threadId },
       data: { status: 'WAITING_USER', updatedAt: new Date() },
-    }),
-  ]);
+    });
+
+    return tx.supportMessage.findUnique({
+      where: { id: msg.id },
+      include: MESSAGE_INCLUDE,
+    });
+  });
 
   return { message };
 }
@@ -267,11 +318,7 @@ export async function updateThreadStatus(threadId: string, status: SupportThread
 
   const updated = await prisma.supportThread.update({
     where: { id: threadId },
-    data: {
-      status,
-      closedAt: status === 'CLOSED' ? new Date() : undefined,
-      updatedAt: new Date(),
-    },
+    data: { status, closedAt: status === 'CLOSED' ? new Date() : undefined, updatedAt: new Date() },
     include: THREAD_INCLUDE,
   });
 

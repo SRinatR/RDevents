@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requirePlatformAdmin } from '../../common/middleware.js';
 import type { AuthenticatedRequest } from '../../common/middleware.js';
+import { supportUpload, validateSupportFile, SupportUploadError } from '../../common/upload.js';
 import {
   adminThreadQuerySchema,
   addMessageSchema,
@@ -15,6 +16,7 @@ import {
   assignThread,
   updateThreadStatus,
   markAdminThreadRead,
+  uploadSupportAttachments,
 } from '../support/support.service.js';
 
 export const adminSupportRouter = Router();
@@ -59,9 +61,15 @@ adminSupportRouter.post('/threads/:threadId/reply', async (req, res) => {
     res.status(404).json({ error: 'Thread not found' });
     return;
   }
-  if ('error' in result && result.error === 'THREAD_CLOSED') {
-    res.status(409).json({ error: 'Thread is closed', code: 'THREAD_CLOSED' });
-    return;
+  if ('error' in result) {
+    if (result.error === 'THREAD_CLOSED') {
+      res.status(409).json({ error: 'Thread is closed', code: 'THREAD_CLOSED' });
+      return;
+    }
+    if (result.error === 'INVALID_ATTACHMENTS') {
+      res.status(400).json({ error: 'One or more attachment IDs are invalid or already used', code: 'INVALID_ATTACHMENTS' });
+      return;
+    }
   }
 
   res.status(201).json(result);
@@ -135,3 +143,39 @@ adminSupportRouter.post('/threads/:threadId/read', async (req, res) => {
   }
   res.json(result);
 });
+
+// POST /api/admin/support/threads/:threadId/attachments
+adminSupportRouter.post(
+  '/threads/:threadId/attachments',
+  supportUpload.array('files', 5),
+  async (req, res) => {
+    const adminId = (req as AuthenticatedRequest).user!.id;
+    const threadId = String(req.params['threadId']);
+    const files = req.files as Express.Multer.File[] | undefined;
+
+    if (!files || files.length === 0) {
+      res.status(400).json({ error: 'At least one file is required' });
+      return;
+    }
+
+    try {
+      for (const file of files) {
+        validateSupportFile(file);
+      }
+    } catch (err) {
+      if (err instanceof SupportUploadError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
+
+    const result = await uploadSupportAttachments(adminId, threadId, files, 'ADMIN');
+    if (!result) {
+      res.status(404).json({ error: 'Thread not found' });
+      return;
+    }
+
+    res.status(201).json(result);
+  },
+);

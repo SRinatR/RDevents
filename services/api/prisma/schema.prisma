@@ -189,7 +189,8 @@ model User {
   supportThreads        SupportThread[] @relation("SupportThreadUser")
   assignedSupportThreads SupportThread[] @relation("SupportThreadAdmin")
   supportMessages       SupportMessage[] @relation("SupportMessageSender")
-  supportReadStates     SupportThreadReadState[] @relation("SupportThreadReadStateUser")
+  supportReadStates          SupportThreadReadState[] @relation("SupportThreadReadStateUser")
+  uploadedSupportAttachments SupportAttachment[]      @relation("SupportAttachmentUploader")
 
   @@map("users")
 }
@@ -468,6 +469,7 @@ model SupportThread {
   user            User                @relation("SupportThreadUser", fields: [userId], references: [id], onDelete: Cascade)
   assignedAdmin   User?               @relation("SupportThreadAdmin", fields: [assignedAdminId], references: [id], onDelete: SetNull)
   messages        SupportMessage[]
+  attachments     SupportAttachment[] @relation("SupportAttachmentThread")
   readStates      SupportThreadReadState[]
 
   @@index([userId, status])
@@ -493,18 +495,24 @@ model SupportMessage {
 }
 
 model SupportAttachment {
-  id         String         @id @default(cuid())
-  messageId  String
+  id         String          @id @default(cuid())
+  messageId  String?
+  threadId   String
+  uploaderId String
   filename   String
   mimeType   String
   sizeBytes  Int
   storageKey String
   publicUrl  String
-  createdAt  DateTime       @default(now())
+  createdAt  DateTime        @default(now())
 
-  message    SupportMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  message    SupportMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  thread     SupportThread   @relation("SupportAttachmentThread", fields: [threadId], references: [id], onDelete: Cascade)
+  uploader   User            @relation("SupportAttachmentUploader", fields: [uploaderId], references: [id], onDelete: Cascade)
 
   @@index([messageId])
+  @@index([threadId])
+  @@index([uploaderId])
   @@map("support_attachments")
 }
 

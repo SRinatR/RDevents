@@ -7,6 +7,7 @@ export const createThreadSchema = z.object({
 
 export const addMessageSchema = z.object({
   body: z.string().min(1).max(10000),
+  attachmentIds: z.array(z.string()).max(5).default([]),
 });
 
 export const assignThreadSchema = z.object({
