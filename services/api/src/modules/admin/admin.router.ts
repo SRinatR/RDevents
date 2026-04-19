@@ -7,6 +7,7 @@ import { adminParticipantsRouter } from './participants.router.js';
 import { adminTeamsRouter } from './teams.router.js';
 import { adminUsersRouter } from './users.router.js';
 import { adminAnalyticsRouter } from './analytics.router.js';
+import { adminSupportRouter } from './support.router.js';
 
 export const adminRouter = Router();
 
@@ -17,8 +18,9 @@ adminRouter.use(requireAuth);
 adminRouter.use('/events', adminEventsRouter);
 adminRouter.use('/participants', adminParticipantsRouter);
 adminRouter.use('/teams', adminTeamsRouter);
+adminRouter.use('/support', adminSupportRouter);
 adminRouter.use('/', adminUsersRouter);
 adminRouter.use('/', adminAnalyticsRouter);
 
 // Re-export for convenience
-export { adminEventsRouter, adminParticipantsRouter, adminTeamsRouter, adminUsersRouter, adminAnalyticsRouter };
+export { adminEventsRouter, adminParticipantsRouter, adminTeamsRouter, adminUsersRouter, adminAnalyticsRouter, adminSupportRouter };
