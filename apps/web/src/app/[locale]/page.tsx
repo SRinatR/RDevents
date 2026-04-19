@@ -34,8 +34,6 @@ export default async function HomePage({ params }: HomePageProps) {
   return (
     <div className="public-page-shell route-shell route-home route-home-v3">
       <main className="public-main home-v3-main">
-
-        {/* Hero: catalog-first — primary action is browsing events */}
         <section className="home-v3-hero motion-fade-up">
           <div className="home-v3-hero-media">
             {heroImageSrc
@@ -49,6 +47,11 @@ export default async function HomePage({ params }: HomePageProps) {
               <span className="home-v3-kicker">{t('home.heroKicker')}</span>
               <h1>{t('home.heroTitle')}</h1>
               <p>{t('home.heroSubtitle')}</p>
+              <div className="home-v3-hero-pills">
+                <span>{t('home.heroPill1')}</span>
+                <span>{t('home.heroPill2')}</span>
+                <span>{t('home.heroPill3')}</span>
+              </div>
               <div className="home-v3-hero-actions">
                 <Link href={`/${locale}/events`} className="btn btn-primary">
                   {t('home.exploreCta')}
@@ -73,6 +76,7 @@ export default async function HomePage({ params }: HomePageProps) {
                     <span>{heroEvent.location}</span>
                     <span>{heroEvent.category}</span>
                   </div>
+                  <span className="home-v3-hero-dock-link">{t('home.learnMore')}</span>
                 </Link>
               ) : (
                 <div className="home-v3-hero-dock-card home-v3-hero-dock-fallback">
@@ -88,100 +92,136 @@ export default async function HomePage({ params }: HomePageProps) {
           </div>
         </section>
 
-        {/* Event stream: upcoming events catalog preview */}
-        <section className="home-v3-stream motion-fade-up-fast">
-          <div className="container-wide">
-            <div className="home-v3-stream-head">
-              <div>
-                <h2>{t('home.upcomingTitle')}</h2>
-                <p>{t('home.upcomingSubtitle')}</p>
-              </div>
-              <Link href={`/${locale}/events`} className="signal-chip-link">
-                {t('home.viewFullCatalog')}
-              </Link>
+        <section className="home-v3-intro motion-fade-up-fast">
+          <div className="container-wide home-v3-intro-grid">
+            <article className="home-v3-intro-card">
+              <small>{t('home.introBadge')}</small>
+              <h2>{t('home.introTitle')}</h2>
+              <p>{t('home.introText')}</p>
+            </article>
+            <div className="home-v3-intro-metrics">
+              <article>
+                <small>{t('home.metric1Label')}</small>
+                <strong>{t('home.metric1Value')}</strong>
+              </article>
+              <article>
+                <small>{t('home.metric2Label')}</small>
+                <strong>{t('home.metric2Value')}</strong>
+              </article>
+              <article>
+                <small>{t('home.metric3Label')}</small>
+                <strong>{t('home.metric3Value')}</strong>
+              </article>
             </div>
-
-            {streamSingleEvent ? (
-              <div className="home-v3-stream-layout motion-stagger">
-                <Link
-                  href={`/${locale}/events/${streamSingleEvent.slug}`}
-                  className="home-v3-stream-card is-full"
-                >
-                  <div className="home-v3-stream-card-cover">
-                    {streamSingleEvent.coverImageUrl
-                      ? <img src={streamSingleEvent.coverImageUrl} alt={streamSingleEvent.title} />
-                      : <CoverFallback title={streamSingleEvent.title} />}
-                  </div>
-                  <div className="home-v3-stream-card-body">
-                    <h3>{streamSingleEvent.title}</h3>
-                    {streamSingleEvent.shortDescription && (
-                      <p className="home-v3-stream-card-desc">{streamSingleEvent.shortDescription}</p>
-                    )}
-                    <div className="home-meta-row">
-                      <span>{formatPreviewDate(streamSingleEvent.startsAt, locale)}</span>
-                      <span>{streamSingleEvent.location}</span>
-                      <span>{streamSingleEvent.category}</span>
-                    </div>
-                  </div>
-                </Link>
-              </div>
-            ) : streamEvents.length === 0 ? (
-              <div className="signal-empty-state">
-                <h3>{t('home.streamEmptyTitle')}</h3>
-                <p>{t('home.streamEmptyDesc')}</p>
-                <div className="signal-empty-actions">
-                  <Link href={`/${locale}/events`} className="signal-chip-link">
-                    {t('events.title')}
-                  </Link>
-                </div>
-              </div>
-            ) : (
-              <div className="home-v3-stream-layout motion-stagger">
-                {streamEvents.map((event, index) => (
-                  <Link
-                    key={event.id}
-                    href={`/${locale}/events/${event.slug}`}
-                    className={`home-v3-stream-card ${index === 0 ? 'is-wide' : ''} ${index === 1 ? 'is-tall' : ''}`}
-                  >
-                    <div className="home-v3-stream-card-cover">
-                      {event.coverImageUrl
-                        ? <img src={event.coverImageUrl} alt={event.title} />
-                        : <CoverFallback title={event.title} />}
-                    </div>
-                    <div className="home-v3-stream-card-body">
-                      <h3>{event.title}</h3>
-                      {index === 0 && event.shortDescription && (
-                        <p className="home-v3-stream-card-desc">{event.shortDescription}</p>
-                      )}
-                      <div className="home-meta-row">
-                        <span>{formatPreviewDate(event.startsAt, locale)}</span>
-                        <span>{event.location}</span>
-                        <span>{event.category}</span>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
           </div>
         </section>
 
-        {/* How to start: 3 real steps backed by existing functionality */}
+        <section className="home-v3-stream motion-fade-up-fast">
+          <div className="container-wide">
+            <div className="home-v3-stream-shell">
+              <div className="home-v3-stream-head">
+                <div>
+                  <small>{t('home.streamBadge')}</small>
+                  <h2>{t('home.upcomingTitle')}</h2>
+                  <p>{t('home.upcomingSubtitle')}</p>
+                </div>
+                <Link href={`/${locale}/events`} className="signal-chip-link">
+                  {t('home.viewFullCatalog')}
+                </Link>
+              </div>
+
+              {streamSingleEvent ? (
+                <div className="home-v3-stream-layout motion-stagger">
+                  <Link
+                    href={`/${locale}/events/${streamSingleEvent.slug}`}
+                    className="home-v3-stream-card is-full"
+                  >
+                    <div className="home-v3-stream-card-cover">
+                      {streamSingleEvent.coverImageUrl
+                        ? <img src={streamSingleEvent.coverImageUrl} alt={streamSingleEvent.title} />
+                        : <CoverFallback title={streamSingleEvent.title} />}
+                    </div>
+                    <div className="home-v3-stream-card-body">
+                      <h3>{streamSingleEvent.title}</h3>
+                      {streamSingleEvent.shortDescription && (
+                        <p className="home-v3-stream-card-desc">{streamSingleEvent.shortDescription}</p>
+                      )}
+                      <div className="home-meta-row">
+                        <span>{formatPreviewDate(streamSingleEvent.startsAt, locale)}</span>
+                        <span>{streamSingleEvent.location}</span>
+                        <span>{streamSingleEvent.category}</span>
+                      </div>
+                    </div>
+                  </Link>
+                </div>
+              ) : streamEvents.length === 0 ? (
+                <div className="signal-empty-state home-v3-stream-empty">
+                  <h3>{t('home.streamEmptyTitle')}</h3>
+                  <p>{t('home.streamEmptyDesc')}</p>
+                  <div className="signal-empty-actions">
+                    <Link href={`/${locale}/events`} className="signal-chip-link">
+                      {t('events.title')}
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <div className="home-v3-stream-layout motion-stagger">
+                  {streamEvents.map((event, index) => (
+                    <Link
+                      key={event.id}
+                      href={`/${locale}/events/${event.slug}`}
+                      className={`home-v3-stream-card ${index === 0 ? 'is-wide' : ''} ${index === 1 ? 'is-tall' : ''}`}
+                    >
+                      <div className="home-v3-stream-card-cover">
+                        {event.coverImageUrl
+                          ? <img src={event.coverImageUrl} alt={event.title} />
+                          : <CoverFallback title={event.title} />}
+                      </div>
+                      <div className="home-v3-stream-card-body">
+                        <h3>{event.title}</h3>
+                        {index === 0 && event.shortDescription && (
+                          <p className="home-v3-stream-card-desc">{event.shortDescription}</p>
+                        )}
+                        <div className="home-meta-row">
+                          <span>{formatPreviewDate(event.startsAt, locale)}</span>
+                          <span>{event.location}</span>
+                          <span>{event.category}</span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
         <section className="home-v3-steps motion-fade-up-fast">
           <div className="container-wide">
-            <h2 className="home-v3-steps-title">{t('home.howItWorksTitle')}</h2>
-            <div className="home-v3-steps-grid">
-              <div className="home-v3-step-card">
-                <span className="home-v3-step-num">01</span>
-                <strong>{t('home.howItWorks.step1')}</strong>
+            <div className="home-v3-steps-shell">
+              <div className="home-v3-steps-head">
+                <small>{t('home.howItWorksBadge')}</small>
+                <h2 className="home-v3-steps-title">{t('home.howItWorksTitle')}</h2>
               </div>
-              <div className="home-v3-step-card">
-                <span className="home-v3-step-num">02</span>
-                <strong>{t('home.howItWorks.step2')}</strong>
+              <div className="home-v3-steps-grid">
+                <div className="home-v3-step-card">
+                  <span className="home-v3-step-num">01</span>
+                  <strong>{t('home.howItWorks.step1')}</strong>
+                </div>
+                <div className="home-v3-step-card">
+                  <span className="home-v3-step-num">02</span>
+                  <strong>{t('home.howItWorks.step2')}</strong>
+                </div>
+                <div className="home-v3-step-card">
+                  <span className="home-v3-step-num">03</span>
+                  <strong>{t('home.howItWorks.step3')}</strong>
+                </div>
               </div>
-              <div className="home-v3-step-card">
-                <span className="home-v3-step-num">03</span>
-                <strong>{t('home.howItWorks.step3')}</strong>
+              <div className="home-v3-steps-cta">
+                <p>{t('home.howItWorksCta')}</p>
+                <Link href={`/${locale}/register`} className="btn btn-primary">
+                  {t('home.joinCta')}
+                </Link>
               </div>
             </div>
           </div>
