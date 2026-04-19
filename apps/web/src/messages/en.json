@@ -31,24 +31,28 @@
     "logout": "Logout"
   },
   "home": {
-    "heroKicker": "Cultural and Educational Center",
+    "heroKicker": "Cultural and educational center",
     "heroTitle": "Find events worth your time",
-    "heroSubtitle": "Browse upcoming cultural and educational events, register your spot, and manage everything from your personal cabinet.",
+    "heroSubtitle": "Browse cultural and educational events, register your spot, and manage everything from your personal cabinet.",
     "exploreCta": "Browse events",
     "joinCta": "Create account",
     "featuredLabel": "Featured event",
-    "featuredFallbackTitle": "Events coming soon",
-    "featuredFallbackDesc": "New events will appear in the catalog when published.",
+    "featuredFallbackTitle": "Events are coming soon",
+    "featuredFallbackDesc": "Check back later for new catalog updates.",
     "upcomingTitle": "Upcoming events",
     "upcomingSubtitle": "Browse and register for events happening soon.",
     "viewFullCatalog": "Full catalog",
     "streamEmptyTitle": "Events will appear soon",
     "streamEmptyDesc": "Check the full catalog or come back later.",
-    "howItWorksTitle": "How to get started",
+    "howItWorksTitle": "How it works",
+    "howItWorksSubtitle": "Three simple steps to get started.",
     "howItWorks": {
-      "step1": "Choose an event from the catalog",
-      "step2": "Sign in with email or social account",
-      "step3": "Register and manage everything from your cabinet"
+      "step1Title": "Choose an event",
+      "step1Text": "Open the catalog and find an event that fits you.",
+      "step2Title": "Sign in or create an account",
+      "step2Text": "Use your account to apply and keep your progress.",
+      "step3Title": "Participate and manage everything in your cabinet",
+      "step3Text": "Track registrations, documents, and participation statuses in one place."
     }
   },
   "auth": {
