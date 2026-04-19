@@ -114,6 +114,24 @@ adminParticipantsRouter.get('/', async (req, res) => {
     }),
   ]);
 
+  const submissionPairs = members.map((member) => ({ eventId: member.eventId, userId: member.userId }));
+  const submissions = submissionPairs.length > 0
+    ? await prisma.eventRegistrationFormSubmission.findMany({
+      where: {
+        OR: submissionPairs,
+      },
+      select: {
+        eventId: true,
+        userId: true,
+        answersJson: true,
+      },
+    })
+    : [];
+
+  const answersByPair = new Map<string, unknown>(
+    submissions.map((submission) => [`${submission.eventId}:${submission.userId}`, submission.answersJson]),
+  );
+
   const data = members.map(member => ({
     id: member.id,
     userId: member.userId,
@@ -133,7 +151,7 @@ adminParticipantsRouter.get('/', async (req, res) => {
     eventStartsAt: member.event?.startsAt ? member.event.startsAt.toISOString() : null,
     role: member.role,
     status: member.status,
-    answers: member.answers ?? null,
+    answers: answersByPair.get(`${member.eventId}:${member.userId}`) ?? null,
     assignedAt: member.assignedAt.toISOString(),
   }));
 
