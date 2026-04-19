@@ -26,6 +26,7 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
   const [teamError, setTeamError] = useState('');
   const [teamSuccess, setTeamSuccess] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [memberActionKey, setMemberActionKey] = useState('');
 
   useEffect(() => {
     if (!loading && !user) router.push(`/${locale}/login`);
@@ -64,10 +65,24 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
   if (!event) return null;
 
   const myTeam = event.teamMembership?.team;
+  const isCaptain = Boolean(myTeam && user && myTeam.captainUserId === user.id);
   const isVolunteer = event.memberships?.find((membership: any) => membership.role === 'VOLUNTEER');
   const participantMembership = event.participantMembership ?? event.memberships?.find((membership: any) => membership.role === 'PARTICIPANT');
   const isActiveParticipation = participantMembership?.status === 'ACTIVE';
   const eventEnded = event.endsAt ? new Date(event.endsAt).getTime() <= Date.now() : false;
+
+  async function refreshTeamState(teamId: string) {
+    if (!user) return;
+    const { team } = await eventsApi.getTeam(event.id, teamId);
+    const myMembership = team.members?.find((member: any) => member.userId === user.id);
+
+    setEvent((previous: any) => ({
+      ...previous,
+      teamMembership: myMembership
+        ? { ...previous.teamMembership, team, role: myMembership.role, status: myMembership.status }
+        : null,
+    }));
+  }
 
   async function handleCreateTeam() {
     if (!user) return;
@@ -149,6 +164,54 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
     }
   }
 
+  async function handleRemoveTeamMember(member: any) {
+    if (!myTeam || !isCaptain) return;
+    const memberName = member.user?.name ?? member.user?.email ?? '—';
+    const confirmed = window.confirm(
+      locale === 'ru'
+        ? `Удалить участника ${memberName} из команды?`
+        : `Remove ${memberName} from the team?`
+    );
+    if (!confirmed) return;
+
+    setTeamError('');
+    setTeamSuccess('');
+    setMemberActionKey(`remove:${member.userId}`);
+    try {
+      await eventsApi.removeTeamMember(event.id, myTeam.id, member.userId);
+      await refreshTeamState(myTeam.id);
+      setTeamSuccess(locale === 'ru' ? 'Участник удалён из команды.' : 'Member removed from team.');
+    } catch (err: any) {
+      setTeamError(err.message || (locale === 'ru' ? 'Не удалось удалить участника' : 'Failed to remove member'));
+    } finally {
+      setMemberActionKey('');
+    }
+  }
+
+  async function handleTransferCaptain(member: any) {
+    if (!myTeam || !isCaptain) return;
+    const memberName = member.user?.name ?? member.user?.email ?? '—';
+    const confirmed = window.confirm(
+      locale === 'ru'
+        ? `Передать капитанство участнику ${memberName}?`
+        : `Transfer captain role to ${memberName}?`
+    );
+    if (!confirmed) return;
+
+    setTeamError('');
+    setTeamSuccess('');
+    setMemberActionKey(`transfer:${member.userId}`);
+    try {
+      await eventsApi.transferTeamCaptain(event.id, myTeam.id, member.userId);
+      await refreshTeamState(myTeam.id);
+      setTeamSuccess(locale === 'ru' ? 'Капитан команды успешно изменён.' : 'Team captain transferred successfully.');
+    } catch (err: any) {
+      setTeamError(err.message || (locale === 'ru' ? 'Не удалось передать капитанство' : 'Failed to transfer captain role'));
+    } finally {
+      setMemberActionKey('');
+    }
+  }
+
   return (
     <div className="signal-page-shell cabinet-workspace-page workspace-page-v2">
       <PageHeader title={event.title} subtitle={locale === 'ru' ? 'Персональное рабочее пространство события' : 'Personal event workspace'} actions={<Link href={`/${locale}/cabinet/my-events`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Назад' : 'Back'}</Link>} />
@@ -198,8 +261,37 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
                 <div className="signal-stack">
                   {myTeam.members.map((member: any) => (
                     <div key={member.id} className="signal-ranked-item">
-                      <span>{member.user?.name ?? member.user?.email ?? '—'}</span>
-                      <strong>{member.role} · {member.status}</strong>
+                      <span>
+                        {member.user?.name ?? member.user?.email ?? '—'}
+                        {member.userId === user.id ? ` (${locale === 'ru' ? 'Вы' : 'You'})` : ''}
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <strong>{member.role} · {member.status}</strong>
+                        {isCaptain && member.role !== 'CAPTAIN' ? (
+                          <ToolbarRow>
+                            <button
+                              onClick={() => handleRemoveTeamMember(member)}
+                              disabled={Boolean(memberActionKey)}
+                              className="btn btn-ghost btn-sm"
+                            >
+                              {memberActionKey === `remove:${member.userId}`
+                                ? (locale === 'ru' ? 'Удаляем...' : 'Removing...')
+                                : (locale === 'ru' ? 'Удалить' : 'Remove')}
+                            </button>
+                            {member.status === 'ACTIVE' ? (
+                              <button
+                                onClick={() => handleTransferCaptain(member)}
+                                disabled={Boolean(memberActionKey)}
+                                className="btn btn-secondary btn-sm"
+                              >
+                                {memberActionKey === `transfer:${member.userId}`
+                                  ? (locale === 'ru' ? 'Передаём...' : 'Transferring...')
+                                  : (locale === 'ru' ? 'Сделать капитаном' : 'Make captain')}
+                              </button>
+                            ) : null}
+                          </ToolbarRow>
+                        ) : null}
+                      </div>
                     </div>
                   ))}
                 </div>
