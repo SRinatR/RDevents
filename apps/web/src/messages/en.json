@@ -171,14 +171,13 @@
     "effectiveDateLabel": "Effective Date",
     "operatorLabel": "Controller / Operator",
     "contactEmailLabel": "Contact Email",
-    "postalAddressLabel": "Postal Address",
     "quickNavTitle": "Contents",
     "sections": [
       {
         "id": "introduction",
         "title": "1. Introduction",
         "paragraphs": [
-          "This Privacy Policy explains how [Legal Entity Name] (“we”, “us”, “our”) collects, uses, stores, shares, and otherwise processes personal data when you use the RDEvents platform, including the public website, user account, event registration workflows, volunteer workflows, team features, profile tools, analytics features, and administrator functions.",
+          "This Privacy Policy explains how Сергей Ежков (“we”, “us”, “our”) collects, uses, stores, shares, and otherwise processes personal data when you use the RDEvents platform, including the public website, user account, event registration workflows, volunteer workflows, team features, profile tools, analytics features, and administrator functions.",
           "This Privacy Policy applies to personal data processed through the platform in connection with:"
         ],
         "bullets": [
@@ -465,7 +464,7 @@
           "withdraw consent where processing relies on consent;",
           "request portability of data where applicable;",
           "lodge a complaint with a competent supervisory authority or regulator.",
-          "To exercise your rights, contact us at [Contact Email]. We may need to verify your identity before acting on a request."
+          "To exercise your rights, contact us at Uzb@vsezapobedu.com. We may need to verify your identity before acting on a request."
         ]
       },
       {
@@ -496,9 +495,8 @@
           "If you have questions about this Privacy Policy or about how your personal data is processed, contact:"
         ],
         "bullets": [
-          "[Legal Entity Name]",
-          "Email: [Contact Email]",
-          "Address: [Postal Address]"
+          "Сергей Ежков",
+          "Email: Uzb@vsezapobedu.com"
         ]
       }
     ]

@@ -18,7 +18,6 @@ type PrivacyMessages = {
   effectiveDateLabel: string;
   operatorLabel: string;
   contactEmailLabel: string;
-  postalAddressLabel: string;
   quickNavTitle: string;
   sections: PrivacySection[];
 };
@@ -56,19 +55,15 @@ export default async function PrivacyPolicyPage({ params }: PrivacyPolicyPagePro
               <dl className="privacy-meta-grid">
                 <div>
                   <dt>{privacy.effectiveDateLabel}</dt>
-                  <dd>[Effective Date]</dd>
+                  <dd>19.04.2026</dd>
                 </div>
                 <div>
                   <dt>{privacy.operatorLabel}</dt>
-                  <dd>[Legal Entity Name]</dd>
+                  <dd>Сергей Ежков</dd>
                 </div>
                 <div>
                   <dt>{privacy.contactEmailLabel}</dt>
-                  <dd>[Contact Email]</dd>
-                </div>
-                <div>
-                  <dt>{privacy.postalAddressLabel}</dt>
-                  <dd>[Postal Address]</dd>
+                  <dd>Uzb@vsezapobedu.com</dd>
                 </div>
               </dl>
             </header>

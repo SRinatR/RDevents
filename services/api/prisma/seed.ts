@@ -329,7 +329,7 @@ async function main() {
       requireAdminApprovalForTeams: true,
       teamJoinMode: 'BY_CODE',
       tags: ['квест', 'культура', 'русский-дом'],
-      contactEmail: 'platform@example.com',
+      contactEmail: 'Uzb@vsezapobedu.com',
       status: EventStatus.PUBLISHED,
       isFeatured: true,
       publishedAt: new Date(),

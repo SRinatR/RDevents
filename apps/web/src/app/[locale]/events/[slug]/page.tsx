@@ -29,7 +29,7 @@ const QUEST_STATS = [
   { value: '60+', label: 'участников' },
   { value: '12', label: 'команд' },
   { value: '6', label: 'станций маршрута' },
-  { value: '4 часа', label: 'продолжительность' },
+  { value: '5 часов', label: 'продолжительность' },
   { value: '25 лет', label: 'Русскому дому' },
 ];
 
@@ -232,7 +232,6 @@ export default function EventDetailPage() {
   const registrationExpired = event.registrationDeadline ? new Date(event.registrationDeadline).getTime() < Date.now() : false;
   const hasActiveVolunteer = ['PENDING', 'APPROVED', 'ACTIVE'].includes(volunteerStatus ?? '');
   const eventDateRange = `${formatDate(event.startsAt)} · ${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}`;
-  const spotsLeft = Math.max((event.capacity ?? 0) - (event.registrationsCount ?? 0), 0);
   const isRussiaHouseEvent = event.slug === 'dom-gde-zhivet-rossiya';
   
   // Participation config values
@@ -503,12 +502,8 @@ export default function EventDetailPage() {
                 />
                 <div className="rhq-registration-notes">
                   <article>
-                    <strong>{spotsLeft}</strong>
-                    <span>ориентировочно свободных мест</span>
-                  </article>
-                  <article>
-                    <strong>{event.capacity}</strong>
-                    <span>общая вместимость события</span>
+                    <strong>60+</strong>
+                    <span>участников</span>
                   </article>
                 </div>
               </div>
@@ -552,7 +547,7 @@ export default function EventDetailPage() {
               <article className="rhq-contact-card">
                 <QuestSectionHeader eyebrow="Контакты" title="Связаться с оргкомитетом" inverted />
                 <p>По вопросам участия, регистрации, команд и партнёрского взаимодействия напишите организаторам мероприятия.</p>
-                <a href={`mailto:${event.contactEmail ?? 'platform@example.com'}`}>{event.contactEmail ?? 'platform@example.com'}</a>
+                <a href={`mailto:${event.contactEmail ?? 'Uzb@vsezapobedu.com'}`}>{event.contactEmail ?? 'Uzb@vsezapobedu.com'}</a>
               </article>
               <div className="rhq-faq-list">
                 <QuestSectionHeader eyebrow="FAQ" title="Часто задаваемые вопросы" />
