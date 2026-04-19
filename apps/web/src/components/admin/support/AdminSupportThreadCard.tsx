@@ -15,6 +15,19 @@ function formatDate(iso: string, locale: string) {
   });
 }
 
+function UnreadDot() {
+  return (
+    <span style={{
+      display: 'inline-block',
+      width: '8px',
+      height: '8px',
+      borderRadius: '50%',
+      background: 'var(--color-warning)',
+      flexShrink: 0,
+    }} aria-label="unread" />
+  );
+}
+
 interface AdminThread extends SupportThread {
   user: { id: string; name: string | null; email: string; avatarUrl: string | null };
   assignedAdmin: { id: string; name: string | null; email: string } | null;
@@ -29,6 +42,7 @@ export function AdminSupportThreadCard({ thread, locale }: { thread: AdminThread
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <strong>{thread.subject}</strong>
+          {thread.hasUnread && <UnreadDot />}
           <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
             {thread.user.name || thread.user.email}
           </span>

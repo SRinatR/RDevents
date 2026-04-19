@@ -32,7 +32,8 @@ adminSupportRouter.get('/threads', async (req, res) => {
     return;
   }
 
-  const result = await listAdminThreads(parsed.data);
+  const adminId = (req as AuthenticatedRequest).user!.id;
+  const result = await listAdminThreads(adminId, parsed.data);
   res.json(result);
 });
 

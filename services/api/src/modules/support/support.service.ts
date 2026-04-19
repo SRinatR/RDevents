@@ -92,7 +92,23 @@ export async function listUserThreads(userId: string, query: ThreadQuery) {
     threads.map(async (t) => ({ ...t, lastMessage: await lastMessageSubquery(t.id) })),
   );
 
-  return { data: threadsWithLastMessage, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
+  const readStates = await prisma.supportThreadReadState.findMany({
+    where: { userId, threadId: { in: threads.map((t) => t.id) } },
+    select: { threadId: true, lastReadAt: true },
+  });
+  const readMap = new Map(readStates.map((rs) => [rs.threadId, rs.lastReadAt]));
+
+  const data = threadsWithLastMessage.map((t) => {
+    const lastReadAt = readMap.get(t.id) ?? null;
+    const lm = t.lastMessage;
+    const hasUnread =
+      lm != null &&
+      lm.senderType === 'ADMIN' &&
+      (!lastReadAt || new Date(lm.createdAt) > lastReadAt);
+    return { ...t, hasUnread };
+  });
+
+  return { data, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
 }
 
 export async function createThread(userId: string, input: CreateThreadInput) {
@@ -189,7 +205,7 @@ export async function markUserThreadRead(userId: string, threadId: string) {
 
 // ─── Admin service functions ──────────────────────────────────────────────────
 
-export async function listAdminThreads(query: AdminThreadQuery) {
+export async function listAdminThreads(adminId: string, query: AdminThreadQuery) {
   const { page, limit, status, assignedAdminId, unassigned } = query;
 
   const where: Record<string, unknown> = {};
@@ -212,7 +228,23 @@ export async function listAdminThreads(query: AdminThreadQuery) {
     threads.map(async (t) => ({ ...t, lastMessage: await lastMessageSubquery(t.id) })),
   );
 
-  return { data: threadsWithLastMessage, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
+  const readStates = await prisma.supportThreadReadState.findMany({
+    where: { userId: adminId, threadId: { in: threads.map((t) => t.id) } },
+    select: { threadId: true, lastReadAt: true },
+  });
+  const readMap = new Map(readStates.map((rs) => [rs.threadId, rs.lastReadAt]));
+
+  const data = threadsWithLastMessage.map((t) => {
+    const lastReadAt = readMap.get(t.id) ?? null;
+    const lm = t.lastMessage;
+    const hasUnread =
+      lm != null &&
+      lm.senderType === 'USER' &&
+      (!lastReadAt || new Date(lm.createdAt) > lastReadAt);
+    return { ...t, hasUnread };
+  });
+
+  return { data, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
 }
 
 export async function getAdminThread(threadId: string) {
@@ -281,7 +313,11 @@ export async function takeThread(adminId: string, threadId: string) {
 
   const updated = await prisma.supportThread.update({
     where: { id: threadId },
-    data: { assignedAdminId: adminId },
+    data: {
+      assignedAdminId: adminId,
+      // Promote OPEN → IN_PROGRESS when admin takes ownership
+      ...(thread.status === 'OPEN' ? { status: 'IN_PROGRESS' as const } : {}),
+    },
     include: THREAD_INCLUDE,
   });
 
@@ -318,7 +354,7 @@ export async function updateThreadStatus(threadId: string, status: SupportThread
 
   const updated = await prisma.supportThread.update({
     where: { id: threadId },
-    data: { status, closedAt: status === 'CLOSED' ? new Date() : undefined, updatedAt: new Date() },
+    data: { status, closedAt: status === 'CLOSED' ? new Date() : null, updatedAt: new Date() },
     include: THREAD_INCLUDE,
   });
 

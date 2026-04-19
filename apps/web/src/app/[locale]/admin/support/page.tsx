@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { adminSupportApi } from '@/lib/api';
@@ -15,6 +15,8 @@ import {
 import { AdminSupportFilters } from '@/components/admin/support/AdminSupportFilters';
 import { AdminSupportThreadCard } from '@/components/admin/support/AdminSupportThreadCard';
 
+const POLL_INTERVAL_MS = 30000;
+
 export default function AdminSupportInboxPage() {
   const { user, loading, isPlatformAdmin } = useAuth();
   const router = useRouter();
@@ -28,22 +30,47 @@ export default function AdminSupportInboxPage() {
   const [unassigned, setUnassigned] = useState(false);
   const [search, setSearch] = useState('');
 
+  const statusRef = useRef(status);
+  const unassignedRef = useRef(unassigned);
+  statusRef.current = status;
+  unassignedRef.current = unassigned;
+
   useEffect(() => {
     if (!loading && (!user || !isPlatformAdmin)) router.push(`/${locale}`);
   }, [user, loading, isPlatformAdmin, router, locale]);
 
+  const fetchThreads = useCallback(
+    async (silent = false) => {
+      if (!silent) setThreadsLoading(true);
+      setError('');
+      try {
+        const result = await adminSupportApi.listThreads({
+          status: statusRef.current || undefined,
+          unassigned: unassignedRef.current || undefined,
+          limit: 100,
+        });
+        setThreads(result.data ?? []);
+      } catch {
+        if (!silent) setError(locale === 'ru' ? 'Не удалось загрузить обращения.' : 'Failed to load tickets.');
+      } finally {
+        if (!silent) setThreadsLoading(false);
+      }
+    },
+    [locale],
+  );
+
+  // Re-fetch when filters change (full reload)
   useEffect(() => {
     if (!user || !isPlatformAdmin) return;
-    setThreadsLoading(true);
-    setError('');
-    adminSupportApi
-      .listThreads({ status: status || undefined, unassigned: unassigned || undefined, limit: 100 })
-      .then((result) => setThreads(result.data ?? []))
-      .catch(() =>
-        setError(locale === 'ru' ? 'Не удалось загрузить обращения.' : 'Failed to load tickets.'),
-      )
-      .finally(() => setThreadsLoading(false));
-  }, [user, isPlatformAdmin, status, unassigned, locale]);
+    fetchThreads(false);
+  }, [user, isPlatformAdmin, status, unassigned, fetchThreads]);
+
+  // Background polling
+  useEffect(() => {
+    if (!user || !isPlatformAdmin) return;
+    const timer = setInterval(() => fetchThreads(true), POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [user, isPlatformAdmin, fetchThreads]);
 
   const filteredThreads = useMemo(() => {
     if (!search.trim()) return threads;
@@ -64,8 +91,8 @@ export default function AdminSupportInboxPage() {
         title={locale === 'ru' ? 'Поддержка' : 'Support inbox'}
         subtitle={
           locale === 'ru'
-            ? 'Обращения пользователей'
-            : 'User support tickets'
+            ? `Обращения пользователей${threads.length ? ` · ${threads.length}` : ''}`
+            : `User support tickets${threads.length ? ` · ${threads.length}` : ''}`
         }
       />
 

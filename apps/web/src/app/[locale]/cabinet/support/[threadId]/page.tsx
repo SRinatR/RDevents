@@ -70,7 +70,17 @@ export default function SupportThreadPage({ params }: { params: Promise<{ thread
   function handleMessageSent(newMessage: unknown) {
     const msg = newMessage as SupportMessage;
     setThread((prev) =>
-      prev ? { ...prev, messages: [...prev.messages, msg] } : prev,
+      prev
+        ? {
+            ...prev,
+            messages: [...prev.messages, msg],
+            // User reply transitions OPEN/WAITING_USER → IN_PROGRESS optimistically
+            status:
+              prev.status === 'OPEN' || prev.status === 'WAITING_USER'
+                ? 'IN_PROGRESS'
+                : prev.status,
+          }
+        : prev,
     );
   }
 

@@ -31,6 +31,7 @@ export type SupportThread = {
   assignedAdmin: { id: string; name: string | null; email: string } | null;
   _count: { messages: number };
   lastMessage: { body: string; createdAt: string; senderType: string } | null;
+  hasUnread?: boolean;
 };
 
 export type SupportThreadDetail = {

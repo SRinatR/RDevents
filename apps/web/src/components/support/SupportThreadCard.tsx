@@ -15,6 +15,19 @@ function formatDate(iso: string, locale: string) {
   });
 }
 
+function UnreadDot() {
+  return (
+    <span style={{
+      display: 'inline-block',
+      width: '8px',
+      height: '8px',
+      borderRadius: '50%',
+      background: 'var(--color-primary)',
+      flexShrink: 0,
+    }} aria-label="unread" />
+  );
+}
+
 export function SupportThreadCard({ thread, locale }: { thread: SupportThread; locale: string }) {
   return (
     <Link
@@ -22,7 +35,10 @@ export function SupportThreadCard({ thread, locale }: { thread: SupportThread; l
       className="signal-ranked-item cabinet-list-item workspace-event-journey-item"
     >
       <div style={{ flex: 1, minWidth: 0 }}>
-        <strong>{thread.subject}</strong>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <strong>{thread.subject}</strong>
+          {thread.hasUnread && <UnreadDot />}
+        </div>
         {thread.lastMessage && (
           <div className="signal-muted" style={{ marginTop: '2px' }}>
             {thread.lastMessage.senderType === 'ADMIN' ? `↩ ` : ''}{truncate(thread.lastMessage.body)}

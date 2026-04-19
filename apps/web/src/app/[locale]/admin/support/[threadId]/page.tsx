@@ -65,12 +65,19 @@ export default function AdminSupportThreadPage({ params }: { params: Promise<{ t
   function handleMessageSent(newMessage: unknown) {
     const msg = newMessage as SupportMessage;
     setThread((prev: any) =>
-      prev ? { ...prev, messages: [...(prev.messages ?? []), msg] } : prev,
+      prev
+        ? {
+            ...prev,
+            messages: [...(prev.messages ?? []), msg],
+            // Admin reply always sets thread to WAITING_USER on the backend
+            status: prev.status !== 'CLOSED' ? 'WAITING_USER' : prev.status,
+          }
+        : prev,
     );
   }
 
   function handleThreadUpdate(updated: any) {
-    setThread((prev: any) => prev ? { ...prev, ...updated } : prev);
+    setThread((prev: any) => (prev ? { ...prev, ...updated } : prev));
   }
 
   if (loading || !user) return null;
