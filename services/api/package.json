@@ -33,10 +33,11 @@
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
-    "multer": "^2.0.2",
     "morgan": "^1.10.1",
+    "multer": "^2.0.2",
     "pg": "^8.20.0",
     "resend": "^4.6.0",
+    "svix": "^1.90.0",
     "zod": "^4.0.17"
   },
   "devDependencies": {
@@ -44,8 +45,8 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/multer": "^2.0.0",
     "@types/morgan": "^1.9.10",
+    "@types/multer": "^2.0.0",
     "@types/node": "^25.6.0",
     "@types/pg": "^8.20.0",
     "prisma": "^7.7.0",

@@ -19,4 +19,13 @@ describe('API health endpoints', () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('ok');
   });
+
+  it('POST /webhooks/resend is routed instead of returning 404', async () => {
+    const res = await request(app)
+      .post('/webhooks/resend')
+      .set('content-type', 'application/json')
+      .send(JSON.stringify({ type: 'email.delivered', data: { email_id: 'test-email' } }));
+
+    expect(res.status).not.toBe(404);
+  });
 });
