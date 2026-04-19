@@ -25,8 +25,8 @@ const QUEST_HIGHLIGHTS = [
 ];
 
 const QUEST_STATS = [
-  { value: '14-25', label: 'возраст участников' },
-  { value: '100+', label: 'участников' },
+  { value: 'до 30 лет', label: 'возраст участников' },
+  { value: '60+', label: 'участников' },
   { value: '12', label: 'команд' },
   { value: '6', label: 'станций маршрута' },
   { value: '4 часа', label: 'продолжительность' },
@@ -67,9 +67,9 @@ const QUEST_STATIONS = [
 ];
 
 const QUEST_TIMELINE = [
-  { time: '10:00-11:00', title: 'Сбор и регистрация участников', place: 'Русский дом в Ташкенте' },
-  { time: '11:00-11:30', title: 'Торжественное открытие юбилейного квеста', place: 'Основная площадка' },
-  { time: '11:30-13:30', title: 'Прохождение маршрута по 6 станциям', place: 'Тематические пространства' },
+  { time: '10:30-11:00', title: 'Сбор и регистрация участников', place: 'Центральный Парк имени Мирзо Улугбека' },
+  { time: '11:00-11:20', title: 'Торжественное открытие юбилейного квеста', place: 'Главная площадка парка' },
+  { time: '11:20-13:20', title: 'Прохождение маршрута по 6 станциям', place: 'Тематические пространства' },
   { time: '13:30-14:00', title: 'Финал маршрута и подведение итогов', place: 'Финальная площадка' },
   { time: '14:00-14:30', title: 'Кофе-брейк и неформальное общение', place: 'Зона отдыха' },
   { time: '14:30-15:00', title: 'Награждение и памятные призы', place: 'Сцена' },
@@ -465,7 +465,7 @@ export default function EventDetailPage() {
           <section className="rhq-section rhq-venue-section" id="venue">
             <div className="rhq-container rhq-venue-grid">
               <article>
-                <QuestSectionHeader eyebrow="Дата и место" title="Русский дом в Ташкенте" />
+                <QuestSectionHeader eyebrow="Дата и место" title="Центральный Парк имени Мирзо Улугбека" />
                 <dl>
                   <div>
                     <dt>Когда</dt>
@@ -476,6 +476,10 @@ export default function EventDetailPage() {
                     <dd>{event.location}</dd>
                   </div>
                   <div>
+                    <dt>Карта для участников</dt>
+                    <dd><a href="https://yandex.ru/maps/-/CPCiq-o7" target="_blank" rel="noreferrer">Открыть маршрут в Яндекс Картах</a></dd>
+                  </div>
+                  <div>
                     <dt>Дедлайн регистрации</dt>
                     <dd>{event.registrationDeadline ? `${formatDate(event.registrationDeadline)} · ${formatTime(event.registrationDeadline)}` : 'Будет объявлен дополнительно'}</dd>
                   </div>
@@ -483,7 +487,8 @@ export default function EventDetailPage() {
               </article>
               <article>
                 <QuestSectionHeader eyebrow="Формат участия" title="Командная игра с финальным маршрутом" />
-                <p>Участники проходят станции в командах, выполняют задания, получают отметки и приходят к общему финалу. Можно создать свою команду, вступить по коду приглашения или участвовать одному, если формат события это допускает.</p>
+                <p>Участники проходят станции в командах, выполняют задания, получают отметки и приходят к общему финалу.</p>
+                <p><strong>Важное правило: команда из 5 человек — не больше и не меньше.</strong></p>
               </article>
             </div>
           </section>
