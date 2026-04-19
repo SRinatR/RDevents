@@ -373,7 +373,7 @@ export const supportApi = {
     return request<{ data: any[]; meta: any }>(`/api/support/threads${qs}`, { auth: true });
   },
 
-  createThread: (body: { subject: string; body: string }) =>
+  createThread: (body: { subject: string }) =>
     request<{ thread: any }>('/api/support/threads', { method: 'POST', auth: true, body }),
 
   getThread: (threadId: string) =>

@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
+// body is no longer accepted here — the first message is sent via addMessage
 export const createThreadSchema = z.object({
   subject: z.string().min(1).max(200),
-  body: z.string().min(1).max(10000),
 });
 
 export const addMessageSchema = z.object({

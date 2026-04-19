@@ -112,17 +112,9 @@ export async function listUserThreads(userId: string, query: ThreadQuery) {
 }
 
 export async function createThread(userId: string, input: CreateThreadInput) {
-  return prisma.$transaction(async (tx) => {
-    const thread = await tx.supportThread.create({
-      data: { userId, subject: input.subject, status: 'OPEN' },
-      include: THREAD_INCLUDE,
-    });
-
-    await tx.supportMessage.create({
-      data: { threadId: thread.id, senderId: userId, senderType: 'USER', body: input.body },
-    });
-
-    return thread;
+  return prisma.supportThread.create({
+    data: { userId, subject: input.subject, status: 'OPEN' },
+    include: THREAD_INCLUDE,
   });
 }
 
