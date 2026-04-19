@@ -131,22 +131,34 @@ jobs:
             # Ensure postgres is running
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml up -d postgres
 
-            # Wait for postgres to pass its Docker health check (up to 60 s)
-            # Uses the compose health status so we confirm the exact user/db are ready,
-            # not just that the TCP port is open.
+            # Wait for postgres to pass its Docker health check (up to 60 s).
+            # docker compose ps --status healthy is unreliable: the compose CLI
+            # --status filter matches the compose *runtime status* label, which
+            # may not reflect the container health state in all Docker/compose
+            # versions, causing a false timeout even when the container is already
+            # (healthy) according to `docker inspect`.
+            # Instead we get the container ID once and poll `docker inspect`
+            # directly, which always reflects the real health check result.
             echo "Waiting for postgres to be healthy..."
+            POSTGRES_CID=$(docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps -q postgres 2>/dev/null || true)
+            if [ -z "$POSTGRES_CID" ]; then
+              echo "Could not find postgres container ID — compose ps -q returned empty."
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
+              exit 1
+            fi
             for i in $(seq 1 30); do
-              if docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
-                  ps --status healthy --services 2>/dev/null | grep -qx postgres; then
+              HEALTH=$(docker inspect -f '{{.State.Health.Status}}' "$POSTGRES_CID" 2>/dev/null || echo "unknown")
+              if [ "$HEALTH" = "healthy" ]; then
                 echo "Postgres is healthy."
                 break
               fi
               if [ "$i" -eq 30 ]; then
-                echo "Postgres did not become healthy in time."
+                echo "Postgres did not become healthy in time (last status: $HEALTH)."
                 docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
+                docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=40 postgres
                 exit 1
               fi
-              echo "Waiting for postgres... ($i/30)"
+              echo "Waiting for postgres... ($i/30, status: $HEALTH)"
               sleep 2
             done
 
