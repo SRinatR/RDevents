@@ -1332,7 +1332,6 @@ img { display: block; max-width: 100%; }
   border-color: rgba(209, 218, 234, 0.92);
   background: linear-gradient(180deg, rgba(255,255,255,1), rgba(243,248,255,0.9));
 }
-.public-participation-progress { margin-top: 2px; }
 .public-participation-state {
   border: 1px solid rgba(209, 218, 234, 0.82);
   border-radius: var(--radius-md);
@@ -5129,10 +5128,6 @@ body {
   word-break: break-word;
 }
 
-.catalog-v6-card .public-event-progress {
-  margin-top: 0;
-}
-
 /* Breakpoints */
 @media (max-width: 1100px) {
   .container-catalog {
@@ -8144,16 +8139,6 @@ body {
   min-width: 0;
   display: grid;
   gap: 12px;
-}
-
-.rhq-registration-panel {
-  border-color: var(--rhq-line);
-  background: #ffffff;
-  box-shadow: 0 20px 54px rgba(18, 36, 68, 0.12);
-}
-
-.route-russia-house-quest .rhq-registration-panel .signal-section-header h2 {
-  letter-spacing: 0;
 }
 
 .rhq-share-button {

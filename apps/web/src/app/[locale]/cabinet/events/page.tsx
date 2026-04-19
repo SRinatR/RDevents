@@ -2,33 +2,22 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../../hooks/useAuth';
 import { ApiError, eventsApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
-import { EmptyState, FieldTextarea, LoadingLines, Notice, PageHeader, Panel, SectionHeader, ToolbarRow } from '@/components/ui/signal-primitives';
-
-type MissingField = {
-  key: string;
-  label: string;
-  scope: 'PROFILE' | 'EVENT_FORM';
-};
+import { EmptyState, LoadingLines, Notice, PageHeader, Panel, ToolbarRow } from '@/components/ui/signal-primitives';
 
 export default function CabinetAllEventsPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const locale = useRouteLocale();
-  const selectedSlug = searchParams.get('event') ?? '';
 
   const [events, setEvents] = useState<any[]>([]);
   const [applications, setApplications] = useState<Record<string, any>>({});
-  const [answersByEvent, setAnswersByEvent] = useState<Record<string, Record<string, string>>>({});
-  const [missingByEvent, setMissingByEvent] = useState<Record<string, MissingField[]>>({});
+  const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
   const [eventsLoading, setEventsLoading] = useState(true);
   const [submittingId, setSubmittingId] = useState('');
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!loading && !user) router.push(`/${locale}/login`);
@@ -47,7 +36,6 @@ export default function CabinetAllEventsPage() {
   if (loading || !user) return null;
 
   const formatDate = (date: string) => new Date(date).toLocaleDateString(locale === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' });
-  const selectedEvent = selectedSlug ? events.find((event) => event.slug === selectedSlug) : null;
   const leadEvent = events[0];
   const tailEvents = events.slice(1);
 
@@ -69,30 +57,11 @@ export default function CabinetAllEventsPage() {
     return status ? ((locale === 'ru' ? ru : en)[status] ?? status) : '';
   };
 
-  const setEventAnswer = (eventId: string, key: string, value: string) => {
-    setAnswersByEvent((previous) => ({
-      ...previous,
-      [eventId]: {
-        ...(previous[eventId] ?? {}),
-        [key]: value,
-      },
-    }));
-  };
-
   async function handleApply(event: any) {
     setSubmittingId(event.id);
-    setMessage('');
-    setError('');
+    setActionErrors((previous) => ({ ...previous, [event.id]: '' }));
     try {
-      const answers = answersByEvent[event.id] ?? {};
-      const { precheck } = await eventsApi.registrationPrecheck(event.id, answers);
-      if (!precheck.ok) {
-        setMissingByEvent((previous) => ({ ...previous, [event.id]: precheck.missingFields ?? [] }));
-        setMessage(locale === 'ru' ? 'Заполните недостающие данные и повторите проверку.' : 'Complete missing data and run the check again.');
-        return;
-      }
-      const result = await eventsApi.register(event.id, answers);
-      setMissingByEvent((previous) => ({ ...previous, [event.id]: [] }));
+      const result = await eventsApi.register(event.id, {});
       setApplications((previous) => ({
         ...previous,
         [event.slug]: {
@@ -102,87 +71,20 @@ export default function CabinetAllEventsPage() {
           assignedAt: new Date().toISOString(),
         },
       }));
-      setMessage((result.membership?.status ?? result.status) === 'PENDING'
-        ? (locale === 'ru' ? 'Заявка отправлена администратору на подтверждение.' : 'Application sent to admin approval.')
-        : (locale === 'ru' ? 'Участие подтверждено. Workspace открыт в «Моих мероприятиях».' : 'Participation approved. Workspace is available in My events.'));
     } catch (err) {
       if (err instanceof ApiError && Array.isArray((err.details as any)?.missingFields)) {
-        setMissingByEvent((previous) => ({ ...previous, [event.id]: (err.details as any).missingFields }));
-        setMessage(locale === 'ru' ? 'Заполните недостающие данные и повторите проверку.' : 'Complete missing data and run the check again.');
+        setActionErrors((previous) => ({
+          ...previous,
+          [event.id]: locale === 'ru' ? 'Заполните обязательные поля профиля в личном кабинете.' : 'Complete required profile fields in your cabinet.',
+        }));
       } else if (err instanceof ApiError) {
-        setError(err.message);
+        setActionErrors((previous) => ({ ...previous, [event.id]: err.message }));
       } else {
-        setError(locale === 'ru' ? 'Не удалось подать заявку.' : 'Failed to submit application.');
+        setActionErrors((previous) => ({ ...previous, [event.id]: locale === 'ru' ? 'Не удалось подать заявку.' : 'Failed to submit application.' }));
       }
     } finally {
       setSubmittingId('');
     }
-  }
-
-  function renderApplicationBox(event: any) {
-    const application = applications[event.slug];
-    const missing = missingByEvent[event.id] ?? [];
-    const profileMissing = missing.filter((field) => field.scope === 'PROFILE');
-    const eventMissing = missing.filter((field) => field.scope === 'EVENT_FORM');
-
-    return (
-      <Panel variant="elevated" className="workspace-application-panel" id={`application-${event.slug}`}>
-        <SectionHeader
-          title={locale === 'ru' ? 'Подача заявки через ЛК' : 'Cabinet application'}
-          subtitle={event.title}
-        />
-        <div className="signal-muted">{event.location} · {formatDate(event.startsAt)} — {formatDate(event.endsAt)}</div>
-
-        {application ? (
-          <Notice tone={application.status === 'ACTIVE' ? 'success' : application.status === 'PENDING' ? 'warning' : 'info'}>
-            {statusLabel(application.status)}
-          </Notice>
-        ) : (
-          <Notice tone="info">
-            {locale === 'ru'
-              ? 'Перед подачей система выполнит precheck профиля и анкеты мероприятия.'
-              : 'Before submission, the system runs profile and event form precheck.'}
-          </Notice>
-        )}
-
-        {profileMissing.length > 0 ? (
-          <div className="signal-stack">
-            <strong>{locale === 'ru' ? 'Нужно заполнить профиль:' : 'Complete profile fields:'}</strong>
-            {profileMissing.map((field) => <div key={field.key} className="signal-ranked-item"><span>{field.label}</span></div>)}
-            <Link href={`/${locale}/cabinet/profile?required=${profileMissing.map((field) => field.key).join(',')}&event=${encodeURIComponent(event.title)}`} className="btn btn-secondary btn-sm">
-              {locale === 'ru' ? 'Открыть профиль' : 'Open profile'}
-            </Link>
-          </div>
-        ) : null}
-
-        {eventMissing.length > 0 ? (
-          <div className="signal-stack">
-            <strong>{locale === 'ru' ? 'Анкета мероприятия:' : 'Event form:'}</strong>
-            {eventMissing.map((field) => (
-              <label key={field.key} className="signal-stack">
-                <span className="signal-muted">{field.label}</span>
-                <FieldTextarea value={answersByEvent[event.id]?.[field.key] ?? ''} onChange={(inputEvent) => setEventAnswer(event.id, field.key, inputEvent.target.value)} rows={2} />
-              </label>
-            ))}
-          </div>
-        ) : null}
-
-        <ToolbarRow>
-          {application?.status === 'ACTIVE' ? (
-            <Link href={`/${locale}/cabinet/my-events/${event.slug}`} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Открыть workspace' : 'Open workspace'}</Link>
-          ) : (
-            <button onClick={() => void handleApply(event)} disabled={submittingId === event.id || application?.status === 'PENDING'} className="btn btn-primary btn-sm">
-              {submittingId === event.id
-                ? (locale === 'ru' ? 'Проверка...' : 'Checking...')
-                : application?.status === 'PENDING'
-                  ? (locale === 'ru' ? 'Ожидает подтверждения' : 'Pending approval')
-                  : (locale === 'ru' ? 'Precheck и подать заявку' : 'Precheck and submit')}
-            </button>
-          )}
-          <Link href={`/${locale}/events/${event.slug}`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Публичная страница' : 'Public page'}</Link>
-        </ToolbarRow>
-      </Panel>
-    );
   }
 
   return (
@@ -205,11 +107,8 @@ export default function CabinetAllEventsPage() {
           <EmptyState title={locale === 'ru' ? 'События пока отсутствуют' : 'No events yet'} description={locale === 'ru' ? 'Каталог пуст. Возвращайтесь позже или проверьте фильтры на публичной странице событий.' : 'Catalog is empty. Check back later or review filters on the public events page.'} />
         ) : (
           <div className="workspace-event-catalog-grid">
-            {message ? <Notice tone="info">{message}</Notice> : null}
-            {error ? <Notice tone="danger">{error}</Notice> : null}
-            {selectedEvent ? renderApplicationBox(selectedEvent) : null}
             {leadEvent ? (
-              <div id={`event-${leadEvent.slug}`} className={`workspace-event-lead ${selectedSlug === leadEvent.slug ? 'workspace-event-selected' : ''}`}>
+              <div id={`event-${leadEvent.slug}`} className="workspace-event-lead">
                 <div className="workspace-event-lead-cover">
                   {leadEvent.coverImageUrl ? <img src={leadEvent.coverImageUrl} alt={leadEvent.title} /> : <div className="cover-fallback"><span>{leadEvent.title?.slice(0, 2).toUpperCase()}</span></div>}
                 </div>
@@ -217,10 +116,19 @@ export default function CabinetAllEventsPage() {
                   <h2>{leadEvent.title}</h2>
                   <div className="signal-muted">{leadEvent.location} · {formatDate(leadEvent.startsAt)} — {formatDate(leadEvent.endsAt)}</div>
                   <ToolbarRow>
-                    
-                    <Link href={`/${locale}/cabinet/events?event=${leadEvent.slug}#event-${leadEvent.slug}`} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Подать через ЛК' : 'Apply in cabinet'}</Link>
+                    <button onClick={() => void handleApply(leadEvent)} disabled={submittingId === leadEvent.id || applications[leadEvent.slug]?.status === 'PENDING'} className="btn btn-primary btn-sm">
+                      {submittingId === leadEvent.id
+                        ? (locale === 'ru' ? 'Отправка...' : 'Submitting...')
+                        : applications[leadEvent.slug]?.status === 'PENDING'
+                          ? (locale === 'ru' ? 'Ожидает подтверждения' : 'Pending approval')
+                          : (locale === 'ru' ? 'Зарегистрироваться' : 'Register')}
+                    </button>
                     <Link href={`/${locale}/events/${leadEvent.slug}`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Публичная страница' : 'Public page'}</Link>
                   </ToolbarRow>
+                  {applications[leadEvent.slug]?.status ? (
+                    <div className="signal-muted">{statusLabel(applications[leadEvent.slug]?.status)}</div>
+                  ) : null}
+                  {actionErrors[leadEvent.id] ? <Notice tone="danger">{actionErrors[leadEvent.id]}</Notice> : null}
                 </div>
               </div>
             ) : null}
@@ -228,7 +136,7 @@ export default function CabinetAllEventsPage() {
             <div className="workspace-event-list">
               {tailEvents.map((event: any) => {
                 return (
-                  <div key={event.id} id={`event-${event.slug}`} className={`signal-ranked-item cabinet-list-item workspace-event-list-item ${selectedSlug === event.slug ? 'workspace-event-selected' : ''}`}>
+                  <div key={event.id} id={`event-${event.slug}`} className="signal-ranked-item cabinet-list-item workspace-event-list-item">
                     <div className="cabinet-list-item-main">
                       <div className="signal-avatar cabinet-list-avatar">{event.coverImageUrl ? <img src={event.coverImageUrl} alt="" /> : event.title?.slice(0, 2).toUpperCase()}</div>
                       <div>
@@ -237,10 +145,17 @@ export default function CabinetAllEventsPage() {
                       </div>
                     </div>
                     <ToolbarRow>
-                      
-                      <Link href={`/${locale}/cabinet/events?event=${event.slug}#event-${event.slug}`} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Подать' : 'Apply'}</Link>
-                      <Link href={`/${locale}/events/${event.slug}`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Карточка' : 'View'}</Link>
+                      <button onClick={() => void handleApply(event)} disabled={submittingId === event.id || applications[event.slug]?.status === 'PENDING'} className="btn btn-primary btn-sm">
+                        {submittingId === event.id
+                          ? (locale === 'ru' ? 'Отправка...' : 'Submitting...')
+                          : applications[event.slug]?.status === 'PENDING'
+                            ? (locale === 'ru' ? 'Ожидает подтверждения' : 'Pending approval')
+                            : (locale === 'ru' ? 'Зарегистрироваться' : 'Register')}
+                      </button>
+                      <Link href={`/${locale}/events/${event.slug}`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Публичная страница' : 'Public page'}</Link>
                     </ToolbarRow>
+                    {applications[event.slug]?.status ? <div className="signal-muted">{statusLabel(applications[event.slug]?.status)}</div> : null}
+                    {actionErrors[event.id] ? <Notice tone="danger">{actionErrors[event.id]}</Notice> : null}
                   </div>
                 );
               })}
@@ -248,8 +163,6 @@ export default function CabinetAllEventsPage() {
           </div>
         )}
       </Panel>
-
-      <Notice tone="info">{locale === 'ru' ? 'Каталог обновляется автоматически при публикации новых событий.' : 'Catalog updates automatically when new events are published.'}</Notice>
     </div>
   );
 }
