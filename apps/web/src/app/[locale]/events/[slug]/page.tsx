@@ -25,11 +25,11 @@ const QUEST_HIGHLIGHTS = [
 ];
 
 const QUEST_STATS = [
-  { value: 'до 30 лет', label: 'возраст участников' },
+  { value: '14-30 лет', label: 'возраст участников' },
   { value: '60+', label: 'участников' },
   { value: '12', label: 'команд' },
   { value: '6', label: 'станций маршрута' },
-  { value: '4 часа', label: 'продолжительность' },
+  { value: '5 часов', label: 'продолжительность' },
   { value: '25 лет', label: 'Русскому дому' },
 ];
 
@@ -231,9 +231,11 @@ export default function EventDetailPage() {
   const registrationNotOpen = event.registrationOpensAt ? new Date(event.registrationOpensAt).getTime() > Date.now() : false;
   const registrationExpired = event.registrationDeadline ? new Date(event.registrationDeadline).getTime() < Date.now() : false;
   const hasActiveVolunteer = ['PENDING', 'APPROVED', 'ACTIVE'].includes(volunteerStatus ?? '');
-  const eventDateRange = `${formatDate(event.startsAt)} · ${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}`;
-  const spotsLeft = Math.max((event.capacity ?? 0) - (event.registrationsCount ?? 0), 0);
   const isRussiaHouseEvent = event.slug === 'dom-gde-zhivet-rossiya';
+  const spotsLeft = Math.max((event.capacity ?? 0) - (event.registrationsCount ?? 0), 0);
+  const eventDateRange = isRussiaHouseEvent && locale === 'ru'
+    ? 'воскресенье, 3 мая 2026 г. · 10:30 – 15:30'
+    : `${formatDate(event.startsAt)} · ${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}`;
   
   // Participation config values
   const requireApproval = event.requireParticipantApproval;
@@ -479,16 +481,12 @@ export default function EventDetailPage() {
                     <dt>Карта для участников</dt>
                     <dd><a href="https://yandex.ru/maps/-/CPCiq-o7" target="_blank" rel="noreferrer">Открыть маршрут в Яндекс Картах</a></dd>
                   </div>
-                  <div>
-                    <dt>Дедлайн регистрации</dt>
-                    <dd>{event.registrationDeadline ? `${formatDate(event.registrationDeadline)} · ${formatTime(event.registrationDeadline)}` : 'Будет объявлен дополнительно'}</dd>
-                  </div>
                 </dl>
               </article>
               <article>
                 <QuestSectionHeader eyebrow="Формат участия" title="Командная игра с финальным маршрутом" />
                 <p>Участники проходят станции в командах, выполняют задания, получают отметки и приходят к общему финалу.</p>
-                <p><strong>Важное правило: команда из 5 человек — не больше и не меньше.</strong></p>
+                <p><strong>Важное правило: команда ровно из 5 человек</strong></p>
               </article>
             </div>
           </section>
@@ -503,12 +501,8 @@ export default function EventDetailPage() {
                 />
                 <div className="rhq-registration-notes">
                   <article>
-                    <strong>{spotsLeft}</strong>
-                    <span>ориентировочно свободных мест</span>
-                  </article>
-                  <article>
-                    <strong>{event.capacity}</strong>
-                    <span>общая вместимость события</span>
+                    <strong>60+</strong>
+                    <span>участников</span>
                   </article>
                 </div>
               </div>
@@ -552,7 +546,7 @@ export default function EventDetailPage() {
               <article className="rhq-contact-card">
                 <QuestSectionHeader eyebrow="Контакты" title="Связаться с оргкомитетом" inverted />
                 <p>По вопросам участия, регистрации, команд и партнёрского взаимодействия напишите организаторам мероприятия.</p>
-                <a href={`mailto:${event.contactEmail ?? 'platform@example.com'}`}>{event.contactEmail ?? 'platform@example.com'}</a>
+                <a href={`mailto:${event.contactEmail ?? 'Uzb@vsezapobedu.com'}`}>{event.contactEmail ?? 'Uzb@vsezapobedu.com'}</a>
               </article>
               <div className="rhq-faq-list">
                 <QuestSectionHeader eyebrow="FAQ" title="Часто задаваемые вопросы" />
