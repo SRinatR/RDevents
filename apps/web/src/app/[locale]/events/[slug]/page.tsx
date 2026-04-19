@@ -223,9 +223,6 @@ export default function EventDetailPage() {
     );
   }
 
-  const capacityPct = event.capacity > 0
-    ? Math.min((event.registrationsCount / event.capacity) * 100, 100)
-    : 0;
   const isFull = event.registrationsCount >= event.capacity;
   const registrationEnabled = event.registrationEnabled !== false;
   const registrationNotOpen = event.registrationOpensAt ? new Date(event.registrationOpensAt).getTime() > Date.now() : false;
@@ -274,7 +271,6 @@ export default function EventDetailPage() {
 
         {showCountPublicly && (
           <>
-            <div className="progress-bar signal-gap-after-2xs public-participation-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
             {!isRussiaHouseEvent ? <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div> : null}
           </>
         )}
@@ -353,8 +349,8 @@ export default function EventDetailPage() {
                 <h1>{event.title}</h1>
                 <p>{event.shortDescription}</p>
                 <div className="rhq-hero-actions">
-                  <a href="#registration" className="rhq-button rhq-button-primary">Зарегистрироваться</a>
-                  <a href="#program" className="rhq-button rhq-button-secondary">Смотреть программу</a>
+                  <a href="#registration" className="rhq-button rhq-button-primary">{locale === 'ru' ? 'Подать заявку' : 'Apply now'}</a>
+                  <a href="#program" className="rhq-button rhq-button-secondary">{locale === 'ru' ? 'Смотреть программу' : 'View program'}</a>
                 </div>
               </div>
 
@@ -507,9 +503,11 @@ export default function EventDetailPage() {
                 </div>
               </div>
               <div className="rhq-registration-card">
-                {renderParticipationPanel('public-participation-panel rhq-registration-panel')}
+                <Link href={`/${locale}/cabinet/events`} className="rhq-button rhq-button-primary">
+                  {locale === 'ru' ? 'Подать заявку' : 'Apply now'}
+                </Link>
                 <button onClick={handleCopyLink} className="rhq-button rhq-button-secondary rhq-share-button">
-                  {copied ? 'Ссылка скопирована' : 'Поделиться событием'}
+                  {copied ? (locale === 'ru' ? 'Ссылка скопирована' : 'Link copied') : (locale === 'ru' ? 'Поделиться событием' : 'Share event')}
                 </button>
               </div>
             </div>

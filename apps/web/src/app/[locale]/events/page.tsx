@@ -169,11 +169,6 @@ export default function EventsPage() {
               {!loading && !error && events.length > 0 ? (
                 <div className="catalog-v6-grid">
                   {events.map((event, i) => {
-                    const capacity = Number(event.capacity ?? 0);
-                    const registrations = Number(event.registrationsCount ?? 0);
-                    const capacityPct = capacity > 0 ? Math.min((registrations / capacity) * 100, 100) : 0;
-                    const isFull = capacity > 0 && registrations >= capacity;
-                    const showProgress = capacity > 0;
                     const visualState = getVisualState(event);
 
                     return (
@@ -198,11 +193,6 @@ export default function EventsPage() {
                             
                             <span className="catalog-v5-card-category">{event.category}</span>
                           </div>
-                          {showProgress && (
-                            <div className="progress-bar public-event-progress">
-                              <div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} />
-                            </div>
-                          )}
                         </div>
                       </Link>
                     );
