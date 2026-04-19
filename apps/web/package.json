@@ -7,9 +7,9 @@
     "dev": "next dev --port 3000",
     "build": "next build",
     "start": "next start --port 3000",
-    "lint": "node -e \"console.log('No web lint config yet')\"",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "node -e \"console.log('No web tests yet')\"",
+    "test": "vitest run",
     "clean": "node -e \"const fs=require('fs'); ['.next','node_modules'].forEach(p=>fs.rmSync(p,{recursive:true,force:true}))\""
   },
   "dependencies": {

@@ -16,7 +16,7 @@ function getEmailConfig() {
   return {
     provider: env.RESEND_API_KEY ? 'resend' : null,
     sendingDomain: env.RESEND_FROM_EMAIL ? env.RESEND_FROM_EMAIL.split('@')[1] ?? null : null,
-    webhookEndpoint: null as string | null,
+    webhookEndpoint: env.RESEND_WEBHOOK_ENDPOINT || (env.RESEND_WEBHOOK_SECRET ? 'https://api.rdevents.uz/webhooks/resend' : null),
   };
 }
 
@@ -55,7 +55,7 @@ export async function getEmailOverview(): Promise<EmailOverview> {
     providerStatus: emailConfig.provider ? 'connected' : 'not_configured',
     sendingDomain: emailConfig.sendingDomain,
     sendingDomainStatus: emailConfig.sendingDomain ? 'verified' : 'not_configured',
-    webhookStatus: emailConfig.webhookEndpoint ? 'active' : 'not_configured',
+    webhookStatus: emailConfig.webhookEndpoint && env.RESEND_WEBHOOK_SECRET ? 'active' : 'not_configured',
     webhookEndpoint: emailConfig.webhookEndpoint,
     sent24h: 142,
     delivered24h: 138,
@@ -431,12 +431,12 @@ export async function listEmailDomains(
 // ─── Email webhooks ─────────────────────────────────────────────────────────────
 
 export async function getEmailWebhooks(): Promise<EmailWebhooksData> {
-  // Webhook endpoint not configured in this version - return consistent state
-  const webhookEndpoint = null;
+  const emailConfig = getEmailConfig();
+  const webhookEndpoint = emailConfig.webhookEndpoint;
   
   return {
     endpoint: webhookEndpoint ?? null,
-    signatureStatus: webhookEndpoint ? 'valid' : 'unknown',
+    signatureStatus: env.RESEND_WEBHOOK_SECRET ? 'valid' : 'unknown',
     subscribedEvents: [
       'email.sent',
       'email.delivered',

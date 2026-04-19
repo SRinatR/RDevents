@@ -7,6 +7,15 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   output: 'standalone',
+  async redirects() {
+    return [
+      {
+        source: '/favicon.ico',
+        destination: '/favicon.svg',
+        permanent: true,
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {

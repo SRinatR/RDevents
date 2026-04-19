@@ -12,9 +12,9 @@
   "scripts": {
     "dev": "node -e \"console.log('shared package: nothing to run')\"",
     "build": "node -e \"console.log('shared package: no separate build yet')\"",
-    "lint": "node -e \"console.log('shared package: no lint config yet')\"",
+    "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "test": "node -e \"console.log('shared package: no tests yet')\"",
+    "test": "vitest run --passWithNoTests",
     "clean": "node -e \"const fs=require('fs'); ['node_modules'].forEach(p=>fs.rmSync(p,{recursive:true,force:true}))\""
   },
   "devDependencies": {

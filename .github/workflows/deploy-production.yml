@@ -125,10 +125,9 @@ jobs:
             # Build new images before touching running containers
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml build
 
-            # Stop app containers only; postgres and its data volume are preserved
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml stop api web 2>/dev/null || true
-
-            # Ensure postgres is running
+            # Keep the currently running api/web containers serving traffic until
+            # backup and migrations have completed successfully.
+            # Ensure postgres is running without touching api/web.
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml up -d postgres
 
             # Wait for postgres to pass its Docker health check (up to 60 s).
@@ -166,12 +165,10 @@ jobs:
             BACKUP_DIR="$DEPLOY_ROOT/backups"
             mkdir -p "$BACKUP_DIR"
             BACKUP_FILE="$BACKUP_DIR/pre-migrate-$(date +%Y%m%d-%H%M%S).sql.gz"
-            PGUSER=$(sed -n 's/^POSTGRES_USER=//p' "$DEPLOY_ROOT/.env" | head -1)
-            PGDB=$(sed -n 's/^POSTGRES_DB=//p' "$DEPLOY_ROOT/.env" | head -1)
-            PGUSER="${PGUSER:-postgres}"
-            PGDB="${PGDB:-postgres}"
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml exec -T postgres \
-              pg_dump -U "$PGUSER" "$PGDB" | gzip > "$BACKUP_FILE"
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
+              exec -T postgres sh -lc 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+              | gzip > "$BACKUP_FILE"
+            test -s "$BACKUP_FILE"
             echo "Backup written to $BACKUP_FILE ($(du -sh "$BACKUP_FILE" | cut -f1))"
 
             # Run migrations as a one-off container — deploy aborts here if any migration fails.
@@ -180,10 +177,10 @@ jobs:
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
               run --rm --no-deps api pnpm prisma:deploy
 
-            # Migrations succeeded — start api and web with the freshly built images.
+            # Migrations succeeded - now replace api and web with the freshly built images.
             # This step is only reached when prisma:deploy exited 0.
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
-              up -d --no-build --remove-orphans api web
+              up -d --no-build --force-recreate --remove-orphans api web
 
             docker image prune -f
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
@@ -322,6 +319,57 @@ jobs:
             docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
             docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 web
             exit 1
+          EOF
+
+      - name: Smoke test - Public HTTPS ingress
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
+            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' bash -se" << 'EOF'
+            set -euo pipefail
+
+            check_ingress() {
+              url="$1"
+              expected="$2"
+              label="$3"
+
+              echo "Waiting for public ingress $label..."
+              for attempt in $(seq 1 30); do
+                code=$(curl -sS -I -o /tmp/rdevents-ingress-headers.txt -w "%{http_code}" "$url" 2>/tmp/rdevents-ingress-curl.err || true)
+                if [ "$code" = "$expected" ]; then
+                  echo "$label OK ($code)."
+                  return 0
+                fi
+                echo "  attempt $attempt/30 - $label returned ${code:-curl_error}, retrying in 2 s..."
+                sleep 2
+              done
+
+              echo "$label public ingress check failed; expected $expected from $url."
+              echo "Last response headers:"
+              cat /tmp/rdevents-ingress-headers.txt 2>/dev/null || true
+              echo "Last curl error:"
+              cat /tmp/rdevents-ingress-curl.err 2>/dev/null || true
+              echo "Compose state:"
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
+              echo "Local upstream checks:"
+              curl -sS -I http://127.0.0.1:3000/ru || true
+              curl -sS -I http://127.0.0.1:4000/health || true
+              echo "Recent nginx errors, if readable:"
+              tail -80 /var/log/nginx/error.log 2>/dev/null || true
+              echo "Recent app logs:"
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 web
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 api
+              exit 1
+            }
+
+            check_ingress "https://rdevents.uz/" "307" "rdevents root"
+            check_ingress "https://rdevents.uz/ru" "200" "rdevents /ru"
+            check_ingress "https://api.rdevents.uz/health" "200" "api /health"
           EOF
 
       - name: Deployment complete

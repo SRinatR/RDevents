@@ -33,6 +33,8 @@ export const env = {
   RESEND_FROM_EMAIL: process.env['RESEND_FROM_EMAIL'] ?? '',
   RESEND_FROM_NAME: optional_env('RESEND_FROM_NAME', 'RDEvents'),
   RESEND_REPLY_TO_EMAIL: process.env['RESEND_REPLY_TO_EMAIL'] ?? '',
+  RESEND_WEBHOOK_SECRET: process.env['RESEND_WEBHOOK_SECRET'] ?? '',
+  RESEND_WEBHOOK_ENDPOINT: process.env['RESEND_WEBHOOK_ENDPOINT'] ?? '',
 
   MEDIA_STORAGE_DRIVER: optional_env('MEDIA_STORAGE_DRIVER', 'local'),
   MEDIA_UPLOAD_DIR: optional_env('MEDIA_UPLOAD_DIR', './uploads'),
