@@ -4,7 +4,7 @@ import { useState, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { analyticsApi } from '../../../../lib/api';
+import { analyticsApi, eventsApi } from '../../../../lib/api';
 import { useAuth } from '../../../../hooks/useAuth';
 import { useRouteParams } from '../../../../hooks/useRouteParams';
 import { EmptyState, LoadingLines, Notice, Panel, SectionHeader } from '@/components/ui/signal-primitives';
