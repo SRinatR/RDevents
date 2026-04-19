@@ -351,6 +351,34 @@ export async function getMe(userId: string) {
     where: { id: userId },
     include: {
       avatarAsset: true,
+      extendedProfile: {
+        include: {
+          region: true,
+          district: true,
+          settlement: true,
+        },
+      },
+      identityDocument: true,
+      internationalPassport: true,
+      socialLinks: true,
+      activityDirections: true,
+      additionalLanguages: true,
+      additionalDocuments: {
+        include: {
+          asset: {
+            select: {
+              id: true,
+              originalFilename: true,
+              mimeType: true,
+              sizeBytes: true,
+              publicUrl: true,
+              createdAt: true,
+              status: true,
+            },
+          },
+        },
+      },
+      emergencyContact: true,
       accounts: { select: { provider: true, providerEmail: true, linkedAt: true } },
       eventMemberships: {
         where: { status: { not: 'REMOVED' } },

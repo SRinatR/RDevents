@@ -8,16 +8,40 @@ import { adminApi } from '../../../../../../lib/api';
 import { useRouteParams } from '../../../../../../hooks/useRouteParams';
 
 const PROFILE_REQUIREMENT_OPTIONS = [
-  { key: 'name', ru: 'ФИО', en: 'Full name' },
+  { key: 'lastNameCyrillic', ru: 'Фамилия кириллицей', en: 'Last name Cyrillic' },
+  { key: 'firstNameCyrillic', ru: 'Имя кириллицей', en: 'First name Cyrillic' },
+  { key: 'lastNameLatin', ru: 'Фамилия латиницей', en: 'Last name Latin' },
+  { key: 'firstNameLatin', ru: 'Имя латиницей', en: 'First name Latin' },
+  { key: 'birthDate', ru: 'Дата рождения', en: 'Date of birth' },
+  { key: 'gender', ru: 'Пол', en: 'Gender' },
+  { key: 'citizenshipCountryCode', ru: 'Гражданство', en: 'Citizenship' },
+  { key: 'residenceCountryCode', ru: 'Страна проживания', en: 'Residence country' },
   { key: 'phone', ru: 'Телефон', en: 'Phone' },
-  { key: 'city', ru: 'Город', en: 'City' },
-  { key: 'factualAddress', ru: 'Фактический адрес', en: 'Factual address' },
-  { key: 'telegram', ru: 'Telegram', en: 'Telegram' },
+  { key: 'avatarUrl', ru: 'Фото профиля', en: 'Profile photo' },
+  { key: 'regionId', ru: 'Регион проживания', en: 'Residence region' },
+  { key: 'districtId', ru: 'Район проживания', en: 'Residence district' },
+  { key: 'settlementId', ru: 'Населённый пункт', en: 'Settlement' },
+  { key: 'street', ru: 'Улица', en: 'Street' },
+  { key: 'house', ru: 'Дом', en: 'House' },
+  { key: 'postalCode', ru: 'Почтовый индекс', en: 'Postal code' },
   { key: 'nativeLanguage', ru: 'Родной язык', en: 'Native language' },
   { key: 'communicationLanguage', ru: 'Язык общения', en: 'Communication language' },
-  { key: 'birthDate', ru: 'Дата рождения', en: 'Date of birth' },
-  { key: 'avatarUrl', ru: 'Фото профиля', en: 'Profile photo' },
+  { key: 'personalDocumentsComplete', ru: 'Личные документы полностью', en: 'Personal documents complete' },
+  { key: 'contactDataComplete', ru: 'Контактные данные полностью', en: 'Contact data complete' },
+  { key: 'activityStatus', ru: 'Статус активности', en: 'Activity status' },
+  { key: 'organizationName', ru: 'Организация', en: 'Organization' },
+  { key: 'activityDirections', ru: 'Направления активности', en: 'Activity directions' },
+  { key: 'englishLevel', ru: 'Уровень английского', en: 'English level' },
+  { key: 'russianLevel', ru: 'Уровень русского', en: 'Russian level' },
 ];
+
+const PROFILE_REQUIREMENT_KEYS = new Set(PROFILE_REQUIREMENT_OPTIONS.map((option) => option.key));
+const LEGACY_PROFILE_REQUIREMENT_MAP: Record<string, string[]> = {
+  name: ['lastNameCyrillic', 'firstNameCyrillic', 'lastNameLatin', 'firstNameLatin'],
+  city: ['settlementId'],
+  factualAddress: ['street', 'house', 'postalCode'],
+  telegram: ['telegramUrl'],
+};
 
 const EVENT_REQUIREMENT_HINT = 'motivation, experience, emergencyContact, university, faculty, course';
 
@@ -125,7 +149,7 @@ export default function EditEventPage() {
             teamJoinMode: e.teamJoinMode ?? 'OPEN',
             requireAdminApprovalForTeams: Boolean(e.requireAdminApprovalForTeams),
             requiredProfileFields: Array.isArray(e.requiredProfileFields)
-              ? e.requiredProfileFields.filter((field: string) => !['consentPersonalData', 'consentClientRules'].includes(field))
+              ? normalizeProfileRequirements(e.requiredProfileFields)
               : [],
             requiredEventFields: Array.isArray(e.requiredEventFields) ? e.requiredEventFields.join(', ') : '',
             // Participation config
@@ -557,4 +581,13 @@ function formatUzbekPhone(value: string) {
     local.slice(5, 7),
     local.slice(7, 9),
   ].filter(Boolean).join(' ');
+}
+
+function normalizeProfileRequirements(fields: string[]) {
+  const normalized = fields.flatMap((field) => {
+    if (field === 'consentPersonalData' || field === 'consentClientRules') return [];
+    if (PROFILE_REQUIREMENT_KEYS.has(field)) return [field];
+    return LEGACY_PROFILE_REQUIREMENT_MAP[field] ?? [];
+  });
+  return Array.from(new Set(normalized));
 }

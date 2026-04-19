@@ -37,20 +37,20 @@ export default function MyEventsPage() {
 
   return (
     <div className="signal-page-shell cabinet-workspace-page workspace-page-v2">
-      <PageHeader title={locale === 'ru' ? 'Мои мероприятия' : 'My events'} subtitle={locale === 'ru' ? 'Текущие участия и состояние каждой активности' : 'Current participations and status for each activity'} />
+      <PageHeader title={locale === 'ru' ? 'Мои мероприятия' : 'My events'} subtitle={locale === 'ru' ? 'Только одобренные участия с доступом к рабочему пространству' : 'Only approved participations with workspace access'} />
 
       <div className="workspace-command-row">
         <Link href={`/${locale}/cabinet/events`} className="signal-chip-link">{locale === 'ru' ? 'Открыть каталог' : 'Open catalog'}</Link>
       </div>
 
       <div className="workspace-status-strip workspace-status-strip-v2">
-        <div className="workspace-status-card"><small>{locale === 'ru' ? 'Всего участий' : 'Total participations'}</small><strong>{events.length}</strong></div>
+        <div className="workspace-status-card"><small>{locale === 'ru' ? 'Одобренные участия' : 'Approved participations'}</small><strong>{events.length}</strong></div>
         <div className="workspace-status-card"><small>{locale === 'ru' ? 'Основной сценарий' : 'Primary workflow'}</small><strong>{locale === 'ru' ? 'Открыть карточку участия' : 'Open participation workspace'}</strong></div>
       </div>
 
       <Panel variant="elevated" className="cabinet-workspace-panel">
         {eventsLoading ? <LoadingLines rows={6} /> : error ? <Notice tone="danger">{error}</Notice> : events.length === 0 ? (
-          <EmptyState title={locale === 'ru' ? 'Участий пока нет' : 'No participations yet'} description={locale === 'ru' ? 'Выберите событие из каталога, чтобы начать участие.' : 'Choose an event from catalog to start participating.'} actions={<Link href={`/${locale}/cabinet/events`} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Смотреть события' : 'View events'}</Link>} />
+          <EmptyState title={locale === 'ru' ? 'Одобренных участий пока нет' : 'No approved participations yet'} description={locale === 'ru' ? 'Поданные заявки и решения организаторов доступны в разделе «Заявки и статусы».' : 'Submitted applications and organizer decisions are available in Applications and statuses.'} actions={<Link href={`/${locale}/cabinet/applications`} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Открыть заявки' : 'Open applications'}</Link>} />
         ) : (
           <div className="signal-stack cabinet-list-stack cabinet-list-stack-premium">
             {events.map((registration: any) => {

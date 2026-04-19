@@ -1,43 +1,147 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { eventsApi, analyticsApi, ApiError } from '../../../../lib/api';
+import { eventsApi, analyticsApi } from '../../../../lib/api';
 import { useAuth } from '../../../../hooks/useAuth';
 import { useRouteParams } from '../../../../hooks/useRouteParams';
-import { EmptyState, FieldTextarea, LoadingLines, Notice, Panel, SectionHeader, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, Notice, Panel, SectionHeader } from '@/components/ui/signal-primitives';
 import { PublicFooter } from '../../../../components/layout/PublicFooter';
 
-type MissingField = {
-  key: string;
-  label: string;
-  scope: 'PROFILE' | 'EVENT_FORM';
-  action: 'PROFILE' | 'EVENT_FORM';
-};
+const QUEST_NAV_ITEMS = [
+  { label: 'О событии', href: '#about' },
+  { label: 'Станции', href: '#stations' },
+  { label: 'Программа', href: '#program' },
+  { label: 'Регистрация', href: '#registration' },
+  { label: 'FAQ', href: '#contacts' },
+];
 
-const FIELD_LABELS_RU: Record<string, string> = {
-  name: 'Имя',
-  phone: 'Телефон',
-  city: 'Город',
-  factualAddress: 'Фактический адрес',
-  telegram: 'Telegram',
-  nativeLanguage: 'Родной язык',
-  communicationLanguage: 'Язык коммуникации',
-  birthDate: 'Дата рождения',
-  avatarUrl: 'Фото профиля',
-  bio: 'Био',
-  motivation: 'Мотивация участия',
-  experience: 'Опыт',
-  teamPreference: 'Предпочтение по команде',
-  tshirtSize: 'Размер футболки',
-  emergencyContact: 'Контакт на случай экстренной связи',
-  preferredSlot: 'Предпочтительный слот',
-  specialRequirements: 'Особые требования',
-  university: 'Университет',
-  faculty: 'Факультет',
-  course: 'Курс',
-};
+const QUEST_HIGHLIGHTS = [
+  'Юбилейный культурный квест к 25-летию Русского дома',
+  'Именной «Паспорт гостя Русского дома» с отметками по всем шести станциям',
+  'Маршрут про язык, традиции, музыку, творчество, доверие и силу характера',
+  'Финал с награждением, выставкой работ и общей праздничной фотосессией',
+];
+
+const QUEST_STATS = [
+  { value: '14-25', label: 'возраст участников' },
+  { value: '100+', label: 'участников' },
+  { value: '12', label: 'команд' },
+  { value: '6', label: 'станций маршрута' },
+  { value: '4 часа', label: 'продолжительность' },
+  { value: '25 лет', label: 'Русскому дому' },
+];
+
+const QUEST_STATIONS = [
+  {
+    title: 'Живое слово',
+    mark: '01',
+    text: 'Станция о русском языке как живой памяти культуры: пословицы, выражения, разговор о доме и уважении к традиции.',
+  },
+  {
+    title: 'Тепло традиций',
+    mark: '02',
+    text: 'Пространство русского гостеприимства, где хлеб, соль, рушник и обряд встречи раскрывают тепло дома.',
+  },
+  {
+    title: 'Музыка души',
+    mark: '03',
+    text: 'Живое звучание, народная песня и общий ритм, в котором команда учится слышать друг друга.',
+  },
+  {
+    title: 'Русский узор',
+    mark: '04',
+    text: 'Творческая мастерская с образом матрёшки как символа семьи, преемственности и многообразия традиций.',
+  },
+  {
+    title: 'ВМЕСТЕ',
+    mark: '05',
+    text: 'Задания на доверие и командное взаимодействие, где поддержка становится главным условием маршрута.',
+  },
+  {
+    title: 'Русский характер',
+    mark: '06',
+    text: 'Игровая площадка силы духа, выдержки и товарищества с честной командной борьбой.',
+  },
+];
+
+const QUEST_TIMELINE = [
+  { time: '10:00-11:00', title: 'Сбор и регистрация участников', place: 'Русский дом в Ташкенте' },
+  { time: '11:00-11:30', title: 'Торжественное открытие юбилейного квеста', place: 'Основная площадка' },
+  { time: '11:30-13:30', title: 'Прохождение маршрута по 6 станциям', place: 'Тематические пространства' },
+  { time: '13:30-14:00', title: 'Финал маршрута и подведение итогов', place: 'Финальная площадка' },
+  { time: '14:00-14:30', title: 'Кофе-брейк и неформальное общение', place: 'Зона отдыха' },
+  { time: '14:30-15:00', title: 'Награждение и памятные призы', place: 'Сцена' },
+  { time: '15:00-15:30', title: 'Фотосессия, выставка работ, общение гостей', place: 'Фотозона' },
+];
+
+const QUEST_GALLERY_ITEMS = [
+  {
+    title: 'Юбилейная афиша проекта',
+    subtitle: 'Главный визуальный образ 25-летия Русского дома',
+  },
+  {
+    title: 'Станция «Живое слово»',
+    subtitle: 'Язык, смысл, пословицы, память поколений',
+  },
+  {
+    title: 'Станция «Тепло традиций»',
+    subtitle: 'Хлеб-соль, гостеприимство, атмосфера русского дома',
+  },
+  {
+    title: 'Финал и награждение',
+    subtitle: 'Фотозона, выставка работ, праздничная атмосфера',
+  },
+];
+
+const QUEST_FAQ_ITEMS = [
+  {
+    question: 'Нужна ли предварительная регистрация?',
+    answer: 'Да. Участие проходит по предварительной регистрации. Количество мест ограничено, поэтому лучше подать заявку заранее и дождаться подтверждения.',
+  },
+  {
+    question: 'Как проходит маршрут квеста?',
+    answer: 'После открытия участники получают «Паспорт гостя Русского дома» и проходят шесть тематических станций, собирая отметки и баллы команды.',
+  },
+  {
+    question: 'Кто может принять участие?',
+    answer: 'К участию приглашаются школьники, студенты, молодёжные объединения и гости мероприятия. Формат события рассчитан на командное прохождение.',
+  },
+  {
+    question: 'Чем завершается программа?',
+    answer: 'Финал включает подведение итогов, выставку творческих работ, фотосессию, вручение памятных призов и закрытие юбилейного культурного квеста.',
+  },
+];
+
+function QuestBadge({ children, inverted = false }: { children: ReactNode; inverted?: boolean }) {
+  return (
+    <span className={`rhq-badge${inverted ? ' rhq-badge-inverted' : ''}`}>
+      <span aria-hidden="true">+</span>
+      {children}
+    </span>
+  );
+}
+
+function QuestSectionHeader({
+  eyebrow,
+  title,
+  copy,
+  inverted = false,
+}: {
+  eyebrow: string;
+  title: string;
+  copy?: string;
+  inverted?: boolean;
+}) {
+  return (
+    <div className={`rhq-section-heading${inverted ? ' rhq-section-heading-inverted' : ''}`}>
+      <QuestBadge inverted={inverted}>{eyebrow}</QuestBadge>
+      <h2>{title}</h2>
+      {copy ? <p>{copy}</p> : null}
+    </div>
+  );
+}
 
 export default function EventDetailPage() {
   const t = useTranslations();
@@ -48,24 +152,10 @@ export default function EventDetailPage() {
   const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [registering, setRegistering] = useState(false);
-  const [regError, setRegError] = useState('');
-  const [regSuccess, setRegSuccess] = useState('');
   const [isRegistered, setIsRegistered] = useState(false);
-  const [hasPendingApplication, setHasPendingApplication] = useState(false);
   const [participationStatus, setParticipationStatus] = useState<string | null>(null);
-  const [volunteering, setVolunteering] = useState(false);
-  const [volunteerError, setVolunteerError] = useState('');
   const [volunteerStatus, setVolunteerStatus] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [teamState, setTeamState] = useState<'IDLE' | 'CREATING' | 'JOINING'>('IDLE');
-  const [teamName, setTeamName] = useState('');
-  const [joinCode, setJoinCode] = useState('');
-  const [teamError, setTeamError] = useState('');
-  const [myTeam, setMyTeam] = useState<any>(null);
-  const [missingFields, setMissingFields] = useState<MissingField[]>([]);
-  const [eventAnswers, setEventAnswers] = useState<Record<string, string>>({});
-  const [savingAnswers, setSavingAnswers] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -74,14 +164,11 @@ export default function EventDetailPage() {
       .then(({ event: currentEvent }) => {
         setEvent(currentEvent);
         setIsRegistered(currentEvent.isRegistered ?? false);
-        setMyTeam(currentEvent.teamMembership?.team ?? null);
-        setEventAnswers(currentEvent.registrationAnswers ?? {});
         
         // Find participant membership status
         const participantMembership = currentEvent.memberships?.find((membership: any) => membership.role === 'PARTICIPANT');
         if (participantMembership) {
           setParticipationStatus(participantMembership.status);
-          setHasPendingApplication(participantMembership.status === 'PENDING');
           setIsRegistered(participantMembership.status === 'ACTIVE');
         }
         
@@ -93,113 +180,6 @@ export default function EventDetailPage() {
       .catch(() => setError('Event not found'))
       .finally(() => setLoading(false));
   }, [slug, locale]);
-
-  async function handleRegister() {
-    if (!user) return;
-    setRegistering(true);
-    setRegError('');
-    analyticsApi.track('REGISTER_CLICK', { eventId: event.id });
-    try {
-      await eventsApi.register(event.id, eventAnswers);
-      setIsRegistered(true);
-      setMissingFields([]);
-      setEvent((previous: any) => previous ? { ...previous, registrationsCount: previous.registrationsCount + 1 } : previous);
-      analyticsApi.track('EVENT_REGISTRATION', { eventId: event.id });
-    } catch (err) {
-      handleRegistrationError(err, setRegError);
-    } finally {
-      setRegistering(false);
-    }
-  }
-
-  async function handleCreateTeam() {
-    if (!user) return;
-    setRegistering(true);
-    setTeamError('');
-    try {
-      const result = await eventsApi.createTeam(event.id, { name: teamName, answers: eventAnswers });
-      setMyTeam(result.team);
-      setIsRegistered(result.team.status === 'ACTIVE');
-      setMissingFields([]);
-      setTeamState('IDLE');
-      if (result.team.status === 'ACTIVE') {
-        setEvent((previous: any) => previous ? { ...previous, registrationsCount: previous.registrationsCount + 1 } : previous);
-      }
-    } catch (err) {
-      handleRegistrationError(err, setTeamError);
-    } finally {
-      setRegistering(false);
-    }
-  }
-
-  async function handleJoinTeam() {
-    if (!user) return;
-    setRegistering(true);
-    setTeamError('');
-    try {
-      const { member } = await eventsApi.joinTeamByCode(event.id, joinCode, eventAnswers);
-      const { team } = await eventsApi.getTeam(event.id, member.teamId);
-      setMyTeam(team);
-      setIsRegistered(member.status === 'ACTIVE');
-      setMissingFields([]);
-      setTeamState('IDLE');
-      if (member.status === 'ACTIVE') {
-        setEvent((previous: any) => previous ? { ...previous, registrationsCount: previous.registrationsCount + 1 } : previous);
-      }
-    } catch (err: any) {
-      handleRegistrationError(err, setTeamError);
-    } finally {
-      setRegistering(false);
-    }
-  }
-
-  function handleRegistrationError(err: unknown, setMessage: (message: string) => void) {
-    if (err instanceof ApiError) {
-      const details = err.details as { missingFields?: MissingField[] } | undefined;
-      if (Array.isArray(details?.missingFields)) {
-        setMissingFields(details.missingFields);
-        setMessage('');
-        return;
-      }
-      setMessage(err.message);
-      return;
-    }
-    setMessage(locale === 'ru' ? 'Не удалось выполнить действие' : 'Action failed');
-  }
-
-  async function handleSaveRegistrationAnswers() {
-    if (!user || !event) return;
-    setSavingAnswers(true);
-    setRegError('');
-    setTeamError('');
-    try {
-      await eventsApi.saveRegistrationAnswers(event.id, eventAnswers);
-      const { precheck } = await eventsApi.registrationPrecheck(event.id, eventAnswers);
-      setMissingFields(precheck.missingFields ?? []);
-      if (precheck.ok) {
-        setRegError(locale === 'ru' ? 'Анкета сохранена. Теперь можно завершить участие.' : 'Form saved. You can finish joining now.');
-      }
-    } catch (err) {
-      handleRegistrationError(err, setRegError);
-    } finally {
-      setSavingAnswers(false);
-    }
-  }
-
-  async function handleVolunteerApply() {
-    if (!user || !event) return;
-    setVolunteering(true);
-    setVolunteerError('');
-    try {
-      await eventsApi.applyVolunteer(event.id);
-      setVolunteerStatus('PENDING');
-      analyticsApi.track('VOLUNTEER_APPLICATION_SUBMITTED', { eventId: event.id });
-    } catch (err) {
-      if (err instanceof ApiError) setVolunteerError(err.message);
-    } finally {
-      setVolunteering(false);
-    }
-  }
 
   async function handleCopyLink() {
     await navigator.clipboard.writeText(window.location.href);
@@ -251,17 +231,6 @@ export default function EventDetailPage() {
   const registrationNotOpen = event.registrationOpensAt ? new Date(event.registrationOpensAt).getTime() > Date.now() : false;
   const registrationExpired = event.registrationDeadline ? new Date(event.registrationDeadline).getTime() < Date.now() : false;
   const hasActiveVolunteer = ['PENDING', 'APPROVED', 'ACTIVE'].includes(volunteerStatus ?? '');
-  const profileMissing = missingFields.filter((field) => field.scope === 'PROFILE');
-  const eventFormMissing = missingFields.filter((field) => field.scope === 'EVENT_FORM');
-  const profileLink = profileMissing.length > 0
-    ? `/${locale}/cabinet/profile?${new URLSearchParams({
-        required: profileMissing.map((field) => field.key).join(','),
-        event: event.title,
-      }).toString()}`
-    : '';
-  const fieldLabel = (field: MissingField) => locale === 'ru'
-    ? FIELD_LABELS_RU[field.key] ?? field.label
-    : field.label;
   const eventDateRange = `${formatDate(event.startsAt)} · ${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}`;
   const spotsLeft = Math.max((event.capacity ?? 0) - (event.registrationsCount ?? 0), 0);
   const isRussiaHouseEvent = event.slug === 'dom-gde-zhivet-rossiya';
@@ -289,13 +258,314 @@ export default function EventDetailPage() {
     return labels[status] ?? status;
   };
   
-  const getParticipationStatusTone = (status: string | null): 'success' | 'warning' | 'danger' | 'info' => {
-    if (!status) return 'info';
-    if (status === 'ACTIVE') return 'success';
-    if (status === 'PENDING') return 'warning';
-    if (status === 'RESERVE') return 'info';
-    return 'danger';
-  };
+  function renderParticipationPanel(className: string) {
+    const cabinetHref = `/${locale}/cabinet/events?event=${encodeURIComponent(event.slug)}#event-${event.slug}`;
+
+    return (
+      <Panel className={className} id="event-participation">
+        <SectionHeader
+          title={locale === 'ru' ? 'Регистрация через личный кабинет' : 'Registration through cabinet'}
+          subtitle={locale === 'ru'
+            ? 'Публичная страница показывает информацию о событии. Подача заявки, precheck профиля и командные действия доступны только в ЛК.'
+            : 'The public page shows event information. Application, profile precheck, and team actions are available only in your cabinet.'}
+        />
+
+        {showCountPublicly && (
+          <>
+            <div className="progress-bar signal-gap-after-2xs public-participation-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
+            {!isRussiaHouseEvent ? <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div> : null}
+          </>
+        )}
+
+        {requireApproval ? (
+          <div className="signal-muted" style={{ fontSize: '0.85rem', marginBottom: 12 }}>
+            {locale === 'ru' ? 'Требуется одобрение организатора' : 'Requires organizer approval'}
+          </div>
+        ) : isStrictLimit && !isRussiaHouseEvent ? (
+          <div className="signal-muted" style={{ fontSize: '0.85rem', marginBottom: 12 }}>
+            {locale === 'ru' ? `Свободных мест: ${spotsLeft} из ${participantTarget}` : `Spots left: ${spotsLeft} of ${participantTarget}`}
+          </div>
+        ) : isGoalLimit ? (
+          <div className="signal-muted" style={{ fontSize: '0.85rem', marginBottom: 12 }}>
+            {locale === 'ru' ? `Цель: ${participantTarget} участников` : `Goal: ${participantTarget} participants`}
+          </div>
+        ) : null}
+
+        {!registrationEnabled ? <Notice tone="warning">{locale === 'ru' ? 'Регистрация закрыта организатором.' : 'Registration is closed by organizer.'}</Notice> : null}
+        {registrationNotOpen ? <Notice tone="warning">{locale === 'ru' ? 'Регистрация ещё не открыта.' : 'Registration is not open yet.'}</Notice> : null}
+        {registrationExpired ? <Notice tone="warning">{locale === 'ru' ? 'Дедлайн регистрации прошёл.' : 'Registration deadline has passed.'}</Notice> : null}
+
+        {participationStatus === 'ACTIVE' || isRegistered ? (
+          <Notice tone="success">
+            <div>{getParticipationStatusLabel('ACTIVE')}</div>
+            <Link href={`/${locale}/cabinet/my-events/${event.slug}`} className="btn btn-secondary btn-sm" style={{ marginTop: 8 }}>
+              {locale === 'ru' ? 'Открыть рабочее пространство' : 'Open event workspace'}
+            </Link>
+          </Notice>
+        )
+          : participationStatus === 'PENDING' ? (
+            <Notice tone="warning">
+              <div>{getParticipationStatusLabel('PENDING')}</div>
+              <div style={{ fontSize: '0.8rem', marginTop: 4 }}>{locale === 'ru' ? 'Организатор рассмотрит вашу заявку' : 'Organizer will review your application'}</div>
+            </Notice>
+          )
+          : participationStatus === 'RESERVE' ? <Notice tone="info">{getParticipationStatusLabel('RESERVE')}</Notice>
+          : participationStatus && ['REJECTED', 'CANCELLED', 'REMOVED'].includes(participationStatus) ? <Notice tone="danger">{getParticipationStatusLabel(participationStatus)}</Notice>
+          : (
+            <div className="signal-stack">
+              <Link href={cabinetHref} className="btn btn-primary">
+                {locale === 'ru' ? 'Перейти в ЛК для подачи заявки' : 'Open cabinet to apply'}
+              </Link>
+              {event.isTeamBased ? (
+                <Notice tone="info">
+                  {locale === 'ru'
+                    ? 'Команда создаётся и отправляется на утверждение только после одобрения вашей заявки участника.'
+                    : 'The team module opens in the event workspace after participant approval.'}
+                </Notice>
+              ) : null}
+            </div>
+          )}
+
+        {hasActiveVolunteer
+          ? <Notice tone="info">{locale === 'ru' ? 'Заявка волонтёра' : 'Volunteer request'}: {volunteerStatus}</Notice>
+          : event.volunteerApplicationsEnabled
+            ? <Link href={user ? cabinetHref : `/${locale}/login`} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Волонтёрские действия в ЛК' : 'Volunteer actions in cabinet'}</Link>
+              : null}
+      </Panel>
+    );
+  }
+
+  if (isRussiaHouseEvent) {
+    const heroImage = event.coverImageUrl || '/dom-gde-zhivet-rossiya.jpg';
+    const descriptionParts = String(event.fullDescription ?? '').split(/\n{2,}/).filter(Boolean);
+
+    return (
+      <div className="public-page-shell route-shell route-event-detail route-russia-house-quest">
+        <main className="rhq-page">
+          <section className="rhq-hero" id="top">
+            <img className="rhq-hero-image" src={heroImage} alt={event.title} />
+            <div className="rhq-hero-overlay" />
+            <div className="rhq-container rhq-hero-inner">
+              <div className="rhq-hero-copy">
+                <QuestBadge inverted>25 лет Русскому дому в Ташкенте</QuestBadge>
+                <h1>{event.title}</h1>
+                <p>{event.shortDescription}</p>
+                <div className="rhq-hero-actions">
+                  <a href="#registration" className="rhq-button rhq-button-primary">Зарегистрироваться</a>
+                  <a href="#program" className="rhq-button rhq-button-secondary">Смотреть программу</a>
+                </div>
+              </div>
+
+              <div className="rhq-hero-facts" aria-label="Ключевая информация">
+                <article>
+                  <span>Дата и время</span>
+                  <strong>{eventDateRange}</strong>
+                </article>
+                <article>
+                  <span>Локация</span>
+                  <strong>{event.location}</strong>
+                </article>
+                <article>
+                  <span>Формат</span>
+                  <strong>Командный маршрут</strong>
+                </article>
+                <article>
+                  <span>Регистрация</span>
+                  <strong>{registrationBlocked ? 'Закрыта' : 'Открыта'}</strong>
+                </article>
+              </div>
+            </div>
+          </section>
+
+          <nav className="rhq-subnav" aria-label="Навигация по событию">
+            <div className="rhq-container rhq-subnav-inner">
+              {QUEST_NAV_ITEMS.map((item) => (
+                <a key={item.href} href={item.href}>{item.label}</a>
+              ))}
+            </div>
+          </nav>
+
+          <section className="rhq-section rhq-intro" id="about">
+            <div className="rhq-container rhq-intro-grid">
+              <div>
+                <QuestSectionHeader
+                  eyebrow="О событии"
+                  title="Путешествие по дому, языку и традициям"
+                  copy="Юбилейный квест собирает участников в общий маршрут по пространствам Русского дома. Каждая станция раскрывает отдельную грань культуры, а финал превращает прохождение в общий праздник."
+                />
+                <div className="rhq-copy">
+                  {descriptionParts.map((part) => <p key={part}>{part}</p>)}
+                </div>
+              </div>
+              <div className="rhq-highlight-list">
+                {QUEST_HIGHLIGHTS.map((item) => (
+                  <article key={item}>
+                    <span aria-hidden="true">✓</span>
+                    <p>{item}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="rhq-stats-band" aria-label="Цифры мероприятия">
+            <div className="rhq-container rhq-stats-grid">
+              {QUEST_STATS.map((item) => (
+                <article key={item.label}>
+                  <strong>{item.value}</strong>
+                  <span>{item.label}</span>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="rhq-section" id="stations">
+            <div className="rhq-container">
+              <QuestSectionHeader
+                eyebrow="Станции квеста"
+                title="Шесть пространств одного маршрута"
+                copy="Команды проходят путь от живого слова до русского характера, собирая отметки в «Паспорт гостя Русского дома»."
+              />
+              <div className="rhq-stations-grid">
+                {QUEST_STATIONS.map((station) => (
+                  <article className="rhq-station-card" key={station.title}>
+                    <span className="rhq-station-mark">{station.mark}</span>
+                    <h3>{station.title}</h3>
+                    <p>{station.text}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="rhq-section rhq-program-section" id="program">
+            <div className="rhq-container rhq-program-panel">
+              <div className="rhq-program-heading">
+                <QuestSectionHeader
+                  eyebrow="Программа дня"
+                  title="От регистрации до праздничного финала"
+                  copy="Маршрут рассчитан на живое участие команд, торжественное открытие, прохождение станций и общую церемонию награждения."
+                  inverted
+                />
+              </div>
+              <div className="rhq-timeline">
+                {QUEST_TIMELINE.map((item) => (
+                  <article key={`${item.time}-${item.title}`}>
+                    <time>{item.time}</time>
+                    <div>
+                      <h3>{item.title}</h3>
+                      <p>{item.place}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="rhq-section rhq-venue-section" id="venue">
+            <div className="rhq-container rhq-venue-grid">
+              <article>
+                <QuestSectionHeader eyebrow="Дата и место" title="Русский дом в Ташкенте" />
+                <dl>
+                  <div>
+                    <dt>Когда</dt>
+                    <dd>{eventDateRange}</dd>
+                  </div>
+                  <div>
+                    <dt>Где</dt>
+                    <dd>{event.location}</dd>
+                  </div>
+                  <div>
+                    <dt>Дедлайн регистрации</dt>
+                    <dd>{event.registrationDeadline ? `${formatDate(event.registrationDeadline)} · ${formatTime(event.registrationDeadline)}` : 'Будет объявлен дополнительно'}</dd>
+                  </div>
+                </dl>
+              </article>
+              <article>
+                <QuestSectionHeader eyebrow="Формат участия" title="Командная игра с финальным маршрутом" />
+                <p>Участники проходят станции в командах, выполняют задания, получают отметки и приходят к общему финалу. Можно создать свою команду, вступить по коду приглашения или участвовать одному, если формат события это допускает.</p>
+              </article>
+            </div>
+          </section>
+
+          <section className="rhq-section rhq-registration-section" id="registration">
+            <div className="rhq-container rhq-registration-grid">
+              <div>
+                <QuestSectionHeader
+                  eyebrow="Регистрация"
+                  title="Подайте заявку на участие"
+                  copy="Система сохранит статус заявки, команду и дополнительные поля анкеты. Если нужны данные профиля, страница подскажет, что заполнить."
+                />
+                <div className="rhq-registration-notes">
+                  <article>
+                    <strong>{spotsLeft}</strong>
+                    <span>ориентировочно свободных мест</span>
+                  </article>
+                  <article>
+                    <strong>{event.capacity}</strong>
+                    <span>общая вместимость события</span>
+                  </article>
+                </div>
+              </div>
+              <div className="rhq-registration-card">
+                {renderParticipationPanel('public-participation-panel rhq-registration-panel')}
+                <button onClick={handleCopyLink} className="rhq-button rhq-button-secondary rhq-share-button">
+                  {copied ? 'Ссылка скопирована' : 'Поделиться событием'}
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="rhq-section" id="gallery">
+            <div className="rhq-container">
+              <QuestSectionHeader
+                eyebrow="Галерея"
+                title="Юбилейный образ проекта"
+                copy="Здесь собраны визуальные акценты мероприятия: афиша, тематические станции и праздничный финал."
+              />
+              <div className="rhq-gallery-grid">
+                <article className="rhq-gallery-feature">
+                  <img src={heroImage} alt="Юбилейный квест «Дом, где живёт Россия»" />
+                  <div>
+                    <h3>{QUEST_GALLERY_ITEMS[0].title}</h3>
+                    <p>{QUEST_GALLERY_ITEMS[0].subtitle}</p>
+                  </div>
+                </article>
+                {QUEST_GALLERY_ITEMS.slice(1).map((item, index) => (
+                  <article className="rhq-gallery-card" key={item.title}>
+                    <span>{String(index + 2).padStart(2, '0')}</span>
+                    <h3>{item.title}</h3>
+                    <p>{item.subtitle}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="rhq-section rhq-contacts-section" id="contacts">
+            <div className="rhq-container rhq-contacts-grid">
+              <article className="rhq-contact-card">
+                <QuestSectionHeader eyebrow="Контакты" title="Связаться с оргкомитетом" inverted />
+                <p>По вопросам участия, регистрации, команд и партнёрского взаимодействия напишите организаторам мероприятия.</p>
+                <a href={`mailto:${event.contactEmail ?? 'platform@example.com'}`}>{event.contactEmail ?? 'platform@example.com'}</a>
+              </article>
+              <div className="rhq-faq-list">
+                <QuestSectionHeader eyebrow="FAQ" title="Часто задаваемые вопросы" />
+                {QUEST_FAQ_ITEMS.map((item, index) => (
+                  <details key={item.question} open={index === 0}>
+                    <summary>{item.question}</summary>
+                    <p>{item.answer}</p>
+                  </details>
+                ))}
+              </div>
+            </div>
+          </section>
+        </main>
+
+        <PublicFooter locale={locale} />
+      </div>
+    );
+  }
 
   return (
     <div className="public-page-shell route-shell route-event-detail route-event-v4">
@@ -335,116 +605,7 @@ export default function EventDetailPage() {
                 </Panel>
               </div>
               <section id="event-participation" className="event-v4-registration-stack motion-fade-up-fast">
-                <Panel className="public-participation-panel event-v4-participation-panel">
-                  <SectionHeader title={locale === 'ru' ? 'Участие' : 'Participation'} subtitle={locale === 'ru' ? 'Действия и текущий статус' : 'Actions and current status'} />
-
-                  {showCountPublicly && (
-                    <>
-                      <div className="progress-bar signal-gap-after-2xs public-participation-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
-                      {!isRussiaHouseEvent ? <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div> : null}
-                    </>
-                  )}
-
-                  {requireApproval ? (
-                    <div className="signal-muted" style={{ fontSize: '0.85rem', marginBottom: 12 }}>
-                      {locale === 'ru' ? 'Требуется одобрение организатора' : 'Requires organizer approval'}
-                    </div>
-                  ) : isStrictLimit && !isRussiaHouseEvent ? (
-                    <div className="signal-muted" style={{ fontSize: '0.85rem', marginBottom: 12 }}>
-                      {locale === 'ru' ? `Свободных мест: ${spotsLeft} из ${participantTarget}` : `Spots left: ${spotsLeft} of ${participantTarget}`}
-                    </div>
-                  ) : isGoalLimit ? (
-                    <div className="signal-muted" style={{ fontSize: '0.85rem', marginBottom: 12 }}>
-                      {locale === 'ru' ? `Цель: ${participantTarget} участников` : `Goal: ${participantTarget} participants`}
-                    </div>
-                  ) : null}
-
-                  {!registrationEnabled ? <Notice tone="warning">{locale === 'ru' ? 'Регистрация закрыта организатором.' : 'Registration is closed by organizer.'}</Notice> : null}
-                  {registrationNotOpen ? <Notice tone="warning">{locale === 'ru' ? 'Регистрация ещё не открыта.' : 'Registration is not open yet.'}</Notice> : null}
-                  {registrationExpired ? <Notice tone="warning">{locale === 'ru' ? 'Дедлайн регистрации прошёл.' : 'Registration deadline has passed.'}</Notice> : null}
-
-                  {myTeam ? <Notice tone="success">{locale === 'ru' ? 'Вы состоите в команде' : 'You are on team'}: {myTeam.name}</Notice>
-                    : participationStatus === 'ACTIVE' ? <Notice tone="success">{getParticipationStatusLabel('ACTIVE')}</Notice>
-                    : participationStatus === 'PENDING' ? (
-                      <Notice tone="warning">
-                        <div>{getParticipationStatusLabel('PENDING')}</div>
-                        <div style={{ fontSize: '0.8rem', marginTop: 4 }}>{locale === 'ru' ? 'Организатор рассмотрит вашу заявку' : 'Organizer will review your application'}</div>
-                      </Notice>
-                    )
-                    : participationStatus === 'RESERVE' ? <Notice tone="info">{getParticipationStatusLabel('RESERVE')}</Notice>
-                    : participationStatus && ['REJECTED', 'CANCELLED', 'REMOVED'].includes(participationStatus) ? <Notice tone="danger">{getParticipationStatusLabel(participationStatus)}</Notice>
-                    : user ? (
-                      <div className="signal-stack">
-                        {event.isTeamBased ? (
-                          <>
-                            {teamState === 'IDLE' ? (
-                              <ToolbarRow>
-                                <button onClick={() => setTeamState('CREATING')} disabled={registrationBlocked} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Создать команду' : 'Create team'}</button>
-                                <button onClick={() => setTeamState('JOINING')} disabled={registrationBlocked} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Вступить по коду' : 'Join by code'}</button>
-                                {event.allowSoloParticipation ? <button onClick={handleRegister} disabled={registering || registrationBlocked} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Участвовать одному' : 'Participate solo'}</button> : null}
-                              </ToolbarRow>
-                            ) : null}
-
-                            {teamState === 'CREATING' ? (
-                              <div className="signal-stack public-participation-state">
-                                <input className="signal-field" placeholder={locale === 'ru' ? 'Название команды' : 'Team name'} value={teamName} onChange={(event) => setTeamName(event.target.value)} />
-                                <ToolbarRow>
-                                  <button onClick={handleCreateTeam} disabled={registering || !teamName} className="btn btn-primary btn-sm">{t('common.save')}</button>
-                                  <button onClick={() => setTeamState('IDLE')} className="btn btn-secondary btn-sm">{t('common.cancel')}</button>
-                                </ToolbarRow>
-                              </div>
-                            ) : null}
-
-                            {teamState === 'JOINING' ? (
-                              <div className="signal-stack public-participation-state">
-                                <input className="signal-field" placeholder={locale === 'ru' ? 'Код приглашения' : 'Join code'} value={joinCode} onChange={(event) => setJoinCode(event.target.value)} />
-                                <ToolbarRow>
-                                  <button onClick={handleJoinTeam} disabled={registering || !joinCode} className="btn btn-primary btn-sm">{t('events.join')}</button>
-                                  <button onClick={() => setTeamState('IDLE')} className="btn btn-secondary btn-sm">{t('common.cancel')}</button>
-                                </ToolbarRow>
-                              </div>
-                            ) : null}
-                          </>
-                        ) : (
-                          <button onClick={handleRegister} disabled={registering || registrationBlocked} className="btn btn-primary">
-                            {registering ? t('common.loading') : registrationBlocked ? (locale === 'ru' ? 'Регистрация закрыта' : 'Registration closed') : requireApproval ? (locale === 'ru' ? 'Подать заявку' : 'Apply now') : t('events.join')}
-                          </button>
-                        )}
-
-                        {teamError ? <Notice tone="danger">{teamError}</Notice> : null}
-                        {regError ? <Notice tone="danger">{regError}</Notice> : null}
-                      </div>
-                    ) : <Link href={`/${locale}/login`} className="btn btn-primary">{t('events.loginToJoin')}</Link>}
-
-                  {missingFields.length > 0 ? (
-                    <Panel className="public-missing-fields-panel">
-                      <SectionHeader title={locale === 'ru' ? 'Требуются дополнительные поля' : 'Additional fields required'} subtitle={locale === 'ru' ? 'Заполните профиль и анкету события' : 'Complete profile and event form fields'} />
-                      <div className="signal-stack">
-                        {missingFields.map((field) => (
-                          <div key={`${field.scope}-${field.key}`} className="signal-ranked-item"><span>{fieldLabel(field)}</span></div>
-                        ))}
-                        {profileMissing.length > 0 ? <Link href={profileLink} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Заполнить профиль' : 'Complete profile'}</Link> : null}
-                        {eventFormMissing.length > 0 ? eventFormMissing.map((field) => (
-                          <label key={field.key} className="signal-stack">
-                            <span className="signal-muted">{fieldLabel(field)}</span>
-                            <FieldTextarea value={eventAnswers[field.key] ?? ''} onChange={(event) => setEventAnswers((previous) => ({ ...previous, [field.key]: event.target.value }))} rows={2} />
-                          </label>
-                        )) : null}
-                        {eventFormMissing.length > 0 ? <button onClick={handleSaveRegistrationAnswers} disabled={savingAnswers} className="btn btn-primary btn-sm">{savingAnswers ? t('common.loading') : locale === 'ru' ? 'Сохранить анкету' : 'Save event form'}</button> : null}
-                      </div>
-                    </Panel>
-                  ) : null}
-
-                  {hasActiveVolunteer
-                    ? <Notice tone="info">{locale === 'ru' ? 'Заявка волонтёра' : 'Volunteer request'}: {volunteerStatus}</Notice>
-                    : user && event.volunteerApplicationsEnabled
-                      ? <button onClick={handleVolunteerApply} disabled={volunteering} className="btn btn-secondary btn-sm">{volunteering ? t('common.loading') : locale === 'ru' ? 'Откликнуться как волонтёр' : 'Apply as volunteer'}</button>
-                      : !user && event.volunteerApplicationsEnabled
-                        ? <Link href={`/${locale}/login`} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Войти для волонтёрства' : 'Login to volunteer'}</Link>
-                        : null}
-
-                  {volunteerError ? <Notice tone="danger">{volunteerError}</Notice> : null}
-                </Panel>
+                {renderParticipationPanel('public-participation-panel event-v4-participation-panel')}
 
                 <div className="event-v4-share-action">
                   <button onClick={handleCopyLink} className="btn btn-secondary">
