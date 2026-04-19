@@ -265,20 +265,23 @@ async function main() {
       shortDescription: 'Культурный квест по шести пространствам Русского дома с финальным маршрутом и праздничным награждением.',
       fullDescription: `Квест создаётся как живое путешествие по русской культуре. Участники получают «Паспорт гостя Русского дома» и проходят шесть культурных пространств. Каждая станция раскрывает отдельную грань общей идеи — дом как место языка, традиций, музыки, творчества, общения и характера.
 
+Формат участия: командный маршрут, возраст 14–30 лет, 60+ участников.
+Важное правило: команда ровно из 5 человек.
+
 После прохождения всех точек команда открывает финальную страницу маршрута, участвует в награждении и становится частью общего праздничного события к юбилею Русского дома.`,
       category: 'Community',
-      location: 'Русский дом в Ташкенте, ул. Нукус, 83',
+      location: 'Центральный Парк имени Мирзо Улугбека',
       coverImageUrl: '/dom-gde-zhivet-rossiya.jpg',
-      capacity: 180,
-      startsAt: new Date('2026-09-20T10:00:00Z'),
-      endsAt: new Date('2026-09-20T15:00:00Z'),
-      registrationDeadline: new Date('2026-09-18T18:00:00Z'),
+      capacity: 60,
+      startsAt: new Date('2026-05-03T10:30:00+05:00'),
+      endsAt: new Date('2026-05-03T15:30:00+05:00'),
+      registrationDeadline: null,
       registrationEnabled: true,
       volunteerApplicationsEnabled: false,
-      allowSoloParticipation: true,
+      allowSoloParticipation: false,
       isTeamBased: true,
       tags: ['квест', 'культура', 'русский-дом'],
-      contactEmail: 'platform@example.com',
+      contactEmail: 'Uzb@vsezapobedu.com',
       status: EventStatus.PUBLISHED,
       isFeatured: true,
       publishedAt: new Date(),
