@@ -47,7 +47,9 @@ Triggers:
 Jobs:
 
 - `Type check`: installs dependencies and runs `pnpm typecheck`
-- `Build`: installs dependencies and runs `pnpm build`
+- `Lint`: installs dependencies and runs `pnpm lint`
+- `Test`: starts a Postgres service, generates the Prisma client, and runs `pnpm test`
+- `Build`: waits for typecheck, lint, and test to pass, then installs dependencies and runs `pnpm build`
 
 Runtime policy:
 
@@ -63,9 +65,11 @@ Concurrency:
 Required status checks for branch protection:
 
 - `Type check`
+- `Lint`
+- `Test`
 - `Build`
 
-Use the exact check-run names reported by GitHub API. In the PR UI these checks are shown under the workflow as `CI / Type check` and `CI / Build`; branch protection stores the check names as `Type check` and `Build`. If GitHub UI shows old entries such as `CI/Build` or `CI/Type check`, remove them and select the current checks above.
+Use the exact check-run names reported by GitHub API. In the PR UI these checks are shown under the workflow as `CI / Type check`, `CI / Lint`, `CI / Test`, and `CI / Build`; branch protection stores the check names as `Type check`, `Lint`, `Test`, and `Build`. If GitHub UI shows old entries such as `CI/Build` or `CI/Type check`, remove them and select the current checks above.
 
 ## Production Deploy Workflow
 
@@ -89,7 +93,10 @@ Deploy job:
 - writes the environment file from the `production` environment secret
 - deploys with Docker Compose on the server
 - writes `.release-commit` with the deployed commit SHA
-- runs smoke checks for API, web, `/health`, `/ready`, and web root
+- starts Postgres, waits for it to become healthy, and writes a non-empty pre-migration database backup
+- runs `pnpm prisma:deploy` only after the backup succeeds
+- starts API and web with Docker Compose
+- runs smoke checks for API, web, `/health`, `/ready`, and web `/ru`
 
 The deploy workflow must not run from `main`, feature branches, or PRs.
 
@@ -128,6 +135,8 @@ Required:
 - Require status checks to pass before merging
 - Required checks:
   - `Type check`
+  - `Lint`
+  - `Test`
   - `Build`
 - Block direct push
 - Do not allow force pushes
@@ -152,6 +161,8 @@ Required:
 - Require status checks to pass before merging
 - Required checks:
   - `Type check`
+  - `Lint`
+  - `Test`
   - `Build`
 - Restrict who can push to matching branches when the repository is in an organization
 - Restrict who can dismiss reviews
@@ -174,7 +185,7 @@ Note for `SRinatR/RDevents`: this is a personal repository. GitHub rejects user/
 1. Developer creates `feature/*`, `fix/*`, or `hotfix/*`.
 2. Developer opens a PR to `main`.
 3. CI runs on the PR.
-4. PR is reviewed and merged to `main` only after `Type check` and `Build` are green.
+4. PR is reviewed and merged to `main` only after `Type check`, `Lint`, `Test`, and `Build` are green.
 5. When a release is approved, open PR `main -> production`.
 6. `production` PR goes through stricter review and required checks.
 7. Merge to `production`.
@@ -187,6 +198,8 @@ Note for `SRinatR/RDevents`: this is a personal repository. GitHub rejects user/
 CI errors are in workflow `CI`.
 
 - `Type check` failures are TypeScript or dependency install failures.
+- `Lint` failures are ESLint violations or dependency install failures.
+- `Test` failures are Vitest failures, test database startup failures, Prisma client generation failures, or dependency install failures.
 - `Build` failures are production build failures.
 - CI never means production deployment failed.
 
@@ -194,13 +207,16 @@ Deploy errors are in workflow `Deploy production`.
 
 - `Validate production ref` means the workflow was started from the wrong branch.
 - `Prepare SSH`, `Upload archive`, or `Write env file on server` means infrastructure or secret configuration failed.
-- `Deploy on server` means Docker Compose deployment failed.
+- `Deploy on server` means backup, migration, or Docker Compose deployment failed.
 - `Smoke test ...` means deployment finished but the expected service check failed.
 
 ## Local Checks
 
 ```bash
 pnpm install --frozen-lockfile
+pnpm db:generate
+pnpm lint
+pnpm test
 pnpm typecheck
 pnpm build
 ```
@@ -213,7 +229,7 @@ Before considering release governance complete, confirm in GitHub Settings:
 - Branch protection for `production` is enabled and stricter than `main`.
 - Direct push to `main` is blocked.
 - Direct push to `production` is blocked.
-- Required checks are exactly `Type check` and `Build`.
+- Required checks are exactly `Type check`, `Lint`, `Test`, and `Build`.
 - GitHub Environment `production` exists.
 - Environment `production` has the required reviewers or protection rules.
 - Environment `production` contains `PROD_HOST`, `PROD_PORT`, `PROD_USER`, `PROD_SSH_KEY`, and `PROD_ENV_FILE`.

@@ -123,6 +123,26 @@ jobs:
             cd "$APP_DIR"
 
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml down --remove-orphans || true
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml up -d postgres
+
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
+              exec -T postgres sh -lc 'until pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"; do sleep 2; done'
+            echo "Postgres is healthy"
+
+            BACKUP_DIR="$DEPLOY_ROOT/backups"
+            mkdir -p "$BACKUP_DIR"
+            BACKUP_FILE="$BACKUP_DIR/pre-migrate-$(date +%Y%m%d-%H%M%S).sql.gz"
+
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
+              exec -T postgres sh -lc 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+              | gzip > "$BACKUP_FILE"
+
+            test -s "$BACKUP_FILE"
+            echo "Backup written to $BACKUP_FILE ($(du -sh "$BACKUP_FILE" | cut -f1))"
+
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
+              run --rm --no-deps --build api pnpm prisma:deploy
+
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml up -d --build --remove-orphans
 
             docker image prune -f
@@ -180,7 +200,7 @@ jobs:
             "docker compose --env-file '$DEPLOY_ROOT/.env' -f '$APP_DIR/docker-compose.prod.yml' exec -T api wget --spider -q http://127.0.0.1:4000/ready" \
             || { echo "API ready check failed"; exit 1; }
 
-      - name: Smoke test - Web root via wget
+      - name: Smoke test - Web /ru via wget
         shell: bash
         env:
           PROD_HOST: ${{ secrets.PROD_HOST }}
@@ -193,15 +213,15 @@ jobs:
             set -euo pipefail
 
             for attempt in $(seq 1 30); do
-              if docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" exec -T web wget --spider -q http://127.0.0.1:3000/; then
+              if docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" exec -T web wget --spider -q http://127.0.0.1:3000/ru; then
                 exit 0
               fi
 
-              echo "Waiting for web root ($attempt/30)..."
+              echo "Waiting for web /ru ($attempt/30)..."
               sleep 2
             done
 
-            echo "Web root check failed"
+            echo "Web /ru check failed"
             docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
             docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 web
             exit 1
