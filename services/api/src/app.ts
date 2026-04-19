@@ -15,6 +15,7 @@ import { adminEmailRouter } from './modules/admin-email/admin-email.router.js';
 import { analyticsRouter } from './modules/analytics/analytics.router.js';
 import { volunteersRouter } from './modules/volunteers/volunteers.router.js';
 import { uploadsRouter } from './modules/uploads/uploads.router.js';
+import { supportRouter } from './modules/support/support.router.js';
 import { prisma } from './db/prisma.js';
 
 export function createApp() {
@@ -61,6 +62,7 @@ app.use('/api/admin/email', adminEmailRouter);
   app.use('/api/analytics', analyticsRouter);
   app.use('/api/volunteers', volunteersRouter);
   app.use('/api/uploads', uploadsRouter);
+  app.use('/api/support', supportRouter);
 
   // ─── 404 ──────────────────────────────────────────────────────────────────
   app.use((_req, res) => {
