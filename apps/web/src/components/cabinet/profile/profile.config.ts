@@ -1,44 +1,39 @@
 import type { ProfileSectionKey, ProfileSectionStatus } from './profile.types';
 
 export const PROFILE_SECTION_ORDER: ProfileSectionKey[] = [
-  'basic',
-  'photo',
-  'contacts',
-  'address',
-  'languages',
-  'documents',
+  'registration_data',
+  'general_info',
+  'personal_documents',
+  'contact_data',
+  'activity_info',
 ];
 
 export const PROFILE_SECTION_COPY: Record<
-  (typeof PROFILE_SECTION_ORDER)[number],
+  ProfileSectionKey,
   {
     title: Record<'ru' | 'en', string>;
     description: Record<'ru' | 'en', string>;
   }
 > = {
-  basic: {
-    title: { ru: 'Основное', en: 'Basic' },
-    description: { ru: 'ФИО и дата рождения', en: 'Name and birth date' },
+  registration_data: {
+    title: { ru: 'Регистрационные данные', en: 'Registration data' },
+    description: { ru: 'ФИО, гражданство, дата рождения, телефон и согласия', en: 'Identity, citizenship, birth date, phone, and consent' },
   },
-  photo: {
-    title: { ru: 'Фото профиля', en: 'Profile photo' },
-    description: { ru: 'Аватар для заявок и кабинета', en: 'Avatar for applications and cabinet' },
+  general_info: {
+    title: { ru: 'Общая информация', en: 'General information' },
+    description: { ru: 'Фото, адрес проживания, языки и правила платформы', en: 'Photo, address, languages, and platform rules' },
   },
-  contacts: {
-    title: { ru: 'Контакты', en: 'Contacts' },
-    description: { ru: 'Телефон, Telegram и email', en: 'Phone, Telegram, and email' },
+  personal_documents: {
+    title: { ru: 'Личные документы', en: 'Personal documents' },
+    description: { ru: 'Внутренний документ, загранпаспорт и подтверждающие файлы', en: 'Domestic document, international passport, and supporting uploads' },
   },
-  address: {
-    title: { ru: 'Адрес и проживание', en: 'Address and residence' },
-    description: { ru: 'Город и фактический адрес', en: 'City and factual address' },
+  contact_data: {
+    title: { ru: 'Контактные данные', en: 'Contact data' },
+    description: { ru: 'Социальные сети или отметка об отсутствии аккаунта', en: 'Social links or absence flags' },
   },
-  languages: {
-    title: { ru: 'Языки и коммуникация', en: 'Languages and communication' },
-    description: { ru: 'Язык общения и родной язык', en: 'Communication and native language' },
-  },
-  documents: {
-    title: { ru: 'Документы', en: 'Documents' },
-    description: { ru: 'Файлы для участия и проверки', en: 'Files for participation and checks' },
+  activity_info: {
+    title: { ru: 'Активность', en: 'Activity information' },
+    description: { ru: 'Учёба, работа, направления, языковые уровни и достижения', en: 'Study, work, directions, language levels, and achievements' },
   },
 };
 
@@ -62,6 +57,27 @@ export const PROFILE_STATUS_COPY: Record<
     tone: 'success',
   },
 };
+
+export const GENDER_OPTIONS = ['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY'] as const;
+export const ACTIVITY_STATUS_OPTIONS = ['SCHOOL_STUDENT', 'COLLEGE_STUDENT', 'UNIVERSITY_STUDENT', 'EMPLOYED', 'UNEMPLOYED'] as const;
+export const LANGUAGE_LEVEL_OPTIONS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'NATIVE'] as const;
+export const ACTIVITY_DIRECTION_OPTIONS = [
+  'SCIENCE_EDUCATION',
+  'PUBLIC_ADMINISTRATION_LAW',
+  'MEDIA',
+  'CREATIVE_INDUSTRIES',
+  'ENTREPRENEURSHIP',
+  'SPORT_HEALTHCARE',
+  'AGRICULTURE_AGROTECH',
+  'DIGITALIZATION_IT',
+  'TOURISM_HOSPITALITY',
+  'ECOLOGY',
+  'CIVIL_SOCIETY',
+  'ARCHITECTURE_CONSTRUCTION',
+  'ECONOMICS_FINANCE',
+  'INDUSTRY_TECHNOLOGY_ENGINEERING',
+  'OTHER',
+] as const;
 
 export function getLocaleKey(locale: string): 'ru' | 'en' {
   return locale === 'ru' ? 'ru' : 'en';

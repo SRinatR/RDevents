@@ -58,10 +58,19 @@ enum RegistrationMode {
 }
 
 enum EventTeamStatus {
+  DRAFT
   ACTIVE
   PENDING
+  CHANGES_PENDING
   REJECTED
   ARCHIVED
+}
+
+enum EventTeamChangeRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
 }
 
 enum EventTeamRole {
@@ -112,6 +121,63 @@ enum ProfileSectionStatus {
   COMPLETED
 }
 
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum IdentityDocumentType {
+  PASSPORT
+  ID_CARD
+  RESIDENCE_PERMIT
+  OTHER
+}
+
+enum ActivityStatus {
+  SCHOOL_STUDENT
+  COLLEGE_STUDENT
+  UNIVERSITY_STUDENT
+  EMPLOYED
+  UNEMPLOYED
+}
+
+enum LanguageLevel {
+  A1
+  A2
+  B1
+  B2
+  C1
+  C2
+  NATIVE
+}
+
+enum ActivityDirection {
+  SCIENCE_EDUCATION
+  PUBLIC_ADMINISTRATION_LAW
+  MEDIA
+  CREATIVE_INDUSTRIES
+  ENTREPRENEURSHIP
+  SPORT_HEALTHCARE
+  AGRICULTURE_AGROTECH
+  DIGITALIZATION_IT
+  TOURISM_HOSPITALITY
+  ECOLOGY
+  CIVIL_SOCIETY
+  ARCHITECTURE_CONSTRUCTION
+  ECONOMICS_FINANCE
+  INDUSTRY_TECHNOLOGY_ENGINEERING
+  OTHER
+}
+
+enum AdditionalDocumentType {
+  SCHOOL_PROOF
+  STUDENT_PROOF
+  BIRTH_CERTIFICATE
+}
+
+
 enum SupportThreadStatus {
   OPEN
   IN_PROGRESS
@@ -147,6 +213,9 @@ model User {
   lastNameLatin         String?
   firstNameLatin        String?
   middleNameLatin       String?
+  hasNoLastName         Boolean  @default(false)
+  hasNoFirstName        Boolean  @default(false)
+  hasNoMiddleName       Boolean  @default(false)
   fullNameCyrillic      String?
   fullNameLatin         String?
 
@@ -180,18 +249,28 @@ model User {
   assignedEventMembers  EventMember[] @relation("EventMemberAssignedBy")
   teamMemberships       EventTeamMember[]
   captainedTeams        EventTeam[] @relation("TeamCaptain")
+  requestedTeamChanges  EventTeamChangeRequest[] @relation("TeamChangeRequestedBy")
+  decidedTeamChanges    EventTeamChangeRequest[] @relation("TeamChangeDecidedBy")
   analyticsEvents       AnalyticsEvent[]
   registrationSubmissions EventRegistrationFormSubmission[]
   refreshSessions       RefreshSession[]
   avatarAsset           MediaAsset? @relation("UserAvatar", fields: [avatarAssetId], references: [id], onDelete: SetNull)
   profileSectionStates  UserProfileSectionState[]
+  extendedProfile       UserExtendedProfile?
+  identityDocument      UserIdentityDocument?
+  internationalPassport UserInternationalPassport?
+  socialLinks           UserSocialLinks?
+  activityDirections    UserActivityDirection[]
+  additionalLanguages   UserAdditionalLanguage[]
+  additionalDocuments   UserAdditionalDocument[]
+  emergencyContact      UserEmergencyContact?
   mediaAssets           MediaAsset[] @relation("MediaAssetOwner")
+
   supportThreads        SupportThread[] @relation("SupportThreadUser")
   assignedSupportThreads SupportThread[] @relation("SupportThreadAdmin")
   supportMessages       SupportMessage[] @relation("SupportMessageSender")
   supportReadStates          SupportThreadReadState[] @relation("SupportThreadReadStateUser")
   uploadedSupportAttachments SupportAttachment[]      @relation("SupportAttachmentUploader")
-
   @@map("users")
 }
 
@@ -208,6 +287,230 @@ model UserProfileSectionState {
   @@unique([userId, sectionKey])
   @@index([userId])
   @@map("user_profile_section_states")
+}
+
+model UserExtendedProfile {
+  userId                       String         @id
+  gender                       Gender?
+  citizenshipCountryCode       String?
+  residenceCountryCode         String?
+  regionId                     String?
+  districtId                   String?
+  settlementId                 String?
+  regionText                   String?
+  districtText                 String?
+  settlementText               String?
+  street                       String?
+  house                        String?
+  apartment                    String?
+  postalCode                   String?
+  consentMailing               Boolean        @default(false)
+  consentMailingAt             DateTime?
+  activityStatus               ActivityStatus?
+  studiesInRussia              Boolean        @default(false)
+  organizationName             String?
+  facultyOrDepartment          String?
+  classCourseYear              String?
+  positionTitle                String?
+  achievementsText             String?        @db.Text
+  englishLevel                 LanguageLevel?
+  russianLevel                 LanguageLevel?
+  createdAt                    DateTime       @default(now())
+  updatedAt                    DateTime       @updatedAt
+
+  user                         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  region                       ReferenceUzRegion? @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  district                     ReferenceUzDistrict? @relation(fields: [districtId], references: [id], onDelete: SetNull)
+  settlement                   ReferenceUzSettlement? @relation(fields: [settlementId], references: [id], onDelete: SetNull)
+
+  @@map("user_extended_profiles")
+}
+
+model UserIdentityDocument {
+  id                           String                @id @default(cuid())
+  userId                       String                @unique
+  documentType                 IdentityDocumentType?
+  citizenshipCountryCode       String?
+  documentSeries               String?
+  documentNumber               String?
+  issueDate                    DateTime?
+  issuedBy                     String?
+  issueCountryCode             String?
+  expiryDate                   DateTime?
+  placeOfBirth                 String?
+  pinfl                        String?
+  passportSeries               String?
+  passportNumber               String?
+  subdivisionCode              String?
+  snils                        String?
+  hasSecondCitizenship         Boolean               @default(false)
+  secondCitizenshipCountryCode String?
+  scanAssetId                  String?               @unique
+  createdAt                    DateTime              @default(now())
+  updatedAt                    DateTime              @updatedAt
+
+  user                         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scanAsset                    MediaAsset?           @relation("IdentityDocumentScan", fields: [scanAssetId], references: [id], onDelete: SetNull)
+
+  @@map("user_identity_documents")
+}
+
+model UserInternationalPassport {
+  id             String      @id @default(cuid())
+  userId         String      @unique
+  countryCode    String?
+  series         String?
+  number         String?
+  issueDate      DateTime?
+  expiryDate     DateTime?
+  issuedBy       String?
+  scanAssetId    String?     @unique
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scanAsset      MediaAsset? @relation("InternationalPassportScan", fields: [scanAssetId], references: [id], onDelete: SetNull)
+
+  @@map("user_international_passports")
+}
+
+model UserSocialLinks {
+  userId          String   @id
+  maxUrl          String?
+  maxAbsent       Boolean  @default(false)
+  vkUrl           String?
+  vkAbsent        Boolean  @default(false)
+  telegramUrl     String?
+  telegramAbsent  Boolean  @default(false)
+  instagramUrl    String?
+  instagramAbsent Boolean  @default(false)
+  facebookUrl     String?
+  facebookAbsent  Boolean  @default(false)
+  xUrl            String?
+  xAbsent         Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_social_links")
+}
+
+model UserActivityDirection {
+  id        String            @id @default(cuid())
+  userId    String
+  direction ActivityDirection
+  createdAt DateTime          @default(now())
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, direction])
+  @@index([userId])
+  @@map("user_activity_directions")
+}
+
+model UserAdditionalLanguage {
+  id           String   @id @default(cuid())
+  userId       String
+  languageName String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, languageName])
+  @@index([userId])
+  @@map("user_additional_languages")
+}
+
+model UserAdditionalDocument {
+  id        String                 @id @default(cuid())
+  userId    String
+  type      AdditionalDocumentType
+  assetId   String                 @unique
+  notes     String?
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+
+  user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset     MediaAsset             @relation("UserAdditionalDocumentAsset", fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@index([userId])
+  @@map("user_additional_documents")
+}
+
+model UserEmergencyContact {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  fullName     String?
+  relationship String?
+  phone        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_emergency_contacts")
+}
+
+model ReferenceCountry {
+  code      String   @id
+  nameRu    String
+  nameEn    String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("reference_countries")
+}
+
+model ReferenceUzRegion {
+  id        String               @id @default(cuid())
+  code      String               @unique
+  nameRu    String
+  nameEn    String
+  sortOrder Int                  @default(0)
+  isActive  Boolean              @default(true)
+
+  districts ReferenceUzDistrict[]
+  profiles  UserExtendedProfile[]
+
+  @@map("reference_uz_regions")
+}
+
+model ReferenceUzDistrict {
+  id          String                 @id @default(cuid())
+  regionId    String
+  code        String                 @unique
+  nameRu      String
+  nameEn      String
+  sortOrder   Int                    @default(0)
+  isActive    Boolean                @default(true)
+
+  region      ReferenceUzRegion      @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  settlements ReferenceUzSettlement[]
+  profiles    UserExtendedProfile[]
+
+  @@index([regionId])
+  @@map("reference_uz_districts")
+}
+
+model ReferenceUzSettlement {
+  id         String                @id @default(cuid())
+  districtId String
+  code       String                @unique
+  nameRu     String
+  nameEn     String
+  type       String?
+  sortOrder  Int                   @default(0)
+  isActive   Boolean               @default(true)
+
+  district   ReferenceUzDistrict   @relation(fields: [districtId], references: [id], onDelete: Cascade)
+  profiles   UserExtendedProfile[]
+
+  @@index([districtId])
+  @@map("reference_uz_settlements")
 }
 
 model MediaAsset {
@@ -227,6 +530,9 @@ model MediaAsset {
 
   ownerUser        User              @relation("MediaAssetOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
   avatarForUsers   User[]            @relation("UserAvatar")
+  identityDocumentScanFor UserIdentityDocument? @relation("IdentityDocumentScan")
+  internationalPassportScanFor UserInternationalPassport? @relation("InternationalPassportScan")
+  userAdditionalDocumentFor UserAdditionalDocument? @relation("UserAdditionalDocumentAsset")
 
   @@index([ownerUserId, purpose, status])
   @@map("media_assets")
@@ -389,10 +695,34 @@ model EventTeam {
   event         Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
   captainUser   User            @relation("TeamCaptain", fields: [captainUserId], references: [id], onDelete: Cascade)
   members       EventTeamMember[]
+  changeRequests EventTeamChangeRequest[]
 
   @@index([eventId])
   @@index([captainUserId])
   @@map("event_teams")
+}
+
+model EventTeamChangeRequest {
+  id                    String                       @id @default(cuid())
+  teamId                String
+  requestedByUserId     String
+  decidedByUserId       String?
+  status                EventTeamChangeRequestStatus @default(PENDING)
+  proposedName          String
+  proposedDescription   String?
+  proposedMemberUserIds String[]
+  notes                 String?
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
+  decidedAt             DateTime?
+
+  team                  EventTeam                    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  requestedByUser       User                         @relation("TeamChangeRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Cascade)
+  decidedByUser         User?                        @relation("TeamChangeDecidedBy", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([teamId, status])
+  @@index([requestedByUserId])
+  @@map("event_team_change_requests")
 }
 
 model EventTeamMember {
@@ -455,6 +785,8 @@ model RefreshSession {
   @@index([expiresAt])
   @@map("refresh_sessions")
 }
+
+// ─── Support ticket system ──────────────────────────────────────────────────
 
 model SupportThread {
   id              String              @id @default(cuid())

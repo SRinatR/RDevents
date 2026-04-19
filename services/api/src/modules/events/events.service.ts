@@ -167,8 +167,11 @@ export {
   updateTeam,
   leaveTeam,
   approveTeamMember,
+  approveTeamChangeRequest,
   rejectTeamMember,
+  rejectTeamChangeRequest,
   removeTeamMember,
+  submitTeamForApproval,
 } from './teams.service.js';
 
 // Volunteer application function (kept here for backward compatibility)
@@ -247,7 +250,8 @@ export async function getMyEvents(userId: string) {
   const memberships = await prisma.eventMember.findMany({
     where: {
       userId,
-      status: { not: 'REMOVED' },
+      role: 'PARTICIPANT',
+      status: { in: [...ACTIVE_MEMBER_STATUSES] },
     },
     include: {
       event: {
@@ -281,6 +285,141 @@ export async function getMyEvents(userId: string) {
     registeredAt: membership.assignedAt,
     event: membership.event,
   }));
+}
+
+export async function getMyParticipantApplications(userId: string) {
+  const memberships = await prisma.eventMember.findMany({
+    where: {
+      userId,
+      role: 'PARTICIPANT',
+      status: { not: 'REMOVED' },
+    },
+    include: {
+      event: {
+        select: {
+          id: true,
+          slug: true,
+          title: true,
+          shortDescription: true,
+          coverImageUrl: true,
+          category: true,
+          location: true,
+          startsAt: true,
+          endsAt: true,
+          status: true,
+          requireParticipantApproval: true,
+          isTeamBased: true,
+        },
+      },
+    },
+    orderBy: { assignedAt: 'desc' },
+  });
+
+  const submissions = await prisma.eventRegistrationFormSubmission.findMany({
+    where: {
+      userId,
+      eventId: { in: memberships.map(membership => membership.eventId) },
+    },
+    select: { eventId: true, answersJson: true, isComplete: true, updatedAt: true },
+  });
+  const submissionsByEventId = new Map(submissions.map(submission => [submission.eventId, submission]));
+
+  return memberships.map(membership => {
+    const submission = submissionsByEventId.get(membership.eventId);
+    return {
+      id: membership.id,
+      memberId: membership.id,
+      eventId: membership.eventId,
+      role: membership.role,
+      status: membership.status,
+      assignedAt: membership.assignedAt,
+      approvedAt: membership.approvedAt,
+      rejectedAt: membership.rejectedAt,
+      removedAt: membership.removedAt,
+      notes: membership.notes,
+      event: membership.event,
+      answers: submission?.answersJson ?? {},
+      answersComplete: submission?.isComplete ?? false,
+      answersUpdatedAt: submission?.updatedAt ?? null,
+    };
+  });
+}
+
+export async function getMyEventWorkspace(userId: string, slug: string) {
+  const event = await prisma.event.findUnique({
+    where: { slug },
+    include: {
+      createdBy: { select: { id: true, name: true, avatarUrl: true } },
+    },
+  });
+
+  if (!event) return null;
+
+  const participantMembership = await prisma.eventMember.findUnique({
+    where: { eventId_userId_role: { eventId: event.id, userId, role: 'PARTICIPANT' } },
+  });
+
+  if (!participantMembership || !ACTIVE_MEMBER_STATUSES.includes(participantMembership.status as any)) {
+    throw new Error('EVENT_WORKSPACE_FORBIDDEN');
+  }
+
+  const [memberships, teamMembership, registrationAnswers] = await Promise.all([
+    prisma.eventMember.findMany({
+      where: {
+        userId,
+        eventId: event.id,
+        status: { not: 'REMOVED' },
+      },
+      select: {
+        id: true,
+        role: true,
+        status: true,
+        assignedAt: true,
+        approvedAt: true,
+        rejectedAt: true,
+        removedAt: true,
+        notes: true,
+      },
+      orderBy: { assignedAt: 'desc' },
+    }),
+    prisma.eventTeamMember.findFirst({
+      where: { team: { eventId: event.id }, userId, status: { notIn: ['REMOVED', 'LEFT'] } },
+      include: {
+        team: {
+          include: {
+            captainUser: { select: { id: true, name: true, email: true, avatarUrl: true } },
+            members: {
+              include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+              orderBy: { joinedAt: 'asc' },
+            },
+            changeRequests: {
+              where: { status: 'PENDING' },
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+            },
+            _count: { select: { members: { where: { status: 'ACTIVE' } } } },
+          },
+        },
+      },
+    }),
+    prisma.eventRegistrationFormSubmission.findUnique({
+      where: { eventId_userId: { eventId: event.id, userId } },
+      select: { answersJson: true, isComplete: true, updatedAt: true },
+    }),
+  ]);
+
+  return {
+    ...event,
+    isRegistered: true,
+    participantMembership,
+    membershipRoles: memberships.map(membership => membership.role),
+    memberships,
+    teamMembership,
+    registrationAnswers: registrationAnswers?.answersJson ?? {},
+    registrationAnswersComplete: registrationAnswers?.isComplete ?? false,
+    registrationAnswersUpdatedAt: registrationAnswers?.updatedAt ?? null,
+    registrationFieldLabels: Object.fromEntries(event.requiredEventFields.map(field => [field, getEventFieldLabel(field)])),
+  };
 }
 
 export async function getMyTeams(userId: string) {

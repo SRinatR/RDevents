@@ -3,12 +3,11 @@
 import { useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LoadingLines, Notice } from '@/components/ui/signal-primitives';
-import { ProfileAddressSection } from '@/components/cabinet/profile/ProfileAddressSection';
-import { ProfileBasicSection } from '@/components/cabinet/profile/ProfileBasicSection';
-import { ProfileContactsSection } from '@/components/cabinet/profile/ProfileContactsSection';
-import { ProfileDocumentsSection } from '@/components/cabinet/profile/ProfileDocumentsSection';
-import { ProfileLanguagesSection } from '@/components/cabinet/profile/ProfileLanguagesSection';
-import { ProfilePhotoSection } from '@/components/cabinet/profile/ProfilePhotoSection';
+import { ProfileActivityInfoSection } from '@/components/cabinet/profile/ProfileActivityInfoSection';
+import { ProfileContactDataSection } from '@/components/cabinet/profile/ProfileContactDataSection';
+import { ProfileGeneralInfoSection } from '@/components/cabinet/profile/ProfileGeneralInfoSection';
+import { ProfilePersonalDocumentsSection } from '@/components/cabinet/profile/ProfilePersonalDocumentsSection';
+import { ProfileRegistrationDataSection } from '@/components/cabinet/profile/ProfileRegistrationDataSection';
 import { ProfileWorkspaceShell } from '@/components/cabinet/profile/ProfileWorkspaceShell';
 import { PROFILE_SECTION_ORDER } from '@/components/cabinet/profile/profile.config';
 import type { ProfileSectionKey } from '@/components/cabinet/profile/profile.types';
@@ -119,86 +118,77 @@ function renderSection({
   uploadDocument: (file: File) => Promise<void>;
   deleteDocument: (assetId: string) => Promise<void>;
 }) {
-  if (activeSection === 'basic') {
+  if (activeSection === 'registration_data') {
     return (
-      <ProfileBasicSection
+      <ProfileRegistrationDataSection
         locale={locale}
         user={user}
         status={status}
-        saving={savingSection === 'basic'}
+        saving={savingSection === 'registration_data'}
         requiredFields={requiredFields}
         eventTitle={eventTitle}
-        onSave={(payload) => saveSection('basic', payload)}
+        onSave={(payload) => saveSection('registration_data', payload)}
       />
     );
   }
 
-  if (activeSection === 'photo') {
+  if (activeSection === 'general_info') {
     return (
-      <ProfilePhotoSection
+      <ProfileGeneralInfoSection
         locale={locale}
         user={user}
         status={status}
-        saving={savingSection === 'photo'}
+        saving={savingSection === 'general_info'}
         requiredFields={requiredFields}
         eventTitle={eventTitle}
+        onSave={(payload) => saveSection('general_info', payload)}
         onUpload={uploadAvatar}
         onDelete={deleteAvatar}
       />
     );
   }
 
-  if (activeSection === 'contacts') {
+  if (activeSection === 'personal_documents') {
     return (
-      <ProfileContactsSection
+      <ProfilePersonalDocumentsSection
         locale={locale}
         user={user}
         status={status}
-        saving={savingSection === 'contacts'}
+        saving={savingSection === 'personal_documents'}
         requiredFields={requiredFields}
         eventTitle={eventTitle}
-        onSave={(payload) => saveSection('contacts', payload)}
-      />
-    );
-  }
-
-  if (activeSection === 'address') {
-    return (
-      <ProfileAddressSection
-        locale={locale}
-        user={user}
-        status={status}
-        saving={savingSection === 'address'}
-        requiredFields={requiredFields}
-        eventTitle={eventTitle}
-        onSave={(payload) => saveSection('address', payload)}
-      />
-    );
-  }
-
-  if (activeSection === 'languages') {
-    return (
-      <ProfileLanguagesSection
-        locale={locale}
-        user={user}
-        status={status}
-        saving={savingSection === 'languages'}
-        requiredFields={requiredFields}
-        eventTitle={eventTitle}
-        onSave={(payload) => saveSection('languages', payload)}
-      />
-    );
-  }
-
-  if (activeSection === 'documents') {
-    return (
-      <ProfileDocumentsSection
-        locale={locale}
-        status={status}
-        saving={savingSection === 'documents'}
         documents={documents}
+        onSave={(payload) => saveSection('personal_documents', payload)}
         onUpload={uploadDocument}
         onDelete={deleteDocument}
+      />
+    );
+  }
+
+  if (activeSection === 'contact_data') {
+    return (
+      <ProfileContactDataSection
+        locale={locale}
+        user={user}
+        status={status}
+        saving={savingSection === 'contact_data'}
+        requiredFields={requiredFields}
+        eventTitle={eventTitle}
+        onSave={(payload) => saveSection('contact_data', payload)}
+      />
+    );
+  }
+
+  if (activeSection === 'activity_info') {
+    return (
+      <ProfileActivityInfoSection
+        locale={locale}
+        user={user}
+        status={status}
+        saving={savingSection === 'activity_info'}
+        requiredFields={requiredFields}
+        eventTitle={eventTitle}
+        onSave={(payload) => saveSection('activity_info', payload)}
       />
     );
   }
@@ -211,14 +201,15 @@ function resolveInitialSectionFromQuery(searchParams: ReturnType<typeof useSearc
   if (explicit && isProfileSectionKey(explicit)) return explicit;
 
   const requiredSection = mapRequiredFieldsToSection(parseRequiredFields(searchParams.get('required')));
-  return requiredSection ?? 'basic';
+  return requiredSection ?? 'registration_data';
 }
 
 function mapRequiredFieldsToSection(fields: string[]): ProfileSectionKey | null {
-  if (fields.some((field) => ['avatarUrl', 'avatarAssetId', 'photo'].includes(field))) return 'photo';
-  if (fields.some((field) => ['phone', 'telegram'].includes(field))) return 'contacts';
-  if (fields.some((field) => ['city', 'factualAddress'].includes(field))) return 'address';
-  if (fields.some((field) => ['nativeLanguage', 'communicationLanguage'].includes(field))) return 'languages';
+  if (fields.some((field) => ['name', 'phone', 'birthDate', 'gender', 'citizenshipCountryCode', 'residenceCountryCode', 'lastNameCyrillic', 'firstNameCyrillic', 'middleNameCyrillic', 'lastNameLatin', 'firstNameLatin', 'middleNameLatin', 'hasNoLastName', 'hasNoFirstName', 'hasNoMiddleName', 'consentPersonalData', 'consentMailing'].includes(field))) return 'registration_data';
+  if (fields.some((field) => ['avatarUrl', 'avatarAssetId', 'photo', 'city', 'factualAddress', 'regionId', 'districtId', 'settlementId', 'regionText', 'districtText', 'settlementText', 'street', 'house', 'apartment', 'postalCode', 'nativeLanguage', 'communicationLanguage', 'consentClientRules'].includes(field))) return 'general_info';
+  if (fields.some((field) => ['domesticDocumentComplete', 'internationalPassportComplete', 'personalDocumentsComplete'].includes(field))) return 'personal_documents';
+  if (fields.some((field) => ['telegram', 'contactDataComplete', 'maxUrl', 'vkUrl', 'telegramUrl', 'instagramUrl', 'facebookUrl', 'xUrl', 'maxAbsent', 'vkAbsent', 'telegramAbsent', 'instagramAbsent', 'facebookAbsent', 'xAbsent'].includes(field))) return 'contact_data';
+  if (fields.some((field) => ['activityStatus', 'studiesInRussia', 'organizationName', 'facultyOrDepartment', 'classCourseYear', 'positionTitle', 'activityDirections', 'englishLevel', 'russianLevel', 'additionalLanguages', 'achievementsText', 'emergencyContact'].includes(field))) return 'activity_info';
   return null;
 }
 

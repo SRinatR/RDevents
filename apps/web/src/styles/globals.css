@@ -810,6 +810,46 @@ img { display: block; max-width: 100%; }
 .signal-notice.tone-warning { border-left-color: var(--color-warning); }
 .signal-notice.tone-danger { border-left-color: var(--color-danger); }
 
+.signal-status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  max-width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: rgba(248, 250, 252, 0.82);
+  color: var(--color-text-secondary);
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.signal-status-pill.tone-success {
+  border-color: rgba(15, 118, 110, 0.22);
+  background: rgba(219, 245, 239, 0.72);
+  color: #0f766e;
+}
+
+.signal-status-pill.tone-warning {
+  border-color: rgba(180, 83, 9, 0.24);
+  background: rgba(255, 247, 237, 0.88);
+  color: #92400e;
+}
+
+.signal-status-pill.tone-danger {
+  border-color: rgba(198, 40, 40, 0.22);
+  background: rgba(254, 242, 242, 0.86);
+  color: #b91c1c;
+}
+
+.signal-status-pill.tone-info {
+  border-color: rgba(37, 99, 235, 0.22);
+  background: rgba(239, 246, 255, 0.82);
+  color: #1d4ed8;
+}
+
 .signal-list-block { margin-top: 18px; }
 .signal-list-block h3 { margin: 0 0 10px; font-size: 0.95rem; }
 .signal-ranked-list { display: flex; flex-direction: column; gap: 8px; }
@@ -4288,6 +4328,17 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
+.workspace-application-panel {
+  grid-column: 1 / -1;
+  scroll-margin-top: 96px;
+}
+
+.workspace-event-selected {
+  scroll-margin-top: 96px;
+  border-color: rgba(31, 88, 216, 0.72);
+  box-shadow: 0 0 0 3px rgba(31, 88, 216, 0.14), var(--shadow-sm);
+}
+
 .workspace-event-lead-cover {
   height: 220px;
 }
@@ -6319,6 +6370,35 @@ body {
   line-height: 1.5;
 }
 
+.admin-team-change-panel {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(180, 83, 9, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 247, 237, 0.76);
+  padding: 12px;
+}
+
+.admin-team-change-panel p,
+.admin-team-change-note {
+  margin: 4px 0 0;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.admin-team-change-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.admin-team-change-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .admin-team-members {
   border-top: 1px solid rgba(192, 207, 229, 0.72);
   padding-top: 12px;
@@ -6383,6 +6463,10 @@ body {
   .admin-event-context-bar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .admin-team-change-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -7523,7 +7607,6 @@ body {
     padding: 1.05rem;
   }
 }
-
 
 /* ═══════════════════════════════════════
    Russian House quest event page

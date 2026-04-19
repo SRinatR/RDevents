@@ -63,6 +63,51 @@ async function createUser(input: {
   return user;
 }
 
+async function seedReferenceData() {
+  await prisma.referenceCountry.createMany({
+    data: [
+      { code: 'UZ', nameRu: 'Узбекистан', nameEn: 'Uzbekistan' },
+      { code: 'RU', nameRu: 'Россия', nameEn: 'Russia' },
+      { code: 'KZ', nameRu: 'Казахстан', nameEn: 'Kazakhstan' },
+      { code: 'KG', nameRu: 'Кыргызстан', nameEn: 'Kyrgyzstan' },
+      { code: 'TJ', nameRu: 'Таджикистан', nameEn: 'Tajikistan' },
+      { code: 'TM', nameRu: 'Туркменистан', nameEn: 'Turkmenistan' },
+      { code: 'BY', nameRu: 'Беларусь', nameEn: 'Belarus' },
+      { code: 'OTHER', nameRu: 'Другая страна', nameEn: 'Other country' },
+    ],
+    skipDuplicates: true,
+  });
+
+  await prisma.referenceUzRegion.createMany({
+    data: [
+      { id: 'reg_tashkent_city', code: 'TASHKENT_CITY', nameRu: 'г. Ташкент', nameEn: 'Tashkent city', sortOrder: 10 },
+      { id: 'reg_tashkent_region', code: 'TASHKENT_REGION', nameRu: 'Ташкентская область', nameEn: 'Tashkent region', sortOrder: 20 },
+      { id: 'reg_samarkand', code: 'SAMARKAND', nameRu: 'Самаркандская область', nameEn: 'Samarkand region', sortOrder: 30 },
+    ],
+    skipDuplicates: true,
+  });
+
+  await prisma.referenceUzDistrict.createMany({
+    data: [
+      { id: 'dist_yunusabad', regionId: 'reg_tashkent_city', code: 'YUNUSABAD', nameRu: 'Юнусабадский район', nameEn: 'Yunusabad district', sortOrder: 10 },
+      { id: 'dist_mirzo_ulugbek', regionId: 'reg_tashkent_city', code: 'MIRZO_ULUGBEK', nameRu: 'Мирзо-Улугбекский район', nameEn: 'Mirzo Ulugbek district', sortOrder: 20 },
+      { id: 'dist_chilanzar', regionId: 'reg_tashkent_city', code: 'CHILANZAR', nameRu: 'Чиланзарский район', nameEn: 'Chilanzar district', sortOrder: 30 },
+      { id: 'dist_samarkand_city', regionId: 'reg_samarkand', code: 'SAMARKAND_CITY', nameRu: 'г. Самарканд', nameEn: 'Samarkand city', sortOrder: 10 },
+    ],
+    skipDuplicates: true,
+  });
+
+  await prisma.referenceUzSettlement.createMany({
+    data: [
+      { id: 'set_yunusabad_1', districtId: 'dist_yunusabad', code: 'YUNUSABAD_1', nameRu: 'Юнусабад', nameEn: 'Yunusabad', type: 'city_area', sortOrder: 10 },
+      { id: 'set_mirzo_ulugbek_1', districtId: 'dist_mirzo_ulugbek', code: 'MIRZO_ULUGBEK_1', nameRu: 'Мирзо-Улугбек', nameEn: 'Mirzo Ulugbek', type: 'city_area', sortOrder: 10 },
+      { id: 'set_chilanzar_1', districtId: 'dist_chilanzar', code: 'CHILANZAR_1', nameRu: 'Чиланзар', nameEn: 'Chilanzar', type: 'city_area', sortOrder: 10 },
+      { id: 'set_samarkand_city_1', districtId: 'dist_samarkand_city', code: 'SAMARKAND_CITY_1', nameRu: 'Самарканд', nameEn: 'Samarkand', type: 'city', sortOrder: 10 },
+    ],
+    skipDuplicates: true,
+  });
+}
+
 async function main() {
   console.log('Seeding database...');
 
@@ -73,6 +118,7 @@ async function main() {
   await prisma.event.deleteMany();
   await prisma.userAccount.deleteMany();
   await prisma.user.deleteMany();
+  await seedReferenceData();
 
   const superAdmin = await createUser({
     email: 'admin@example.com',

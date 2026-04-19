@@ -8,15 +8,31 @@ import { adminApi } from '../../../../../lib/api';
 import { useRouteLocale } from '../../../../../hooks/useRouteParams';
 
 const PROFILE_REQUIREMENT_OPTIONS = [
-  { key: 'name', ru: 'ФИО', en: 'Full name' },
+  { key: 'lastNameCyrillic', ru: 'Фамилия кириллицей', en: 'Last name Cyrillic' },
+  { key: 'firstNameCyrillic', ru: 'Имя кириллицей', en: 'First name Cyrillic' },
+  { key: 'lastNameLatin', ru: 'Фамилия латиницей', en: 'Last name Latin' },
+  { key: 'firstNameLatin', ru: 'Имя латиницей', en: 'First name Latin' },
+  { key: 'birthDate', ru: 'Дата рождения', en: 'Date of birth' },
+  { key: 'gender', ru: 'Пол', en: 'Gender' },
+  { key: 'citizenshipCountryCode', ru: 'Гражданство', en: 'Citizenship' },
+  { key: 'residenceCountryCode', ru: 'Страна проживания', en: 'Residence country' },
   { key: 'phone', ru: 'Телефон', en: 'Phone' },
-  { key: 'city', ru: 'Город', en: 'City' },
-  { key: 'factualAddress', ru: 'Фактический адрес', en: 'Factual address' },
-  { key: 'telegram', ru: 'Telegram', en: 'Telegram' },
+  { key: 'avatarUrl', ru: 'Фото профиля', en: 'Profile photo' },
+  { key: 'regionId', ru: 'Регион проживания', en: 'Residence region' },
+  { key: 'districtId', ru: 'Район проживания', en: 'Residence district' },
+  { key: 'settlementId', ru: 'Населённый пункт', en: 'Settlement' },
+  { key: 'street', ru: 'Улица', en: 'Street' },
+  { key: 'house', ru: 'Дом', en: 'House' },
+  { key: 'postalCode', ru: 'Почтовый индекс', en: 'Postal code' },
   { key: 'nativeLanguage', ru: 'Родной язык', en: 'Native language' },
   { key: 'communicationLanguage', ru: 'Язык общения', en: 'Communication language' },
-  { key: 'birthDate', ru: 'Дата рождения', en: 'Date of birth' },
-  { key: 'avatarUrl', ru: 'Фото профиля', en: 'Profile photo' },
+  { key: 'personalDocumentsComplete', ru: 'Личные документы полностью', en: 'Personal documents complete' },
+  { key: 'contactDataComplete', ru: 'Контактные данные полностью', en: 'Contact data complete' },
+  { key: 'activityStatus', ru: 'Статус активности', en: 'Activity status' },
+  { key: 'organizationName', ru: 'Организация', en: 'Organization' },
+  { key: 'activityDirections', ru: 'Направления активности', en: 'Activity directions' },
+  { key: 'englishLevel', ru: 'Уровень английского', en: 'English level' },
+  { key: 'russianLevel', ru: 'Уровень русского', en: 'Russian level' },
 ];
 
 const EVENT_REQUIREMENT_HINT = 'motivation, experience, emergencyContact, university, faculty, course';

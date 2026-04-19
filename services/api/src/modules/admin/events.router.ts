@@ -5,6 +5,7 @@ import { prisma } from '../../db/prisma.js';
 import { createEventSchema, updateEventSchema } from '../events/events.schemas.js';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 import { notifyParticipantStatusChanged } from '../events/notifications.service.js';
+import { approveTeamChangeRequest, rejectTeamChangeRequest } from '../events/events.service.js';
 
 export const adminEventsRouter = Router();
 
@@ -307,11 +308,75 @@ adminEventsRouter.get('/:id/teams', async (req, res) => {
         include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
         orderBy: { joinedAt: 'desc' },
       },
+      changeRequests: {
+        where: { status: 'PENDING' },
+        include: {
+          requestedByUser: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
       _count: { select: { members: { where: { status: 'ACTIVE' } } } },
     },
     orderBy: { createdAt: 'desc' },
   });
   res.json({ teams });
+});
+
+// POST /admin/events/:id/teams/:teamId/change-requests/:requestId/approve
+adminEventsRouter.post('/:id/teams/:teamId/change-requests/:requestId/approve', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await canManageEvent(user, eventId))) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  try {
+    const team = await approveTeamChangeRequest(
+      eventId,
+      req.params['teamId']!,
+      req.params['requestId']!,
+      user.id,
+      req.body?.notes
+    );
+    res.json({ team });
+  } catch (err: any) {
+    const map: Record<string, [number, string]> = {
+      TEAM_CHANGE_REQUEST_NOT_FOUND: [404, 'Team change request not found'],
+      TEAM_CHANGE_REQUEST_CLOSED: [409, 'Team change request is already closed'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
+  }
+});
+
+// POST /admin/events/:id/teams/:teamId/change-requests/:requestId/reject
+adminEventsRouter.post('/:id/teams/:teamId/change-requests/:requestId/reject', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await canManageEvent(user, eventId))) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  try {
+    const team = await rejectTeamChangeRequest(
+      eventId,
+      req.params['teamId']!,
+      req.params['requestId']!,
+      user.id,
+      req.body?.notes
+    );
+    res.json({ team });
+  } catch (err: any) {
+    const map: Record<string, [number, string]> = {
+      TEAM_CHANGE_REQUEST_NOT_FOUND: [404, 'Team change request not found'],
+      TEAM_CHANGE_REQUEST_CLOSED: [409, 'Team change request is already closed'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
+  }
 });
 
 // GET /admin/events/:id/event-admins

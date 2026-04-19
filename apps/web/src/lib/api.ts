@@ -128,6 +128,9 @@ export const authApi = {
     lastNameLatin?: string;
     firstNameLatin?: string;
     middleNameLatin?: string;
+    hasNoLastName?: boolean;
+    hasNoFirstName?: boolean;
+    hasNoMiddleName?: boolean;
   }) =>
     request<{ user: any }>('/api/auth/profile', { method: 'PATCH', auth: true, body }),
 
@@ -168,6 +171,26 @@ export const authApi = {
     request<{ user: any; accessToken: string }>('/api/auth/telegram', { method: 'POST', body: payload }),
 };
 
+// ─── Reference Data ──────────────────────────────────────────────────────────
+
+export const referenceApi = {
+  countries: () =>
+    request<{ data: any[] }>('/api/reference/countries', { auth: true }),
+
+  uzRegions: () =>
+    request<{ data: any[] }>('/api/reference/uz/regions', { auth: true }),
+
+  uzDistricts: (regionId?: string) => {
+    const qs = regionId ? '?' + new URLSearchParams({ regionId }).toString() : '';
+    return request<{ data: any[] }>(`/api/reference/uz/districts${qs}`, { auth: true });
+  },
+
+  uzSettlements: (districtId?: string) => {
+    const qs = districtId ? '?' + new URLSearchParams({ districtId }).toString() : '';
+    return request<{ data: any[] }>(`/api/reference/uz/settlements${qs}`, { auth: true });
+  },
+};
+
 // ─── Events ───────────────────────────────────────────────────────────────────
 
 export const eventsApi = {
@@ -180,7 +203,7 @@ export const eventsApi = {
     request<{ event: any }>(`/api/events/${slug}`, { auth: true }),
 
   register: (eventId: string, answers?: Record<string, unknown>) =>
-    request<{ registration: any }>(`/api/events/${eventId}/register`, { method: 'POST', auth: true, body: { answers: answers ?? {} } }),
+    request<{ status: string; membership?: any; message?: string; participantCount?: number; participantTarget?: number | null }>(`/api/events/${eventId}/register`, { method: 'POST', auth: true, body: { answers: answers ?? {} } }),
 
   registrationPrecheck: (eventId: string, answers?: Record<string, unknown>) =>
     request<{ precheck: any }>(`/api/events/${eventId}/registration/precheck`, { method: 'POST', auth: true, body: { answers: answers ?? {} } }),
@@ -209,6 +232,12 @@ export const eventsApi = {
   createTeam: (eventId: string, body: { name: string; description?: string; answers?: Record<string, unknown> }) =>
     request<{ team: any }>(`/api/events/${eventId}/teams`, { method: 'POST', auth: true, body }),
 
+  updateTeam: (eventId: string, teamId: string, body: { name?: string; description?: string }) =>
+    request<{ team: any }>(`/api/events/${eventId}/teams/${teamId}`, { method: 'PATCH', auth: true, body }),
+
+  submitTeamForApproval: (eventId: string, teamId: string) =>
+    request<{ team: any }>(`/api/events/${eventId}/teams/${teamId}/submit`, { method: 'POST', auth: true }),
+
   joinTeam: (eventId: string, teamId: string, code?: string, answers?: Record<string, unknown>) =>
     request<{ member: any }>(`/api/events/${eventId}/teams/${teamId}/join`, { method: 'POST', auth: true, body: { code, answers: answers ?? {} } }),
 
@@ -217,6 +246,12 @@ export const eventsApi = {
 
   myEvents: () =>
     request<{ events: any[] }>('/api/me/events', { auth: true }),
+
+  myApplications: () =>
+    request<{ applications: any[] }>('/api/me/applications', { auth: true }),
+
+  myEventWorkspace: (slug: string) =>
+    request<{ event: any }>(`/api/me/events/${slug}/workspace`, { auth: true }),
 
   myTeams: () =>
     request<{ teams: any[] }>('/api/me/teams', { auth: true }),
@@ -279,6 +314,12 @@ export const adminApi = {
 
   removeEventTeamMember: (eventId: string, teamId: string, userId: string) =>
     request<{ ok: boolean }>(`/api/events/${eventId}/teams/${teamId}/members/${userId}`, { method: 'DELETE', auth: true }),
+
+  approveTeamChangeRequest: (eventId: string, teamId: string, requestId: string, notes?: string) =>
+    request<{ team: any }>(`/api/admin/events/${eventId}/teams/${teamId}/change-requests/${requestId}/approve`, { method: 'POST', auth: true, body: { notes } }),
+
+  rejectTeamChangeRequest: (eventId: string, teamId: string, requestId: string, notes?: string) =>
+    request<{ team: any }>(`/api/admin/events/${eventId}/teams/${teamId}/change-requests/${requestId}/reject`, { method: 'POST', auth: true, body: { notes } }),
 
   getEventAnalytics: (eventId: string) =>
     request<any>(`/api/admin/events/${eventId}/analytics`, { auth: true }),
@@ -363,7 +404,20 @@ export const adminEmailApi = {
     request<any>('/api/admin/email/webhooks', { auth: true }),
 };
 
-// ─── Support ──────────────────────────────────────────────────────────────────
+// ─── Analytics ────────────────────────────────────────────────────────────────
+
+export const analyticsApi = {
+  track: (type: string, payload?: Record<string, unknown>) =>
+    fetch(`${BASE_URL}/api/analytics/track`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(_accessToken ? { Authorization: `Bearer ${_accessToken}` } : {}),
+      },
+      credentials: 'include',
+      body: JSON.stringify({ type, ...payload }),
+    }).catch(() => {}), // fire-and-forget, never throw
+};
 
 export const supportApi = {
   listThreads: (params?: { page?: number; limit?: number; status?: string }) => {

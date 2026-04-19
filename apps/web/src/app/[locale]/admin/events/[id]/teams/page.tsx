@@ -26,7 +26,7 @@ import {
   type AdminEventRecord,
 } from '@/components/admin/AdminEventWorkspace';
 
-const TEAM_STATUS_FILTERS = ['ALL', 'ACTIVE', 'PENDING', 'REJECTED', 'ARCHIVED'] as const;
+const TEAM_STATUS_FILTERS = ['ALL', 'DRAFT', 'ACTIVE', 'PENDING', 'CHANGES_PENDING', 'REJECTED', 'ARCHIVED'] as const;
 
 export default function EventTeamsPage() {
   const { user, loading, isAdmin } = useAuth();
@@ -92,8 +92,9 @@ export default function EventTeamsPage() {
     const activeTeams = teams.filter((team) => (team.status ?? 'ACTIVE') === 'ACTIVE').length;
     const activeMembers = teams.reduce((sum, team) => sum + getTeamMemberCount(team, 'ACTIVE'), 0);
     const pendingMembers = teams.reduce((sum, team) => sum + getTeamMemberCount(team, 'PENDING'), 0);
+    const pendingTeamChanges = teams.filter((team) => ['PENDING', 'CHANGES_PENDING'].includes(team.status ?? '') || team.changeRequests?.length).length;
     const slots = teams.reduce((sum, team) => sum + Number(team.maxSize ?? 0), 0);
-    return { activeTeams, activeMembers, pendingMembers, slots };
+    return { activeTeams, activeMembers, pendingMembers, pendingTeamChanges, slots };
   }, [teams]);
 
   async function handleTeamMemberAction(teamId: string, memberUserId: string, action: 'approve' | 'reject' | 'remove') {
@@ -111,6 +112,27 @@ export default function EventTeamsPage() {
       await loadData();
     } catch (err: any) {
       setError(err.message || 'Failed to update team member');
+    } finally {
+      setActionKey(null);
+    }
+  }
+
+  async function handleTeamChangeRequestAction(teamId: string, requestId: string, action: 'approve' | 'reject') {
+    if (!eventId) return;
+    const nextActionKey = `${teamId}:${requestId}:${action}`;
+    setActionKey(nextActionKey);
+    setError('');
+    setSuccess('');
+
+    try {
+      if (action === 'approve') await adminApi.approveTeamChangeRequest(eventId, teamId, requestId);
+      if (action === 'reject') await adminApi.rejectTeamChangeRequest(eventId, teamId, requestId);
+      setSuccess(action === 'approve'
+        ? (locale === 'ru' ? 'Состояние команды утверждено и зафиксировано.' : 'Team state approved and locked.')
+        : (locale === 'ru' ? 'Заявка отклонена. Прежнее состояние команды сохранено.' : 'Request rejected. Previous team state kept.'));
+      await loadData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to update team request');
     } finally {
       setActionKey(null);
     }
@@ -145,7 +167,7 @@ export default function EventTeamsPage() {
           <div className="signal-kpi-grid">
             <MetricCard tone="info" label={locale === 'ru' ? 'Всего команд' : 'Total teams'} value={teams.length} />
             <MetricCard tone="success" label={locale === 'ru' ? 'Активные команды' : 'Active teams'} value={stats.activeTeams} />
-            <MetricCard tone="warning" label={locale === 'ru' ? 'Ожидают решения' : 'Pending requests'} value={stats.pendingMembers} />
+            <MetricCard tone="warning" label={locale === 'ru' ? 'Ожидают решения' : 'Pending requests'} value={stats.pendingTeamChanges + stats.pendingMembers} />
             <MetricCard tone="neutral" label={locale === 'ru' ? 'Места в командах' : 'Team slots'} value={`${stats.activeMembers}/${stats.slots || '—'}`} />
           </div>
 
@@ -195,6 +217,7 @@ export default function EventTeamsPage() {
                   const members = Array.isArray(team.members) ? team.members : [];
                   const activeMembers = members.filter((member: any) => member.status === 'ACTIVE');
                   const pendingMembers = members.filter((member: any) => member.status === 'PENDING');
+                  const pendingRequest = Array.isArray(team.changeRequests) ? team.changeRequests[0] : null;
                   const isExpanded = expandedTeamId === team.id;
 
                   return (
@@ -203,7 +226,7 @@ export default function EventTeamsPage() {
                         <div>
                           <div className="admin-team-title-line">
                             <h3>{team.name}</h3>
-                            
+                            <StatusPill tone={teamStatusTone(team.status)}>{formatTeamStatus(team.status, locale)}</StatusPill>
                           </div>
                           {team.description ? <p>{team.description}</p> : null}
                         </div>
@@ -222,6 +245,44 @@ export default function EventTeamsPage() {
                         ) : null} />
                         <TeamMeta label={locale === 'ru' ? 'Создана' : 'Created'} value={formatAdminDateTime(team.createdAt, locale)} />
                       </div>
+
+                      {pendingRequest ? (
+                        <div className="admin-team-change-panel">
+                          <div>
+                            <strong>{team.status === 'PENDING' ? (locale === 'ru' ? 'Команда готова к утверждению' : 'Team ready for approval') : (locale === 'ru' ? 'Заявка на изменение команды' : 'Team change request')}</strong>
+                            <p>
+                              {locale === 'ru' ? 'Инициатор' : 'Requested by'}: {pendingRequest.requestedByUser?.name || pendingRequest.requestedByUser?.email || '—'} · {formatAdminDateTime(pendingRequest.createdAt, locale)}
+                            </p>
+                          </div>
+                          <div className="admin-team-change-grid">
+                            <TeamMeta label={locale === 'ru' ? 'Текущее название' : 'Current name'} value={team.name} />
+                            <TeamMeta label={locale === 'ru' ? 'Новое название' : 'Proposed name'} value={pendingRequest.proposedName || team.name} />
+                            <TeamMeta label={locale === 'ru' ? 'Текущий состав' : 'Current roster'} value={activeMembers.map((member: any) => member.user?.name || member.user?.email || member.userId).join(', ') || '—'} />
+                            <TeamMeta label={locale === 'ru' ? 'Новый состав' : 'Proposed roster'} value={describeProposedMembers(team, pendingRequest)} />
+                          </div>
+                          {pendingRequest.proposedDescription && pendingRequest.proposedDescription !== team.description ? (
+                            <p className="admin-team-change-note">{pendingRequest.proposedDescription}</p>
+                          ) : null}
+                          <div className="admin-team-change-actions">
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              disabled={actionKey === `${team.id}:${pendingRequest.id}:approve`}
+                              onClick={() => void handleTeamChangeRequestAction(team.id, pendingRequest.id, 'approve')}
+                            >
+                              {locale === 'ru' ? 'Утвердить состояние' : 'Approve state'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-danger btn-sm"
+                              disabled={actionKey === `${team.id}:${pendingRequest.id}:reject`}
+                              onClick={() => void handleTeamChangeRequestAction(team.id, pendingRequest.id, 'reject')}
+                            >
+                              {locale === 'ru' ? 'Отклонить' : 'Reject'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
 
                       {isExpanded ? (
                         <div className="admin-team-members">
@@ -251,7 +312,7 @@ export default function EventTeamsPage() {
                                           {member.user?.email ? <div className="signal-muted">{member.user.email}</div> : null}
                                         </td>
                                         <td>{member.role}</td>
-                                        <td></td>
+                                        <td><StatusPill tone={memberStatusTone(member.status)}>{member.status}</StatusPill></td>
                                         <td className="signal-muted">{formatAdminDateTime(member.joinedAt, locale)}</td>
                                         <td className="right">
                                           <div className="signal-row-actions">
@@ -338,6 +399,16 @@ function TeamMeta({
   );
 }
 
+function StatusPill({
+  tone,
+  children,
+}: {
+  tone: 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+  children: ReactNode;
+}) {
+  return <span className={`signal-status-pill tone-${tone}`}>{children}</span>;
+}
+
 function getTeamMemberCount(team: any, status: string) {
   if (Array.isArray(team.members)) {
     return team.members.filter((member: any) => member.status === status).length;
@@ -346,12 +417,44 @@ function getTeamMemberCount(team: any, status: string) {
   return 0;
 }
 
+function describeProposedMembers(team: any, request: any) {
+  const namesByUserId = new Map<string, string>();
+  for (const member of team.members ?? []) {
+    namesByUserId.set(member.userId, member.user?.name || member.user?.email || member.userId);
+  }
+  if (request.requestedByUserId && request.requestedByUser) {
+    namesByUserId.set(request.requestedByUserId, request.requestedByUser.name || request.requestedByUser.email || request.requestedByUserId);
+  }
+  const proposed = Array.isArray(request.proposedMemberUserIds) ? request.proposedMemberUserIds : [];
+  return proposed.map((userId: string) => namesByUserId.get(userId) ?? userId).join(', ') || '—';
+}
+
 function teamStatusTone(status?: string | null): 'success' | 'warning' | 'danger' | 'info' | 'neutral' {
   if (!status || status === 'ACTIVE') return 'success';
-  if (status === 'PENDING') return 'warning';
+  if (status === 'DRAFT' || status === 'PENDING' || status === 'CHANGES_PENDING') return 'warning';
   if (status === 'REJECTED') return 'danger';
   if (status === 'ARCHIVED') return 'neutral';
   return 'info';
+}
+
+function formatTeamStatus(status: string | null | undefined, locale: string) {
+  const ru: Record<string, string> = {
+    DRAFT: 'Черновик',
+    ACTIVE: 'Утверждена',
+    PENDING: 'На утверждении',
+    CHANGES_PENDING: 'Изменения на утверждении',
+    REJECTED: 'Отклонена',
+    ARCHIVED: 'Архив',
+  };
+  const en: Record<string, string> = {
+    DRAFT: 'Draft',
+    ACTIVE: 'Approved',
+    PENDING: 'Pending approval',
+    CHANGES_PENDING: 'Changes pending',
+    REJECTED: 'Rejected',
+    ARCHIVED: 'Archived',
+  };
+  return (locale === 'ru' ? ru : en)[status ?? ''] ?? (status ?? '—');
 }
 
 function formatTeamJoinMode(value: string | null | undefined, locale: string) {
