@@ -19,6 +19,7 @@ import {
   rejectTeamMember,
   removeTeamMember,
   saveRegistrationAnswers,
+  submitTeamForApproval,
   unregisterFromEvent,
   updateTeam,
 } from './events.service.js';
@@ -39,6 +40,11 @@ const registrationFlowErrors: Record<string, [number, string]> = {
   ALREADY_REGISTERED: [409, 'You are already registered for this event'],
   ALREADY_HAS_PENDING_APPLICATION: [409, 'You already have a pending application for this event'],
   ALREADY_IN_TEAM: [409, 'You are already in a team for this event'],
+  PARTICIPANT_APPROVAL_REQUIRED: [403, 'Approved participant status is required before team actions'],
+  TEAM_APPROVAL_PENDING: [409, 'Team is waiting for admin approval'],
+  TEAM_APPROVED_LOCKED: [409, 'Approved team is locked. Submit a change request to edit it'],
+  TEAM_EMPTY: [400, 'Team has no members'],
+  TEAM_MIN_SIZE: [400, 'Team does not meet minimum size'],
   USER_NOT_FOUND: [404, 'User not found'],
 };
 
@@ -259,13 +265,30 @@ eventsRouter.patch('/:id/teams/:teamId', authenticate, async (req, res) => {
     );
     res.json({ team });
   } catch (err: any) {
-    const map: Record<string, [number, string]> = {
+    sendMappedError(res, err, {
       EVENT_NOT_FOUND: [404, 'Event not found'],
       TEAM_NOT_FOUND: [404, 'Team not found'],
       NOT_TEAM_CAPTAIN: [403, 'Only team captain can update team'],
-    };
-    const [status, message] = map[err.message] ?? [500, 'Internal error'];
-    res.status(status).json({ error: message });
+    });
+  }
+});
+
+// POST /api/events/:id/teams/:teamId/submit — captain freezes current team draft and sends it to admin approval
+eventsRouter.post('/:id/teams/:teamId/submit', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  try {
+    const team = await submitTeamForApproval(
+      String(req.params['id']),
+      String(req.params['teamId']),
+      user.id
+    );
+    res.json({ team });
+  } catch (err: any) {
+    sendMappedError(res, err, {
+      EVENT_NOT_FOUND: [404, 'Event not found'],
+      TEAM_NOT_FOUND: [404, 'Team not found'],
+      NOT_TEAM_CAPTAIN: [403, 'Only team captain can submit team for approval'],
+    });
   }
 });
 
@@ -280,14 +303,12 @@ eventsRouter.post('/:id/teams/:teamId/leave', authenticate, async (req, res) => 
     );
     res.json({ ok: true });
   } catch (err: any) {
-    const map: Record<string, [number, string]> = {
+    sendMappedError(res, err, {
       EVENT_NOT_FOUND: [404, 'Event not found'],
       TEAM_NOT_FOUND: [404, 'Team not found'],
       NOT_IN_TEAM: [400, 'You are not in this team'],
       CAPTAIN_CANNOT_LEAVE: [400, 'Captain cannot leave team. Transfer captainship or delete team'],
-    };
-    const [status, message] = map[err.message] ?? [500, 'Internal error'];
-    res.status(status).json({ error: message });
+    });
   }
 });
 
@@ -303,15 +324,13 @@ eventsRouter.post('/:id/teams/:teamId/members/:userId/approve', authenticate, as
     );
     res.json({ member });
   } catch (err: any) {
-    const map: Record<string, [number, string]> = {
+    sendMappedError(res, err, {
       EVENT_NOT_FOUND: [404, 'Event not found'],
       TEAM_NOT_FOUND: [404, 'Team not found'],
       NOT_TEAM_CAPTAIN: [403, 'Only team captain can approve members'],
       MEMBER_NOT_FOUND: [404, 'Team member not found'],
       TEAM_FULL: [400, 'Team is full'],
-    };
-    const [status, message] = map[err.message] ?? [500, 'Internal error'];
-    res.status(status).json({ error: message });
+    });
   }
 });
 
@@ -350,14 +369,12 @@ eventsRouter.delete('/:id/teams/:teamId/members/:userId', authenticate, async (r
     );
     res.json({ ok: true });
   } catch (err: any) {
-    const map: Record<string, [number, string]> = {
+    sendMappedError(res, err, {
       EVENT_NOT_FOUND: [404, 'Event not found'],
       TEAM_NOT_FOUND: [404, 'Team not found'],
       NOT_TEAM_CAPTAIN: [403, 'Only team captain can remove members'],
       MEMBER_NOT_FOUND: [404, 'Team member not found'],
       CANNOT_REMOVE_CAPTAIN: [400, 'Cannot remove team captain'],
-    };
-    const [status, message] = map[err.message] ?? [500, 'Internal error'];
-    res.status(status).json({ error: message });
+    });
   }
 });

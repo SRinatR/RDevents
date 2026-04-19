@@ -91,28 +91,28 @@ export function useProfileSections(locale = 'ru') {
   }, [localeKey, refreshUser, reloadSections]);
 
   const uploadAvatar = useCallback(async (file: File) => {
-    await runSectionAction('photo', async () => {
+    await runSectionAction('general_info', async () => {
       await authApi.uploadAvatar(file);
       await refreshUser();
     }, localeKey === 'ru' ? 'Фото обновлено.' : 'Photo updated.');
   }, [localeKey, refreshUser, reloadSections]);
 
   const deleteAvatar = useCallback(async () => {
-    await runSectionAction('photo', async () => {
+    await runSectionAction('general_info', async () => {
       await authApi.deleteAvatar();
       await refreshUser();
     }, localeKey === 'ru' ? 'Фото удалено.' : 'Photo deleted.');
   }, [localeKey, refreshUser, reloadSections]);
 
   const uploadDocument = useCallback(async (file: File) => {
-    await runSectionAction('documents', async () => {
+    await runSectionAction('personal_documents', async () => {
       await authApi.uploadProfileDocument(file);
       await reloadDocuments();
     }, localeKey === 'ru' ? 'Документ загружен.' : 'Document uploaded.');
   }, [localeKey, reloadDocuments, reloadSections]);
 
   const deleteDocument = useCallback(async (assetId: string) => {
-    await runSectionAction('documents', async () => {
+    await runSectionAction('personal_documents', async () => {
       await authApi.deleteProfileDocument(assetId);
       await reloadDocuments();
     }, localeKey === 'ru' ? 'Документ удалён.' : 'Document deleted.');

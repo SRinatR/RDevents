@@ -1,7 +1,5 @@
 import { prisma } from '../../db/prisma.js';
-import type { Prisma } from '@prisma/client';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
-import { assertRegistrationRequirements, getRegistrationPrecheck } from './registration.service.js';
 import {
   notifyTeamCreated,
   notifyTeamMemberChanged,
@@ -11,6 +9,7 @@ import {
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
 const ACTIVE_TEAM_MEMBER_STATUSES = ['ACTIVE', 'PENDING'] as const;
 const PLATFORM_ADMIN_ROLES = ['PLATFORM_ADMIN', 'SUPER_ADMIN'] as const;
+const EDITABLE_TEAM_STATUSES = ['DRAFT', 'REJECTED'] as const;
 
 async function canManageTeamMembers(eventId: string, teamCaptainUserId: string, actorUserId: string) {
   if (teamCaptainUserId === actorUserId) return true;
@@ -34,11 +33,114 @@ async function canManageTeamMembers(eventId: string, teamCaptainUserId: string, 
   return Boolean(eventAdmin);
 }
 
+async function assertApprovedParticipant(eventId: string, userId: string) {
+  const membership = await prisma.eventMember.findUnique({
+    where: { eventId_userId_role: { eventId, userId, role: 'PARTICIPANT' } },
+    select: { id: true, status: true },
+  });
+
+  if (!membership || !ACTIVE_MEMBER_STATUSES.includes(membership.status as any)) {
+    throw new Error('PARTICIPANT_APPROVAL_REQUIRED');
+  }
+
+  return membership;
+}
+
+async function getProposedMemberUserIds(teamId: string, extraUserIds: string[] = []) {
+  const members = await prisma.eventTeamMember.findMany({
+    where: { teamId, status: { in: ['ACTIVE', 'PENDING'] } },
+    select: { userId: true },
+  });
+  return [...new Set([...members.map(member => member.userId), ...extraUserIds])];
+}
+
+async function upsertPendingTeamChangeRequest(
+  tx: any,
+  team: { id: string; name: string; description: string | null; status: string; captainUserId: string },
+  requestedByUserId: string,
+  data: { name?: string; description?: string | null; memberUserIds?: string[] }
+) {
+  const proposedMemberUserIds = data.memberUserIds ?? await getProposedMemberUserIds(team.id);
+  const existing = await tx.eventTeamChangeRequest.findFirst({
+    where: { teamId: team.id, status: 'PENDING' },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const payload = {
+    requestedByUserId,
+    proposedName: data.name ?? team.name,
+    proposedDescription: data.description !== undefined ? data.description : team.description,
+    proposedMemberUserIds,
+  };
+
+  if (existing) {
+    return tx.eventTeamChangeRequest.update({
+      where: { id: existing.id },
+      data: payload,
+    });
+  }
+
+  return tx.eventTeamChangeRequest.create({
+    data: {
+      teamId: team.id,
+      ...payload,
+    },
+  });
+}
+
+async function syncApprovedTeamMembers(tx: any, teamId: string, memberUserIds: string[]) {
+  const proposed = new Set(memberUserIds);
+  const existing = await tx.eventTeamMember.findMany({
+    where: { teamId, status: { in: ['ACTIVE', 'PENDING'] } },
+  });
+
+  for (const member of existing) {
+    if (proposed.has(member.userId)) {
+      if (member.status !== 'ACTIVE') {
+        await tx.eventTeamMember.update({
+          where: { id: member.id },
+          data: { status: 'ACTIVE', approvedAt: new Date(), removedAt: null },
+        });
+      }
+      proposed.delete(member.userId);
+    } else if (member.role !== 'CAPTAIN') {
+      await tx.eventTeamMember.update({
+        where: { id: member.id },
+        data: { status: 'REMOVED', removedAt: new Date() },
+      });
+    }
+  }
+
+  for (const userId of proposed) {
+    await tx.eventTeamMember.upsert({
+      where: { teamId_userId: { teamId, userId } },
+      create: {
+        teamId,
+        userId,
+        role: 'MEMBER',
+        status: 'ACTIVE',
+        approvedAt: new Date(),
+      },
+      update: {
+        role: 'MEMBER',
+        status: 'ACTIVE',
+        approvedAt: new Date(),
+        removedAt: null,
+      },
+    });
+  }
+}
+
 export async function getTeamsByEvent(eventId: string) {
   return prisma.eventTeam.findMany({
     where: { eventId },
     include: {
       captainUser: { select: { id: true, name: true, avatarUrl: true } },
+      changeRequests: {
+        where: { status: 'PENDING' },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
       _count: { select: { members: { where: { status: 'ACTIVE' } } } }
     },
     orderBy: { createdAt: 'desc' }
@@ -53,6 +155,11 @@ export async function getTeamById(eventId: string, teamId: string) {
       members: {
         include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
         orderBy: { joinedAt: 'desc' },
+      },
+      changeRequests: {
+        where: { status: 'PENDING' },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
       },
       _count: { select: { members: { where: { status: 'ACTIVE' } } } },
     },
@@ -72,7 +179,7 @@ export async function createTeam(
   if (!event.isTeamBased) throw new Error('EVENT_NOT_TEAM_BASED');
   if (event.status !== 'PUBLISHED') throw new Error('EVENT_NOT_AVAILABLE');
   if (!event.registrationEnabled) throw new Error('EVENT_NOT_AVAILABLE');
-  const precheck = await assertRegistrationRequirements(eventId, userId, data.answers, { allowExistingParticipant: true });
+  await assertApprovedParticipant(eventId, userId);
 
   if (event.registrationDeadline && event.registrationDeadline < new Date()) {
     throw new Error('EVENT_NOT_AVAILABLE');
@@ -89,53 +196,7 @@ export async function createTeam(
   const joinCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
   const team = await prisma.$transaction(async (tx: any) => {
-    const participantCount = await tx.eventMember.count({
-      where: { eventId, role: 'PARTICIPANT', status: { in: [...ACTIVE_MEMBER_STATUSES] } },
-    });
-
-    // Also create or update EVENT PARTICIPANT membership for Captain
-    const existingSolo = await tx.eventMember.findUnique({
-      where: { eventId_userId_role: { eventId, userId, role: 'PARTICIPANT' } }
-    });
-    if (participantCount >= event.capacity && !existingSolo) throw new Error('EVENT_FULL');
-
-    if (event.requiredEventFields.length > 0) {
-      await tx.eventRegistrationFormSubmission.upsert({
-        where: { eventId_userId: { eventId, userId } },
-        create: {
-          eventId,
-          userId,
-          answersJson: precheck.answers as Prisma.InputJsonValue,
-          isComplete: true,
-        },
-        update: {
-          answersJson: precheck.answers as Prisma.InputJsonValue,
-        },
-      });
-    }
-
-    const isPendingAdmin = event.requireAdminApprovalForTeams;
-    const teamStatus = isPendingAdmin ? 'PENDING' : 'ACTIVE';
-    const memberStatus = isPendingAdmin ? 'PENDING' : 'ACTIVE';
-
-    if (!existingSolo) {
-      await tx.eventMember.create({
-        data: {
-          eventId, userId, role: 'PARTICIPANT', status: memberStatus,
-          assignedByUserId: userId, approvedAt: isPendingAdmin ? null : new Date()
-        }
-      });
-      // Increment registrations only if active
-      if (!isPendingAdmin) {
-        await tx.event.update({ where: { id: eventId }, data: { registrationsCount: { increment: 1 } } });
-      }
-    } else if (existingSolo.status !== 'ACTIVE' && !isPendingAdmin) {
-      await tx.eventMember.update({
-        where: { id: existingSolo.id },
-        data: { status: 'ACTIVE', approvedAt: new Date() }
-      });
-      await tx.event.update({ where: { id: eventId }, data: { registrationsCount: { increment: 1 } } });
-    }
+    const teamStatus = event.requireAdminApprovalForTeams ? 'DRAFT' : 'ACTIVE';
 
     // Create Team
     const team = await tx.eventTeam.create({
@@ -157,7 +218,7 @@ export async function createTeam(
           }
         }
       },
-      include: { members: true }
+      include: { members: true, changeRequests: true }
     });
 
     await trackAnalyticsEvent(tx, {
@@ -186,7 +247,7 @@ export async function joinTeam(
   if (!event.isTeamBased) throw new Error('EVENT_NOT_TEAM_BASED');
   if (event.status !== 'PUBLISHED') throw new Error('EVENT_NOT_AVAILABLE');
   if (!event.registrationEnabled) throw new Error('EVENT_NOT_AVAILABLE');
-  const precheck = await assertRegistrationRequirements(eventId, userId, answers, { allowExistingParticipant: true });
+  await assertApprovedParticipant(eventId, userId);
 
   if (event.registrationDeadline && event.registrationDeadline < new Date()) {
     throw new Error('EVENT_NOT_AVAILABLE');
@@ -197,7 +258,7 @@ export async function joinTeam(
     include: { _count: { select: { members: { where: { status: 'ACTIVE' } } } } }
   });
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
-  if (team.status !== 'ACTIVE') throw new Error('TEAM_NOT_ACTIVE');
+  if (!['ACTIVE', 'DRAFT', 'REJECTED'].includes(team.status)) throw new Error('TEAM_NOT_ACTIVE');
   if (team._count.members >= team.maxSize) throw new Error('TEAM_FULL');
 
   if (event.teamJoinMode === 'BY_CODE' && team.joinCode !== code) throw new Error('INVALID_JOIN_CODE');
@@ -207,23 +268,30 @@ export async function joinTeam(
   });
   if (existingTeamMember) throw new Error('ALREADY_IN_TEAM');
 
+  if (event.requireAdminApprovalForTeams && team.status === 'ACTIVE') {
+    const changeRequest = await prisma.$transaction(async (tx: any) => {
+      const proposedMemberUserIds = await getProposedMemberUserIds(teamId, [userId]);
+      const changeRequest = await upsertPendingTeamChangeRequest(tx, team, userId, { memberUserIds: proposedMemberUserIds });
+      await tx.eventTeam.update({
+        where: { id: teamId },
+        data: { status: 'CHANGES_PENDING' },
+      });
+      return changeRequest;
+    });
+
+    await notifyTeamMemberChanged(eventId, teamId, userId, 'PENDING');
+    return {
+      id: changeRequest.id,
+      teamId,
+      userId,
+      role: 'MEMBER',
+      status: 'PENDING',
+      isChangeRequest: true,
+    };
+  }
+
   const member = await prisma.$transaction(async (tx: any) => {
     const isPending = event.teamJoinMode === 'BY_REQUEST';
-
-    if (event.requiredEventFields.length > 0) {
-      await tx.eventRegistrationFormSubmission.upsert({
-        where: { eventId_userId: { eventId, userId } },
-        create: {
-          eventId,
-          userId,
-          answersJson: precheck.answers as Prisma.InputJsonValue,
-          isComplete: true,
-        },
-        update: {
-          answersJson: precheck.answers as Prisma.InputJsonValue,
-        },
-      });
-    }
 
     // Member record
     const member = await tx.eventTeamMember.create({
@@ -235,25 +303,6 @@ export async function joinTeam(
         approvedAt: isPending ? null : new Date(),
       }
     });
-
-    if (!isPending) {
-       // Also ensure they are registered as PARTICIPANT
-       const existingSolo = await tx.eventMember.findUnique({
-         where: { eventId_userId_role: { eventId, userId, role: 'PARTICIPANT' } }
-       });
-       if (!existingSolo) {
-         await tx.eventMember.create({
-           data: { eventId, userId, role: 'PARTICIPANT', status: 'ACTIVE', assignedByUserId: userId, approvedAt: new Date() }
-         });
-         await tx.event.update({ where: { id: eventId }, data: { registrationsCount: { increment: 1 } } });
-       } else if (existingSolo.status !== 'ACTIVE') {
-         await tx.eventMember.update({
-           where: { id: existingSolo.id },
-           data: { status: 'ACTIVE', approvedAt: new Date() }
-         });
-         await tx.event.update({ where: { id: eventId }, data: { registrationsCount: { increment: 1 } } });
-       }
-    }
 
     await trackAnalyticsEvent(tx, {
       type: 'TEAM_JOIN_REQUESTED',
@@ -286,9 +335,26 @@ export async function joinTeamByCode(
 }
 
 export async function updateTeam(eventId: string, teamId: string, userId: string, data: { name?: string; description?: string }) {
-  const team = await prisma.eventTeam.findUnique({ where: { id: teamId } });
+  const team = await prisma.eventTeam.findUnique({
+    where: { id: teamId },
+    include: { event: { select: { requireAdminApprovalForTeams: true, minTeamSize: true } } },
+  });
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
   if (team.captainUserId !== userId) throw new Error('NOT_TEAM_CAPTAIN');
+
+  if (team.event.requireAdminApprovalForTeams && !EDITABLE_TEAM_STATUSES.includes(team.status as any)) {
+    if (team.status === 'PENDING' || team.status === 'CHANGES_PENDING') throw new Error('TEAM_APPROVAL_PENDING');
+    const changeRequest = await prisma.$transaction(async (tx: any) => {
+      const changeRequest = await upsertPendingTeamChangeRequest(tx, team, userId, data);
+      await tx.eventTeam.update({
+        where: { id: teamId },
+        data: { status: 'CHANGES_PENDING' },
+      });
+      return changeRequest;
+    });
+    await notifyTeamUpdated(eventId, teamId);
+    return { ...team, changeRequests: [changeRequest], status: 'CHANGES_PENDING' };
+  }
 
   const updated = await prisma.eventTeam.update({
     where: { id: teamId },
@@ -302,10 +368,43 @@ export async function updateTeam(eventId: string, teamId: string, userId: string
   return updated;
 }
 
+export async function submitTeamForApproval(eventId: string, teamId: string, userId: string) {
+  const team = await prisma.eventTeam.findUnique({
+    where: { id: teamId },
+    include: { event: { select: { requireAdminApprovalForTeams: true, minTeamSize: true } } },
+  });
+  if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
+  if (team.captainUserId !== userId) throw new Error('NOT_TEAM_CAPTAIN');
+  if (!team.event.requireAdminApprovalForTeams) return team;
+  if (team.status === 'PENDING' || team.status === 'CHANGES_PENDING') throw new Error('TEAM_APPROVAL_PENDING');
+  if (!EDITABLE_TEAM_STATUSES.includes(team.status as any)) throw new Error('TEAM_APPROVED_LOCKED');
+
+  const changeRequest = await prisma.$transaction(async (tx: any) => {
+    const proposedMemberUserIds = await getProposedMemberUserIds(teamId);
+    if (proposedMemberUserIds.length === 0) throw new Error('TEAM_EMPTY');
+    if (proposedMemberUserIds.length < team.event.minTeamSize) throw new Error('TEAM_MIN_SIZE');
+    const changeRequest = await upsertPendingTeamChangeRequest(tx, team, userId, { memberUserIds: proposedMemberUserIds });
+    await tx.eventTeam.update({
+      where: { id: teamId },
+      data: { status: 'PENDING' },
+    });
+    return changeRequest;
+  });
+
+  await notifyTeamUpdated(eventId, teamId);
+  return { ...team, status: 'PENDING', changeRequests: [changeRequest] };
+}
+
 export async function leaveTeam(eventId: string, teamId: string, userId: string) {
-  const team = await prisma.eventTeam.findUnique({ where: { id: teamId } });
+  const team = await prisma.eventTeam.findUnique({
+    where: { id: teamId },
+    include: { event: { select: { requireAdminApprovalForTeams: true } } },
+  });
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
   if (team.captainUserId === userId) throw new Error('CAPTAIN_CANNOT_LEAVE');
+  if (team.event.requireAdminApprovalForTeams && !EDITABLE_TEAM_STATUSES.includes(team.status as any)) {
+    throw new Error('TEAM_APPROVED_LOCKED');
+  }
 
   const member = await prisma.eventTeamMember.findUnique({
     where: { teamId_userId: { teamId, userId } }
@@ -322,9 +421,15 @@ export async function leaveTeam(eventId: string, teamId: string, userId: string)
 export async function approveTeamMember(eventId: string, teamId: string, captainId: string, memberUserId: string) {
   const team = await prisma.eventTeam.findUnique({
     where: { id: teamId },
-    include: { _count: { select: { members: { where: { status: 'ACTIVE' } } } } }
+    include: {
+      event: { select: { requireAdminApprovalForTeams: true } },
+      _count: { select: { members: { where: { status: 'ACTIVE' } } } },
+    }
   });
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
+  if (team.event.requireAdminApprovalForTeams && !EDITABLE_TEAM_STATUSES.includes(team.status as any)) {
+    throw new Error('TEAM_APPROVED_LOCKED');
+  }
   if (!(await canManageTeamMembers(eventId, team.captainUserId, captainId))) throw new Error('NOT_TEAM_CAPTAIN');
   if (team._count.members >= team.maxSize) throw new Error('TEAM_FULL');
 
@@ -332,33 +437,13 @@ export async function approveTeamMember(eventId: string, teamId: string, captain
     where: { teamId_userId: { teamId, userId: memberUserId } }
   });
   if (!member) throw new Error('MEMBER_NOT_FOUND');
+  await assertApprovedParticipant(eventId, memberUserId);
 
   const updatedMember = await prisma.$transaction(async (tx: any) => {
     const updatedMember = await tx.eventTeamMember.update({
       where: { id: member.id },
       data: { status: 'ACTIVE', approvedAt: new Date() }
     });
-
-    // Also ensure they are registered as PARTICIPANT for the event
-    const event = await tx.event.findUnique({ where: { id: eventId } });
-    if (!event) throw new Error('EVENT_NOT_FOUND');
-
-    const existingSolo = await tx.eventMember.findUnique({
-      where: { eventId_userId_role: { eventId, userId: memberUserId, role: 'PARTICIPANT' } }
-    });
-
-    if (!existingSolo) {
-      await tx.eventMember.create({
-        data: { eventId, userId: memberUserId, role: 'PARTICIPANT', status: 'ACTIVE', assignedByUserId: memberUserId, approvedAt: new Date() }
-      });
-      await tx.event.update({ where: { id: eventId }, data: { registrationsCount: { increment: 1 } } });
-    } else if (existingSolo.status !== 'ACTIVE') {
-      await tx.eventMember.update({
-        where: { id: existingSolo.id },
-        data: { status: 'ACTIVE', approvedAt: new Date() }
-      });
-      await tx.event.update({ where: { id: eventId }, data: { registrationsCount: { increment: 1 } } });
-    }
 
     await trackAnalyticsEvent(tx, {
       type: 'TEAM_MEMBER_APPROVED',
@@ -392,10 +477,16 @@ export async function rejectTeamMember(eventId: string, teamId: string, captainI
 }
 
 export async function removeTeamMember(eventId: string, teamId: string, captainId: string, memberUserId: string) {
-  const team = await prisma.eventTeam.findUnique({ where: { id: teamId } });
+  const team = await prisma.eventTeam.findUnique({
+    where: { id: teamId },
+    include: { event: { select: { requireAdminApprovalForTeams: true } } },
+  });
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
   if (!(await canManageTeamMembers(eventId, team.captainUserId, captainId))) throw new Error('NOT_TEAM_CAPTAIN');
   if (team.captainUserId === memberUserId) throw new Error('CANNOT_REMOVE_CAPTAIN');
+  if (team.event.requireAdminApprovalForTeams && !EDITABLE_TEAM_STATUSES.includes(team.status as any)) {
+    throw new Error('TEAM_APPROVED_LOCKED');
+  }
 
   const member = await prisma.eventTeamMember.findUnique({
     where: { teamId_userId: { teamId, userId: memberUserId } }
@@ -407,4 +498,79 @@ export async function removeTeamMember(eventId: string, teamId: string, captainI
     data: { status: 'REMOVED', removedAt: new Date() }
   });
   await notifyTeamMemberChanged(eventId, teamId, memberUserId, 'REMOVED');
+}
+
+export async function approveTeamChangeRequest(eventId: string, teamId: string, requestId: string, adminUserId: string, notes?: string) {
+  const request = await prisma.eventTeamChangeRequest.findUnique({
+    where: { id: requestId },
+    include: { team: true },
+  });
+  if (!request || request.teamId !== teamId || request.team.eventId !== eventId) throw new Error('TEAM_CHANGE_REQUEST_NOT_FOUND');
+  if (request.status !== 'PENDING') throw new Error('TEAM_CHANGE_REQUEST_CLOSED');
+
+  const updated = await prisma.$transaction(async (tx: any) => {
+    await syncApprovedTeamMembers(tx, teamId, request.proposedMemberUserIds);
+    await tx.eventTeamChangeRequest.update({
+      where: { id: requestId },
+      data: { status: 'APPROVED', decidedByUserId: adminUserId, decidedAt: new Date(), notes },
+    });
+    const team = await tx.eventTeam.update({
+      where: { id: teamId },
+      data: {
+        name: request.proposedName,
+        description: request.proposedDescription,
+        status: 'ACTIVE',
+      },
+      include: {
+        members: {
+          include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+          orderBy: { joinedAt: 'desc' },
+        },
+        changeRequests: {
+          where: { status: 'PENDING' },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+    return team;
+  });
+
+  await notifyTeamUpdated(eventId, teamId);
+  return updated;
+}
+
+export async function rejectTeamChangeRequest(eventId: string, teamId: string, requestId: string, adminUserId: string, notes?: string) {
+  const request = await prisma.eventTeamChangeRequest.findUnique({
+    where: { id: requestId },
+    include: { team: true },
+  });
+  if (!request || request.teamId !== teamId || request.team.eventId !== eventId) throw new Error('TEAM_CHANGE_REQUEST_NOT_FOUND');
+  if (request.status !== 'PENDING') throw new Error('TEAM_CHANGE_REQUEST_CLOSED');
+
+  const nextTeamStatus = request.team.status === 'PENDING' ? 'REJECTED' : 'ACTIVE';
+  const updated = await prisma.$transaction(async (tx: any) => {
+    await tx.eventTeamChangeRequest.update({
+      where: { id: requestId },
+      data: { status: 'REJECTED', decidedByUserId: adminUserId, decidedAt: new Date(), notes },
+    });
+    return tx.eventTeam.update({
+      where: { id: teamId },
+      data: { status: nextTeamStatus },
+      include: {
+        members: {
+          include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+          orderBy: { joinedAt: 'desc' },
+        },
+        changeRequests: {
+          where: { status: 'PENDING' },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+  });
+
+  await notifyTeamUpdated(eventId, teamId);
+  return updated;
 }

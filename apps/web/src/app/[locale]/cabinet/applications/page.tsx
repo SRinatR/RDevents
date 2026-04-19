@@ -13,6 +13,7 @@ export default function CabinetApplicationsPage() {
   const router = useRouter();
   const locale = useRouteLocale();
 
+  const [participantApplications, setParticipantApplications] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
   const [volunteerApplications, setVolunteerApplications] = useState<any[]>([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -26,8 +27,9 @@ export default function CabinetApplicationsPage() {
     if (!user) return;
     setLoadingData(true);
     setError('');
-    Promise.all([eventsApi.myTeams(), eventsApi.myVolunteerApplications()])
-      .then(([teamResult, volunteerResult]) => {
+    Promise.all([eventsApi.myApplications(), eventsApi.myTeams(), eventsApi.myVolunteerApplications()])
+      .then(([participantResult, teamResult, volunteerResult]) => {
+        setParticipantApplications(participantResult.applications || []);
         setTeams(teamResult.teams || []);
         setVolunteerApplications(volunteerResult.applications || []);
       })
@@ -38,11 +40,29 @@ export default function CabinetApplicationsPage() {
   if (loading || !user) return null;
 
   const formatDate = (date: string) => new Date(date).toLocaleDateString(locale === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' });
-  const toneByStatus: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> = { ACTIVE: 'success', PENDING: 'warning', REJECTED: 'danger', ACCEPTED: 'success' };
+  const statusLabel = (status: string) => {
+    const ru: Record<string, string> = {
+      PENDING: 'На рассмотрении',
+      ACTIVE: 'Одобрено',
+      RESERVE: 'В резерве',
+      REJECTED: 'Отклонено',
+      CANCELLED: 'Отменено',
+      REMOVED: 'Удалено',
+    };
+    const en: Record<string, string> = {
+      PENDING: 'Pending',
+      ACTIVE: 'Approved',
+      RESERVE: 'Reserve',
+      REJECTED: 'Rejected',
+      CANCELLED: 'Cancelled',
+      REMOVED: 'Removed',
+    };
+    return (locale === 'ru' ? ru : en)[status] ?? status;
+  };
 
   return (
     <div className="signal-page-shell cabinet-workspace-page workspace-page-v2">
-      <PageHeader title={locale === 'ru' ? 'Заявки и статусы' : 'Applications and statuses'} subtitle={locale === 'ru' ? 'Командные и волонтёрские треки в едином рабочем виде' : 'Team and volunteer tracks in one operational view'} />
+      <PageHeader title={locale === 'ru' ? 'Заявки и статусы' : 'Applications and statuses'} subtitle={locale === 'ru' ? 'Путь заявки: профиль, precheck, подача, решение организатора' : 'Application path: profile, precheck, submit, organizer decision'} />
 
       <div className="workspace-command-row">
         <Link href={`/${locale}/cabinet/events`} className="signal-chip-link">{locale === 'ru' ? 'Открыть каталог событий' : 'Open event catalog'}</Link>
@@ -50,9 +70,11 @@ export default function CabinetApplicationsPage() {
       </div>
 
       <div className="workspace-status-strip workspace-status-strip-v2">
+        <div className="workspace-status-card"><small>{locale === 'ru' ? 'Заявки участника' : 'Participant applications'}</small><strong>{participantApplications.length}</strong></div>
+        <div className="workspace-status-card"><small>{locale === 'ru' ? 'На рассмотрении' : 'Pending'}</small><strong>{participantApplications.filter((item) => item.status === 'PENDING').length}</strong></div>
+        <div className="workspace-status-card"><small>{locale === 'ru' ? 'Одобрено' : 'Approved'}</small><strong>{participantApplications.filter((item) => item.status === 'ACTIVE').length}</strong></div>
         <div className="workspace-status-card"><small>{locale === 'ru' ? 'Командные заявки' : 'Team statuses'}</small><strong>{teams.length}</strong></div>
         <div className="workspace-status-card"><small>{locale === 'ru' ? 'Волонтёрские заявки' : 'Volunteer statuses'}</small><strong>{volunteerApplications.length}</strong></div>
-        <div className="workspace-status-card"><small>{locale === 'ru' ? 'Рабочий контур' : 'Operational loop'}</small><strong>{locale === 'ru' ? 'Отслеживание в одном месте' : 'Tracking in one place'}</strong></div>
       </div>
 
       {loadingData ? <LoadingLines rows={8} /> : null}
@@ -60,6 +82,34 @@ export default function CabinetApplicationsPage() {
 
       {!loadingData && !error ? (
         <div className="workspace-board-grid">
+          <Panel variant="elevated" className="cabinet-workspace-panel workspace-board-column">
+            <SectionHeader title={locale === 'ru' ? 'Заявки на участие' : 'Participant applications'} />
+            {participantApplications.length === 0 ? <EmptyState title={locale === 'ru' ? 'Заявок пока нет' : 'No applications yet'} description={locale === 'ru' ? 'Подайте заявку со страницы события после заполнения профиля.' : 'Submit from an event page after completing your profile.'} /> : (
+              <div className="signal-stack cabinet-list-stack cabinet-list-stack-premium">
+                {participantApplications.map((application: any) => {
+                  const href = application.status === 'ACTIVE'
+                    ? `/${locale}/cabinet/my-events/${application.event?.slug || ''}`
+                    : `/${locale}/events/${application.event?.slug || ''}`;
+                  return (
+                    <Link key={application.id} href={href} className="signal-ranked-item cabinet-list-item">
+                      <div>
+                        <strong>{application.event?.title || 'Event'}</strong>
+                        <div className="signal-muted">
+                          {statusLabel(application.status)} · {application.assignedAt ? formatDate(application.assignedAt) : ''}
+                        </div>
+                      </div>
+                      <span className="signal-chip-link">
+                        {application.status === 'ACTIVE'
+                          ? (locale === 'ru' ? 'Workspace' : 'Workspace')
+                          : (locale === 'ru' ? 'Страница события' : 'Event page')}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </Panel>
+
           <Panel variant="elevated" className="cabinet-workspace-panel workspace-board-column">
             <SectionHeader title={locale === 'ru' ? 'Командные заявки' : 'Team memberships'} />
             {teams.length === 0 ? <EmptyState title={locale === 'ru' ? 'Команд пока нет' : 'No teams yet'} description={locale === 'ru' ? 'После вступления в команду статус появится здесь.' : 'After joining a team, status will appear here.'} /> : (

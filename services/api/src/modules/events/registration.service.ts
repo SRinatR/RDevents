@@ -1,6 +1,7 @@
 import { prisma } from '../../db/prisma.js';
 import type { Prisma } from '@prisma/client';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
+import { getProfileSnapshot } from '../auth/profile.snapshot.js';
 import {
   notifyParticipantAnswersUpdated,
   notifyParticipantApplicationSubmitted,
@@ -21,6 +22,30 @@ const PROFILE_FIELD_LABELS: Record<string, string> = {
   birthDate: 'Date of birth',
   avatarUrl: 'Avatar',
   bio: 'Bio',
+  lastNameCyrillic: 'Last name (Cyrillic)',
+  firstNameCyrillic: 'First name (Cyrillic)',
+  middleNameCyrillic: 'Middle name (Cyrillic)',
+  lastNameLatin: 'Last name (Latin)',
+  firstNameLatin: 'First name (Latin)',
+  middleNameLatin: 'Middle name (Latin)',
+  gender: 'Gender',
+  citizenshipCountryCode: 'Citizenship',
+  residenceCountryCode: 'Residence country',
+  regionId: 'Region',
+  districtId: 'District',
+  settlementId: 'Settlement',
+  street: 'Street',
+  house: 'House',
+  postalCode: 'Postal code',
+  domesticDocumentComplete: 'Domestic document',
+  internationalPassportComplete: 'International passport',
+  personalDocumentsComplete: 'Personal documents',
+  contactDataComplete: 'Contact data',
+  activityStatus: 'Activity status',
+  organizationName: 'Organization',
+  activityDirections: 'Activity directions',
+  englishLevel: 'English level',
+  russianLevel: 'Russian level',
 };
 
 const EVENT_FIELD_LABELS: Record<string, string> = {
@@ -114,23 +139,7 @@ export async function getRegistrationPrecheck(
     prisma.eventMember.findUnique({
       where: { eventId_userId_role: { eventId, userId, role: 'PARTICIPANT' } },
     }),
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        phone: true,
-        city: true,
-        factualAddress: true,
-        telegram: true,
-        nativeLanguage: true,
-        communicationLanguage: true,
-        birthDate: true,
-        avatarUrl: true,
-        avatarAssetId: true,
-        bio: true,
-      },
-    }),
+    getProfileSnapshot(userId),
     prisma.eventRegistrationFormSubmission.findUnique({
       where: { eventId_userId: { eventId, userId } },
       select: { answersJson: true },
@@ -141,7 +150,10 @@ export async function getRegistrationPrecheck(
   if (existing && ACTIVE_MEMBER_STATUSES.includes(existing.status as any) && !options.allowExistingParticipant) {
     throw new Error('ALREADY_REGISTERED');
   }
-  if (participantCount >= event.capacity && !existing) throw new Error('EVENT_FULL');
+  const eventAny = event as any;
+  const target = eventAny.participantTarget ?? event.capacity;
+  const isStrictLimit = eventAny.participantLimitMode === 'STRICT_LIMIT';
+  if (isStrictLimit && participantCount >= target && !existing) throw new Error('EVENT_FULL');
 
   const answers = {
     ...normalizeAnswers(storedAnswers?.answersJson as Record<string, unknown> | undefined),
@@ -191,9 +203,6 @@ export interface RegistrationResult {
 export async function registerForEvent(eventId: string, userId: string, answers?: Record<string, unknown>): Promise<RegistrationResult> {
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) throw new Error('EVENT_NOT_FOUND');
-  if (event.isTeamBased && !event.allowSoloParticipation) {
-    throw new Error('EVENT_REQUIRES_TEAM');
-  }
 
   // Check timing gates
   if (event.status !== 'PUBLISHED') throw new Error('EVENT_NOT_AVAILABLE');
@@ -241,6 +250,7 @@ export async function registerForEvent(eventId: string, userId: string, answers?
   // Require approval mode - create PENDING application
   if (eventAny.requireParticipantApproval) {
     const precheck = await assertRegistrationRequirements(eventId, userId, answers);
+    let savedMembership: { id: string; status: string; role: string } | undefined;
     
     await prisma.$transaction(async (tx: any) => {
       if (event.requiredEventFields.length > 0) {
@@ -259,7 +269,7 @@ export async function registerForEvent(eventId: string, userId: string, answers?
       }
 
       if (existing) {
-        await tx.eventMember.update({
+        savedMembership = await tx.eventMember.update({
           where: { id: existing.id },
           data: {
             status: 'PENDING',
@@ -268,9 +278,10 @@ export async function registerForEvent(eventId: string, userId: string, answers?
             rejectedAt: null,
             removedAt: null,
           },
+          select: { id: true, status: true, role: true },
         });
       } else {
-        await tx.eventMember.create({
+        savedMembership = await tx.eventMember.create({
           data: {
             eventId,
             userId,
@@ -278,6 +289,7 @@ export async function registerForEvent(eventId: string, userId: string, answers?
             status: 'PENDING',
             assignedByUserId: userId,
           },
+          select: { id: true, status: true, role: true },
         });
       }
     });
@@ -286,6 +298,7 @@ export async function registerForEvent(eventId: string, userId: string, answers?
 
     return {
       status: 'PENDING',
+      membership: savedMembership,
       participantCount: activeCount,
       participantTarget: target,
       message: 'Application submitted for review',
@@ -294,6 +307,7 @@ export async function registerForEvent(eventId: string, userId: string, answers?
 
   // Auto-approve (no approval required)
   const precheck = await assertRegistrationRequirements(eventId, userId, answers);
+  let savedMembership: { id: string; status: string; role: string } | undefined;
 
   await prisma.$transaction(async (tx: any) => {
     if (event.requiredEventFields.length > 0) {
@@ -312,7 +326,7 @@ export async function registerForEvent(eventId: string, userId: string, answers?
     }
 
     if (existing) {
-      await tx.eventMember.update({
+      savedMembership = await tx.eventMember.update({
         where: { id: existing.id },
         data: {
           status: 'ACTIVE',
@@ -321,9 +335,10 @@ export async function registerForEvent(eventId: string, userId: string, answers?
           rejectedAt: null,
           removedAt: null,
         },
+        select: { id: true, status: true, role: true },
       });
     } else {
-      await tx.eventMember.create({
+      savedMembership = await tx.eventMember.create({
         data: {
           eventId,
           userId,
@@ -332,6 +347,7 @@ export async function registerForEvent(eventId: string, userId: string, answers?
           assignedByUserId: userId,
           approvedAt: new Date(),
         },
+        select: { id: true, status: true, role: true },
       });
     }
 
@@ -359,6 +375,7 @@ export async function registerForEvent(eventId: string, userId: string, answers?
 
   return {
     status: goalReached ? 'GOAL_REACHED' : 'ACTIVE',
+    membership: savedMembership,
     participantCount: newActiveCount,
     participantTarget: target,
     goalReached,

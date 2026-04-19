@@ -283,6 +283,14 @@ authRouter.patch('/profile', authenticate, async (req, res) => {
       res.status(400).json({ error: 'Введите Telegram username от 5 до 32 символов.' });
       return;
     }
+    if (err.message === 'MEDIA_ASSET_NOT_FOUND') {
+      res.status(400).json({ error: 'Uploaded document was not found' });
+      return;
+    }
+    if (err.message === 'INVALID_DATE') {
+      res.status(400).json({ error: 'Invalid date value' });
+      return;
+    }
     throw err;
   }
 });

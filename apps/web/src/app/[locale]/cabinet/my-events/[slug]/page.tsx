@@ -4,7 +4,7 @@ import { use, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../../../hooks/useAuth';
-import { eventsApi } from '../../../../../lib/api';
+import { ApiError, eventsApi } from '../../../../../lib/api';
 import { useRouteLocale } from '../../../../../hooks/useRouteParams';
 import { EmptyState, FieldInput, Notice, PageHeader, Panel, SectionHeader, ToolbarRow } from '@/components/ui/signal-primitives';
 
@@ -16,12 +16,15 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
 
   const [event, setEvent] = useState<any>(null);
   const [eventLoading, setEventLoading] = useState(true);
+  const [accessError, setAccessError] = useState('');
   const [activeTab, setActiveTab] = useState('info');
 
   const [teamState, setTeamState] = useState<'IDLE' | 'CREATING' | 'JOINING'>('IDLE');
   const [teamName, setTeamName] = useState('');
+  const [teamDescription, setTeamDescription] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [teamError, setTeamError] = useState('');
+  const [teamSuccess, setTeamSuccess] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
@@ -30,27 +33,53 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
 
   useEffect(() => {
     if (!user || !slug) return;
-    eventsApi.get(slug)
+    setAccessError('');
+    eventsApi.myEventWorkspace(slug)
       .then((response) => setEvent(response.event))
-      .catch(() => router.push(`/${locale}/cabinet/my-events`))
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 403) {
+          setAccessError(locale === 'ru'
+            ? 'Рабочее пространство события откроется после одобрения заявки организатором.'
+            : 'The event workspace opens after organizer approval.');
+          return;
+        }
+        router.push(`/${locale}/cabinet/my-events`);
+      })
       .finally(() => setEventLoading(false));
   }, [user, slug, router, locale]);
 
   if (loading || !user) return null;
   if (eventLoading) return <div className="signal-page-shell"><Panel><SectionHeader title={locale === 'ru' ? 'Загрузка мероприятия...' : 'Loading event...'} /></Panel></div>;
+  if (accessError) {
+    return (
+      <div className="signal-page-shell cabinet-workspace-page workspace-page-v2">
+        <EmptyState
+          title={locale === 'ru' ? 'Workspace пока закрыт' : 'Workspace is locked'}
+          description={accessError}
+          actions={<Link href={`/${locale}/cabinet/applications`} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Проверить заявки' : 'Check applications'}</Link>}
+        />
+      </div>
+    );
+  }
   if (!event) return null;
 
   const myTeam = event.teamMembership?.team;
   const isVolunteer = event.memberships?.find((membership: any) => membership.role === 'VOLUNTEER');
-  const isActiveParticipation = event.isRegistered || Boolean(myTeam);
+  const participantMembership = event.participantMembership ?? event.memberships?.find((membership: any) => membership.role === 'PARTICIPANT');
+  const isActiveParticipation = participantMembership?.status === 'ACTIVE';
+  const eventEnded = event.endsAt ? new Date(event.endsAt).getTime() <= Date.now() : false;
 
   async function handleCreateTeam() {
     if (!user) return;
     setActionLoading(true);
     setTeamError('');
+    setTeamSuccess('');
     try {
-      const result = await eventsApi.createTeam(event.id, { name: teamName });
-      setEvent((previous: any) => ({ ...previous, teamMembership: { team: result.team, role: 'CAPTAIN', status: 'ACTIVE' } }));
+      const result = await eventsApi.createTeam(event.id, { name: teamName, description: teamDescription });
+      const { team } = await eventsApi.getTeam(event.id, result.team.id);
+      setEvent((previous: any) => ({ ...previous, teamMembership: { team, role: 'CAPTAIN', status: 'ACTIVE' } }));
+      setTeamName('');
+      setTeamDescription('');
       setTeamState('IDLE');
     } catch (err: any) {
       setTeamError(err.message || 'Ошибка создания команды');
@@ -63,13 +92,58 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
     if (!user) return;
     setActionLoading(true);
     setTeamError('');
+    setTeamSuccess('');
     try {
       const { member } = await eventsApi.joinTeamByCode(event.id, joinCode);
       const { team } = await eventsApi.getTeam(event.id, member.teamId);
-      setEvent((previous: any) => ({ ...previous, teamMembership: { team, role: 'MEMBER', status: member.status } }));
+      setEvent((previous: any) => member.isChangeRequest
+        ? previous
+        : ({ ...previous, teamMembership: { team, role: 'MEMBER', status: member.status } }));
+      setTeamSuccess(member.isChangeRequest
+        ? (locale === 'ru' ? 'Заявка на изменение состава отправлена администратору.' : 'Team roster change request sent to admin.')
+        : (locale === 'ru' ? 'Вы вступили в команду. Если команда ещё не утверждена, капитан отправит состав на проверку.' : 'You joined the team. If it is not approved yet, captain will submit it for review.'));
       setTeamState('IDLE');
     } catch (err: any) {
       setTeamError(err.message || 'Ошибка вступления');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleSubmitTeam() {
+    if (!user || !myTeam) return;
+    setActionLoading(true);
+    setTeamError('');
+    setTeamSuccess('');
+    try {
+      await eventsApi.submitTeamForApproval(event.id, myTeam.id);
+      const { team } = await eventsApi.getTeam(event.id, myTeam.id);
+      setEvent((previous: any) => ({ ...previous, teamMembership: { ...(previous.teamMembership ?? {}), team } }));
+      setTeamSuccess(locale === 'ru' ? 'Команда зафиксирована и отправлена администратору на утверждение.' : 'Team snapshot fixed and sent for admin approval.');
+    } catch (err: any) {
+      setTeamError(err.message || (locale === 'ru' ? 'Не удалось отправить команду' : 'Failed to submit team'));
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleTeamChangeRequest() {
+    if (!user || !myTeam) return;
+    setActionLoading(true);
+    setTeamError('');
+    setTeamSuccess('');
+    try {
+      await eventsApi.updateTeam(event.id, myTeam.id, {
+        name: teamName.trim() || myTeam.name,
+        description: teamDescription,
+      });
+      const { team } = await eventsApi.getTeam(event.id, myTeam.id);
+      setEvent((previous: any) => ({ ...previous, teamMembership: { ...(previous.teamMembership ?? {}), team } }));
+      setTeamName('');
+      setTeamDescription('');
+      setTeamSuccess(locale === 'ru' ? 'Заявка на изменение команды отправлена администратору.' : 'Team change request sent to admin.');
+    } catch (err: any) {
+      setTeamError(err.message || (locale === 'ru' ? 'Не удалось отправить изменения' : 'Failed to submit changes'));
     } finally {
       setActionLoading(false);
     }
@@ -88,7 +162,9 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
       <div className="workspace-tab-row">
         <button onClick={() => setActiveTab('info')} className={`signal-chip-link ${activeTab === 'info' ? 'active' : ''}`}>{locale === 'ru' ? 'Обзор' : 'Overview'}</button>
         {event.isTeamBased ? <button onClick={() => setActiveTab('team')} className={`signal-chip-link ${activeTab === 'team' ? 'active' : ''}`}>{locale === 'ru' ? 'Команда' : 'Team'}</button> : null}
-        <button onClick={() => setActiveTab('volunteer')} className={`signal-chip-link ${activeTab === 'volunteer' ? 'active' : ''}`}>{locale === 'ru' ? 'Волонтёрство' : 'Volunteer'}</button>
+        <button onClick={() => setActiveTab('history')} className={`signal-chip-link ${activeTab === 'history' ? 'active' : ''}`}>{locale === 'ru' ? 'История' : 'History'}</button>
+        <button onClick={() => setActiveTab('media')} className={`signal-chip-link ${activeTab === 'media' ? 'active' : ''}`}>Media</button>
+        <button onClick={() => setActiveTab('feedback')} className={`signal-chip-link ${activeTab === 'feedback' ? 'active' : ''}`}>{locale === 'ru' ? 'Отзыв' : 'Feedback'}</button>
       </div>
 
       {activeTab === 'info' ? (
@@ -107,8 +183,52 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
           <SectionHeader title={locale === 'ru' ? 'Командный модуль' : 'Team module'} />
           {myTeam ? (
             <div className="signal-stack">
-              <Notice tone="success">{locale === 'ru' ? 'Вы состоите в команде' : 'You are in team'}: {myTeam.name}</Notice>
-              <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Код приглашения' : 'Invite code'}</span></div>
+              <Notice tone={myTeam.status === 'ACTIVE' ? 'success' : myTeam.status === 'PENDING' || myTeam.status === 'CHANGES_PENDING' ? 'warning' : 'info'}>
+                {locale === 'ru' ? 'Команда' : 'Team'}: {myTeam.name} · {formatTeamStatus(myTeam.status, locale)}
+              </Notice>
+              <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Код приглашения' : 'Invite code'}</span><strong>{myTeam.joinCode ?? '—'}</strong></div>
+              {myTeam.changeRequests?.[0] ? (
+                <Notice tone="warning">
+                  {locale === 'ru'
+                    ? 'Есть заявка на утверждение. До решения администратора состав и параметры зафиксированы.'
+                    : 'Approval request is pending. Roster and settings are locked until admin decision.'}
+                </Notice>
+              ) : null}
+              {myTeam.members?.length ? (
+                <div className="signal-stack">
+                  {myTeam.members.map((member: any) => (
+                    <div key={member.id} className="signal-ranked-item">
+                      <span>{member.user?.name ?? member.user?.email ?? '—'}</span>
+                      <strong>{member.role} · {member.status}</strong>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {['DRAFT', 'REJECTED'].includes(myTeam.status) ? (
+                <ToolbarRow>
+                  <button onClick={handleSubmitTeam} disabled={actionLoading} className="btn btn-primary btn-sm">
+                    {locale === 'ru' ? 'Команда готова, отправить на утверждение' : 'Team ready, submit for approval'}
+                  </button>
+                </ToolbarRow>
+              ) : null}
+              {myTeam.status === 'ACTIVE' ? (
+                <div className="signal-stack">
+                  <Notice tone="info">
+                    {locale === 'ru'
+                      ? 'Команда утверждена и заблокирована. Любое изменение отправляется как заявка, прежнее состояние сохраняется до решения администратора.'
+                      : 'Team is approved and locked. Any edit is submitted as a request while the approved state stays unchanged.'}
+                  </Notice>
+                  <FieldInput value={teamName} onChange={(event) => setTeamName(event.target.value)} placeholder={locale === 'ru' ? 'Новое название команды' : 'New team name'} />
+                  <FieldInput value={teamDescription} onChange={(event) => setTeamDescription(event.target.value)} placeholder={locale === 'ru' ? 'Комментарий к изменению' : 'Change comment'} />
+                  <ToolbarRow>
+                    <button onClick={handleTeamChangeRequest} disabled={actionLoading} className="btn btn-secondary btn-sm">
+                      {locale === 'ru' ? 'Подать изменение' : 'Submit change request'}
+                    </button>
+                  </ToolbarRow>
+                </div>
+              ) : null}
+              {teamSuccess ? <Notice tone="success">{teamSuccess}</Notice> : null}
+              {teamError ? <Notice tone="danger">{teamError}</Notice> : null}
             </div>
           ) : (
             <div className="signal-stack">
@@ -122,6 +242,7 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
               {teamState === 'CREATING' ? (
                 <div className="signal-stack">
                   <FieldInput value={teamName} onChange={(event) => setTeamName(event.target.value)} placeholder={locale === 'ru' ? 'Название команды' : 'Team name'} />
+                  <FieldInput value={teamDescription} onChange={(event) => setTeamDescription(event.target.value)} placeholder={locale === 'ru' ? 'Описание / комментарий' : 'Description / comment'} />
                   <ToolbarRow>
                     <button onClick={handleCreateTeam} disabled={actionLoading || !teamName.trim()} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Создать' : 'Create'}</button>
                     <button onClick={() => setTeamState('IDLE')} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Отмена' : 'Cancel'}</button>
@@ -139,8 +260,45 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
                 </div>
               ) : null}
 
+              {teamSuccess ? <Notice tone="success">{teamSuccess}</Notice> : null}
               {teamError ? <Notice tone="danger">{teamError}</Notice> : null}
             </div>
+          )}
+        </Panel>
+      ) : null}
+
+      {activeTab === 'history' ? (
+        <Panel variant="elevated" className="workspace-event-panel">
+          <SectionHeader title={locale === 'ru' ? 'История участия' : 'Participation history'} />
+          <div className="signal-stack">
+            {event.memberships?.map((membership: any) => (
+              <div key={membership.id ?? `${membership.role}-${membership.status}`} className="signal-ranked-item">
+                <span>{membership.role} · {membership.status}</span>
+                <strong>{membership.assignedAt ? new Date(membership.assignedAt).toLocaleString(locale === 'ru' ? 'ru-RU' : 'en-US') : '—'}</strong>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
+
+      {activeTab === 'media' ? (
+        <Panel variant="elevated" className="workspace-event-panel">
+          <SectionHeader title={locale === 'ru' ? 'Медиа события' : 'Event media'} />
+          {eventEnded ? (
+            <EmptyState title={locale === 'ru' ? 'Медиа пока не загружены' : 'No media yet'} description={locale === 'ru' ? 'После публикации организатором материалы появятся здесь.' : 'Organizer-published materials will appear here.'} />
+          ) : (
+            <Notice tone="info">{locale === 'ru' ? 'Медиа откроются после завершения события.' : 'Media opens after the event ends.'}</Notice>
+          )}
+        </Panel>
+      ) : null}
+
+      {activeTab === 'feedback' ? (
+        <Panel variant="elevated" className="workspace-event-panel">
+          <SectionHeader title={locale === 'ru' ? 'Отзыв участника' : 'Participant feedback'} />
+          {eventEnded ? (
+            <EmptyState title={locale === 'ru' ? 'Форма отзыва скоро появится' : 'Feedback form is coming soon'} description={locale === 'ru' ? 'Здесь будет post-event форма для оценки и комментариев.' : 'A post-event rating and comments form will live here.'} />
+          ) : (
+            <Notice tone="info">{locale === 'ru' ? 'Отзыв можно будет оставить после завершения события.' : 'Feedback opens after the event ends.'}</Notice>
           )}
         </Panel>
       ) : null}
@@ -157,4 +315,24 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
       ) : null}
     </div>
   );
+}
+
+function formatTeamStatus(status: string | null | undefined, locale: string) {
+  const ru: Record<string, string> = {
+    DRAFT: 'Черновик',
+    PENDING: 'На утверждении',
+    CHANGES_PENDING: 'Изменения на утверждении',
+    ACTIVE: 'Утверждена',
+    REJECTED: 'Нужны правки',
+    ARCHIVED: 'Архив',
+  };
+  const en: Record<string, string> = {
+    DRAFT: 'Draft',
+    PENDING: 'Pending approval',
+    CHANGES_PENDING: 'Changes pending',
+    ACTIVE: 'Approved',
+    REJECTED: 'Needs changes',
+    ARCHIVED: 'Archived',
+  };
+  return (locale === 'ru' ? ru : en)[status ?? ''] ?? (status ?? '—');
 }
