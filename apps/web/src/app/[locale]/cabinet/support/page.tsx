@@ -64,7 +64,7 @@ function SupportPageInner() {
             : 'Your tickets and correspondence with the support team'
         }
         actions={
-          !showNewForm ? (
+          threads.length > 0 && !showNewForm ? (
             <button className="btn btn-primary btn-sm" onClick={() => setShowNewForm(true)}>
               {locale === 'ru' ? 'Новое обращение' : 'New ticket'}
             </button>
@@ -79,6 +79,7 @@ function SupportPageInner() {
         </Panel>
       )}
 
+      {(threadsLoading || !!error || threads.length > 0 || !showNewForm) && (
       <Panel variant="elevated" className="cabinet-workspace-panel">
         {threadsLoading ? (
           <LoadingLines rows={5} />
@@ -106,6 +107,7 @@ function SupportPageInner() {
           </div>
         )}
       </Panel>
+      )}
     </div>
   );
 }
