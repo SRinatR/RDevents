@@ -6,10 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
 import { adminApi } from '@/lib/api';
-import { EmptyState, FieldInput, FieldSelect, LoadingLines, MetricCard, Notice, Panel, SectionHeader, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
-import { EventNotFound, EventWorkspaceHeader, formatAdminDateTime, memberStatusTone, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
-
-const STATUS_FILTERS = ['ALL', 'PENDING', 'ACTIVE', 'RESERVE', 'REJECTED', 'CANCELLED', 'REMOVED'] as const;
+import { EmptyState, FieldInput, LoadingLines, MetricCard, Notice, Panel, SectionHeader, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EventNotFound, EventWorkspaceHeader, formatAdminDateTime, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
 
 type ParticipantMember = {
   id: string;
@@ -36,12 +34,9 @@ export default function EventParticipantsPage() {
   const [event, setEvent] = useState<AdminEventRecord | null>(null);
   const [participants, setParticipants] = useState<ParticipantMember[]>([]);
   const [loadingData, setLoadingData] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>('ALL');
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [actionId, setActionId] = useState<string | null>(null);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) router.push(`/${locale}`);
@@ -58,7 +53,7 @@ export default function EventParticipantsPage() {
         adminApi.listEventMembers(eventId),
       ]);
       setEvent(eventResult.data[0] ?? null);
-      setParticipants((membersResult.members ?? []).filter((member: ParticipantMember) => member.role === 'PARTICIPANT'));
+      setParticipants((membersResult.members ?? []).filter((member: ParticipantMember) => member.role === 'PARTICIPANT' && member.status === 'ACTIVE'));
     } catch (err: any) {
       setError(err.message || 'Failed to load participants');
       setParticipants([]);
@@ -74,39 +69,18 @@ export default function EventParticipantsPage() {
   const filteredParticipants = useMemo(() => {
     const normalized = search.trim().toLowerCase();
     return participants.filter((participant) => {
-      const statusMatches = statusFilter === 'ALL' || participant.status === statusFilter;
       const searchMatches = !normalized
         || participant.user?.name?.toLowerCase().includes(normalized)
         || participant.user?.email?.toLowerCase().includes(normalized)
         || participant.user?.city?.toLowerCase().includes(normalized);
-      return statusMatches && searchMatches;
+      return searchMatches;
     });
-  }, [participants, search, statusFilter]);
+  }, [participants, search]);
 
   const stats = useMemo(() => ({
     total: participants.length,
-    pending: participants.filter((member) => member.status === 'PENDING').length,
-    active: participants.filter((member) => member.status === 'ACTIVE').length,
-    reserve: participants.filter((member) => member.status === 'RESERVE').length,
-    rejected: participants.filter((member) => ['REJECTED', 'CANCELLED', 'REMOVED'].includes(member.status)).length,
+    active: participants.length,
   }), [participants]);
-
-  const updateStatus = async (memberId: string, nextStatus: 'ACTIVE' | 'RESERVE' | 'REJECTED' | 'CANCELLED') => {
-    if (!eventId) return;
-    setActionId(memberId);
-    setError('');
-    setSuccess('');
-
-    try {
-      await adminApi.updateParticipantStatus(eventId, memberId, { status: nextStatus });
-      setSuccess(locale === 'ru' ? 'Статус участника обновлён.' : 'Participant status updated.');
-      await loadData();
-    } catch (err: any) {
-      setError(err.message || 'Failed to update participant');
-    } finally {
-      setActionId(null);
-    }
-  };
 
   if (loading || !user || !isAdmin) return <div className="admin-loading-screen"><div className="spinner" /></div>;
   if (!loadingData && !event) return <EventNotFound locale={locale} />;
@@ -121,22 +95,18 @@ export default function EventParticipantsPage() {
       />
 
       {error ? <Notice tone="danger">{error}</Notice> : null}
-      {success ? <Notice tone="success">{success}</Notice> : null}
 
       {loadingData ? (
         <LoadingLines rows={8} />
       ) : (
         <>
           <div className="signal-kpi-grid">
-            <MetricCard tone="info" label={locale === 'ru' ? 'Всего' : 'Total'} value={stats.total} />
-            <MetricCard tone="warning" label={locale === 'ru' ? 'Ожидают' : 'Pending'} value={stats.pending} />
             <MetricCard tone="success" label={locale === 'ru' ? 'Подтверждены' : 'Approved'} value={stats.active} />
-            <MetricCard tone="info" label={locale === 'ru' ? 'Резерв' : 'Reserve'} value={stats.reserve} />
-            <MetricCard tone="danger" label={locale === 'ru' ? 'Закрыты' : 'Closed'} value={stats.rejected} />
+            <MetricCard tone="info" label={locale === 'ru' ? 'Всего в ростере' : 'Roster total'} value={stats.total} />
           </div>
 
           <Panel variant="elevated" className="admin-command-panel admin-data-panel">
-            <SectionHeader title={locale === 'ru' ? 'Список участников' : 'Participant list'} subtitle={locale === 'ru' ? 'Поиск, фильтры и модерация заявок выбранного события' : 'Search, filters, and moderation for the selected event'} />
+            <SectionHeader title={locale === 'ru' ? 'Список участников' : 'Participant list'} subtitle={locale === 'ru' ? 'Ростер подтверждённых участников выбранного события' : 'Roster of approved participants for the selected event'} />
 
             <ToolbarRow>
               <FieldInput
@@ -145,18 +115,12 @@ export default function EventParticipantsPage() {
                 placeholder={locale === 'ru' ? 'Поиск по имени, email или городу' : 'Search by name, email, or city'}
                 className="admin-filter-search"
               />
-              <FieldSelect value={statusFilter} onChange={(selectEvent) => setStatusFilter(selectEvent.target.value as (typeof STATUS_FILTERS)[number])} className="admin-filter-select">
-                {STATUS_FILTERS.map((status) => (
-                  <option key={status} value={status}>{status === 'ALL' ? (locale === 'ru' ? 'Все статусы' : 'All statuses') : status}</option>
-                ))}
-              </FieldSelect>
-              
             </ToolbarRow>
 
             {filteredParticipants.length === 0 ? (
               <EmptyState
                 title={locale === 'ru' ? 'Участники не найдены' : 'No participants found'}
-                description={locale === 'ru' ? 'Измените фильтры или дождитесь новых регистраций.' : 'Adjust filters or wait for new registrations.'}
+                description={locale === 'ru' ? 'Ростер обновится после одобрения заявок.' : 'Roster updates after applications are approved.'}
               />
             ) : (
               <TableShell>
@@ -179,20 +143,10 @@ export default function EventParticipantsPage() {
                             <div className="signal-muted">{participant.user?.email}</div>
                           </td>
                           <td>{participant.user?.city ?? '—'}</td>
-                          <td></td>
+                          <td>{locale === 'ru' ? 'Подтверждён' : 'Approved'}</td>
                           <td className="signal-muted">{formatAdminDateTime(participant.assignedAt, locale)}</td>
                           <td className="right">
                             <div className="signal-row-actions">
-                              {participant.status === 'PENDING' ? (
-                                <>
-                                  <button type="button" className="btn btn-primary btn-sm" disabled={actionId === participant.id} onClick={() => updateStatus(participant.id, 'ACTIVE')}>{locale === 'ru' ? 'Принять' : 'Approve'}</button>
-                                  <button type="button" className="btn btn-secondary btn-sm" disabled={actionId === participant.id} onClick={() => updateStatus(participant.id, 'RESERVE')}>{locale === 'ru' ? 'Резерв' : 'Reserve'}</button>
-                                  <button type="button" className="btn btn-danger btn-sm" disabled={actionId === participant.id} onClick={() => updateStatus(participant.id, 'REJECTED')}>{locale === 'ru' ? 'Отклонить' : 'Reject'}</button>
-                                </>
-                              ) : null}
-                              {participant.status === 'ACTIVE' || participant.status === 'RESERVE' ? (
-                                <button type="button" className="btn btn-ghost btn-sm" disabled={actionId === participant.id} onClick={() => updateStatus(participant.id, 'CANCELLED')}>{locale === 'ru' ? 'Отменить' : 'Cancel'}</button>
-                              ) : null}
                               <button type="button" className="btn btn-ghost btn-sm" onClick={() => setExpandedId(expandedId === participant.id ? null : participant.id)}>
                                 {expandedId === participant.id ? (locale === 'ru' ? 'Скрыть' : 'Hide') : (locale === 'ru' ? 'Анкета' : 'Form')}
                               </button>

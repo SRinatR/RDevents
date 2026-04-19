@@ -54,12 +54,34 @@ adminParticipantsRouter.get('/', async (req, res) => {
   }
 
   if (search) {
-    where['user'] = {
-      OR: [
-        { name: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-      ],
-    };
+    const normalizedSearch = search.trim();
+    const parsedDate = new Date(normalizedSearch);
+    const hasValidDate = !Number.isNaN(parsedDate.getTime());
+
+    const searchOr: Record<string, unknown>[] = [
+      { user: { name: { contains: normalizedSearch, mode: 'insensitive' } } },
+      { user: { email: { contains: normalizedSearch, mode: 'insensitive' } } },
+      { user: { city: { contains: normalizedSearch, mode: 'insensitive' } } },
+      { user: { firstNameCyrillic: { contains: normalizedSearch, mode: 'insensitive' } } },
+      { user: { lastNameCyrillic: { contains: normalizedSearch, mode: 'insensitive' } } },
+      { user: { middleNameCyrillic: { contains: normalizedSearch, mode: 'insensitive' } } },
+      { user: { firstNameLatin: { contains: normalizedSearch, mode: 'insensitive' } } },
+      { user: { lastNameLatin: { contains: normalizedSearch, mode: 'insensitive' } } },
+      { user: { middleNameLatin: { contains: normalizedSearch, mode: 'insensitive' } } },
+      { user: { fullNameCyrillic: { contains: normalizedSearch, mode: 'insensitive' } } },
+      { user: { fullNameLatin: { contains: normalizedSearch, mode: 'insensitive' } } },
+      { event: { title: { contains: normalizedSearch, mode: 'insensitive' } } },
+    ];
+
+    if (hasValidDate) {
+      const dayStart = new Date(parsedDate);
+      dayStart.setHours(0, 0, 0, 0);
+      const nextDay = new Date(dayStart);
+      nextDay.setDate(nextDay.getDate() + 1);
+      searchOr.push({ assignedAt: { gte: dayStart, lt: nextDay } });
+    }
+
+    where['OR'] = searchOr;
   }
 
   const [total, members] = await Promise.all([
@@ -67,8 +89,24 @@ adminParticipantsRouter.get('/', async (req, res) => {
     prisma.eventMember.findMany({
       where: where as any,
       include: {
-        user: { select: { id: true, name: true, email: true, avatarUrl: true } },
-        event: { select: { id: true, title: true, slug: true } },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            avatarUrl: true,
+            city: true,
+            firstNameCyrillic: true,
+            lastNameCyrillic: true,
+            middleNameCyrillic: true,
+            firstNameLatin: true,
+            lastNameLatin: true,
+            middleNameLatin: true,
+            fullNameCyrillic: true,
+            fullNameLatin: true,
+          },
+        },
+        event: { select: { id: true, title: true, slug: true, startsAt: true } },
       },
       orderBy: { assignedAt: 'desc' },
       skip: (page - 1) * limit,
@@ -76,15 +114,44 @@ adminParticipantsRouter.get('/', async (req, res) => {
     }),
   ]);
 
+  const submissionPairs = members.map((member) => ({ eventId: member.eventId, userId: member.userId }));
+  const submissions = submissionPairs.length > 0
+    ? await prisma.eventRegistrationFormSubmission.findMany({
+      where: {
+        OR: submissionPairs,
+      },
+      select: {
+        eventId: true,
+        userId: true,
+        answersJson: true,
+      },
+    })
+    : [];
+
+  const answersByPair = new Map<string, unknown>(
+    submissions.map((submission) => [`${submission.eventId}:${submission.userId}`, submission.answersJson]),
+  );
+
   const data = members.map(member => ({
     id: member.id,
     userId: member.userId,
     userName: member.user?.name ?? null,
     userEmail: member.user?.email ?? '',
+    userCity: member.user?.city ?? null,
+    firstNameCyrillic: member.user?.firstNameCyrillic ?? null,
+    lastNameCyrillic: member.user?.lastNameCyrillic ?? null,
+    middleNameCyrillic: member.user?.middleNameCyrillic ?? null,
+    firstNameLatin: member.user?.firstNameLatin ?? null,
+    lastNameLatin: member.user?.lastNameLatin ?? null,
+    middleNameLatin: member.user?.middleNameLatin ?? null,
+    fullNameCyrillic: member.user?.fullNameCyrillic ?? null,
+    fullNameLatin: member.user?.fullNameLatin ?? null,
     eventId: member.eventId,
     eventTitle: member.event?.title ?? '',
+    eventStartsAt: member.event?.startsAt ? member.event.startsAt.toISOString() : null,
     role: member.role,
     status: member.status,
+    answers: answersByPair.get(`${member.eventId}:${member.userId}`) ?? null,
     assignedAt: member.assignedAt.toISOString(),
   }));
 

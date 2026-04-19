@@ -129,6 +129,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       {
         label: 'Platform',
         items: [
+          { href: `/${locale}/admin/applications`, label: locale === 'ru' ? 'Приём заявок' : 'Application intake', icon: <HandshakeIcon />, allow: true },
           { href: `/${locale}/admin`, label: t('admin.title'), icon: <DashboardIcon />, allow: true },
           { href: `/${locale}/admin/events`, label: t('admin.events'), icon: <CalendarIcon />, allow: true },
           { href: `/${locale}/admin/analytics`, label: t('admin.analytics'), icon: <ChartIcon />, allow: true },
