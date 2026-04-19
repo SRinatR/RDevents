@@ -1,3 +1,5 @@
+'use client';
+
 import type { ReactNode } from 'react';
 import { AdminShell } from '@/components/admin/AdminShell';
 
