@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import { AuthProvider, EventStatus, PrismaClient, UserRole } from '@prisma/client';
+import { AuthProvider, EventStatus, ParticipantLimitMode, PrismaClient, UserRole } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import argon2 from 'argon2';
 import pg from 'pg';
@@ -258,33 +258,43 @@ async function main() {
     ],
   });
 
-  const singleEvent = await prisma.event.create({
-    data: {
-      slug: 'dom-gde-zhivet-rossiya',
-      title: 'Дом, где живёт Россия',
-      shortDescription: 'Культурный квест по шести пространствам Русского дома с финальным маршрутом и праздничным награждением.',
-      fullDescription: `Квест создаётся как живое путешествие по русской культуре. Участники получают «Паспорт гостя Русского дома» и проходят шесть культурных пространств. Каждая станция раскрывает отдельную грань общей идеи — дом как место языка, традиций, музыки, творчества, общения и характера.
+  const singleEventPayload = {
+    title: 'Дом, где живёт Россия',
+    shortDescription: 'Культурный квест по шести пространствам Русского дома с финальным маршрутом и праздничным награждением.',
+    fullDescription: `Квест создаётся как живое путешествие по русской культуре. Участники получают «Паспорт гостя Русского дома» и проходят шесть культурных пространств. Каждая станция раскрывает отдельную грань общей идеи — дом как место языка, традиций, музыки, творчества, общения и характера.
 
 Команда строго из 5 человек — не больше и не меньше. Для участников предусмотрено 60+ мест, возраст участия — до 30 лет.
 
 После прохождения всех точек команда открывает финальную страницу маршрута, участвует в награждении и становится частью общего праздничного события к юбилею Русского дома.`,
-      category: 'Community',
-      location: 'Центральный Парк имени Мирзо Улугбека',
-      coverImageUrl: '/dom-gde-zhivet-rossiya.jpg',
-      capacity: 60,
-      startsAt: new Date('2026-05-03T06:00:00Z'),
-      endsAt: new Date('2026-05-03T11:00:00Z'),
-      registrationDeadline: new Date('2026-05-02T18:00:00Z'),
-      registrationEnabled: true,
-      volunteerApplicationsEnabled: false,
-      allowSoloParticipation: true,
-      isTeamBased: true,
-      tags: ['квест', 'культура', 'русский-дом'],
-      contactEmail: 'platform@example.com',
-      status: EventStatus.PUBLISHED,
-      isFeatured: true,
-      publishedAt: new Date(),
-      createdById: superAdmin.id,
+    category: 'Community',
+    location: 'Центральный Парк имени Мирзо Улугбека',
+    coverImageUrl: '/dom-gde-zhivet-rossiya.jpg',
+    capacity: 120,
+    startsAt: new Date('2026-05-03T06:00:00Z'),
+    endsAt: new Date('2026-05-03T11:00:00Z'),
+    registrationDeadline: new Date('2026-05-02T18:00:00Z'),
+    registrationEnabled: true,
+    volunteerApplicationsEnabled: false,
+    allowSoloParticipation: true,
+    isTeamBased: true,
+    minTeamSize: 5,
+    maxTeamSize: 5,
+    participantLimitMode: ParticipantLimitMode.GOAL_LIMIT,
+    participantTarget: 60,
+    tags: ['квест', 'культура', 'русский-дом'],
+    contactEmail: 'platform@example.com',
+    status: EventStatus.PUBLISHED,
+    isFeatured: true,
+    publishedAt: new Date(),
+    createdById: superAdmin.id,
+  };
+
+  const singleEvent = await prisma.event.upsert({
+    where: { slug: 'dom-gde-zhivet-rossiya' },
+    update: singleEventPayload,
+    create: {
+      slug: 'dom-gde-zhivet-rossiya',
+      ...singleEventPayload,
     },
   });
 
