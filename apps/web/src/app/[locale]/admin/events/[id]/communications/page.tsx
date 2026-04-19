@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
 import { adminApi } from '@/lib/api';
-import { EmptyState, LoadingLines, MetricCard, Notice, Panel, SectionHeader, StatusBadge } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, MetricCard, Notice, Panel, SectionHeader } from '@/components/ui/signal-primitives';
 import { EventNotFound, EventWorkspaceHeader, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
 
 export default function EventCommunicationsPage() {
@@ -86,10 +86,10 @@ export default function EventCommunicationsPage() {
             <Panel variant="elevated" className="admin-command-panel">
               <SectionHeader title={locale === 'ru' ? 'Сегменты аудитории' : 'Audience segments'} subtitle={locale === 'ru' ? 'Быстрые группы для будущих event-scoped рассылок' : 'Quick groups for future event-scoped messaging'} />
               <div className="admin-funnel-list">
-                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Подтверждённые участники' : 'Approved participants'}</span><StatusBadge tone="success">{audience.participants}</StatusBadge></div>
-                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Ожидающие участники' : 'Pending participants'}</span><StatusBadge tone="warning">{audience.pendingParticipants}</StatusBadge></div>
-                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Активные волонтёры' : 'Active volunteers'}</span><StatusBadge tone="info">{audience.volunteers}</StatusBadge></div>
-                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Администраторы события' : 'Event admins'}</span><StatusBadge tone="neutral">{audience.eventAdmins}</StatusBadge></div>
+                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Подтверждённые участники' : 'Approved participants'}</span></div>
+                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Ожидающие участники' : 'Pending participants'}</span></div>
+                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Активные волонтёры' : 'Active volunteers'}</span></div>
+                <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Администраторы события' : 'Event admins'}</span></div>
               </div>
             </Panel>
 

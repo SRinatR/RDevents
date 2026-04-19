@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { EmptyState, PageHeader, StatusBadge } from '@/components/ui/signal-primitives';
+import { EmptyState, PageHeader } from '@/components/ui/signal-primitives';
 
 export type AdminEventRecord = {
   id: string;
@@ -71,7 +71,6 @@ export function EventWorkspaceHeader({
       subtitle={subtitle ?? event?.title ?? ''}
       actions={(
         <div className="admin-event-page-actions">
-          {event?.status ? <StatusBadge tone={eventStatusTone(event.status)}>{event.status}</StatusBadge> : null}
           {actions}
           {event?.slug ? <Link href={`/${locale}/events/${event.slug}`} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Публичная' : 'Public'}</Link> : null}
           {event?.id ? <Link href={`/${locale}/admin/events/${event.id}/edit`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Редактировать' : 'Edit'}</Link> : null}

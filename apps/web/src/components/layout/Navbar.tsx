@@ -61,7 +61,7 @@ export function Navbar({ locale }: NavbarProps) {
 
   const otherLocale = locale === 'en' ? 'ru' : 'en';
   const nextPath = switchLocalePath(pathname, locale, otherLocale);
-  const displayName = user?.name || user?.email || '';
+  const displayName = resolveNavbarDisplayName(user, locale);
 
   return (
     <>
@@ -121,6 +121,29 @@ export function Navbar({ locale }: NavbarProps) {
       </div>
     </>
   );
+}
+
+function resolveNavbarDisplayName(user: ReturnType<typeof useAuth>['user'], locale: string) {
+  if (!user) return '';
+
+  const localeFirstName = locale === 'ru' ? user.firstNameCyrillic : user.firstNameLatin;
+  const fallbackFirstName = locale === 'ru' ? user.firstNameLatin : user.firstNameCyrillic;
+
+  const fullNameToken = firstToken(user.fullNameCyrillic)
+    || firstToken(user.fullNameLatin)
+    || firstToken(user.name);
+
+  return firstNonEmpty(localeFirstName, fallbackFirstName, fullNameToken, user.email) ?? '';
+}
+
+function firstToken(value?: string | null) {
+  const normalized = value?.trim();
+  if (!normalized) return null;
+  return normalized.split(/\s+/)[0] ?? null;
+}
+
+function firstNonEmpty(...values: Array<string | null | undefined>) {
+  return values.find((value) => typeof value === 'string' && value.trim().length > 0)?.trim() ?? null;
 }
 
 function switchLocalePath(pathname: string, currentLocale: string, nextLocale: string) {

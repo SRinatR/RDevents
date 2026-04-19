@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../../hooks/useAuth';
 import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
-import { EmptyState, FieldInput, FieldSelect, LoadingLines, Notice, PageHeader, Panel, SectionHeader, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, Notice, PageHeader, Panel, SectionHeader, ToolbarRow } from '@/components/ui/signal-primitives';
 
 export default function AdminAdminsPage() {
   const t = useTranslations();
@@ -127,7 +127,7 @@ export default function AdminAdminsPage() {
               <FieldInput value={notes} onChange={(event) => setNotes(event.target.value)} placeholder={locale === 'ru' ? 'Внутренняя заметка (необязательно)' : 'Internal note (optional)'} />
               <ToolbarRow>
                 <button type="submit" disabled={actionId === 'assign' || !selectedEventId || !email.trim()} className="btn btn-primary btn-sm">{actionId === 'assign' ? '...' : locale === 'ru' ? 'Назначить' : 'Assign'}</button>
-                <StatusBadge tone="info">{eventAdmins.length} event admins</StatusBadge>
+                
               </ToolbarRow>
             </form>
           )}
@@ -146,7 +146,7 @@ export default function AdminAdminsPage() {
                     <div className="signal-muted">{admin.email}</div>
                   </div>
                   <ToolbarRow>
-                    <StatusBadge tone={admin.role === 'SUPER_ADMIN' ? 'warning' : 'info'}>{admin.role}</StatusBadge>
+                    
                     {admin.id !== user.id && admin.role !== 'SUPER_ADMIN' ? (
                       <button onClick={() => handleRemovePlatformAdmin(admin.id)} className="btn btn-danger btn-sm" disabled={actionId === admin.id}>{actionId === admin.id ? '...' : locale === 'ru' ? 'Снять роль' : 'Remove role'}</button>
                     ) : null}
@@ -159,7 +159,7 @@ export default function AdminAdminsPage() {
       </div>
 
       <Panel variant="elevated" className="admin-command-panel admin-data-panel">
-        <SectionHeader title={locale === 'ru' ? 'Администраторы событий' : 'Event admins'} subtitle={locale === 'ru' ? 'Назначения по конкретным мероприятиям' : 'Assignments tied to specific events'} actions={<StatusBadge tone="neutral">{eventAdmins.length}</StatusBadge>} />
+        <SectionHeader title={locale === 'ru' ? 'Администраторы событий' : 'Event admins'} subtitle={locale === 'ru' ? 'Назначения по конкретным мероприятиям' : 'Assignments tied to specific events'} />
         {loadingData ? <LoadingLines rows={5} /> : eventAdmins.length === 0 ? (
           <EmptyState title={locale === 'ru' ? 'Нет назначений' : 'No assignments'} description={locale === 'ru' ? 'Назначения появятся после первой выдачи роли event admin.' : 'Assignments appear after first event-admin grant.'} />
         ) : (
@@ -172,7 +172,7 @@ export default function AdminAdminsPage() {
                   <div className="signal-muted">{membership.event?.title || 'Unknown event'}</div>
                 </div>
                 <ToolbarRow>
-                  <StatusBadge tone="info">{membership.event?.status || 'Scoped'}</StatusBadge>
+                  
                   <button onClick={() => handleRemoveEventAdmin(membership)} className="btn btn-danger btn-sm" disabled={actionId === membership.id}>{actionId === membership.id ? '...' : locale === 'ru' ? 'Удалить' : 'Remove'}</button>
                 </ToolbarRow>
               </div>

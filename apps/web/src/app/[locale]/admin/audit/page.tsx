@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, FieldInput, FieldSelect, LoadingLines, PageHeader, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, PageHeader, Panel, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 
 export default function AdminAuditPage() {
   const t = useTranslations();
@@ -90,7 +90,7 @@ export default function AdminAuditPage() {
             <option value="EVENT_PUBLISH">{locale === 'ru' ? 'Публикация' : 'Publish'}</option>
             <option value="EVENT_DELETE">{locale === 'ru' ? 'Удаление' : 'Delete'}</option>
           </FieldSelect>
-          <StatusBadge tone="info">{filteredLogs.length} {locale === 'ru' ? 'записей' : 'records'}</StatusBadge>
+          
         </ToolbarRow>
 
         {loadingData ? (
@@ -117,11 +117,11 @@ export default function AdminAuditPage() {
                 {filteredLogs.map((log) => (
                   <tr key={log.id}>
                     <td className="signal-overflow-ellipsis">{log.actor}</td>
-                    <td><StatusBadge tone="neutral">{log.action}</StatusBadge></td>
+                    <td></td>
                     <td>{log.entity}</td>
                     <td className="signal-muted signal-overflow-ellipsis">{log.entityId}</td>
                     <td className="signal-muted">{new Date(log.timestamp).toLocaleString()}</td>
-                    <td><StatusBadge tone={toneByStatus[log.status] ?? 'neutral'}>{log.status}</StatusBadge></td>
+                    <td></td>
                   </tr>
                 ))}
               </tbody>

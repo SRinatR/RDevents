@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, FieldInput, FieldSelect, LoadingLines, PageHeader, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, PageHeader, Panel, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 
 interface Team {
   id: string;
@@ -174,8 +174,8 @@ export default function AdminTeamsPage() {
                       <td><strong>{team.name}</strong></td>
                       <td className="signal-muted signal-overflow-ellipsis">{team.eventTitle}</td>
                       <td>{team.captainUserName ?? '—'}</td>
-                      <td><StatusBadge tone="info">{team.membersCount}</StatusBadge></td>
-                      <td><StatusBadge tone={toneByStatus[team.status] ?? 'neutral'}>{team.status ?? 'ACTIVE'}</StatusBadge></td>
+                      <td></td>
+                      <td></td>
                       <td className="signal-muted">{new Date(team.createdAt).toLocaleDateString()}</td>
                       <td className="right">
                         <div className="signal-row-actions">

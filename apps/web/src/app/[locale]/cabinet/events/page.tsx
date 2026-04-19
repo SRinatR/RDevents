@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../../hooks/useAuth';
 import { eventsApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
-import { EmptyState, LoadingLines, Notice, PageHeader, Panel, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, Notice, PageHeader, Panel, ToolbarRow } from '@/components/ui/signal-primitives';
 
 export default function CabinetAllEventsPage() {
   const { user, loading } = useAuth();
@@ -39,7 +39,7 @@ export default function CabinetAllEventsPage() {
 
       <div className="workspace-command-row">
         <Link href={`/${locale}/cabinet/my-events`} className="signal-chip-link">{locale === 'ru' ? 'Мои мероприятия' : 'My events'}</Link>
-        <StatusBadge tone="info">{events.length} {locale === 'ru' ? 'событий' : 'events'}</StatusBadge>
+        
       </div>
 
       <div className="workspace-status-strip workspace-status-strip-v2">
@@ -61,7 +61,7 @@ export default function CabinetAllEventsPage() {
                   <h2>{leadEvent.title}</h2>
                   <div className="signal-muted">{leadEvent.location} · {formatDate(leadEvent.startsAt)} — {formatDate(leadEvent.endsAt)}</div>
                   <ToolbarRow>
-                    <StatusBadge tone={new Date(leadEvent.registrationDeadline) > new Date() ? 'success' : 'warning'}>{new Date(leadEvent.registrationDeadline) > new Date() ? (locale === 'ru' ? 'Регистрация открыта' : 'Registration open') : (locale === 'ru' ? 'Регистрация закрыта' : 'Registration closed')}</StatusBadge>
+                    
                     <Link href={`/${locale}/events/${leadEvent.slug}`} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Открыть событие' : 'Open event'}</Link>
                   </ToolbarRow>
                 </div>
@@ -81,7 +81,7 @@ export default function CabinetAllEventsPage() {
                       </div>
                     </div>
                     <ToolbarRow>
-                      <StatusBadge tone={isOpen ? 'success' : 'warning'}>{isOpen ? (locale === 'ru' ? 'Открыта' : 'Open') : (locale === 'ru' ? 'Закрыта' : 'Closed')}</StatusBadge>
+                      
                       <Link href={`/${locale}/events/${event.slug}`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Карточка' : 'View'}</Link>
                     </ToolbarRow>
                   </div>

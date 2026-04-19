@@ -15,7 +15,6 @@ import {
   Notice,
   Panel,
   SectionHeader,
-  StatusBadge,
   TableShell,
   ToolbarRow,
 } from '@/components/ui/signal-primitives';
@@ -182,7 +181,7 @@ export default function EventTeamsPage() {
                   <option key={status} value={status}>{status === 'ALL' ? (locale === 'ru' ? 'Все статусы' : 'All statuses') : status}</option>
                 ))}
               </FieldSelect>
-              <StatusBadge tone="info">{filteredTeams.length} {locale === 'ru' ? 'команд' : 'teams'}</StatusBadge>
+              
             </ToolbarRow>
 
             {filteredTeams.length === 0 ? (
@@ -204,7 +203,7 @@ export default function EventTeamsPage() {
                         <div>
                           <div className="admin-team-title-line">
                             <h3>{team.name}</h3>
-                            <StatusBadge tone={teamStatusTone(team.status)}>{team.status ?? 'ACTIVE'}</StatusBadge>
+                            
                           </div>
                           {team.description ? <p>{team.description}</p> : null}
                         </div>
@@ -252,7 +251,7 @@ export default function EventTeamsPage() {
                                           {member.user?.email ? <div className="signal-muted">{member.user.email}</div> : null}
                                         </td>
                                         <td>{member.role}</td>
-                                        <td><StatusBadge tone={memberStatusTone(member.status)}>{member.status}</StatusBadge></td>
+                                        <td></td>
                                         <td className="signal-muted">{formatAdminDateTime(member.joinedAt, locale)}</td>
                                         <td className="right">
                                           <div className="signal-row-actions">

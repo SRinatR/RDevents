@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, FieldSelect, LoadingLines, MetricCard, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldSelect, LoadingLines, MetricCard, Panel, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { AdminToolbarSelect } from '@/components/admin/AdminToolbar';
 
@@ -96,11 +96,7 @@ export default function AdminEmailWebhooksPage() {
               <p className="signal-muted">{locale === 'ru' ? 'Типы webhook событий' : 'Webhook event types'}</p>
             </div>
           </div>
-          <div className="signal-row-actions">
-            {webhooks.subscribedEvents.map((event: string) => (
-              <StatusBadge key={event} tone="info">{event}</StatusBadge>
-            ))}
-          </div>
+          <div className="signal-muted">{webhooks.subscribedEvents.join(', ')}</div>
         </Panel>
       ) : null}
 
@@ -121,7 +117,7 @@ export default function AdminEmailWebhooksPage() {
             <option value="failed">{locale === 'ru' ? 'Ошибка' : 'Failed'}</option>
             <option value="pending">{locale === 'ru' ? 'В ожидании' : 'Pending'}</option>
           </FieldSelect>
-          <StatusBadge tone="info">{filteredLogs.length} {locale === 'ru' ? 'записей' : 'records'}</StatusBadge>
+          
         </ToolbarRow>
 
         {loadingData ? (
@@ -147,10 +143,10 @@ export default function AdminEmailWebhooksPage() {
               <tbody>
                 {filteredLogs.map((log: any) => (
                   <tr key={log.id}>
-                    <td><StatusBadge tone="neutral">{log.eventType}</StatusBadge></td>
+                    <td></td>
                     <td className="signal-muted signal-overflow-ellipsis">{log.providerEventId ?? '—'}</td>
                     <td className="signal-muted">{new Date(log.receivedAt).toLocaleString()}</td>
-                    <td><StatusBadge tone={toneByStatus[log.processingStatus] ?? 'neutral'}>{log.processingStatus}</StatusBadge></td>
+                    <td></td>
                     <td className="signal-muted">{log.relatedEntity ?? '—'}</td>
                     <td className="signal-muted signal-overflow-ellipsis">{log.errorMessage ?? '—'}</td>
                   </tr>

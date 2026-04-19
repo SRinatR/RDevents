@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, FieldSelect, LoadingLines, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldSelect, LoadingLines, Panel, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { AdminToolbarSearch, AdminToolbarSelect } from '@/components/admin/AdminToolbar';
 
@@ -90,7 +90,7 @@ export default function AdminEmailTemplatesPage() {
             <option value="draft">{locale === 'ru' ? 'Черновики' : 'Drafts'}</option>
             <option value="archived">{locale === 'ru' ? 'Архивные' : 'Archived'}</option>
           </AdminToolbarSelect>
-          <StatusBadge tone="info">{filteredTemplates.length} {locale === 'ru' ? 'шаблонов' : 'templates'}</StatusBadge>
+          
         </ToolbarRow>
 
         {loadingData ? (
@@ -124,7 +124,7 @@ export default function AdminEmailTemplatesPage() {
                     <td><strong>{tmpl.name}</strong></td>
                     <td className="signal-muted signal-overflow-ellipsis">{tmpl.key}</td>
                     <td className="signal-overflow-ellipsis">{tmpl.subject}</td>
-                    <td><StatusBadge tone={toneByStatus[tmpl.status] ?? 'neutral'}>{tmpl.status}</StatusBadge></td>
+                    <td></td>
                     <td className="signal-muted">{new Date(tmpl.updatedAt).toLocaleDateString()}</td>
                     <td className="right">
                       <div className="signal-row-actions">

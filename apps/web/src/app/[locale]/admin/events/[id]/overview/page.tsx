@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
 import { adminApi } from '@/lib/api';
-import { EmptyState, LoadingLines, MetricCard, Notice, Panel, SectionHeader, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, MetricCard, Notice, Panel, SectionHeader, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 import { EventNotFound, EventWorkspaceHeader, formatAdminDate, formatAdminDateTime, memberStatusTone, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
 
 export default function AdminEventOverviewPage() {
@@ -113,7 +113,7 @@ export default function AdminEventOverviewPage() {
             <Panel variant="elevated" className="admin-command-panel admin-event-identity-panel">
               <SectionHeader title={event.title} subtitle={event.slug ? `/${event.slug}` : undefined} />
               <div className="admin-event-facts-grid">
-                <div><small>{locale === 'ru' ? 'Статус' : 'Status'}</small><StatusBadge>{event.status ?? '—'}</StatusBadge></div>
+                <div><small>{locale === 'ru' ? 'Статус' : 'Status'}</small></div>
                 <div><small>{locale === 'ru' ? 'Категория' : 'Category'}</small><strong>{event.category ?? '—'}</strong></div>
                 <div><small>{locale === 'ru' ? 'Старт' : 'Start'}</small><strong>{formatAdminDateTime(event.startsAt, locale)}</strong></div>
                 <div><small>{locale === 'ru' ? 'Локация' : 'Location'}</small><strong>{event.location ?? '—'}</strong></div>
@@ -137,7 +137,7 @@ export default function AdminEventOverviewPage() {
                   {warnings.map((warning) => (
                     <div className="signal-ranked-item" key={warning}>
                       <span>{warning}</span>
-                      <StatusBadge tone="warning">{locale === 'ru' ? 'Проверить' : 'Check'}</StatusBadge>
+                      
                     </div>
                   ))}
                 </div>
@@ -182,7 +182,7 @@ export default function AdminEventOverviewPage() {
                             <strong>{member.user?.name ?? member.user?.email ?? '—'}</strong>
                             <div className="signal-muted">{member.user?.email}</div>
                           </td>
-                          <td><StatusBadge tone={memberStatusTone(member.status)}>{member.status}</StatusBadge></td>
+                          <td></td>
                           <td className="signal-muted">{formatAdminDateTime(member.assignedAt, locale)}</td>
                         </tr>
                       ))}
@@ -204,7 +204,7 @@ export default function AdminEventOverviewPage() {
                         <strong>{admin.user?.name ?? admin.user?.email}</strong>
                         <span className="signal-muted"> {admin.user?.email}</span>
                       </span>
-                      <StatusBadge tone="info">{admin.status}</StatusBadge>
+                      
                     </div>
                   ))}
                 </div>
