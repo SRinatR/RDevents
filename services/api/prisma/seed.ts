@@ -318,7 +318,7 @@ async function main() {
       endsAt: new Date('2026-05-03T12:30:00Z'),
       registrationDeadline: new Date('2026-05-01T18:00:00Z'),
       registrationEnabled: true,
-      volunteerApplicationsEnabled: false,
+      volunteerApplicationsEnabled: true,
       minTeamSize: 5,
       maxTeamSize: 5,
       allowSoloParticipation: false,

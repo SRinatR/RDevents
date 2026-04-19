@@ -20,6 +20,9 @@ export default function CabinetAllEventsPage() {
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
   const [eventsLoading, setEventsLoading] = useState(true);
   const [submittingId, setSubmittingId] = useState('');
+  const [applyChoiceEvent, setApplyChoiceEvent] = useState<any>(null);
+  const [applyChoiceLoading, setApplyChoiceLoading] = useState('');
+  const [applyChoiceError, setApplyChoiceError] = useState('');
 
   useEffect(() => {
     if (!loading && !user) router.push(`/${locale}/login`);
@@ -38,29 +41,17 @@ export default function CabinetAllEventsPage() {
 
   useEffect(() => {
     const selectedSlug = searchParams.get('event');
-    const applyType = searchParams.get('applyType');
-    if (!user || !selectedSlug || !applyType || eventsLoading) return;
+    const shouldOpenChoice = searchParams.get('openApplyChoice') === '1' || Boolean(searchParams.get('applyType'));
+    if (!user || !selectedSlug || !shouldOpenChoice || eventsLoading) return;
     const targetEvent = events.find((item) => item.slug === selectedSlug);
     if (!targetEvent) return;
     const params = new URLSearchParams(searchParams.toString());
     params.delete('applyType');
+    params.delete('openApplyChoice');
     router.replace(`/${locale}/cabinet/events${params.toString() ? `?${params.toString()}` : ''}`, { scroll: false });
-    if (applyType === 'participant') {
-      void handleApply(targetEvent);
-      return;
-    }
-    if (applyType === 'volunteer') {
-      setSubmittingId(targetEvent.id);
-      setActionErrors((previous) => ({ ...previous, [targetEvent.id]: '' }));
-      eventsApi.applyVolunteer(targetEvent.id)
-        .then((result) => {
-          setVolunteerApplications((previous) => ({ ...previous, [targetEvent.slug]: result.membership }));
-        })
-        .catch((err: any) => {
-          setActionErrors((previous) => ({ ...previous, [targetEvent.id]: err?.message || (locale === 'ru' ? 'Не удалось подать волонтёрскую заявку.' : 'Failed to apply as volunteer.') }));
-        })
-        .finally(() => setSubmittingId(''));
-    }
+    document.getElementById(`event-${targetEvent.slug}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setApplyChoiceError('');
+    setApplyChoiceEvent(targetEvent);
   }, [searchParams, user, eventsLoading, events, locale, router]);
 
   if (loading || !user) return null;
@@ -121,6 +112,35 @@ export default function CabinetAllEventsPage() {
     }
   }
 
+  function handleOpenApplyChoice(event: any) {
+    setApplyChoiceError('');
+    setApplyChoiceEvent(event);
+  }
+
+  async function handleApplyTypeSelect(type: 'participant' | 'volunteer') {
+    if (!applyChoiceEvent) return;
+    setApplyChoiceError('');
+    setApplyChoiceLoading(type);
+    setSubmittingId(applyChoiceEvent.id);
+    setActionErrors((previous) => ({ ...previous, [applyChoiceEvent.id]: '' }));
+    try {
+      if (type === 'participant') {
+        await handleApply(applyChoiceEvent);
+        setApplyChoiceEvent(null);
+        return;
+      }
+      const result = await eventsApi.applyVolunteer(applyChoiceEvent.id);
+      setVolunteerApplications((previous) => ({ ...previous, [applyChoiceEvent.slug]: result.membership }));
+      setApplyChoiceEvent(null);
+    } catch (err: any) {
+      if (err instanceof ApiError) setApplyChoiceError(err.message);
+      else setApplyChoiceError(locale === 'ru' ? 'Не удалось отправить заявку.' : 'Failed to submit application.');
+    } finally {
+      setApplyChoiceLoading('');
+      setSubmittingId('');
+    }
+  }
+
   return (
     <div className="signal-page-shell cabinet-workspace-page workspace-page-v2">
       <PageHeader title={locale === 'ru' ? 'Каталог мероприятий' : 'Event catalog'} subtitle={locale === 'ru' ? 'Рабочий вход в события для подачи и управления участием' : 'Operational entry to events for joining and participation management'} />
@@ -155,7 +175,7 @@ export default function CabinetAllEventsPage() {
                     ) : applications[leadEvent.slug]?.status === 'ACTIVE' ? (
                       <Link href={`/${locale}/cabinet/my-events/${leadEvent.slug}`} className="btn btn-primary btn-sm">{approvedCtaLabel}</Link>
                     ) : (
-                      <button onClick={() => void handleApply(leadEvent)} disabled={submittingId === leadEvent.id || applications[leadEvent.slug]?.status === 'PENDING'} className="btn btn-primary btn-sm">
+                      <button onClick={() => handleOpenApplyChoice(leadEvent)} disabled={submittingId === leadEvent.id || applications[leadEvent.slug]?.status === 'PENDING'} className="btn btn-primary btn-sm">
                         {submittingId === leadEvent.id
                           ? (locale === 'ru' ? 'Отправка...' : 'Submitting...')
                           : applications[leadEvent.slug]?.status === 'PENDING'
@@ -191,7 +211,7 @@ export default function CabinetAllEventsPage() {
                       ) : applications[event.slug]?.status === 'ACTIVE' ? (
                         <Link href={`/${locale}/cabinet/my-events/${event.slug}`} className="btn btn-primary btn-sm">{approvedCtaLabel}</Link>
                       ) : (
-                        <button onClick={() => void handleApply(event)} disabled={submittingId === event.id || applications[event.slug]?.status === 'PENDING'} className="btn btn-primary btn-sm">
+                        <button onClick={() => handleOpenApplyChoice(event)} disabled={submittingId === event.id || applications[event.slug]?.status === 'PENDING'} className="btn btn-primary btn-sm">
                           {submittingId === event.id
                             ? (locale === 'ru' ? 'Отправка...' : 'Submitting...')
                             : applications[event.slug]?.status === 'PENDING'
@@ -211,6 +231,27 @@ export default function CabinetAllEventsPage() {
           </div>
         )}
       </Panel>
+
+      {applyChoiceEvent ? (
+        <div className="signal-modal-backdrop" role="dialog" aria-modal="true">
+          <Panel className="signal-modal-card" style={{ maxWidth: 420, width: '100%' }}>
+            <h3>{locale === 'ru' ? 'Выберите тип заявки' : 'Choose application type'}</h3>
+            <p className="signal-muted">{applyChoiceEvent.title}</p>
+            <div className="signal-stack" style={{ marginTop: 12 }}>
+              <button className="btn btn-primary" disabled={Boolean(applyChoiceLoading)} onClick={() => void handleApplyTypeSelect('participant')}>
+                {applyChoiceLoading === 'participant' ? '...' : (locale === 'ru' ? 'Участник' : 'Participant')}
+              </button>
+              <button className="btn btn-secondary" disabled={Boolean(applyChoiceLoading)} onClick={() => void handleApplyTypeSelect('volunteer')}>
+                {applyChoiceLoading === 'volunteer' ? '...' : (locale === 'ru' ? 'Волонтёр' : 'Volunteer')}
+              </button>
+              <button className="btn btn-ghost btn-sm" disabled={Boolean(applyChoiceLoading)} onClick={() => setApplyChoiceEvent(null)}>
+                {locale === 'ru' ? 'Отмена' : 'Cancel'}
+              </button>
+              {applyChoiceError ? <Notice tone="danger">{applyChoiceError}</Notice> : null}
+            </div>
+          </Panel>
+        </div>
+      ) : null}
     </div>
   );
 }
