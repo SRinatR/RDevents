@@ -177,6 +177,19 @@ enum AdditionalDocumentType {
   BIRTH_CERTIFICATE
 }
 
+
+enum SupportThreadStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_USER
+  CLOSED
+}
+
+enum SupportSenderType {
+  USER
+  ADMIN
+}
+
 enum MediaAssetPurpose {
   AVATAR
   DOCUMENT
@@ -253,6 +266,11 @@ model User {
   emergencyContact      UserEmergencyContact?
   mediaAssets           MediaAsset[] @relation("MediaAssetOwner")
 
+  supportThreads        SupportThread[] @relation("SupportThreadUser")
+  assignedSupportThreads SupportThread[] @relation("SupportThreadAdmin")
+  supportMessages       SupportMessage[] @relation("SupportMessageSender")
+  supportReadStates          SupportThreadReadState[] @relation("SupportThreadReadStateUser")
+  uploadedSupportAttachments SupportAttachment[]      @relation("SupportAttachmentUploader")
   @@map("users")
 }
 
@@ -766,4 +784,80 @@ model RefreshSession {
   @@index([userId, revokedAt])
   @@index([expiresAt])
   @@map("refresh_sessions")
+}
+
+// ─── Support ticket system ──────────────────────────────────────────────────
+
+model SupportThread {
+  id              String              @id @default(cuid())
+  userId          String
+  subject         String
+  status          SupportThreadStatus @default(OPEN)
+  assignedAdminId String?
+  closedAt        DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  user            User                @relation("SupportThreadUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedAdmin   User?               @relation("SupportThreadAdmin", fields: [assignedAdminId], references: [id], onDelete: SetNull)
+  messages        SupportMessage[]
+  attachments     SupportAttachment[] @relation("SupportAttachmentThread")
+  readStates      SupportThreadReadState[]
+
+  @@index([userId, status])
+  @@index([assignedAdminId, status])
+  @@index([status, createdAt])
+  @@map("support_threads")
+}
+
+model SupportMessage {
+  id          String            @id @default(cuid())
+  threadId    String
+  senderId    String
+  senderType  SupportSenderType
+  body        String            @db.Text
+  createdAt   DateTime          @default(now())
+
+  thread      SupportThread     @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender      User              @relation("SupportMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  attachments SupportAttachment[]
+
+  @@index([threadId, createdAt])
+  @@map("support_messages")
+}
+
+model SupportAttachment {
+  id         String          @id @default(cuid())
+  messageId  String?
+  threadId   String
+  uploaderId String
+  filename   String
+  mimeType   String
+  sizeBytes  Int
+  storageKey String
+  publicUrl  String
+  createdAt  DateTime        @default(now())
+
+  message    SupportMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  thread     SupportThread   @relation("SupportAttachmentThread", fields: [threadId], references: [id], onDelete: Cascade)
+  uploader   User            @relation("SupportAttachmentUploader", fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([threadId])
+  @@index([uploaderId])
+  @@map("support_attachments")
+}
+
+model SupportThreadReadState {
+  id         String        @id @default(cuid())
+  threadId   String
+  userId     String
+  lastReadAt DateTime      @default(now())
+
+  thread     SupportThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user       User          @relation("SupportThreadReadStateUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, userId])
+  @@index([userId])
+  @@map("support_thread_read_states")
 }

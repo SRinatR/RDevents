@@ -25,11 +25,11 @@ const QUEST_HIGHLIGHTS = [
 ];
 
 const QUEST_STATS = [
-  { value: '14-25', label: 'возраст участников' },
-  { value: '100+', label: 'участников' },
+  { value: '14-30 лет', label: 'возраст участников' },
+  { value: '60+', label: 'участников' },
   { value: '12', label: 'команд' },
   { value: '6', label: 'станций маршрута' },
-  { value: '4 часа', label: 'продолжительность' },
+  { value: '5 часов', label: 'продолжительность' },
   { value: '25 лет', label: 'Русскому дому' },
 ];
 
@@ -67,9 +67,9 @@ const QUEST_STATIONS = [
 ];
 
 const QUEST_TIMELINE = [
-  { time: '10:00-11:00', title: 'Сбор и регистрация участников', place: 'Русский дом в Ташкенте' },
-  { time: '11:00-11:30', title: 'Торжественное открытие юбилейного квеста', place: 'Основная площадка' },
-  { time: '11:30-13:30', title: 'Прохождение маршрута по 6 станциям', place: 'Тематические пространства' },
+  { time: '10:30-11:00', title: 'Сбор и регистрация участников', place: 'Центральный Парк имени Мирзо Улугбека' },
+  { time: '11:00-11:20', title: 'Торжественное открытие юбилейного квеста', place: 'Главная площадка парка' },
+  { time: '11:20-13:20', title: 'Прохождение маршрута по 6 станциям', place: 'Тематические пространства' },
   { time: '13:30-14:00', title: 'Финал маршрута и подведение итогов', place: 'Финальная площадка' },
   { time: '14:00-14:30', title: 'Кофе-брейк и неформальное общение', place: 'Зона отдыха' },
   { time: '14:30-15:00', title: 'Награждение и памятные призы', place: 'Сцена' },
@@ -231,9 +231,11 @@ export default function EventDetailPage() {
   const registrationNotOpen = event.registrationOpensAt ? new Date(event.registrationOpensAt).getTime() > Date.now() : false;
   const registrationExpired = event.registrationDeadline ? new Date(event.registrationDeadline).getTime() < Date.now() : false;
   const hasActiveVolunteer = ['PENDING', 'APPROVED', 'ACTIVE'].includes(volunteerStatus ?? '');
-  const eventDateRange = `${formatDate(event.startsAt)} · ${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}`;
-  const spotsLeft = Math.max((event.capacity ?? 0) - (event.registrationsCount ?? 0), 0);
   const isRussiaHouseEvent = event.slug === 'dom-gde-zhivet-rossiya';
+  const spotsLeft = Math.max((event.capacity ?? 0) - (event.registrationsCount ?? 0), 0);
+  const eventDateRange = isRussiaHouseEvent && locale === 'ru'
+    ? 'воскресенье, 3 мая 2026 г. · 10:30 – 15:30'
+    : `${formatDate(event.startsAt)} · ${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}`;
   
   // Participation config values
   const requireApproval = event.requireParticipantApproval;
@@ -465,7 +467,7 @@ export default function EventDetailPage() {
           <section className="rhq-section rhq-venue-section" id="venue">
             <div className="rhq-container rhq-venue-grid">
               <article>
-                <QuestSectionHeader eyebrow="Дата и место" title="Русский дом в Ташкенте" />
+                <QuestSectionHeader eyebrow="Дата и место" title="Центральный Парк имени Мирзо Улугбека" />
                 <dl>
                   <div>
                     <dt>Когда</dt>
@@ -476,14 +478,15 @@ export default function EventDetailPage() {
                     <dd>{event.location}</dd>
                   </div>
                   <div>
-                    <dt>Дедлайн регистрации</dt>
-                    <dd>{event.registrationDeadline ? `${formatDate(event.registrationDeadline)} · ${formatTime(event.registrationDeadline)}` : 'Будет объявлен дополнительно'}</dd>
+                    <dt>Карта для участников</dt>
+                    <dd><a href="https://yandex.ru/maps/-/CPCiyWNG" target="_blank" rel="noreferrer">Открыть маршрут в Яндекс Картах</a></dd>
                   </div>
                 </dl>
               </article>
               <article>
                 <QuestSectionHeader eyebrow="Формат участия" title="Командная игра с финальным маршрутом" />
-                <p>Участники проходят станции в командах, выполняют задания, получают отметки и приходят к общему финалу. Можно создать свою команду, вступить по коду приглашения или участвовать одному, если формат события это допускает.</p>
+                <p>Участники проходят станции в командах, выполняют задания, получают отметки и приходят к общему финалу.</p>
+                <p><strong>Важное правило: команда ровно из 5 человек</strong></p>
               </article>
             </div>
           </section>
@@ -498,12 +501,8 @@ export default function EventDetailPage() {
                 />
                 <div className="rhq-registration-notes">
                   <article>
-                    <strong>{spotsLeft}</strong>
-                    <span>ориентировочно свободных мест</span>
-                  </article>
-                  <article>
-                    <strong>{event.capacity}</strong>
-                    <span>общая вместимость события</span>
+                    <strong>60+</strong>
+                    <span>участников</span>
                   </article>
                 </div>
               </div>
@@ -547,7 +546,7 @@ export default function EventDetailPage() {
               <article className="rhq-contact-card">
                 <QuestSectionHeader eyebrow="Контакты" title="Связаться с оргкомитетом" inverted />
                 <p>По вопросам участия, регистрации, команд и партнёрского взаимодействия напишите организаторам мероприятия.</p>
-                <a href={`mailto:${event.contactEmail ?? 'platform@example.com'}`}>{event.contactEmail ?? 'platform@example.com'}</a>
+                <a href={`mailto:${event.contactEmail ?? 'Uzb@vsezapobedu.com'}`}>{event.contactEmail ?? 'Uzb@vsezapobedu.com'}</a>
               </article>
               <div className="rhq-faq-list">
                 <QuestSectionHeader eyebrow="FAQ" title="Часто задаваемые вопросы" />

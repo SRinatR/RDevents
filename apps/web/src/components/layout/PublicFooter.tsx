@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { FeedbackButton } from './FeedbackButton';
 
 export function PublicFooter({ locale }: { locale: string }) {
   return (
@@ -9,9 +10,7 @@ export function PublicFooter({ locale }: { locale: string }) {
             <div className="public-footer-brand">
               <img src="/site-logo.png" alt="Русский Дом" className="public-logo-mark public-logo-mark-footer" />
             </div>
-            <a href="mailto:support@russkiydom.local" className="btn btn-secondary btn-sm public-footer-feedback">
-              {locale === 'ru' ? 'Обратная связь' : 'Feedback'}
-            </a>
+            <FeedbackButton locale={locale} />
           </div>
 
           <div className="public-footer-links">

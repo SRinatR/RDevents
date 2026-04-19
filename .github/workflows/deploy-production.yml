@@ -122,35 +122,73 @@ jobs:
 
             cd "$APP_DIR"
 
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml down --remove-orphans || true
+            # Build new images before touching running containers
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml build
+
+            # Stop app containers only; postgres and its data volume are preserved
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml stop api web 2>/dev/null || true
+
+            # Ensure postgres is running
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml up -d postgres
 
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
-              exec -T postgres sh -lc 'until pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"; do sleep 2; done'
-            echo "Postgres is healthy"
+            # Wait for postgres to pass its Docker health check (up to 60 s).
+            # docker compose ps --status healthy is unreliable: the compose CLI
+            # --status filter matches the compose *runtime status* label, which
+            # may not reflect the container health state in all Docker/compose
+            # versions, causing a false timeout even when the container is already
+            # (healthy) according to `docker inspect`.
+            # Instead we get the container ID once and poll `docker inspect`
+            # directly, which always reflects the real health check result.
+            echo "Waiting for postgres to be healthy..."
+            POSTGRES_CID=$(docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps -q postgres 2>/dev/null || true)
+            if [ -z "$POSTGRES_CID" ]; then
+              echo "Could not find postgres container ID — compose ps -q returned empty."
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
+              exit 1
+            fi
+            for i in $(seq 1 30); do
+              HEALTH=$(docker inspect -f '{{.State.Health.Status}}' "$POSTGRES_CID" 2>/dev/null || echo "unknown")
+              if [ "$HEALTH" = "healthy" ]; then
+                echo "Postgres is healthy."
+                break
+              fi
+              if [ "$i" -eq 30 ]; then
+                echo "Postgres did not become healthy in time (last status: $HEALTH)."
+                docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
+                docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=40 postgres
+                exit 1
+              fi
+              echo "Waiting for postgres... ($i/30, status: $HEALTH)"
+              sleep 2
+            done
 
+            # Create a pre-migration backup — deploy aborts here if backup fails
             BACKUP_DIR="$DEPLOY_ROOT/backups"
             mkdir -p "$BACKUP_DIR"
             BACKUP_FILE="$BACKUP_DIR/pre-migrate-$(date +%Y%m%d-%H%M%S).sql.gz"
-
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
               exec -T postgres sh -lc 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
               | gzip > "$BACKUP_FILE"
-
             test -s "$BACKUP_FILE"
             echo "Backup written to $BACKUP_FILE ($(du -sh "$BACKUP_FILE" | cut -f1))"
 
+            # Run migrations as a one-off container — deploy aborts here if any migration fails.
+            # --no-deps: postgres is already running; we do not re-start it via depends_on.
+            # Seed (db:seed) is NOT run here and must never be run in production deploy.
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
-              run --rm --no-deps --build api pnpm prisma:deploy
+              run --rm --no-deps api pnpm prisma:deploy
 
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml up -d --build --remove-orphans
+            # Migrations succeeded — start api and web with the freshly built images.
+            # This step is only reached when prisma:deploy exited 0.
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
+              up -d --no-build --remove-orphans api web
 
             docker image prune -f
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
           EOF
 
-      - name: Wait for services to start
-        run: sleep 30
+      # No flat sleep here — each smoke step uses its own retry loop so the
+      # total wait is bounded and the check fires as soon as the service is ready.
 
       - name: Smoke test - API container is running
         shell: bash
@@ -161,46 +199,25 @@ jobs:
         run: |
           set -euo pipefail
           ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "docker compose --env-file '$DEPLOY_ROOT/.env' -f '$APP_DIR/docker-compose.prod.yml' ps --status running --services | grep -qx api" \
-            || { echo "API container is not running"; exit 1; }
+            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' bash -se" << 'EOF'
+            set -euo pipefail
+            echo "Waiting for API container to reach running state..."
+            for attempt in $(seq 1 30); do
+              if docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" \
+                  ps --status running --services 2>/dev/null | grep -qx api; then
+                echo "API container is running."
+                exit 0
+              fi
+              echo "  attempt $attempt/30 — API not running yet, retrying in 2 s..."
+              sleep 2
+            done
+            echo "API container is not running after 60 s."
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 api
+            exit 1
+          EOF
 
-      - name: Smoke test - Web container is running
-        shell: bash
-        env:
-          PROD_HOST: ${{ secrets.PROD_HOST }}
-          PROD_PORT: ${{ secrets.PROD_PORT }}
-          PROD_USER: ${{ secrets.PROD_USER }}
-        run: |
-          set -euo pipefail
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "docker compose --env-file '$DEPLOY_ROOT/.env' -f '$APP_DIR/docker-compose.prod.yml' ps --status running --services | grep -qx web" \
-            || { echo "Web container is not running"; exit 1; }
-
-      - name: Smoke test - API health via wget
-        shell: bash
-        env:
-          PROD_HOST: ${{ secrets.PROD_HOST }}
-          PROD_PORT: ${{ secrets.PROD_PORT }}
-          PROD_USER: ${{ secrets.PROD_USER }}
-        run: |
-          set -euo pipefail
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "docker compose --env-file '$DEPLOY_ROOT/.env' -f '$APP_DIR/docker-compose.prod.yml' exec -T api wget --spider -q http://127.0.0.1:4000/health" \
-            || { echo "API health check failed"; exit 1; }
-
-      - name: Smoke test - API ready via wget
-        shell: bash
-        env:
-          PROD_HOST: ${{ secrets.PROD_HOST }}
-          PROD_PORT: ${{ secrets.PROD_PORT }}
-          PROD_USER: ${{ secrets.PROD_USER }}
-        run: |
-          set -euo pipefail
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "docker compose --env-file '$DEPLOY_ROOT/.env' -f '$APP_DIR/docker-compose.prod.yml' exec -T api wget --spider -q http://127.0.0.1:4000/ready" \
-            || { echo "API ready check failed"; exit 1; }
-
-      - name: Smoke test - Web /ru via wget
+      - name: Smoke test - API health
         shell: bash
         env:
           PROD_HOST: ${{ secrets.PROD_HOST }}
@@ -211,17 +228,95 @@ jobs:
           ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
             "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' bash -se" << 'EOF'
             set -euo pipefail
-
+            echo "Waiting for API /health..."
             for attempt in $(seq 1 30); do
-              if docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" exec -T web wget --spider -q http://127.0.0.1:3000/ru; then
+              if wget --spider -q http://127.0.0.1:4000/health 2>/dev/null; then
+                echo "API /health OK."
                 exit 0
               fi
-
-              echo "Waiting for web /ru ($attempt/30)..."
+              echo "  attempt $attempt/30 — API /health not ready, retrying in 2 s..."
               sleep 2
             done
+            echo "API /health did not respond after 60 s."
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 api
+            exit 1
+          EOF
 
-            echo "Web /ru check failed"
+      - name: Smoke test - API ready
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
+            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' bash -se" << 'EOF'
+            set -euo pipefail
+            echo "Waiting for API /ready..."
+            for attempt in $(seq 1 30); do
+              if wget --spider -q http://127.0.0.1:4000/ready 2>/dev/null; then
+                echo "API /ready OK."
+                exit 0
+              fi
+              echo "  attempt $attempt/30 — API /ready not ready, retrying in 2 s..."
+              sleep 2
+            done
+            echo "API /ready did not respond after 60 s."
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 api
+            exit 1
+          EOF
+
+      - name: Smoke test - Web container is running
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
+            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' bash -se" << 'EOF'
+            set -euo pipefail
+            echo "Waiting for web container to reach running state..."
+            for attempt in $(seq 1 30); do
+              if docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" \
+                  ps --status running --services 2>/dev/null | grep -qx web; then
+                echo "Web container is running."
+                exit 0
+              fi
+              echo "  attempt $attempt/30 — web not running yet, retrying in 2 s..."
+              sleep 2
+            done
+            echo "Web container is not running after 60 s."
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 web
+            exit 1
+          EOF
+
+      - name: Smoke test - Web /ru
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
+            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' bash -se" << 'EOF'
+            set -euo pipefail
+            echo "Waiting for web /ru..."
+            for attempt in $(seq 1 30); do
+              if wget --spider -q http://127.0.0.1:3000/ru 2>/dev/null; then
+                echo "Web /ru OK."
+                exit 0
+              fi
+              echo "  attempt $attempt/30 — web /ru not ready, retrying in 2 s..."
+              sleep 2
+            done
+            echo "Web /ru did not respond after 60 s."
             docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
             docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 web
             exit 1

@@ -23,4 +23,4 @@ WORKDIR /app/services/api
 RUN pnpm prisma generate
 RUN pnpm build
 EXPOSE 4000
-CMD ["sh", "-c", "pnpm prisma migrate deploy && node dist/main.js"]
+CMD ["node", "dist/main.js"]
