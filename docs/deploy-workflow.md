@@ -91,18 +91,33 @@ Deploy job:
 - writes `.release-commit` with the deployed commit SHA
 - runs smoke checks for API, web, `/health`, `/ready`, and web root
 
-### Database migration sequence
+### Deploy sequence
 
 The deploy step on the server follows this exact order to keep the database safe:
 
-1. **Build images** — `docker compose build` builds all new images before any running container is touched.
-2. **Stop app containers** — `docker compose stop api web` stops the API and web containers. Postgres is left running; the `postgres_data` named volume is never removed.
-3. **Start postgres** — `docker compose up -d postgres` ensures postgres is up.
-4. **Wait for readiness** — polls `pg_isready` for up to 60 seconds; aborts the deploy if postgres does not respond.
-5. **Backup** — runs `pg_dump | gzip` inside the postgres container and writes the compressed dump to `$DEPLOY_ROOT/backups/pre-migrate-<timestamp>.sql.gz`. The deploy aborts if the backup fails.
-6. **Migrate** — runs `pnpm prisma:deploy` inside a one-off API container (`docker compose run --rm --no-deps api`). The deploy aborts if any migration fails; postgres still holds the pre-migration data and the backup is available for restore.
-7. **Start api and web** — `docker compose up -d --no-build api web` starts the app containers using the images built in step 1. This step is only reached if migration succeeded.
-8. **Prune** — removes dangling Docker images.
+1. **Unpack release** — extract the archive into `$APP_DIR`, write `.release-commit`.
+2. **Build images** — `docker compose build` builds all new images before any running container is touched.
+3. **Stop app containers** — `docker compose stop api web` stops the API and web containers. Postgres is left running; the `postgres_data` named volume is never removed.
+4. **Start postgres** — `docker compose up -d postgres` ensures postgres is up.
+5. **Wait for postgres healthy** — polls `docker compose ps --status healthy` for up to 60 seconds; aborts the deploy if postgres does not become healthy. This checks the Docker health check (`pg_isready -U <user> -d <db>`) rather than a bare TCP probe, confirming the correct user and database are accepting connections.
+6. **Backup** — runs `pg_dump | gzip` inside the postgres container and writes the compressed dump to `$DEPLOY_ROOT/backups/pre-migrate-<timestamp>.sql.gz`. The deploy aborts if the backup fails.
+7. **Migrate** — runs `pnpm prisma:deploy` inside a one-off API container (`docker compose run --rm --no-deps api`). The deploy aborts if any migration fails; postgres still holds the pre-migration data and the backup is available for restore. **Seed (`db:seed`) is never run here.**
+8. **Start api and web** — `docker compose up -d --no-build api web` starts the app containers using the images built in step 2. This step is only reached if migration succeeded.
+9. **Prune** — removes dangling Docker images.
+
+### Smoke checks (after deploy step)
+
+Each check uses a retry loop (30 attempts × 2 s = up to 60 s) so that timing/race
+conditions between container startup and the check do not produce false failures.
+On failure each check prints `docker compose ps` and recent container logs before exiting.
+
+| Step | What is checked | How |
+|------|-----------------|-----|
+| API container running | `docker compose ps --status running` lists `api` | retry loop on server |
+| API /health | HTTP 200 from `http://127.0.0.1:4000/health` | `wget --spider` from host, retry loop |
+| API /ready | HTTP 200 from `http://127.0.0.1:4000/ready` | `wget --spider` from host, retry loop |
+| Web container running | `docker compose ps --status running` lists `web` | retry loop on server |
+| Web /ru | HTTP 200 from `http://127.0.0.1:3000/ru` | `wget --spider` from host, retry loop |
 
 The production API container CMD is `node dist/main.js`. It never runs `prisma migrate deploy` on startup. Migrations are exclusively the responsibility of the deploy workflow.
 
@@ -212,11 +227,13 @@ Deploy errors are in workflow `Deploy production`.
 - `Validate production ref` means the workflow was started from the wrong branch.
 - `Prepare SSH`, `Upload archive`, or `Write env file on server` means infrastructure or secret configuration failed.
 - `Deploy on server` means the server-side deploy script failed. The failure message indicates the exact stage:
-  - *Postgres did not become ready* — postgres container failed to start or respond; api and web were never started.
+  - *Postgres did not become healthy* — postgres container failed to start or pass its health check; api and web were never started.
   - *pg_dump* error — backup failed; api and web were never started; database is unchanged.
   - *prisma migrate deploy* error — migration failed; api and web were never started; database is in the pre-migration state; restore from `$DEPLOY_ROOT/backups/` if needed.
   - Any other error after migration — api/web start failed but migration may have already been applied; check `docker compose ps` and logs on the server.
-- `Smoke test ...` means deployment finished but the expected service check failed.
+- `Smoke test - API container is running` / `Smoke test - Web container is running` — container did not reach running state within 60 s after `docker compose up`; check `docker compose ps` and logs on the server.
+- `Smoke test - API health` / `Smoke test - API ready` — API process did not respond on port 4000 within 60 s; check API logs.
+- `Smoke test - Web /ru` — web did not respond on port 3000 within 60 s; check web logs.
 
 ## Local Checks
 
