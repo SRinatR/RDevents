@@ -35,6 +35,12 @@ export default function Sidebar({ locale, userName, userEmail, userAvatar }: Sid
       icon: <ListIcon />,
       summary: locale === 'ru' ? 'Команды и волонтёрство' : 'Teams and volunteering',
     },
+    {
+      label: locale === 'ru' ? 'Поддержка' : 'Support',
+      href: `/${locale}/cabinet/support`,
+      icon: <SupportIcon />,
+      summary: locale === 'ru' ? 'Обращения и помощь' : 'Tickets and help',
+    },
   ];
 
   const eventItems: MenuItem[] = [
@@ -104,3 +110,4 @@ function ProfileIcon() { return <IconFrame><path d="M20 21a8 8 0 0 0-16 0" /><ci
 function ListIcon() { return <IconFrame><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></IconFrame>; }
 function CalendarIcon() { return <IconFrame><rect x="3" y="5" width="18" height="16" rx="2" /><line x1="16" y1="3" x2="16" y2="7" /><line x1="8" y1="3" x2="8" y2="7" /><line x1="3" y1="11" x2="21" y2="11" /></IconFrame>; }
 function FlagIcon() { return <IconFrame><path d="M4 4v16" /><path d="M4 5h11l-1.5 3L15 11H4" /></IconFrame>; }
+function SupportIcon() { return <IconFrame><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></IconFrame>; }

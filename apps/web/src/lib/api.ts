@@ -363,6 +363,35 @@ export const adminEmailApi = {
     request<any>('/api/admin/email/webhooks', { auth: true }),
 };
 
+// ─── Support ──────────────────────────────────────────────────────────────────
+
+export const supportApi = {
+  listThreads: (params?: { page?: number; limit?: number; status?: string }) => {
+    const qs = params
+      ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString()
+      : '';
+    return request<{ data: any[]; meta: any }>(`/api/support/threads${qs}`, { auth: true });
+  },
+
+  createThread: (body: { subject: string; body: string }) =>
+    request<{ thread: any }>('/api/support/threads', { method: 'POST', auth: true, body }),
+
+  getThread: (threadId: string) =>
+    request<{ thread: any }>(`/api/support/threads/${threadId}`, { auth: true }),
+
+  sendMessage: (threadId: string, body: { body: string; attachmentIds?: string[] }) =>
+    request<{ message: any }>(`/api/support/threads/${threadId}/messages`, { method: 'POST', auth: true, body }),
+
+  uploadAttachments: (threadId: string, files: File[]) => {
+    const formData = new FormData();
+    for (const file of files) formData.append('files', file);
+    return requestForm<{ attachments: any[] }>(`/api/support/threads/${threadId}/attachments`, formData, true);
+  },
+
+  markRead: (threadId: string) =>
+    request<{ ok: boolean }>(`/api/support/threads/${threadId}/read`, { method: 'POST', auth: true }),
+};
+
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
 export const analyticsApi = {
