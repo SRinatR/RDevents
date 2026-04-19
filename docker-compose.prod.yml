@@ -47,6 +47,8 @@ services:
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
       RESEND_FROM_NAME: ${RESEND_FROM_NAME:-RDEvents}
       RESEND_REPLY_TO_EMAIL: ${RESEND_REPLY_TO_EMAIL:-}
+      RESEND_WEBHOOK_SECRET: ${RESEND_WEBHOOK_SECRET:-}
+      RESEND_WEBHOOK_ENDPOINT: ${RESEND_WEBHOOK_ENDPOINT:-https://api.rdevents.uz/webhooks/resend}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
@@ -59,6 +61,12 @@ services:
       - "127.0.0.1:4000:4000"
     volumes:
       - api_uploads:/app/services/api/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:4000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   web:
     build:
@@ -70,7 +78,8 @@ services:
     # container_name: event-platform-web
     restart: unless-stopped
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -79,6 +88,12 @@ services:
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
     ports:
       - "127.0.0.1:3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:3000/ru"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
 volumes:
   postgres_data:

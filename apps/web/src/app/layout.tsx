@@ -14,6 +14,11 @@ export const metadata: Metadata = {
     description: 'Платформа для поиска и организации мероприятий.',
     type: 'website',
   },
+  icons: {
+    icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
+    shortcut: '/favicon.svg',
+    apple: '/favicon.svg',
+  },
 };
 
 export const viewport: Viewport = {

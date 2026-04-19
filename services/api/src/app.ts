@@ -17,6 +17,7 @@ import { volunteersRouter } from './modules/volunteers/volunteers.router.js';
 import { uploadsRouter } from './modules/uploads/uploads.router.js';
 import { referenceRouter } from './modules/reference/reference.router.js';
 import { supportRouter } from './modules/support/support.router.js';
+import { resendWebhookRouter } from './modules/webhooks/resend.router.js';
 import { prisma } from './db/prisma.js';
 
 export function createApp() {
@@ -29,9 +30,10 @@ export function createApp() {
     credentials: true,
   }));
   app.use(cookieParser());
-  app.use(express.json({ limit: '2mb' }));
   app.use(morgan(env.isDev ? 'dev' : 'combined'));
   app.use(requestLogger);
+  app.use('/webhooks/resend', resendWebhookRouter);
+  app.use(express.json({ limit: '2mb' }));
   app.use('/uploads', express.static(getMediaUploadDir(), { fallthrough: true }));
 
   // ─── Health check ─────────────────────────────────────────────────────────
