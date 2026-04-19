@@ -87,9 +87,26 @@ Deploy job:
 - packs the checked-out production commit into an archive
 - uploads the archive to the production server
 - writes the environment file from the `production` environment secret
-- deploys with Docker Compose on the server
+- deploys with Docker Compose on the server (see sequence below)
 - writes `.release-commit` with the deployed commit SHA
 - runs smoke checks for API, web, `/health`, `/ready`, and web root
+
+### Database migration sequence
+
+The deploy step on the server follows this exact order to keep the database safe:
+
+1. **Build images** — `docker compose build` builds all new images before any running container is touched.
+2. **Stop app containers** — `docker compose stop api web` stops the API and web containers. Postgres is left running; the `postgres_data` named volume is never removed.
+3. **Start postgres** — `docker compose up -d postgres` ensures postgres is up.
+4. **Wait for readiness** — polls `pg_isready` for up to 60 seconds; aborts the deploy if postgres does not respond.
+5. **Backup** — runs `pg_dump | gzip` inside the postgres container and writes the compressed dump to `$DEPLOY_ROOT/backups/pre-migrate-<timestamp>.sql.gz`. The deploy aborts if the backup fails.
+6. **Migrate** — runs `pnpm prisma:deploy` inside a one-off API container (`docker compose run --rm --no-deps api`). The deploy aborts if any migration fails; postgres still holds the pre-migration data and the backup is available for restore.
+7. **Start api and web** — `docker compose up -d --no-build api web` starts the app containers using the images built in step 1. This step is only reached if migration succeeded.
+8. **Prune** — removes dangling Docker images.
+
+The production API container CMD is `node dist/main.js`. It never runs `prisma migrate deploy` on startup. Migrations are exclusively the responsibility of the deploy workflow.
+
+Seed data (`db:seed`) must never be run in production as part of the deploy. It is a local development tool only.
 
 The deploy workflow must not run from `main`, feature branches, or PRs.
 
@@ -194,7 +211,11 @@ Deploy errors are in workflow `Deploy production`.
 
 - `Validate production ref` means the workflow was started from the wrong branch.
 - `Prepare SSH`, `Upload archive`, or `Write env file on server` means infrastructure or secret configuration failed.
-- `Deploy on server` means Docker Compose deployment failed.
+- `Deploy on server` means the server-side deploy script failed. The failure message indicates the exact stage:
+  - *Postgres did not become ready* — postgres container failed to start or respond; api and web were never started.
+  - *pg_dump* error — backup failed; api and web were never started; database is unchanged.
+  - *prisma migrate deploy* error — migration failed; api and web were never started; database is in the pre-migration state; restore from `$DEPLOY_ROOT/backups/` if needed.
+  - Any other error after migration — api/web start failed but migration may have already been applied; check `docker compose ps` and logs on the server.
 - `Smoke test ...` means deployment finished but the expected service check failed.
 
 ## Local Checks
