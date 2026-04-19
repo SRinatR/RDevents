@@ -484,18 +484,3 @@ export const adminSupportApi = {
     return requestForm<{ attachments: any[] }>(`/api/admin/support/threads/${threadId}/attachments`, formData, true);
   },
 };
-
-// ─── Analytics ────────────────────────────────────────────────────────────────
-
-export const analyticsApi = {
-  track: (type: string, payload?: Record<string, unknown>) =>
-    fetch(`${BASE_URL}/api/analytics/track`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(_accessToken ? { Authorization: `Bearer ${_accessToken}` } : {}),
-      },
-      credentials: 'include',
-      body: JSON.stringify({ type, ...payload }),
-    }).catch(() => {}), // fire-and-forget, never throw
-};
