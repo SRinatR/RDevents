@@ -10,6 +10,7 @@ import {
 import {
   listUserThreads,
   createThread,
+  deleteEmptyThread,
   getUserThread,
   addUserMessage,
   markUserThreadRead,
@@ -44,6 +45,17 @@ supportRouter.post('/threads', async (req, res) => {
   const userId = (req as AuthenticatedRequest).user!.id;
   const thread = await createThread(userId, parsed.data);
   res.status(201).json({ thread });
+});
+
+// DELETE /api/support/threads/:threadId/empty  — cleanup if upload/send failed after create
+supportRouter.delete('/threads/:threadId/empty', async (req, res) => {
+  const userId = (req as AuthenticatedRequest).user!.id;
+  const result = await deleteEmptyThread(userId, String(req.params['threadId']));
+  if (!result) {
+    res.status(404).json({ error: 'Thread not found' });
+    return;
+  }
+  res.json(result);
 });
 
 // GET /api/support/threads/:threadId

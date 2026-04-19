@@ -118,6 +118,17 @@ export async function createThread(userId: string, input: CreateThreadInput) {
   });
 }
 
+export async function deleteEmptyThread(userId: string, threadId: string) {
+  const thread = await prisma.supportThread.findUnique({
+    where: { id: threadId },
+    select: { userId: true, _count: { select: { messages: true } } },
+  });
+  if (!thread || thread.userId !== userId) return null;
+  if (thread._count.messages > 0) return { skipped: true };
+  await prisma.supportThread.delete({ where: { id: threadId } });
+  return { deleted: true };
+}
+
 export async function getUserThread(userId: string, threadId: string) {
   const thread = await prisma.supportThread.findUnique({
     where: { id: threadId },

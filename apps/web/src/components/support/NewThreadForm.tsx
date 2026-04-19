@@ -69,13 +69,18 @@ export function NewThreadForm({ locale, onCreated, onCancel }: Props) {
         subject: subject.trim() || fallback,
       });
 
-      let attachmentIds: string[] = [];
-      if (files.length > 0) {
-        const uploaded = await supportApi.uploadAttachments(thread.id, files);
-        attachmentIds = (uploaded.attachments as Array<{ id: string }>).map((a) => a.id);
+      try {
+        let attachmentIds: string[] = [];
+        if (files.length > 0) {
+          const uploaded = await supportApi.uploadAttachments(thread.id, files);
+          attachmentIds = (uploaded.attachments as Array<{ id: string }>).map((a) => a.id);
+        }
+        await supportApi.sendMessage(thread.id, { body: body.trim(), attachmentIds });
+      } catch (postCreateErr) {
+        // Thread exists but has no messages — clean it up before surfacing the error
+        await supportApi.deleteEmptyThread(thread.id).catch(() => {});
+        throw postCreateErr;
       }
-
-      await supportApi.sendMessage(thread.id, { body: body.trim(), attachmentIds });
 
       onCreated(thread);
     } catch (err: unknown) {

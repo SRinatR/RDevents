@@ -376,6 +376,9 @@ export const supportApi = {
   createThread: (body: { subject: string }) =>
     request<{ thread: any }>('/api/support/threads', { method: 'POST', auth: true, body }),
 
+  deleteEmptyThread: (threadId: string) =>
+    request<{ deleted?: boolean; skipped?: boolean }>(`/api/support/threads/${threadId}/empty`, { method: 'DELETE', auth: true }),
+
   getThread: (threadId: string) =>
     request<{ thread: any }>(`/api/support/threads/${threadId}`, { auth: true }),
 
