@@ -265,6 +265,9 @@ export default function EventDetailPage() {
   const eventDateRange = `${formatDate(event.startsAt)} · ${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}`;
   const spotsLeft = Math.max((event.capacity ?? 0) - (event.registrationsCount ?? 0), 0);
   const isRussiaHouseEvent = event.slug === 'dom-gde-zhivet-rossiya';
+  const eventDateDisplay = isRussiaHouseEvent
+    ? (locale === 'ru' ? '3 мая · 11:00' : 'May 3 · 11:00')
+    : eventDateRange;
   
   // Participation config values
   const requireApproval = event.requireParticipantApproval;
@@ -317,10 +320,19 @@ export default function EventDetailPage() {
             </div>
 
             <div className="event-v4-fact-grid">
-              <article><small>{locale === 'ru' ? 'Дата и время' : 'Date & time'}</small><strong>{eventDateRange}</strong></article>
+              <article><small>{locale === 'ru' ? 'Дата и время' : 'Date & time'}</small><strong>{eventDateDisplay}</strong></article>
               <article><small>{locale === 'ru' ? 'Локация' : 'Location'}</small><strong>{event.location}</strong></article>
+              {isRussiaHouseEvent ? <article><small>{locale === 'ru' ? 'Команда' : 'Team'}</small><strong>{locale === 'ru' ? 'Команда: строго 5 человек' : 'Team: exactly 5 people'}</strong></article> : null}
+              {isRussiaHouseEvent ? <article><small>{locale === 'ru' ? 'Участники' : 'Participants'}</small><strong>60+</strong></article> : null}
+              {isRussiaHouseEvent ? <article><small>{locale === 'ru' ? 'Возраст' : 'Age limit'}</small><strong>{locale === 'ru' ? 'до 30 лет' : 'up to 30 years'}</strong></article> : null}
               {!isRussiaHouseEvent ? <article><small>{locale === 'ru' ? 'Свободные места' : 'Spots left'}</small><strong>{isFull ? (locale === 'ru' ? 'Нет мест' : 'No spots left') : spotsLeft}</strong></article> : null}
               <article><small>{locale === 'ru' ? 'Формат участия' : 'Participation format'}</small><strong>{(isRussiaHouseEvent || event.isTeamBased) ? (locale === 'ru' ? 'Командный' : 'Team-based') : (locale === 'ru' ? 'Индивидуальный' : 'Individual')}</strong></article>
+            {isRussiaHouseEvent ? (
+              <article>
+                <small>{locale === 'ru' ? 'Локация на карте' : 'Map'}</small>
+                <strong><a href="https://yandex.ru/maps/-/CPCiq-o7" target="_blank" rel="noreferrer">{locale === 'ru' ? 'Открыть локацию на карте' : 'Open location on map'}</a></strong>
+              </article>
+            ) : null}
             </div>
           </div>
         </section>
