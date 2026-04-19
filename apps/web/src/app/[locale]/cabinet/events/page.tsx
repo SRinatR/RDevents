@@ -57,6 +57,10 @@ export default function CabinetAllEventsPage() {
     return status ? ((locale === 'ru' ? ru : en)[status] ?? status) : '';
   };
 
+  const approvedCtaLabel = locale === 'ru'
+    ? 'Перейти к редактированию и созданию команды'
+    : 'Go to editing and team creation';
+
   async function handleApply(event: any) {
     setSubmittingId(event.id);
     setActionErrors((previous) => ({ ...previous, [event.id]: '' }));
@@ -116,13 +120,17 @@ export default function CabinetAllEventsPage() {
                   <h2>{leadEvent.title}</h2>
                   <div className="signal-muted">{leadEvent.location} · {formatDate(leadEvent.startsAt)} — {formatDate(leadEvent.endsAt)}</div>
                   <ToolbarRow>
-                    <button onClick={() => void handleApply(leadEvent)} disabled={submittingId === leadEvent.id || applications[leadEvent.slug]?.status === 'PENDING'} className="btn btn-primary btn-sm">
-                      {submittingId === leadEvent.id
-                        ? (locale === 'ru' ? 'Отправка...' : 'Submitting...')
-                        : applications[leadEvent.slug]?.status === 'PENDING'
-                          ? (locale === 'ru' ? 'Ожидает подтверждения' : 'Pending approval')
-                          : (locale === 'ru' ? 'Зарегистрироваться' : 'Register')}
-                    </button>
+                    {applications[leadEvent.slug]?.status === 'ACTIVE' ? (
+                      <Link href={`/${locale}/cabinet/my-events/${leadEvent.slug}`} className="btn btn-primary btn-sm">{approvedCtaLabel}</Link>
+                    ) : (
+                      <button onClick={() => void handleApply(leadEvent)} disabled={submittingId === leadEvent.id || applications[leadEvent.slug]?.status === 'PENDING'} className="btn btn-primary btn-sm">
+                        {submittingId === leadEvent.id
+                          ? (locale === 'ru' ? 'Отправка...' : 'Submitting...')
+                          : applications[leadEvent.slug]?.status === 'PENDING'
+                            ? (locale === 'ru' ? 'Ожидает подтверждения' : 'Pending approval')
+                            : (locale === 'ru' ? 'Зарегистрироваться' : 'Register')}
+                      </button>
+                    )}
                     <Link href={`/${locale}/events/${leadEvent.slug}`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Публичная страница' : 'Public page'}</Link>
                   </ToolbarRow>
                   {applications[leadEvent.slug]?.status ? (
@@ -145,13 +153,17 @@ export default function CabinetAllEventsPage() {
                       </div>
                     </div>
                     <ToolbarRow>
-                      <button onClick={() => void handleApply(event)} disabled={submittingId === event.id || applications[event.slug]?.status === 'PENDING'} className="btn btn-primary btn-sm">
-                        {submittingId === event.id
-                          ? (locale === 'ru' ? 'Отправка...' : 'Submitting...')
-                          : applications[event.slug]?.status === 'PENDING'
-                            ? (locale === 'ru' ? 'Ожидает подтверждения' : 'Pending approval')
-                            : (locale === 'ru' ? 'Зарегистрироваться' : 'Register')}
-                      </button>
+                      {applications[event.slug]?.status === 'ACTIVE' ? (
+                        <Link href={`/${locale}/cabinet/my-events/${event.slug}`} className="btn btn-primary btn-sm">{approvedCtaLabel}</Link>
+                      ) : (
+                        <button onClick={() => void handleApply(event)} disabled={submittingId === event.id || applications[event.slug]?.status === 'PENDING'} className="btn btn-primary btn-sm">
+                          {submittingId === event.id
+                            ? (locale === 'ru' ? 'Отправка...' : 'Submitting...')
+                            : applications[event.slug]?.status === 'PENDING'
+                              ? (locale === 'ru' ? 'Ожидает подтверждения' : 'Pending approval')
+                              : (locale === 'ru' ? 'Зарегистрироваться' : 'Register')}
+                        </button>
+                      )}
                       <Link href={`/${locale}/events/${event.slug}`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Публичная страница' : 'Public page'}</Link>
                     </ToolbarRow>
                     {applications[event.slug]?.status ? <div className="signal-muted">{statusLabel(applications[event.slug]?.status)}</div> : null}
