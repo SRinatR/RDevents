@@ -40,122 +40,131 @@ export default async function HomePage({ params }: HomePageProps) {
               ? <img src={heroImageSrc} alt={heroEvent?.title ?? t('home.heroTitle')} />
               : <div className="home-v3-hero-fallback-art" />}
           </div>
+          <div className="home-landing-backdrop-noise" />
 
-          <div className="container-wide home-landing-inner">
-            <div className="home-landing-copy">
-              <span className="home-landing-kicker">{t('home.heroKicker')}</span>
-              <h1>{t('home.heroTitle')}</h1>
-              <p>{t('home.heroSubtitle')}</p>
-              <div className="home-landing-actions">
-                <Link href={`/${locale}/events`} className="btn btn-primary">
-                  {t('home.exploreCta')}
-                </Link>
-                <Link href={`/${locale}/register`} className="btn btn-secondary">
-                  {t('home.joinCta')}
-                </Link>
-              </div>
-            </div>
-
-            <div className="home-landing-feature">
-              {heroEvent ? (
-                <Link href={`/${locale}/events/${heroEvent.slug}`} className="home-landing-feature-card">
-                  <small>{t('home.featuredLabel')}</small>
-                  <h2>{heroEvent.title}</h2>
-                  <p>
-                    {heroEvent.shortDescription
-                      || t('home.featuredFallbackDesc')}
-                  </p>
-                  <div className="home-meta-row">
-                    <span>{formatPreviewDate(heroEvent.startsAt, locale)}</span>
-                    <span>{heroEvent.location}</span>
-                    <span>{heroEvent.category}</span>
-                  </div>
-                </Link>
-              ) : (
-                <div className="home-landing-feature-card home-landing-feature-fallback">
-                  <small>{t('home.featuredLabel')}</small>
-                  <h2>{t('home.featuredFallbackTitle')}</h2>
-                  <p>{t('home.featuredFallbackDesc')}</p>
+          <div className="home-landing-stage-shell">
+            <div className="container-wide home-landing-inner">
+              <div className="home-landing-copy">
+                <span className="home-landing-kicker">{t('home.heroKicker')}</span>
+                <h1>{t('home.heroTitle')}</h1>
+                <p>{t('home.heroSubtitle')}</p>
+                <div className="home-landing-actions">
+                  <Link href={`/${locale}/events`} className="btn btn-primary">
+                    {t('home.exploreCta')}
+                  </Link>
+                  <Link href={`/${locale}/register`} className="btn btn-secondary">
+                    {t('home.joinCta')}
+                  </Link>
                 </div>
-              )}
+              </div>
+
+              <div className="home-landing-feature">
+                {heroEvent ? (
+                  <Link href={`/${locale}/events/${heroEvent.slug}`} className="home-landing-feature-card">
+                    <div className="home-landing-feature-head">
+                      <small>{t('home.featuredLabel')}</small>
+                      <h2>{heroEvent.title}</h2>
+                    </div>
+                    <p>
+                      {heroEvent.shortDescription
+                        || t('home.featuredFallbackDesc')}
+                    </p>
+                    <div className="home-meta-row">
+                      <span>{formatPreviewDate(heroEvent.startsAt, locale)}</span>
+                      <span>{heroEvent.location}</span>
+                      <span>{heroEvent.category}</span>
+                    </div>
+                  </Link>
+                ) : (
+                  <div className="home-landing-feature-card home-landing-feature-fallback">
+                    <div className="home-landing-feature-head">
+                      <small>{t('home.featuredLabel')}</small>
+                      <h2>{t('home.featuredFallbackTitle')}</h2>
+                    </div>
+                    <p>{t('home.featuredFallbackDesc')}</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </section>
 
         <section className="home-events-stage motion-fade-up-fast">
-          <div className="container-wide home-events-shell">
-            <div className="home-events-head">
-              <div>
-                <h2>{t('home.upcomingTitle')}</h2>
-                <p>{t('home.upcomingSubtitle')}</p>
-              </div>
-              <Link href={`/${locale}/events`} className="signal-chip-link">
-                {t('home.viewFullCatalog')}
-              </Link>
-            </div>
-
-            {streamSingleEvent ? (
-              <div className="home-v3-stream-layout motion-stagger">
-                <Link
-                  href={`/${locale}/events/${streamSingleEvent.slug}`}
-                  className="home-v3-stream-card is-full"
-                >
-                  <div className="home-v3-stream-card-cover">
-                    {streamSingleEvent.coverImageUrl
-                      ? <img src={streamSingleEvent.coverImageUrl} alt={streamSingleEvent.title} />
-                      : <CoverFallback title={streamSingleEvent.title} />}
-                  </div>
-                  <div className="home-v3-stream-card-body">
-                    <h3>{streamSingleEvent.title}</h3>
-                    {streamSingleEvent.shortDescription && (
-                      <p className="home-v3-stream-card-desc">{streamSingleEvent.shortDescription}</p>
-                    )}
-                    <div className="home-meta-row">
-                      <span>{formatPreviewDate(streamSingleEvent.startsAt, locale)}</span>
-                      <span>{streamSingleEvent.location}</span>
-                      <span>{streamSingleEvent.category}</span>
-                    </div>
-                  </div>
+          <div className="container-wide home-events-stage-inner">
+            <div className="home-events-shell">
+              <div className="home-events-head">
+                <div>
+                  <h2>{t('home.upcomingTitle')}</h2>
+                  <p>{t('home.upcomingSubtitle')}</p>
+                </div>
+                <Link href={`/${locale}/events`} className="signal-chip-link">
+                  {t('home.viewFullCatalog')}
                 </Link>
               </div>
-            ) : streamEvents.length === 0 ? (
-              <div className="signal-empty-state">
-                <h3>{t('home.streamEmptyTitle')}</h3>
-                <p>{t('home.streamEmptyDesc')}</p>
-                <div className="signal-empty-actions">
-                  <Link href={`/${locale}/events`} className="signal-chip-link">
-                    {t('events.title')}
-                  </Link>
-                </div>
-              </div>
-            ) : (
-              <div className="home-v3-stream-layout motion-stagger">
-                {streamEvents.map((event, index) => (
+
+              {streamSingleEvent ? (
+                <div className="home-events-single-showcase motion-stagger">
                   <Link
-                    key={event.id}
-                    href={`/${locale}/events/${event.slug}`}
-                    className={`home-v3-stream-card ${index === 0 ? 'is-wide' : ''} ${index === 1 ? 'is-tall' : ''}`}
+                    href={`/${locale}/events/${streamSingleEvent.slug}`}
+                    className="home-v3-stream-card home-events-single-card"
                   >
                     <div className="home-v3-stream-card-cover">
-                      {event.coverImageUrl
-                        ? <img src={event.coverImageUrl} alt={event.title} />
-                        : <CoverFallback title={event.title} />}
+                      {streamSingleEvent.coverImageUrl
+                        ? <img src={streamSingleEvent.coverImageUrl} alt={streamSingleEvent.title} />
+                        : <CoverFallback title={streamSingleEvent.title} />}
                     </div>
                     <div className="home-v3-stream-card-body">
-                      <h3>{event.title}</h3>
-                      {index === 0 && event.shortDescription && (
-                        <p className="home-v3-stream-card-desc">{event.shortDescription}</p>
+                      <h3>{streamSingleEvent.title}</h3>
+                      {streamSingleEvent.shortDescription && (
+                        <p className="home-v3-stream-card-desc">{streamSingleEvent.shortDescription}</p>
                       )}
                       <div className="home-meta-row">
-                        <span>{formatPreviewDate(event.startsAt, locale)}</span>
-                        <span>{event.location}</span>
-                        <span>{event.category}</span>
+                        <span>{formatPreviewDate(streamSingleEvent.startsAt, locale)}</span>
+                        <span>{streamSingleEvent.location}</span>
+                        <span>{streamSingleEvent.category}</span>
                       </div>
                     </div>
                   </Link>
-                ))}
-              </div>
-            )}
+                </div>
+              ) : streamEvents.length === 0 ? (
+                <div className="signal-empty-state">
+                  <h3>{t('home.streamEmptyTitle')}</h3>
+                  <p>{t('home.streamEmptyDesc')}</p>
+                  <div className="signal-empty-actions">
+                    <Link href={`/${locale}/events`} className="signal-chip-link">
+                      {t('events.title')}
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <div className="home-v3-stream-layout home-events-grid motion-stagger">
+                  {streamEvents.map((event, index) => (
+                    <Link
+                      key={event.id}
+                      href={`/${locale}/events/${event.slug}`}
+                      className={`home-v3-stream-card ${index === 0 ? 'is-wide' : ''} ${index === 1 ? 'is-tall' : ''}`}
+                    >
+                      <div className="home-v3-stream-card-cover">
+                        {event.coverImageUrl
+                          ? <img src={event.coverImageUrl} alt={event.title} />
+                          : <CoverFallback title={event.title} />}
+                      </div>
+                      <div className="home-v3-stream-card-body">
+                        <h3>{event.title}</h3>
+                        {index === 0 && event.shortDescription && (
+                          <p className="home-v3-stream-card-desc">{event.shortDescription}</p>
+                        )}
+                        <div className="home-meta-row">
+                          <span>{formatPreviewDate(event.startsAt, locale)}</span>
+                          <span>{event.location}</span>
+                          <span>{event.category}</span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </section>
 
