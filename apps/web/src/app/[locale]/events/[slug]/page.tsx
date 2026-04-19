@@ -479,7 +479,7 @@ export default function EventDetailPage() {
                   </div>
                   <div>
                     <dt>Карта для участников</dt>
-                    <dd><a href="https://yandex.ru/maps/-/CPCiq-o7" target="_blank" rel="noreferrer">Открыть маршрут в Яндекс Картах</a></dd>
+                    <dd><a href="https://yandex.ru/maps/-/CPCiyWNG" target="_blank" rel="noreferrer">Открыть маршрут в Яндекс Картах</a></dd>
                   </div>
                 </dl>
               </article>
