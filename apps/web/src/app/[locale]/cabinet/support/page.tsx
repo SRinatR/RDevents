@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { supportApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
@@ -17,15 +17,17 @@ import { SupportThreadCard } from '@/components/support/SupportThreadCard';
 import { NewThreadForm } from '@/components/support/NewThreadForm';
 import type { SupportThread } from '@/components/support/support.types';
 
-export default function SupportPage() {
+function SupportPageInner() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const locale = useRouteLocale();
+  const searchParams = useSearchParams();
 
   const [threads, setThreads] = useState<SupportThread[]>([]);
   const [threadsLoading, setThreadsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showNewForm, setShowNewForm] = useState(false);
+  // Auto-open the new ticket form when ?new=1 is present
+  const [showNewForm, setShowNewForm] = useState(searchParams.get('new') === '1');
 
   useEffect(() => {
     if (!loading && !user) router.push(`/${locale}/login`);
@@ -105,5 +107,13 @@ export default function SupportPage() {
         )}
       </Panel>
     </div>
+  );
+}
+
+export default function SupportPage() {
+  return (
+    <Suspense>
+      <SupportPageInner />
+    </Suspense>
   );
 }

@@ -20,20 +20,38 @@ export function AdminSupportComposer({ threadId, locale, onSent }: Props) {
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const canSend = body.trim().length > 0 && !sending;
+  // Send is allowed when there is text OR at least one attachment
+  const canSend = (body.trim().length > 0 || files.length > 0) && !sending;
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const selected = Array.from(e.target.files ?? []);
-    const invalid = selected.filter((f) => !ALLOWED_TYPES.includes(f.type));
+  function addFiles(incoming: File[]) {
+    const invalid = incoming.filter((f) => !ALLOWED_TYPES.includes(f.type));
     if (invalid.length) {
       setError(locale === 'ru'
         ? 'Допустимы только изображения (JPEG, PNG, WebP) и PDF.'
         : 'Only images (JPEG, PNG, WebP) and PDF are allowed.');
-      e.target.value = '';
+      return false;
+    }
+    setFiles((prev) => [...prev, ...incoming].slice(0, MAX_FILES));
+    return true;
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    addFiles(Array.from(e.target.files ?? []));
+    e.target.value = '';
+  }
+
+  function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const imageItems = Array.from(e.clipboardData.items).filter(
+      (item) => item.kind === 'file' && ALLOWED_TYPES.includes(item.type),
+    );
+    if (imageItems.length === 0) return;
+    const pastedFiles = imageItems.map((item) => item.getAsFile()).filter((f): f is File => f !== null);
+    if (pastedFiles.length === 0) return;
+    if (files.length >= MAX_FILES) {
+      setError(locale === 'ru' ? `Максимум ${MAX_FILES} файлов.` : `Maximum ${MAX_FILES} files allowed.`);
       return;
     }
-    setFiles((prev) => [...prev, ...selected].slice(0, MAX_FILES));
-    e.target.value = '';
+    addFiles(pastedFiles);
   }
 
   function removeFile(index: number) {
@@ -100,6 +118,7 @@ export function AdminSupportComposer({ threadId, locale, onSent }: Props) {
         value={body}
         onChange={(e) => setBody(e.target.value)}
         onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
         rows={3}
         placeholder={locale === 'ru'
           ? 'Ответ пользователю… (Ctrl+Enter для отправки)'

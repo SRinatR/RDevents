@@ -6,9 +6,12 @@ export const createThreadSchema = z.object({
 });
 
 export const addMessageSchema = z.object({
-  body: z.string().min(1).max(10000),
+  body: z.string().max(10000).default(''),
   attachmentIds: z.array(z.string()).max(5).default([]),
-});
+}).refine(
+  (data) => data.body.trim().length > 0 || data.attachmentIds.length > 0,
+  { message: 'Message body or at least one attachment is required' },
+);
 
 export const assignThreadSchema = z.object({
   adminUserId: z.string().min(1),
