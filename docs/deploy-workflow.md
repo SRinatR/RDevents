@@ -47,7 +47,9 @@ Triggers:
 Jobs:
 
 - `Type check`: installs dependencies and runs `pnpm typecheck`
-- `Build`: installs dependencies and runs `pnpm build`
+- `Lint`: installs dependencies and runs `pnpm lint`
+- `Test`: starts a Postgres service, generates the Prisma client, and runs `pnpm test`
+- `Build`: waits for typecheck, lint, and test to pass, then installs dependencies and runs `pnpm build`
 
 Runtime policy:
 
@@ -63,9 +65,11 @@ Concurrency:
 Required status checks for branch protection:
 
 - `Type check`
+- `Lint`
+- `Test`
 - `Build`
 
-Use the exact check-run names reported by GitHub API. In the PR UI these checks are shown under the workflow as `CI / Type check` and `CI / Build`; branch protection stores the check names as `Type check` and `Build`. If GitHub UI shows old entries such as `CI/Build` or `CI/Type check`, remove them and select the current checks above.
+Use the exact check-run names reported by GitHub API. In the PR UI these checks are shown under the workflow as `CI / Type check`, `CI / Lint`, `CI / Test`, and `CI / Build`; branch protection stores the check names as `Type check`, `Lint`, `Test`, and `Build`. If GitHub UI shows old entries such as `CI/Build` or `CI/Type check`, remove them and select the current checks above.
 
 ## Production Deploy Workflow
 
@@ -89,7 +93,10 @@ Deploy job:
 - writes the environment file from the `production` environment secret
 - deploys with Docker Compose on the server (see sequence below)
 - writes `.release-commit` with the deployed commit SHA
-- runs smoke checks for API, web, `/health`, `/ready`, and web root
+- starts Postgres, waits for it to become healthy, and writes a non-empty pre-migration database backup
+- runs `pnpm prisma:deploy` only after the backup succeeds
+- starts API and web with Docker Compose
+- runs smoke checks for API, web, `/health`, `/ready`, and web `/ru`
 
 ### Deploy sequence
 
@@ -99,8 +106,8 @@ The deploy step on the server follows this exact order to keep the database safe
 2. **Build images** — `docker compose build` builds all new images before any running container is touched.
 3. **Stop app containers** — `docker compose stop api web` stops the API and web containers. Postgres is left running; the `postgres_data` named volume is never removed.
 4. **Start postgres** — `docker compose up -d postgres` ensures postgres is up.
-5. **Wait for postgres healthy** — polls `docker compose ps --status healthy` for up to 60 seconds; aborts the deploy if postgres does not become healthy. This checks the Docker health check (`pg_isready -U <user> -d <db>`) rather than a bare TCP probe, confirming the correct user and database are accepting connections.
-6. **Backup** — runs `pg_dump | gzip` inside the postgres container and writes the compressed dump to `$DEPLOY_ROOT/backups/pre-migrate-<timestamp>.sql.gz`. The deploy aborts if the backup fails.
+5. **Wait for postgres healthy** — polls the postgres container health status with `docker inspect` for up to 60 seconds; aborts the deploy if postgres does not become healthy. This checks the Docker health check (`pg_isready -U <user> -d <db>`) rather than a bare TCP probe, confirming the correct user and database are accepting connections.
+6. **Backup** — runs `pg_dump | gzip` inside the postgres container using the container's own `POSTGRES_USER` and `POSTGRES_DB`, then writes the compressed dump to `$DEPLOY_ROOT/backups/pre-migrate-<timestamp>.sql.gz`. The deploy aborts if the backup fails or the file is empty.
 7. **Migrate** — runs `pnpm prisma:deploy` inside a one-off API container (`docker compose run --rm --no-deps api`). The deploy aborts if any migration fails; postgres still holds the pre-migration data and the backup is available for restore. **Seed (`db:seed`) is never run here.**
 8. **Start api and web** — `docker compose up -d --no-build api web` starts the app containers using the images built in step 2. This step is only reached if migration succeeded.
 9. **Prune** — removes dangling Docker images.
@@ -160,6 +167,8 @@ Required:
 - Require status checks to pass before merging
 - Required checks:
   - `Type check`
+  - `Lint`
+  - `Test`
   - `Build`
 - Block direct push
 - Do not allow force pushes
@@ -184,6 +193,8 @@ Required:
 - Require status checks to pass before merging
 - Required checks:
   - `Type check`
+  - `Lint`
+  - `Test`
   - `Build`
 - Restrict who can push to matching branches when the repository is in an organization
 - Restrict who can dismiss reviews
@@ -206,7 +217,7 @@ Note for `SRinatR/RDevents`: this is a personal repository. GitHub rejects user/
 1. Developer creates `feature/*`, `fix/*`, or `hotfix/*`.
 2. Developer opens a PR to `main`.
 3. CI runs on the PR.
-4. PR is reviewed and merged to `main` only after `Type check` and `Build` are green.
+4. PR is reviewed and merged to `main` only after `Type check`, `Lint`, `Test`, and `Build` are green.
 5. When a release is approved, open PR `main -> production`.
 6. `production` PR goes through stricter review and required checks.
 7. Merge to `production`.
@@ -219,6 +230,8 @@ Note for `SRinatR/RDevents`: this is a personal repository. GitHub rejects user/
 CI errors are in workflow `CI`.
 
 - `Type check` failures are TypeScript or dependency install failures.
+- `Lint` failures are ESLint violations or dependency install failures.
+- `Test` failures are Vitest failures, test database startup failures, Prisma client generation failures, or dependency install failures.
 - `Build` failures are production build failures.
 - CI never means production deployment failed.
 
@@ -228,7 +241,7 @@ Deploy errors are in workflow `Deploy production`.
 - `Prepare SSH`, `Upload archive`, or `Write env file on server` means infrastructure or secret configuration failed.
 - `Deploy on server` means the server-side deploy script failed. The failure message indicates the exact stage:
   - *Postgres did not become healthy* — postgres container failed to start or pass its health check; api and web were never started.
-  - *pg_dump* error — backup failed; api and web were never started; database is unchanged.
+  - *pg_dump* error or empty backup file — backup failed; api and web were never started; database is unchanged.
   - *prisma migrate deploy* error — migration failed; api and web were never started; database is in the pre-migration state; restore from `$DEPLOY_ROOT/backups/` if needed.
   - Any other error after migration — api/web start failed but migration may have already been applied; check `docker compose ps` and logs on the server.
 - `Smoke test - API container is running` / `Smoke test - Web container is running` — container did not reach running state within 60 s after `docker compose up`; check `docker compose ps` and logs on the server.
@@ -239,6 +252,9 @@ Deploy errors are in workflow `Deploy production`.
 
 ```bash
 pnpm install --frozen-lockfile
+pnpm db:generate
+pnpm lint
+pnpm test
 pnpm typecheck
 pnpm build
 ```
@@ -251,7 +267,7 @@ Before considering release governance complete, confirm in GitHub Settings:
 - Branch protection for `production` is enabled and stricter than `main`.
 - Direct push to `main` is blocked.
 - Direct push to `production` is blocked.
-- Required checks are exactly `Type check` and `Build`.
+- Required checks are exactly `Type check`, `Lint`, `Test`, and `Build`.
 - GitHub Environment `production` exists.
 - Environment `production` has the required reviewers or protection rules.
 - Environment `production` contains `PROD_HOST`, `PROD_PORT`, `PROD_USER`, `PROD_SSH_KEY`, and `PROD_ENV_FILE`.

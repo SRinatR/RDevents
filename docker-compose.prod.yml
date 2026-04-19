@@ -4,13 +4,13 @@ services:
     # container_name: event-platform-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: event_platform
-      POSTGRES_USER: event_platform_user
-      POSTGRES_PASSWORD: event_platform_password
+      POSTGRES_DB: ${POSTGRES_DB:-event_platform}
+      POSTGRES_USER: ${POSTGRES_USER:-event_platform_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-event_platform_password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U event_platform_user -d event_platform"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 10s
       timeout: 5s
       retries: 10

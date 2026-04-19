@@ -166,12 +166,10 @@ jobs:
             BACKUP_DIR="$DEPLOY_ROOT/backups"
             mkdir -p "$BACKUP_DIR"
             BACKUP_FILE="$BACKUP_DIR/pre-migrate-$(date +%Y%m%d-%H%M%S).sql.gz"
-            PGUSER=$(sed -n 's/^POSTGRES_USER=//p' "$DEPLOY_ROOT/.env" | head -1)
-            PGDB=$(sed -n 's/^POSTGRES_DB=//p' "$DEPLOY_ROOT/.env" | head -1)
-            PGUSER="${PGUSER:-postgres}"
-            PGDB="${PGDB:-postgres}"
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml exec -T postgres \
-              pg_dump -U "$PGUSER" "$PGDB" | gzip > "$BACKUP_FILE"
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
+              exec -T postgres sh -lc 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+              | gzip > "$BACKUP_FILE"
+            test -s "$BACKUP_FILE"
             echo "Backup written to $BACKUP_FILE ($(du -sh "$BACKUP_FILE" | cut -f1))"
 
             # Run migrations as a one-off container — deploy aborts here if any migration fails.
