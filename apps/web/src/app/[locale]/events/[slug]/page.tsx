@@ -262,9 +262,11 @@ export default function EventDetailPage() {
   const fieldLabel = (field: MissingField) => locale === 'ru'
     ? FIELD_LABELS_RU[field.key] ?? field.label
     : field.label;
-  const eventDateRange = `${formatDate(event.startsAt)} · ${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}`;
-  const spotsLeft = Math.max((event.capacity ?? 0) - (event.registrationsCount ?? 0), 0);
   const isRussiaHouseEvent = event.slug === 'dom-gde-zhivet-rossiya';
+  const eventDateRange = isRussiaHouseEvent
+    ? (locale === 'ru' ? 'воскресенье, 3 мая 2026 г. · 10:30 – 15:30' : 'Sunday, May 3, 2026 · 10:30 – 15:30')
+    : `${formatDate(event.startsAt)} · ${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}`;
+  const spotsLeft = Math.max((event.capacity ?? 0) - (event.registrationsCount ?? 0), 0);
   
   // Participation config values
   const requireApproval = event.requireParticipantApproval;
@@ -319,9 +321,18 @@ export default function EventDetailPage() {
             <div className="event-v4-fact-grid">
               <article><small>{locale === 'ru' ? 'Дата и время' : 'Date & time'}</small><strong>{eventDateRange}</strong></article>
               <article><small>{locale === 'ru' ? 'Локация' : 'Location'}</small><strong>{event.location}</strong></article>
-              {!isRussiaHouseEvent ? <article><small>{locale === 'ru' ? 'Свободные места' : 'Spots left'}</small><strong>{isFull ? (locale === 'ru' ? 'Нет мест' : 'No spots left') : spotsLeft}</strong></article> : null}
-              <article><small>{locale === 'ru' ? 'Формат участия' : 'Participation format'}</small><strong>{(isRussiaHouseEvent || event.isTeamBased) ? (locale === 'ru' ? 'Командный' : 'Team-based') : (locale === 'ru' ? 'Индивидуальный' : 'Individual')}</strong></article>
+              {isRussiaHouseEvent
+                ? <article><small>{locale === 'ru' ? 'Участники' : 'Participants'}</small><strong>60+ {locale === 'ru' ? 'участников' : 'participants'}</strong></article>
+                : <article><small>{locale === 'ru' ? 'Свободные места' : 'Spots left'}</small><strong>{isFull ? (locale === 'ru' ? 'Нет мест' : 'No spots left') : spotsLeft}</strong></article>}
+              <article><small>{locale === 'ru' ? 'Формат участия' : 'Participation format'}</small><strong>{(isRussiaHouseEvent || event.isTeamBased) ? (locale === 'ru' ? 'Командный маршрут' : 'Team route') : (locale === 'ru' ? 'Индивидуальный' : 'Individual')}</strong></article>
             </div>
+            {isRussiaHouseEvent ? (
+              <div className="public-meta-row public-gap-after-xs">
+                <a href="https://yandex.ru/maps/-/CPCiq-o7" target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">
+                  {locale === 'ru' ? 'Открыть маршрут в Яндекс Картах' : 'Open route in Yandex Maps'}
+                </a>
+              </div>
+            ) : null}
           </div>
         </section>
 
@@ -338,12 +349,17 @@ export default function EventDetailPage() {
                 <Panel className="public-participation-panel event-v4-participation-panel">
                   <SectionHeader title={locale === 'ru' ? 'Участие' : 'Participation'} subtitle={locale === 'ru' ? 'Действия и текущий статус' : 'Actions and current status'} />
 
-                  {showCountPublicly && (
+                  {showCountPublicly && !isRussiaHouseEvent && (
                     <>
                       <div className="progress-bar signal-gap-after-2xs public-participation-progress"><div className={`progress-bar-fill${isFull ? ' danger' : ''}`} style={{ width: `${capacityPct}%` }} /></div>
-                      {!isRussiaHouseEvent ? <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div> : null}
+                      <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div>
                     </>
                   )}
+                  {isRussiaHouseEvent ? (
+                    <div className="signal-muted" style={{ fontSize: '0.85rem', marginBottom: 12 }}>
+                      60+ {locale === 'ru' ? 'участников' : 'participants'}
+                    </div>
+                  ) : null}
 
                   {requireApproval ? (
                     <div className="signal-muted" style={{ fontSize: '0.85rem', marginBottom: 12 }}>
@@ -353,7 +369,7 @@ export default function EventDetailPage() {
                     <div className="signal-muted" style={{ fontSize: '0.85rem', marginBottom: 12 }}>
                       {locale === 'ru' ? `Свободных мест: ${spotsLeft} из ${participantTarget}` : `Spots left: ${spotsLeft} of ${participantTarget}`}
                     </div>
-                  ) : isGoalLimit ? (
+                  ) : isGoalLimit && !isRussiaHouseEvent ? (
                     <div className="signal-muted" style={{ fontSize: '0.85rem', marginBottom: 12 }}>
                       {locale === 'ru' ? `Цель: ${participantTarget} участников` : `Goal: ${participantTarget} participants`}
                     </div>
