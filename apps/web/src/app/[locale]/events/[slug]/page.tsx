@@ -230,6 +230,7 @@ export default function EventDetailPage() {
   const hasActiveVolunteer = ['PENDING', 'APPROVED', 'ACTIVE'].includes(volunteerStatus ?? '');
   const isRussiaHouseEvent = event.slug === 'dom-gde-zhivet-rossiya';
   const spotsLeft = Math.max((event.capacity ?? 0) - (event.registrationsCount ?? 0), 0);
+  const cabinetEventsHref = `/${locale}/cabinet/events`;
   const eventDateRange = isRussiaHouseEvent && locale === 'ru'
     ? 'воскресенье, 3 мая 2026 г. · 10:30 – 15:30'
     : `${formatDate(event.startsAt)} · ${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}`;
@@ -349,7 +350,7 @@ export default function EventDetailPage() {
                 <h1>{event.title}</h1>
                 <p>{event.shortDescription}</p>
                 <div className="rhq-hero-actions">
-                  <a href="#registration" className="rhq-button rhq-button-primary">{locale === 'ru' ? 'Подать заявку' : 'Apply now'}</a>
+                  <Link href={cabinetEventsHref} className="rhq-button rhq-button-primary">{locale === 'ru' ? 'Подать заявку' : 'Apply now'}</Link>
                   <a href="#program" className="rhq-button rhq-button-secondary">{locale === 'ru' ? 'Смотреть программу' : 'View program'}</a>
                 </div>
               </div>
@@ -503,7 +504,7 @@ export default function EventDetailPage() {
                 </div>
               </div>
               <div className="rhq-registration-card">
-                <Link href={`/${locale}/cabinet/events`} className="rhq-button rhq-button-primary">
+                <Link href={cabinetEventsHref} className="rhq-button rhq-button-primary">
                   {locale === 'ru' ? 'Подать заявку' : 'Apply now'}
                 </Link>
                 <button onClick={handleCopyLink} className="rhq-button rhq-button-secondary rhq-share-button">
