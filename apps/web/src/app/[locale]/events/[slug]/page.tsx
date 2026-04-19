@@ -232,6 +232,7 @@ export default function EventDetailPage() {
   const registrationExpired = event.registrationDeadline ? new Date(event.registrationDeadline).getTime() < Date.now() : false;
   const hasActiveVolunteer = ['PENDING', 'APPROVED', 'ACTIVE'].includes(volunteerStatus ?? '');
   const isRussiaHouseEvent = event.slug === 'dom-gde-zhivet-rossiya';
+  const spotsLeft = Math.max((event.capacity ?? 0) - (event.registrationsCount ?? 0), 0);
   const eventDateRange = isRussiaHouseEvent && locale === 'ru'
     ? 'воскресенье, 3 мая 2026 г. · 10:30 – 15:30'
     : `${formatDate(event.startsAt)} · ${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}`;
