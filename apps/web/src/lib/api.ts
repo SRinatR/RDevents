@@ -343,6 +343,18 @@ export const adminApi = {
     return request<{ data: any[]; meta: any }>(`/api/admin/participants${qs}`, { auth: true });
   },
 
+  listApplications: (params?: {
+    search?: string;
+    eventId?: string;
+    status?: string;
+    type?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/applications${qs}`, { auth: true });
+  },
+
   listTeams: (params?: {
     search?: string;
     eventId?: string;

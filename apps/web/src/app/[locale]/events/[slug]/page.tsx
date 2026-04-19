@@ -2,8 +2,10 @@
 
 import { useState, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { eventsApi, analyticsApi } from '../../../../lib/api';
+import { ApiError, eventsApi } from '../../../../lib/api';
+import { analyticsApi } from '../../../../lib/api';
 import { useAuth } from '../../../../hooks/useAuth';
 import { useRouteParams } from '../../../../hooks/useRouteParams';
 import { EmptyState, LoadingLines, Notice, Panel, SectionHeader } from '@/components/ui/signal-primitives';
@@ -145,6 +147,8 @@ function QuestSectionHeader({
 
 export default function EventDetailPage() {
   const t = useTranslations();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const { locale, get } = useRouteParams();
   const slug = get('slug');
@@ -156,6 +160,9 @@ export default function EventDetailPage() {
   const [participationStatus, setParticipationStatus] = useState<string | null>(null);
   const [volunteerStatus, setVolunteerStatus] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showApplyChoice, setShowApplyChoice] = useState(false);
+  const [applyChoiceLoading, setApplyChoiceLoading] = useState('');
+  const [applyChoiceError, setApplyChoiceError] = useState('');
 
   useEffect(() => {
     if (!slug) return;
@@ -181,6 +188,17 @@ export default function EventDetailPage() {
       .finally(() => setLoading(false));
   }, [slug, locale]);
 
+  useEffect(() => {
+    if (!slug) return;
+    if (!user) return;
+    if (searchParams.get('applyChoice') === '1') {
+      setShowApplyChoice(true);
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('applyChoice');
+      router.replace(`/${locale}/events/${slug}${params.toString() ? `?${params.toString()}` : ''}`, { scroll: false });
+    }
+  }, [user, slug, searchParams, locale, router]);
+
   async function handleCopyLink() {
     await navigator.clipboard.writeText(window.location.href);
     setCopied(true);
@@ -197,6 +215,61 @@ export default function EventDetailPage() {
     return new Date(dateStr).toLocaleTimeString(locale === 'ru' ? 'ru-RU' : 'en-US', {
       hour: '2-digit', minute: '2-digit',
     });
+  }
+
+  function handleApplyCtaClick() {
+    setApplyChoiceError('');
+    if (!slug) return;
+    if (!user) {
+      router.push(`/${locale}/login?next=${encodeURIComponent(`/${locale}/events/${slug}?applyChoice=1`)}`);
+      return;
+    }
+    setShowApplyChoice(true);
+  }
+
+  async function handleApplyTypeSelect(type: 'participant' | 'volunteer') {
+    if (!event || !slug) return;
+    setApplyChoiceError('');
+    setApplyChoiceLoading(type);
+    try {
+      if (type === 'participant') {
+        router.push(`/${locale}/cabinet/events?event=${encodeURIComponent(slug)}&applyType=participant`);
+        return;
+      }
+      await eventsApi.applyVolunteer(event.id);
+      router.push(`/${locale}/cabinet/applications`);
+    } catch (err: any) {
+      if (err instanceof ApiError) setApplyChoiceError(err.message);
+      else setApplyChoiceError(locale === 'ru' ? 'Не удалось отправить заявку.' : 'Failed to submit application.');
+    } finally {
+      setApplyChoiceLoading('');
+    }
+  }
+
+  function renderApplyChoicePanel() {
+    if (!showApplyChoice) return null;
+    return (
+      <div className="signal-modal-backdrop" role="dialog" aria-modal="true">
+        <Panel className="signal-modal-card" style={{ maxWidth: 420, width: '100%' }}>
+          <SectionHeader
+            title={locale === 'ru' ? 'Выберите тип заявки' : 'Choose application type'}
+            subtitle={locale === 'ru' ? 'Продолжить как участник или как волонтёр' : 'Continue as participant or volunteer'}
+          />
+          <div className="signal-stack">
+            <button className="btn btn-primary" disabled={Boolean(applyChoiceLoading)} onClick={() => void handleApplyTypeSelect('participant')}>
+              {applyChoiceLoading === 'participant' ? '...' : (locale === 'ru' ? 'Участник' : 'Participant')}
+            </button>
+            <button className="btn btn-secondary" disabled={Boolean(applyChoiceLoading)} onClick={() => void handleApplyTypeSelect('volunteer')}>
+              {applyChoiceLoading === 'volunteer' ? '...' : (locale === 'ru' ? 'Волонтёр' : 'Volunteer')}
+            </button>
+            <button className="btn btn-ghost btn-sm" disabled={Boolean(applyChoiceLoading)} onClick={() => setShowApplyChoice(false)}>
+              {locale === 'ru' ? 'Отмена' : 'Cancel'}
+            </button>
+            {applyChoiceError ? <Notice tone="danger">{applyChoiceError}</Notice> : null}
+          </div>
+        </Panel>
+      </div>
+    );
   }
 
   if (loading) {
@@ -230,7 +303,6 @@ export default function EventDetailPage() {
   const hasActiveVolunteer = ['PENDING', 'APPROVED', 'ACTIVE'].includes(volunteerStatus ?? '');
   const isRussiaHouseEvent = event.slug === 'dom-gde-zhivet-rossiya';
   const spotsLeft = Math.max((event.capacity ?? 0) - (event.registrationsCount ?? 0), 0);
-  const cabinetEventsHref = `/${locale}/cabinet/events`;
   const eventDateRange = isRussiaHouseEvent && locale === 'ru'
     ? 'воскресенье, 3 мая 2026 г. · 10:30 – 15:30'
     : `${formatDate(event.startsAt)} · ${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}`;
@@ -310,6 +382,13 @@ export default function EventDetailPage() {
           )
           : participationStatus === 'RESERVE' ? <Notice tone="info">{getParticipationStatusLabel('RESERVE')}</Notice>
           : participationStatus && ['REJECTED', 'CANCELLED', 'REMOVED'].includes(participationStatus) ? <Notice tone="danger">{getParticipationStatusLabel(participationStatus)}</Notice>
+          : hasActiveVolunteer ? (
+            <Notice tone="info">
+              {locale === 'ru'
+                ? 'У вас активна волонтёрская заявка. Командный модуль доступен только участникам.'
+                : 'You have an active volunteer application. Team module is available only for participants.'}
+            </Notice>
+          )
           : (
             <div className="signal-stack">
               <Link href={cabinetHref} className="btn btn-primary">
@@ -350,7 +429,7 @@ export default function EventDetailPage() {
                 <h1>{event.title}</h1>
                 <p>{event.shortDescription}</p>
                 <div className="rhq-hero-actions">
-                  <Link href={cabinetEventsHref} className="rhq-button rhq-button-primary">{locale === 'ru' ? 'Подать заявку' : 'Apply now'}</Link>
+                  <button onClick={handleApplyCtaClick} className="rhq-button rhq-button-primary">{locale === 'ru' ? 'Подать заявку' : 'Apply now'}</button>
                   <a href="#program" className="rhq-button rhq-button-secondary">{locale === 'ru' ? 'Смотреть программу' : 'View program'}</a>
                 </div>
               </div>
@@ -504,9 +583,9 @@ export default function EventDetailPage() {
                 </div>
               </div>
               <div className="rhq-registration-card">
-                <Link href={cabinetEventsHref} className="rhq-button rhq-button-primary">
+                <button onClick={handleApplyCtaClick} className="rhq-button rhq-button-primary">
                   {locale === 'ru' ? 'Подать заявку' : 'Apply now'}
-                </Link>
+                </button>
                 <button onClick={handleCopyLink} className="rhq-button rhq-button-secondary rhq-share-button">
                   {copied ? (locale === 'ru' ? 'Ссылка скопирована' : 'Link copied') : (locale === 'ru' ? 'Поделиться событием' : 'Share event')}
                 </button>
@@ -561,6 +640,7 @@ export default function EventDetailPage() {
         </main>
 
         <PublicFooter locale={locale} />
+        {renderApplyChoicePanel()}
       </div>
     );
   }
@@ -617,6 +697,7 @@ export default function EventDetailPage() {
       </main>
 
       <PublicFooter locale={locale} />
+      {renderApplyChoicePanel()}
     </div>
   );
 }
