@@ -173,12 +173,13 @@ authRouter.post('/login', authRateLimits.login, async (req, res) => {
 
     const result = await loginWithEmail(parsed.data, getClientContext(req));
     setRefreshCookie(res, result.refreshToken);
+    const safeUser = result.user as any;
     logger.info('Auth login succeeded', {
       module: 'auth',
       action: 'auth_login_succeeded',
       requestId: (req as any).requestId,
-      userId: result.user.id,
-      meta: { email: result.user.email, role: result.user.role },
+      userId: safeUser.id,
+      meta: { email: safeUser.email, role: safeUser.role },
     });
     res.json({ user: result.user, accessToken: result.accessToken });
   } catch (err: any) {
