@@ -7,6 +7,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { eventsApi } from '../../../lib/api';
 import { useRouteLocale } from '../../../hooks/useRouteParams';
 import { EmptyState, LoadingLines, Notice, PageHeader, Panel } from '@/components/ui/signal-primitives';
+import CabinetEventWorkspaceView from '@/components/cabinet/events/CabinetEventWorkspaceView';
 
 type ParticipationCard = {
   key: string;
@@ -124,13 +125,32 @@ export default function CabinetDashboardPage() {
     return cards;
   }, [participantApplications, volunteerApplications, approvedEvents, teams, isRu]);
 
+  const participantCards = useMemo(
+    () => participations.filter((item) => item.type === 'PARTICIPANT'),
+    [participations],
+  );
+
+  const selectedParticipantSlug = useMemo(() => {
+    const eligible = participantCards.filter((item) => item.eventSlug);
+    if (eligible.length === 0) return '';
+
+    const byPriority = [...eligible].sort((a, b) => {
+      const aScore = participantStatusPriority(a.status);
+      const bScore = participantStatusPriority(b.status);
+      if (aScore !== bScore) return bScore - aScore;
+      return a.eventTitle.localeCompare(b.eventTitle, locale);
+    });
+
+    return byPriority[0].eventSlug ?? '';
+  }, [participantCards, locale]);
+
   if (loading || !user) return null;
 
   return (
     <div className="signal-page-shell cabinet-workspace-page workspace-page-v2">
       <PageHeader
         title={isRu ? 'Дашборд' : 'Dashboard'}
-        subtitle={isRu ? 'Ваши текущие участия' : 'Your current participations'}
+        subtitle={isRu ? 'Сводка по вашим участиям' : 'Summary of your participations'}
       />
 
       {loadingData ? <LoadingLines rows={6} /> : null}
@@ -141,51 +161,63 @@ export default function CabinetDashboardPage() {
           <Panel variant="elevated" className="cabinet-workspace-panel">
             <EmptyState
               title={isRu ? 'В данный момент вы нигде не участвуете.' : 'You are not participating anywhere at the moment.'}
-              description={isRu ? 'Начните с выбора события в каталоге.' : 'Start by selecting an event in the catalog.'}
-              actions={<Link href={`/${locale}/cabinet/events`} className="btn btn-primary btn-sm">{isRu ? 'Открыть события' : 'Open events'}</Link>}
+              description=""
             />
           </Panel>
         ) : (
-          <Panel variant="elevated" className="cabinet-workspace-panel">
-            <div className="signal-stack cabinet-list-stack cabinet-list-stack-premium">
-              {participations.map((item) => {
-                const isParticipant = item.type === 'PARTICIPANT';
-                const canOpenCabinet = isParticipant && Boolean(item.eventSlug);
-                const href = canOpenCabinet
-                  ? `/${locale}/cabinet/events/${item.eventSlug}`
-                  : item.eventSlug
-                    ? `/${locale}/events/${item.eventSlug}`
-                    : `/${locale}/cabinet/events`;
+          <div className="signal-stack">
+            <Panel variant="elevated" className="cabinet-workspace-panel">
+              <div className="signal-stack cabinet-list-stack cabinet-list-stack-premium">
+                {participations.map((item) => {
+                  const isParticipant = item.type === 'PARTICIPANT';
+                  const canOpenCabinet = isParticipant && Boolean(item.eventSlug);
+                  const href = canOpenCabinet
+                    ? `/${locale}/cabinet/events/${item.eventSlug}`
+                    : item.eventSlug
+                      ? `/${locale}/events/${item.eventSlug}`
+                      : `/${locale}/cabinet/events`;
 
-                return (
-                  <div key={item.key} className="signal-ranked-item cabinet-list-item">
-                    <div>
-                      <strong>{item.eventTitle}</strong>
-                      <div className="signal-muted">
-                        {isParticipant ? (isRu ? 'Участник' : 'Participant') : (isRu ? 'Волонтёр' : 'Volunteer')}
-                        {item.status ? ` · ${statusLabel(item.status, locale)}` : ''}
-                      </div>
-                      {isParticipant ? (
+                  return (
+                    <div key={item.key} className="signal-ranked-item cabinet-list-item">
+                      <div>
+                        <strong>{item.eventTitle}</strong>
                         <div className="signal-muted">
-                          {item.teamName || (isRu ? 'Команда не создана' : 'No team yet')}
+                          {isParticipant ? (isRu ? 'Участник' : 'Participant') : (isRu ? 'Волонтёр' : 'Volunteer')}
+                          {item.status ? ` · ${statusLabel(item.status, locale)}` : ''}
                         </div>
-                      ) : null}
-                    </div>
+                        {isParticipant ? (
+                          <div className="signal-muted">
+                            {item.teamName || (isRu ? 'Команда не создана' : 'No team yet')}
+                          </div>
+                        ) : null}
+                      </div>
 
-                    <Link href={href} className="btn btn-secondary btn-sm">
-                      {canOpenCabinet
-                        ? (isRu ? 'Открыть кабинет события' : 'Open event cabinet')
-                        : (isRu ? 'Открыть событие' : 'Open event')}
-                    </Link>
-                  </div>
-                );
-              })}
-            </div>
-          </Panel>
+                      <Link href={href} className="btn btn-secondary btn-sm">
+                        {canOpenCabinet
+                          ? (isRu ? 'Открыть кабинет события' : 'Open event cabinet')
+                          : (isRu ? 'Открыть событие' : 'Open event')}
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
+            </Panel>
+
+            {selectedParticipantSlug ? (
+              <CabinetEventWorkspaceView slug={selectedParticipantSlug} />
+            ) : null}
+          </div>
         )
       ) : null}
     </div>
   );
+}
+
+function participantStatusPriority(status?: string) {
+  if (status === 'ACTIVE' || status === 'APPROVED') return 3;
+  if (status === 'PENDING' || status === 'RESERVE') return 2;
+  if (status) return 1;
+  return 0;
 }
 
 function statusLabel(status: string, locale: string) {
