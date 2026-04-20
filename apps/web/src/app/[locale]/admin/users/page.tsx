@@ -6,7 +6,8 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../../hooks/useAuth';
 import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
-import { EmptyState, FieldInput, FieldSelect, LoadingLines, Notice, PageHeader, Panel, SectionHeader, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { downloadCsv, formatCsvDate } from '@/lib/exportCsv';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, Notice, PageHeader, Panel, SectionHeader, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 
 export default function AdminUsersPage() {
   const t = useTranslations();
@@ -17,6 +18,7 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
 
@@ -66,6 +68,43 @@ export default function AdminUsersPage() {
     USER: 'neutral',
   };
 
+  const applyUserFilters = (entries: any[]) => {
+    const normalized = search.trim().toLowerCase();
+    return entries.filter((entry) => {
+      const rolePass = roleFilter === 'ALL' || entry.role === roleFilter;
+      const searchPass = !normalized
+        || entry.name?.toLowerCase().includes(normalized)
+        || entry.email?.toLowerCase().includes(normalized)
+        || entry.city?.toLowerCase().includes(normalized);
+      return rolePass && searchPass;
+    });
+  };
+
+  const exportUserRows = (entries: any[]) => {
+    downloadCsv(`admin-users-${new Date().toISOString().slice(0, 10)}.csv`, entries.map((entry) => ({
+      id: entry.id,
+      name: entry.name || '',
+      email: entry.email || '',
+      role: entry.role || '',
+      city: entry.city || '',
+      registeredAt: formatCsvDate(entry.createdAt, locale),
+      lastLoginAt: formatCsvDate(entry.lastLoginAt, locale),
+      accounts: entry.accounts?.map((account: any) => account.provider).join('; ') || '',
+    })));
+  };
+
+  const handleExportUsers = async () => {
+    setExporting(true);
+    try {
+      const response = await adminApi.listUsers({ limit: 1000 });
+      exportUserRows(applyUserFilters(response.data || []));
+    } catch {
+      exportUserRows(filteredUsers);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (loading || !user || !isPlatformAdmin) return <div className="admin-loading-screen"><div className="spinner" /></div>;
 
   return (
@@ -87,7 +126,9 @@ export default function AdminUsersPage() {
             <option value="PLATFORM_ADMIN">Platform Admin</option>
             <option value="SUPER_ADMIN">Super Admin</option>
           </FieldSelect>
-          
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => void handleExportUsers()} disabled={filteredUsers.length === 0 || exporting}>
+            {exporting ? (locale === 'ru' ? 'Готовим...' : 'Preparing...') : (locale === 'ru' ? 'Выгрузить CSV' : 'Export CSV')}
+          </button>
         </ToolbarRow>
 
         {usersLoading ? (
@@ -122,7 +163,7 @@ export default function AdminUsersPage() {
                         </div>
                       </div>
                     </td>
-                    <td></td>
+                    <td><StatusBadge tone={toneByRole[entry.role] ?? 'neutral'}>{entry.role}</StatusBadge></td>
                     <td>{entry.city || '—'}</td>
                     <td>{entry.createdAt ? new Date(entry.createdAt).toLocaleDateString() : '—'}</td>
                     <td>{entry.lastLoginAt ? new Date(entry.lastLoginAt).toLocaleDateString() : '—'}</td>

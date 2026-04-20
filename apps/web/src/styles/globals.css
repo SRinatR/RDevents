@@ -6750,6 +6750,17 @@ body {
   box-shadow: 0 -2px 0 var(--color-primary) inset;
 }
 
+.profile-section-tab.has-required {
+  border-color: rgba(180, 83, 9, 0.38);
+  background: rgba(255, 251, 235, 0.92);
+  color: #92400e;
+}
+
+.profile-section-tab.has-required.active {
+  border-color: rgba(31, 88, 216, 0.45);
+  color: var(--color-primary);
+}
+
 .profile-section-tab-title {
   display: block;
   width: 100%;
@@ -6761,6 +6772,50 @@ body {
   overflow-wrap: anywhere;
 }
 
+.profile-section-required-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  border: 1px solid rgba(180, 83, 9, 0.28);
+  border-radius: 8px;
+  background: #ffffff;
+  color: #92400e;
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1.1;
+  padding: 3px 7px;
+}
+
+.profile-required-summary {
+  display: grid;
+  gap: 10px;
+}
+
+.profile-required-groups {
+  display: grid;
+  gap: 8px;
+}
+
+.profile-required-group {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(180, 83, 9, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 251, 235, 0.72);
+  padding: 10px 12px;
+}
+
+.profile-required-group strong {
+  color: #92400e;
+  font-size: 0.82rem;
+}
+
+.profile-required-group span {
+  color: var(--color-text-secondary);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
 
 .profile-workspace-grid {
   display: grid;
@@ -7014,6 +7069,180 @@ body {
   background: var(--color-primary);
   color: #ffffff;
   box-shadow: 0 8px 18px rgba(31, 88, 216, 0.24);
+}
+
+.registration-missing-block {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(201, 213, 232, 0.94);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.registration-missing-block > strong {
+  color: var(--color-text-primary);
+  font-size: 0.92rem;
+}
+
+.registration-event-form {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-datetime-picker {
+  position: relative;
+  min-width: 0;
+}
+
+.admin-datetime-label {
+  display: block;
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin-bottom: 6px;
+  color: var(--color-text-primary);
+}
+
+.admin-datetime-field {
+  width: 100%;
+  min-height: 43px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  font-weight: 650;
+  line-height: 1.25;
+  letter-spacing: 0;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.admin-datetime-field:hover,
+.admin-datetime-field:focus-visible {
+  border-color: rgba(31, 88, 216, 0.48);
+  box-shadow: 0 0 0 3px rgba(31, 88, 216, 0.1);
+  outline: none;
+}
+
+.admin-datetime-popover {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 8px);
+  left: 0;
+  width: min(344px, calc(100vw - 42px));
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(201, 213, 232, 0.95);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 22px 52px rgba(15, 23, 42, 0.16);
+  padding: 14px;
+}
+
+.admin-calendar-header {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-calendar-selectors {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(78px, 0.7fr);
+  gap: 6px;
+}
+
+.admin-calendar-selectors select,
+.admin-datetime-time input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--color-text-primary);
+  font-weight: 760;
+  padding: 7px 8px;
+  box-sizing: border-box;
+}
+
+.admin-calendar-header button,
+.admin-calendar-day {
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: #f8fbff;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+}
+
+.admin-calendar-header button {
+  width: 34px;
+  height: 34px;
+  font-weight: 850;
+}
+
+.admin-calendar-header button:hover,
+.admin-calendar-day:hover {
+  border-color: rgba(31, 88, 216, 0.45);
+  background: #eef6ff;
+  color: var(--color-primary);
+  transform: translateY(-1px);
+}
+
+.admin-calendar-weekdays,
+.admin-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.admin-calendar-weekdays span {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.admin-calendar-day {
+  height: 34px;
+  font-size: 0.84rem;
+  font-weight: 760;
+}
+
+.admin-calendar-day.muted {
+  opacity: 0.42;
+}
+
+.admin-calendar-day.today {
+  border-color: rgba(20, 184, 166, 0.45);
+  color: #0f766e;
+}
+
+.admin-calendar-day.selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(31, 88, 216, 0.24);
+}
+
+.admin-datetime-time {
+  display: grid;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--color-text-secondary);
+}
+
+.admin-datetime-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .profile-section-actions {

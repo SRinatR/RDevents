@@ -6,7 +6,24 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../../../hooks/useAuth';
 import { ApiError, eventsApi } from '../../../../../lib/api';
 import { useRouteLocale } from '../../../../../hooks/useRouteParams';
-import { EmptyState, FieldInput, LoadingLines, Notice, PageHeader, Panel, SectionHeader, ToolbarRow } from '@/components/ui/signal-primitives';
+import {
+  EmptyState,
+  FieldInput,
+  FieldTextarea,
+  LoadingLines,
+  Notice,
+  PageHeader,
+  Panel,
+  SectionHeader,
+  ToolbarRow,
+} from '@/components/ui/signal-primitives';
+import {
+  buildProfileRequirementUrl,
+  filterEventFormMissingFields,
+  filterProfileMissingFields,
+  getProfileRequirementLabel,
+  type RegistrationMissingField,
+} from '@/components/cabinet/profile/profile.requirements';
 
 const OPEN_INVITATION_STATUSES = new Set(['PENDING_ACCOUNT', 'PENDING_RESPONSE']);
 
@@ -21,7 +38,9 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
   const [membership, setMembership] = useState<any>(null);
   const [teamSlots, setTeamSlots] = useState<any>(null);
   const [invitations, setInvitations] = useState<any[]>([]);
-  const [missingFields, setMissingFields] = useState<any[]>([]);
+  const [missingFields, setMissingFields] = useState<RegistrationMissingField[]>([]);
+  const [registrationAnswers, setRegistrationAnswers] = useState<Record<string, unknown>>({});
+  const [registrationFieldLabels, setRegistrationFieldLabels] = useState<Record<string, string>>({});
   const [pageLoading, setPageLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState('');
   const [error, setError] = useState('');
@@ -45,6 +64,8 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
     try {
       const { event: currentEvent } = await eventsApi.get(slug);
       setEvent(currentEvent);
+      setRegistrationAnswers(currentEvent.registrationAnswers || {});
+      setRegistrationFieldLabels(currentEvent.registrationFieldLabels || {});
 
       const [membershipResponse, invitationResponse] = await Promise.all([
         eventsApi.membership(currentEvent.id),
@@ -62,6 +83,8 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
         try {
           const { precheck } = await eventsApi.registrationPrecheck(currentEvent.id, {});
           setMissingFields(precheck.missingFields || []);
+          setRegistrationAnswers(precheck.answers || currentEvent.registrationAnswers || {});
+          setRegistrationFieldLabels(precheck.registrationFieldLabels || currentEvent.registrationFieldLabels || {});
         } catch (err) {
           setMissingFields(extractMissingFields(err));
         }
@@ -122,14 +145,19 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
     setError('');
     setSuccess('');
     try {
-      await eventsApi.register(event.id, {});
+      await eventsApi.register(event.id, registrationAnswers);
       setSuccess(isRu ? 'Участие активировано.' : 'Participation activated.');
       await loadWorkspace();
     } catch (err: any) {
       const fields = extractMissingFields(err);
       if (fields.length > 0) {
         setMissingFields(fields);
-        setError(isRu ? 'Заполните обязательные поля профиля.' : 'Complete required profile fields.');
+        const profileFields = filterProfileMissingFields(fields);
+        if (profileFields.length > 0) {
+          router.push(buildProfileLink(locale, slug, event, profileFields));
+          return;
+        }
+        setError(isRu ? 'Заполните обязательные поля анкеты мероприятия.' : 'Complete required event form fields.');
       } else {
         setError(err.message || (isRu ? 'Не удалось стать участником' : 'Failed to join event'));
       }
@@ -168,7 +196,12 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       const fields = extractMissingFields(err);
       if (fields.length > 0) {
         setMissingFields(fields);
-        setError(isRu ? 'Сначала заполните обязательные поля профиля.' : 'Complete required profile fields first.');
+        const profileFields = filterProfileMissingFields(fields);
+        if (profileFields.length > 0) {
+          router.push(buildProfileLink(locale, slug, event, profileFields));
+          return;
+        }
+        setError(isRu ? 'Сначала заполните обязательную анкету мероприятия.' : 'Complete required event form fields first.');
       } else {
         setError(err.message || (isRu ? 'Не удалось принять приглашение' : 'Failed to accept invitation'));
       }
@@ -279,7 +312,9 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
     }
   }
 
-  const profileLink = buildProfileLink(locale, slug, event, missingFields);
+  const profileMissingFields = filterProfileMissingFields(missingFields);
+  const eventFormMissingFields = filterEventFormMissingFields(missingFields);
+  const profileLink = buildProfileLink(locale, slug, event, profileMissingFields);
 
   return (
     <div className="signal-page-shell cabinet-workspace-page workspace-page-v2">
@@ -315,18 +350,56 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
             <Notice tone="warning">{isRu ? 'Заявка участника ожидает решения организатора.' : 'Participant application is pending organizer review.'}</Notice>
           ) : missingFields.length > 0 ? (
             <div className="signal-stack">
-              <Notice tone="warning">{isRu ? 'Для участия нужно заполнить профиль.' : 'Complete your profile to join.'}</Notice>
-              <div className="signal-stack">
-                {missingFields.map((field) => (
-                  <div key={field.key} className="signal-ranked-item">
-                    <span>{field.label ?? field.key}</span>
-                    <strong>{field.scope ?? 'PROFILE'}</strong>
+              <Notice tone="warning">
+                {isRu
+                  ? 'Для регистрации не хватает конкретных данных. Профиль откроется сразу в нужном разделе, а недостающие поля будут подсвечены.'
+                  : 'Registration needs specific data. The profile opens in the right section and missing fields are highlighted.'}
+              </Notice>
+
+              {profileMissingFields.length > 0 ? (
+                <div className="registration-missing-block">
+                  <strong>{isRu ? 'Заполнить в профиле' : 'Complete in profile'}</strong>
+                  <div className="signal-stack">
+                    {profileMissingFields.map((field) => (
+                      <div key={field.key} className="signal-ranked-item">
+                        <span>{getProfileRequirementLabel(field.key, locale, field.label)}</span>
+                        <strong>{isRu ? 'Профиль' : 'Profile'}</strong>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <ToolbarRow>
-                <Link href={profileLink} className="btn btn-primary btn-sm">{isRu ? 'Заполнить профиль' : 'Complete profile'}</Link>
-              </ToolbarRow>
+                  <ToolbarRow>
+                    <Link href={profileLink} className="btn btn-primary btn-sm">{isRu ? 'Перейти к полям профиля' : 'Go to profile fields'}</Link>
+                  </ToolbarRow>
+                </div>
+              ) : null}
+
+              {eventFormMissingFields.length > 0 ? (
+                <div className="registration-missing-block">
+                  <strong>{isRu ? 'Анкета этого мероприятия' : 'This event form'}</strong>
+                  {profileMissingFields.length > 0 ? (
+                    <Notice tone="info">
+                      {isRu
+                        ? `После профиля вернитесь сюда: нужно будет заполнить ${eventFormMissingFields.map((field) => getEventRequirementLabel(field, registrationFieldLabels, locale)).join(', ')}.`
+                        : `After profile, return here to fill: ${eventFormMissingFields.map((field) => getEventRequirementLabel(field, registrationFieldLabels, locale)).join(', ')}.`}
+                    </Notice>
+                  ) : (
+                    <>
+                      <EventRegistrationAnswersForm
+                        locale={locale}
+                        fields={eventFormMissingFields}
+                        labels={registrationFieldLabels}
+                        answers={registrationAnswers}
+                        onAnswerChange={(key, value) => setRegistrationAnswers((previous) => ({ ...previous, [key]: value }))}
+                      />
+                      <ToolbarRow>
+                        <button onClick={handleJoinEvent} disabled={actionLoading === 'join-event'} className="btn btn-primary btn-sm">
+                          {actionLoading === 'join-event' ? (isRu ? 'Проверяем...' : 'Checking...') : (isRu ? 'Заполнить и зарегистрироваться' : 'Complete and register')}
+                        </button>
+                      </ToolbarRow>
+                    </>
+                  )}
+                </div>
+              ) : null}
             </div>
           ) : (
             <ToolbarRow>
@@ -584,6 +657,52 @@ function SlotCard({
   );
 }
 
+function EventRegistrationAnswersForm({
+  locale,
+  fields,
+  labels,
+  answers,
+  onAnswerChange,
+}: {
+  locale: string;
+  fields: RegistrationMissingField[];
+  labels: Record<string, string>;
+  answers: Record<string, unknown>;
+  onAnswerChange: (key: string, value: string) => void;
+}) {
+  const isRu = locale === 'ru';
+  return (
+    <div className="registration-event-form">
+      {fields.map((field) => {
+        const label = getEventRequirementLabel(field, labels, locale);
+        const value = answers[field.key] == null ? '' : String(answers[field.key]);
+        const useTextarea = ['motivation', 'experience', 'specialRequirements', 'teamPreference'].includes(field.key);
+        return (
+          <label key={field.key} className="cabinet-field-block">
+            <span className="cabinet-field-label">{label}</span>
+            {useTextarea ? (
+              <FieldTextarea
+                value={value}
+                onChange={(event) => onAnswerChange(field.key, event.target.value)}
+                placeholder={isRu ? 'Заполните ответ' : 'Enter your answer'}
+                className="signal-field-required"
+                rows={4}
+              />
+            ) : (
+              <FieldInput
+                value={value}
+                onChange={(event) => onAnswerChange(field.key, event.target.value)}
+                placeholder={isRu ? 'Заполните значение' : 'Enter value'}
+                className="signal-field-required"
+              />
+            )}
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
 function getParticipantMembership(event: any, membership: any) {
   return membership?.memberships?.find((item: any) => item.role === 'PARTICIPANT')
     ?? event?.memberships?.find((item: any) => item.role === 'PARTICIPANT')
@@ -592,18 +711,35 @@ function getParticipantMembership(event: any, membership: any) {
 
 function extractMissingFields(error: unknown) {
   if (error instanceof ApiError && Array.isArray((error.details as any)?.missingFields)) {
-    return (error.details as any).missingFields;
+    return (error.details as any).missingFields as RegistrationMissingField[];
   }
   return [];
 }
 
-function buildProfileLink(locale: string, slug: string, event: any, missingFields: any[]) {
-  const fields = missingFields.map((field) => field.key).filter(Boolean).join(',');
-  const params = new URLSearchParams();
-  if (fields) params.set('required', fields);
-  if (event?.title) params.set('event', event.title);
-  params.set('returnTo', `/${locale}/cabinet/events/${slug}`);
-  return `/${locale}/cabinet/profile?${params.toString()}`;
+function buildProfileLink(locale: string, slug: string, event: any, missingFields: RegistrationMissingField[]) {
+  return buildProfileRequirementUrl({
+    locale,
+    requiredFields: missingFields.map((field) => field.key),
+    eventTitle: event?.title,
+    returnTo: `/${locale}/cabinet/events/${slug}`,
+  });
+}
+
+const EVENT_REQUIREMENT_LABELS: Record<string, Record<'ru' | 'en', string>> = {
+  motivation: { ru: 'Мотивация', en: 'Motivation' },
+  experience: { ru: 'Опыт', en: 'Experience' },
+  teamPreference: { ru: 'Пожелания по команде', en: 'Team preference' },
+  tshirtSize: { ru: 'Размер футболки', en: 'T-shirt size' },
+  emergencyContact: { ru: 'Экстренный контакт', en: 'Emergency contact' },
+  preferredSlot: { ru: 'Предпочтительный слот', en: 'Preferred slot' },
+  specialRequirements: { ru: 'Особые требования', en: 'Special requirements' },
+  university: { ru: 'Университет', en: 'University' },
+  faculty: { ru: 'Факультет', en: 'Faculty' },
+  course: { ru: 'Курс', en: 'Course' },
+};
+
+function getEventRequirementLabel(field: RegistrationMissingField, labels: Record<string, string>, locale: string) {
+  return EVENT_REQUIREMENT_LABELS[field.key]?.[locale === 'ru' ? 'ru' : 'en'] ?? labels[field.key] ?? field.label ?? field.key;
 }
 
 function formatParticipantStatus(status: string | null | undefined, locale: string) {
