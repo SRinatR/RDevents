@@ -80,8 +80,7 @@ calendarRouter.get('/', async (req, res) => {
   const user = (req as any).user as User;
 
   const managedEventIds = await getManagedEventIds(user);
-  if (managedEventIds === null) {
-  } else if (managedEventIds.length === 0) {
+  if (managedEventIds !== null && managedEventIds.length === 0) {
     res.json({ data: [] });
     return;
   }
