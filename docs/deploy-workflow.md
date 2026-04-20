@@ -129,7 +129,7 @@ On failure each check prints `docker compose ps` and recent container logs befor
 | Public /ru | HTTPS 200 from `https://rdevents.uz/ru` | `curl -I` from the VPS, retry loop |
 | Public API health | HTTPS 200 from `https://api.rdevents.uz/health` | `curl -I` from the VPS, retry loop |
 | Web release marker | HTTP 200 from `https://rdevents.uz/version.txt` and `https://rdevents.uz/release.json`, body contains deployed commit SHA | `curl` from the VPS, retry loop |
-| API release marker | HTTP 200 from `https://api.rdevents.uz/version` and `https://api.rdevents.uz/api/version`, body contains deployed commit SHA | `curl` from the VPS, retry loop |
+| API release marker | HTTP 200 from `https://api.rdevents.uz/version`, body contains deployed commit SHA. `https://api.rdevents.uz/api/version` is checked as a public compatibility marker and may warn while nginx does not route that path. | `curl` from the VPS, retry loop |
 
 If a public ingress check fails, the workflow prints the last public response headers, curl error, Docker Compose state, local upstream headers, readable nginx errors, and recent api/web logs.
 
@@ -150,7 +150,7 @@ Required app-level endpoints:
 - API: `GET /version` returns `200 text/plain` with the deployed commit SHA.
 - API: `GET /api/version` returns `200 text/plain` with the deployed commit SHA.
 
-These endpoints must not depend on request headers, cookies, or other request-bound dynamic logic. Nginx may keep a static fallback as a safety layer, but the application endpoints are the primary contract and the deploy smoke checks validate that contract.
+These endpoints must not depend on request headers, cookies, or other request-bound dynamic logic. Nginx may keep a static fallback as a safety layer, but the application endpoints are the primary contract and the deploy smoke checks validate that contract. The deploy workflow requires the local upstream `http://127.0.0.1:4000/api/version` app-level check, while the public `https://api.rdevents.uz/api/version` check stays non-blocking until the host nginx config routes that compatibility path.
 
 ## GitHub Environment
 

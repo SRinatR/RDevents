@@ -467,7 +467,7 @@ jobs:
             check_release_endpoint "https://rdevents.uz/version.txt" "web public version.txt"
             check_release_endpoint "https://rdevents.uz/release.json" "web public release.json"
             check_release_endpoint "https://api.rdevents.uz/version" "api public /version"
-            check_release_endpoint "https://api.rdevents.uz/api/version" "api public /api/version"
+            check_release_endpoint "https://api.rdevents.uz/api/version" "api public /api/version" "allow-unavailable"
           EOF
 
       - name: Deployment complete
