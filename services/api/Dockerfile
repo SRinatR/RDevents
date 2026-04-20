@@ -23,6 +23,7 @@ ENV RELEASE_SHA=${RELEASE_SHA}
 LABEL org.opencontainers.image.revision=${RELEASE_SHA}
 COPY services/api ./services/api
 WORKDIR /app/services/api
+RUN printf '%s\n' "$RELEASE_SHA" > /app/services/api/release.txt
 RUN pnpm prisma generate
 RUN pnpm build
 EXPOSE 4000

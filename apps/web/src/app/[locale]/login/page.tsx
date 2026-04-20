@@ -5,8 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../hooks/useAuth';
-import { authApi, setAccessToken } from '../../../lib/api';
-import { ApiError } from '../../../lib/api';
+import { getLoginErrorMessage } from '../../../lib/auth-errors';
 import { useRouteLocale } from '../../../hooks/useRouteParams';
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -27,7 +26,7 @@ export default function LoginPage() {
 
 function LoginPageContent() {
   const t = useTranslations();
-  const { login, refreshUser } = useAuth();
+  const { login } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const locale = useRouteLocale();
@@ -48,8 +47,7 @@ function LoginPageContent() {
       const next = searchParams.get('next');
       router.push(next || `/${locale}/cabinet`);
     } catch (err) {
-      if (err instanceof ApiError) setError(err.message);
-      else setError(locale === 'ru' ? 'Ошибка входа. Попробуйте снова.' : 'Login failed. Please try again.');
+      setError(getLoginErrorMessage(err, locale));
     } finally {
       setLoading(false);
     }

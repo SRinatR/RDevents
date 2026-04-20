@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import { env } from './config/env.js';
 import { errorHandler, requestIdMiddleware, requestLogger } from './common/middleware.js';
 import { getMediaUploadDir } from './common/storage.js';
+import { releaseSha } from './common/release.js';
 
 import { authRouter } from './modules/auth/auth.router.js';
 import { eventsRouter } from './modules/events/events.router.js';
@@ -22,11 +23,15 @@ import { prisma } from './db/prisma.js';
 
 export function createApp() {
   const app = express();
+  const corsOrigin = env.CORS_ORIGIN
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
 
   // ─── Global middleware ────────────────────────────────────────────────────
   app.use(requestIdMiddleware);
   app.use(cors({
-    origin: env.CORS_ORIGIN,
+    origin: corsOrigin.length > 1 ? corsOrigin : (corsOrigin[0] ?? env.CORS_ORIGIN),
     credentials: true,
   }));
   app.use(cookieParser());
@@ -41,13 +46,10 @@ export function createApp() {
     res.json({ status: 'ok', service: 'event-platform-api', ts: new Date().toISOString() });
   };
 
-  const versionHandler = (_req: express.Request, res: express.Response) => {
-    res.setHeader('Cache-Control', 'no-store');
-    res.json({
-      service: 'event-platform-api',
-      releaseSha: process.env['RELEASE_SHA'] || 'unknown',
-      ts: new Date().toISOString(),
-    });
+  const versionTextHandler = (_req: express.Request, res: express.Response) => {
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.send(releaseSha);
   };
 
   const readyHandler = async (_req: express.Request, res: express.Response) => {
@@ -61,8 +63,8 @@ export function createApp() {
 
   app.get('/health', healthHandler);
   app.get('/api/health', healthHandler);
-  app.get('/version', versionHandler);
-  app.get('/api/version', versionHandler);
+  app.get('/version', versionTextHandler);
+  app.get('/api/version', versionTextHandler);
   app.get('/ready', readyHandler);
   app.get('/api/ready', readyHandler);
 

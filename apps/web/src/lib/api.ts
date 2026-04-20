@@ -30,7 +30,8 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
-    public details?: unknown
+    public details?: unknown,
+    public code?: string
   ) {
     super(message);
     this.name = 'ApiError';
@@ -57,7 +58,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({ error: 'Unknown error' }));
-    throw new ApiError(res.status, data.error ?? 'Request failed', data.details);
+    throw new ApiError(res.status, data.error ?? 'Request failed', data.details, data.code);
   }
 
   return res.json() as Promise<T>;
@@ -79,7 +80,7 @@ async function requestForm<T>(path: string, formData: FormData, auth = false): P
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({ error: 'Unknown error' }));
-    throw new ApiError(res.status, data.error ?? 'Request failed', data.details);
+    throw new ApiError(res.status, data.error ?? 'Request failed', data.details, data.code);
   }
 
   return res.json() as Promise<T>;

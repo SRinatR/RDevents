@@ -40,6 +40,7 @@ import {
 } from './profile.service.js';
 import { isProfileSectionKey } from './profile.sections.js';
 import { ProfileMediaError } from './profile.media.js';
+import { logger } from '../../common/logger.js';
 
 export const authRouter = Router();
 
@@ -134,7 +135,7 @@ authRouter.post('/register/complete', authRateLimits.registerComplete, async (re
   }
 
   try {
-    const result = await completeEmailRegistration(parsed.data);
+    const result = await completeEmailRegistration(parsed.data, getClientContext(req));
     setRefreshCookie(res, result.refreshToken);
     res.status(201).json({ user: result.user, accessToken: result.accessToken });
   } catch (err: any) {
@@ -163,18 +164,50 @@ authRouter.post('/login', authRateLimits.login, async (req, res) => {
   }
 
   try {
-    const result = await loginWithEmail(parsed.data);
+    logger.info('Auth login attempt', {
+      module: 'auth',
+      action: 'auth_login_attempt',
+      requestId: (req as any).requestId,
+      meta: { email: parsed.data.email },
+    });
+
+    const result = await loginWithEmail(parsed.data, getClientContext(req));
     setRefreshCookie(res, result.refreshToken);
+    logger.info('Auth login succeeded', {
+      module: 'auth',
+      action: 'auth_login_succeeded',
+      requestId: (req as any).requestId,
+      userId: result.user.id,
+      meta: { email: result.user.email, role: result.user.role },
+    });
     res.json({ user: result.user, accessToken: result.accessToken });
   } catch (err: any) {
     if (err.message === 'WRONG_CREDENTIALS') {
-      res.status(401).json({ error: 'Incorrect email or password' });
+      logger.warn('Auth login rejected', {
+        module: 'auth',
+        action: 'auth_login_rejected',
+        requestId: (req as any).requestId,
+        meta: { email: parsed.data.email, reason: 'wrong_credentials' },
+      });
+      res.status(401).json({ error: 'Incorrect email or password', code: 'WRONG_CREDENTIALS' });
       return;
     }
     if (err.message === 'ACCOUNT_INACTIVE') {
-      res.status(403).json({ error: 'Account is disabled' });
+      logger.warn('Auth login rejected', {
+        module: 'auth',
+        action: 'auth_login_rejected',
+        requestId: (req as any).requestId,
+        meta: { email: parsed.data.email, reason: 'account_disabled' },
+      });
+      res.status(403).json({ error: 'Account is disabled', code: 'ACCOUNT_DISABLED' });
       return;
     }
+    logger.error('Auth login failed unexpectedly', err, {
+      module: 'auth',
+      action: 'auth_login_failed',
+      requestId: (req as any).requestId,
+      meta: { email: parsed.data.email },
+    });
     throw err;
   }
 });
@@ -211,7 +244,13 @@ authRouter.post('/logout-all', authenticate, async (req, res) => {
 authRouter.post('/refresh', authRateLimits.refresh, async (req, res) => {
   const oldToken = req.cookies?.[REFRESH_COOKIE];
   if (!oldToken) {
-    res.status(401).json({ error: 'No refresh token' });
+    logger.warn('Auth refresh rejected', {
+      module: 'auth',
+      action: 'auth_refresh_rejected',
+      requestId: (req as any).requestId,
+      meta: { reason: 'missing_refresh_token' },
+    });
+    res.status(401).json({ error: 'No refresh token', code: 'NO_REFRESH_TOKEN' });
     return;
   }
 
@@ -243,15 +282,34 @@ authRouter.post('/refresh', authRateLimits.refresh, async (req, res) => {
     });
 
     setRefreshCookie(res, newToken);
+    logger.info('Auth refresh succeeded', {
+      module: 'auth',
+      action: 'auth_refresh_succeeded',
+      requestId: (req as any).requestId,
+      userId: user.id,
+      meta: { oldSessionId, newSessionId },
+    });
     res.json({ accessToken });
   } catch (err: any) {
     if (err.message === 'SESSION_REVOKED_REUSE_DETECTED') {
+      logger.warn('Auth refresh reuse detected', {
+        module: 'auth',
+        action: 'auth_refresh_reuse_detected',
+        requestId: (req as any).requestId,
+      });
       res.status(401).json({
         error: 'Token reuse detected. All sessions have been revoked for security. Please log in again.',
+        code: 'SESSION_REUSE_DETECTED',
       });
       return;
     }
-    res.status(401).json({ error: 'Invalid or expired refresh token' });
+    logger.warn('Auth refresh rejected', {
+      module: 'auth',
+      action: 'auth_refresh_rejected',
+      requestId: (req as any).requestId,
+      meta: { reason: err.message ?? 'invalid_refresh_token' },
+    });
+    res.status(401).json({ error: 'Invalid or expired refresh token', code: 'INVALID_REFRESH_TOKEN' });
   }
 });
 
@@ -259,6 +317,12 @@ authRouter.post('/refresh', authRateLimits.refresh, async (req, res) => {
 authRouter.get('/me', authenticate, async (req, res) => {
   const user = (req as any).user;
   const data = await getMe(user.id);
+  logger.info('Auth me succeeded', {
+    module: 'auth',
+    action: 'auth_me_succeeded',
+    requestId: (req as any).requestId,
+    userId: user.id,
+  });
   res.json({ user: data });
 });
 
