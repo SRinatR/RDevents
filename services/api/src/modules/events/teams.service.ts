@@ -404,24 +404,47 @@ export async function submitTeamForApproval(eventId: string, teamId: string, use
 export async function leaveTeam(eventId: string, teamId: string, userId: string) {
   const team = await prisma.eventTeam.findUnique({
     where: { id: teamId },
-    include: { event: { select: { requireAdminApprovalForTeams: true } } },
   });
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
-  if (team.captainUserId === userId) throw new Error('CAPTAIN_CANNOT_LEAVE');
-  if (team.event.requireAdminApprovalForTeams && !EDITABLE_TEAM_STATUSES.includes(team.status as any)) {
-    throw new Error('TEAM_APPROVED_LOCKED');
-  }
-
   const member = await prisma.eventTeamMember.findUnique({
     where: { teamId_userId: { teamId, userId } }
   });
-  if (!member) throw new Error('NOT_IN_TEAM');
+  if (!member) return { ok: true as const };
+  if (member.role === 'CAPTAIN' || team.captainUserId === userId) {
+    throw new Error('CANNOT_LEAVE_AS_CAPTAIN');
+  }
 
   await prisma.eventTeamMember.update({
     where: { id: member.id },
-    data: { status: 'LEFT', removedAt: new Date() }
+    data: { status: 'REMOVED', removedAt: new Date() }
   });
-  await notifyTeamMemberChanged(eventId, teamId, userId, 'LEFT');
+  await markMemberInvitationRemoved(teamId, userId);
+  await notifyTeamMemberChanged(eventId, teamId, userId, 'REMOVED');
+  return { ok: true as const };
+}
+
+export async function leaveTeamByCurrentUser(teamId: string, userId: string) {
+  const membership = await prisma.eventTeamMember.findFirst({
+    where: {
+      teamId,
+      userId,
+      status: { in: ['ACTIVE', 'PENDING'] },
+    },
+    include: {
+      team: {
+        select: {
+          id: true,
+          eventId: true,
+        },
+      },
+    },
+  });
+
+  if (!membership) {
+    return { ok: true as const };
+  }
+
+  return leaveTeam(membership.team.eventId, membership.team.id, userId);
 }
 
 export async function approveTeamMember(eventId: string, teamId: string, captainId: string, memberUserId: string) {

@@ -263,6 +263,31 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
     }
   }
 
+  async function handleLeaveTeam() {
+    if (!myTeam) return;
+    const confirmed = window.confirm(
+      isRu ? 'Вы уверены, что хотите покинуть команду?' : 'Are you sure you want to leave the team?',
+    );
+    if (!confirmed) return;
+
+    setActionLoading('leave-team');
+    setError('');
+    setSuccess('');
+    try {
+      await eventsApi.leaveTeam(myTeam.id);
+      setSuccess(isRu ? 'Вы покинули команду.' : 'You left the team.');
+      await loadWorkspace();
+    } catch (err: any) {
+      if (err?.code === 'CANNOT_LEAVE_AS_CAPTAIN') {
+        setError(isRu ? 'Капитан не может покинуть команду' : 'Captain cannot leave the team');
+      } else {
+        setError(err.message || (isRu ? 'Не удалось покинуть команду' : 'Failed to leave team'));
+      }
+    } finally {
+      setActionLoading('');
+    }
+  }
+
   async function handleSubmitTeam() {
     if (!myTeam) return;
     setActionLoading('submit-team');
@@ -375,6 +400,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
           onCancelInvitation={handleCancelInvitation}
           onRemoveMember={handleRemoveMember}
           onTransferCaptain={handleTransferCaptain}
+          onLeaveTeam={handleLeaveTeam}
           onSubmitTeam={handleSubmitTeam}
         />
       )}
@@ -422,6 +448,7 @@ function TeamSlotsWorkspace({
   onCancelInvitation,
   onRemoveMember,
   onTransferCaptain,
+  onLeaveTeam,
   onSubmitTeam,
 }: {
   locale: string;
@@ -436,6 +463,7 @@ function TeamSlotsWorkspace({
   onCancelInvitation: (invitationId: string) => void;
   onRemoveMember: (member: any) => void;
   onTransferCaptain: (member: any) => void;
+  onLeaveTeam: () => void;
   onSubmitTeam: () => void;
 }) {
   const isRu = locale === 'ru';
@@ -471,6 +499,7 @@ function TeamSlotsWorkspace({
               onCancelInvitation={onCancelInvitation}
               onRemoveMember={onRemoveMember}
               onTransferCaptain={onTransferCaptain}
+              onLeaveTeam={onLeaveTeam}
             />
           ))}
         </div>
@@ -509,6 +538,7 @@ function SlotCard({
   onCancelInvitation,
   onRemoveMember,
   onTransferCaptain,
+  onLeaveTeam,
 }: {
   locale: string;
   userId: string;
@@ -522,6 +552,7 @@ function SlotCard({
   onCancelInvitation: (invitationId: string) => void;
   onRemoveMember: (member: any) => void;
   onTransferCaptain: (member: any) => void;
+  onLeaveTeam: () => void;
 }) {
   const isRu = locale === 'ru';
   const cardTone = slot.kind === 'EMPTY' ? 'var(--color-bg-subtle)' : slot.kind === 'INVITATION' ? '#fffbeb' : '#f0fdf4';
@@ -575,6 +606,13 @@ function SlotCard({
               </button>
               <button onClick={() => onTransferCaptain(member)} disabled={Boolean(actionLoading)} className="btn btn-secondary btn-sm">
                 {actionLoading === `transfer:${member?.userId}` ? '...' : (isRu ? 'Сделать капитаном' : 'Make captain')}
+              </button>
+            </ToolbarRow>
+          ) : null}
+          {!isCaptain && slot.kind === 'MEMBER' && user?.id === userId ? (
+            <ToolbarRow>
+              <button onClick={onLeaveTeam} disabled={Boolean(actionLoading)} className="btn btn-ghost btn-sm">
+                {actionLoading === 'leave-team' ? '...' : (isRu ? 'Покинуть команду' : 'Leave team')}
               </button>
             </ToolbarRow>
           ) : null}

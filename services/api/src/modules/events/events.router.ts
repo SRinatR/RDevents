@@ -376,6 +376,7 @@ eventsRouter.post('/:id/teams/:teamId/leave', authenticate, async (req, res) => 
       TEAM_NOT_FOUND: [404, 'Team not found'],
       NOT_IN_TEAM: [400, 'You are not in this team'],
       CAPTAIN_CANNOT_LEAVE: [400, 'Captain cannot leave team. Transfer captainship or delete team'],
+      CANNOT_LEAVE_AS_CAPTAIN: [400, 'Captain cannot leave team. Transfer captainship or delete team'],
     });
   }
 });

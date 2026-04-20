@@ -18,6 +18,7 @@ import { volunteersRouter } from './modules/volunteers/volunteers.router.js';
 import { uploadsRouter } from './modules/uploads/uploads.router.js';
 import { referenceRouter } from './modules/reference/reference.router.js';
 import { supportRouter } from './modules/support/support.router.js';
+import { teamRouter } from './modules/team/team.router.js';
 import { resendWebhookRouter } from './modules/webhooks/resend.router.js';
 import { prisma } from './db/prisma.js';
 
@@ -80,6 +81,7 @@ export function createApp() {
   app.use('/api/uploads', uploadsRouter);
   app.use('/api/reference', referenceRouter);
   app.use('/api/support', supportRouter);
+  app.use('/api/team', teamRouter);
 
   // ─── 404 ──────────────────────────────────────────────────────────────────
   app.use((_req, res) => {
