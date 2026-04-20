@@ -1,5 +1,5 @@
 'use client';
 
-import ProfilePage from './profile/page';
+import DashboardPage from './dashboard/page';
 
-export default ProfilePage;
+export default DashboardPage;

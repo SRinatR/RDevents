@@ -24,8 +24,14 @@ export default function Sidebar({ locale, userName, userEmail, userAvatar }: Sid
 
   const primaryItems: MenuItem[] = [
     {
-      label: locale === 'ru' ? 'Профиль' : 'Profile',
+      label: locale === 'ru' ? 'Дашборд' : 'Dashboard',
       href: `/${locale}/cabinet`,
+      icon: <DashboardIcon />,
+      summary: locale === 'ru' ? 'Участия, команды и роли' : 'Participations, teams and roles',
+    },
+    {
+      label: locale === 'ru' ? 'Профиль' : 'Profile',
+      href: `/${locale}/cabinet/profile`,
       icon: <ProfileIcon />,
       summary: locale === 'ru' ? 'Личные данные и готовность' : 'Personal data and readiness',
     },
@@ -90,7 +96,10 @@ export default function Sidebar({ locale, userName, userEmail, userAvatar }: Sid
 }
 
 function NavItem({ item, pathname }: { item: MenuItem; pathname: string }) {
-  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+  const isDashboard = item.href.endsWith('/cabinet');
+  const isActive = isDashboard
+    ? pathname === item.href || pathname === `${item.href}/dashboard`
+    : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
   return (
     <Link href={item.href} className={cn('cabinet-nav-link', isActive && 'active')} aria-current={isActive ? 'page' : undefined}>
@@ -106,6 +115,7 @@ function NavItem({ item, pathname }: { item: MenuItem; pathname: string }) {
 function IconFrame({ children }: { children: React.ReactNode }) {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{children}</svg>;
 }
+function DashboardIcon() { return <IconFrame><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" /><rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /></IconFrame>; }
 function ProfileIcon() { return <IconFrame><path d="M20 21a8 8 0 0 0-16 0" /><circle cx="12" cy="7" r="4" /></IconFrame>; }
 function ListIcon() { return <IconFrame><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></IconFrame>; }
 function CalendarIcon() { return <IconFrame><rect x="3" y="5" width="18" height="16" rx="2" /><line x1="16" y1="3" x2="16" y2="7" /><line x1="8" y1="3" x2="8" y2="7" /><line x1="3" y1="11" x2="21" y2="11" /></IconFrame>; }
