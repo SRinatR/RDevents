@@ -2,8 +2,9 @@
 
 import { useState, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { eventsApi, analyticsApi } from '../../../../lib/api';
+import { analyticsApi, eventsApi } from '../../../../lib/api';
 import { useAuth } from '../../../../hooks/useAuth';
 import { useRouteParams } from '../../../../hooks/useRouteParams';
 import { EmptyState, LoadingLines, Notice, Panel, SectionHeader } from '@/components/ui/signal-primitives';
@@ -145,6 +146,7 @@ function QuestSectionHeader({
 
 export default function EventDetailPage() {
   const t = useTranslations();
+  const router = useRouter();
   const { user } = useAuth();
   const { locale, get } = useRouteParams();
   const slug = get('slug');
@@ -197,6 +199,16 @@ export default function EventDetailPage() {
     return new Date(dateStr).toLocaleTimeString(locale === 'ru' ? 'ru-RU' : 'en-US', {
       hour: '2-digit', minute: '2-digit',
     });
+  }
+
+  function handleApplyCtaClick() {
+    if (!slug) return;
+    const cabinetHref = `/${locale}/cabinet/events?event=${encodeURIComponent(slug)}&openApplyChoice=1#event-${slug}`;
+    if (!user) {
+      router.push(`/${locale}/login?next=${encodeURIComponent(cabinetHref)}`);
+      return;
+    }
+    router.push(cabinetHref);
   }
 
   if (loading) {
@@ -309,6 +321,13 @@ export default function EventDetailPage() {
           )
           : participationStatus === 'RESERVE' ? <Notice tone="info">{getParticipationStatusLabel('RESERVE')}</Notice>
           : participationStatus && ['REJECTED', 'CANCELLED', 'REMOVED'].includes(participationStatus) ? <Notice tone="danger">{getParticipationStatusLabel(participationStatus)}</Notice>
+          : hasActiveVolunteer ? (
+            <Notice tone="info">
+              {locale === 'ru'
+                ? 'У вас активна волонтёрская заявка. Командный модуль доступен только участникам.'
+                : 'You have an active volunteer application. Team module is available only for participants.'}
+            </Notice>
+          )
           : (
             <div className="signal-stack">
               <Link href={cabinetHref} className="btn btn-primary">
@@ -349,7 +368,7 @@ export default function EventDetailPage() {
                 <h1>{event.title}</h1>
                 <p>{event.shortDescription}</p>
                 <div className="rhq-hero-actions">
-                  <a href="#registration" className="rhq-button rhq-button-primary">{locale === 'ru' ? 'Подать заявку' : 'Apply now'}</a>
+                  <button onClick={handleApplyCtaClick} className="rhq-button rhq-button-primary">{locale === 'ru' ? 'Подать заявку' : 'Apply now'}</button>
                   <a href="#program" className="rhq-button rhq-button-secondary">{locale === 'ru' ? 'Смотреть программу' : 'View program'}</a>
                 </div>
               </div>
@@ -503,9 +522,9 @@ export default function EventDetailPage() {
                 </div>
               </div>
               <div className="rhq-registration-card">
-                <Link href={`/${locale}/cabinet/events`} className="rhq-button rhq-button-primary">
+                <button onClick={handleApplyCtaClick} className="rhq-button rhq-button-primary">
                   {locale === 'ru' ? 'Подать заявку' : 'Apply now'}
-                </Link>
+                </button>
                 <button onClick={handleCopyLink} className="rhq-button rhq-button-secondary rhq-share-button">
                   {copied ? (locale === 'ru' ? 'Ссылка скопирована' : 'Link copied') : (locale === 'ru' ? 'Поделиться событием' : 'Share event')}
                 </button>

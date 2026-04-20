@@ -20,6 +20,7 @@ import {
   removeTeamMember,
   saveRegistrationAnswers,
   submitTeamForApproval,
+  transferTeamCaptain,
   unregisterFromEvent,
   updateTeam,
 } from './events.service.js';
@@ -361,13 +362,13 @@ eventsRouter.post('/:id/teams/:teamId/members/:userId/reject', authenticate, asy
 eventsRouter.delete('/:id/teams/:teamId/members/:userId', authenticate, async (req, res) => {
   const user = (req as any).user;
   try {
-    await removeTeamMember(
+    const team = await removeTeamMember(
       String(req.params['id']),
       String(req.params['teamId']),
       user.id,
       String(req.params['userId'])
     );
-    res.json({ ok: true });
+    res.json({ ok: true, team });
   } catch (err: any) {
     sendMappedError(res, err, {
       EVENT_NOT_FOUND: [404, 'Event not found'],
@@ -375,6 +376,31 @@ eventsRouter.delete('/:id/teams/:teamId/members/:userId', authenticate, async (r
       NOT_TEAM_CAPTAIN: [403, 'Only team captain can remove members'],
       MEMBER_NOT_FOUND: [404, 'Team member not found'],
       CANNOT_REMOVE_CAPTAIN: [400, 'Cannot remove team captain'],
+      TEAM_APPROVED_LOCKED: [409, 'Approved team is locked. Submit a change request to edit it'],
+    });
+  }
+});
+
+// POST /api/events/:id/teams/:teamId/members/:userId/transfer-captain — transfer captain role to active member
+eventsRouter.post('/:id/teams/:teamId/members/:userId/transfer-captain', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  try {
+    const team = await transferTeamCaptain(
+      String(req.params['id']),
+      String(req.params['teamId']),
+      user.id,
+      String(req.params['userId'])
+    );
+    res.json({ ok: true, team });
+  } catch (err: any) {
+    sendMappedError(res, err, {
+      EVENT_NOT_FOUND: [404, 'Event not found'],
+      TEAM_NOT_FOUND: [404, 'Team not found'],
+      NOT_TEAM_CAPTAIN: [403, 'Only team captain can transfer captain role'],
+      MEMBER_NOT_FOUND: [404, 'Team member not found'],
+      TARGET_MEMBER_NOT_ACTIVE: [400, 'Captain role can only be transferred to active team member'],
+      CANNOT_TRANSFER_TO_SELF: [400, 'Cannot transfer captain role to yourself'],
+      TEAM_APPROVED_LOCKED: [409, 'Approved team is locked. Submit a change request to edit it'],
     });
   }
 });

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../hooks/useAuth';
 import { authApi, setAccessToken } from '../../../lib/api';
@@ -18,9 +18,18 @@ const SOCIAL_PROVIDERS = [
 ] as const;
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="auth-loading-screen"><div className="spinner" /></div>}>
+      <LoginPageContent />
+    </Suspense>
+  );
+}
+
+function LoginPageContent() {
   const t = useTranslations();
   const { login, refreshUser } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const locale = useRouteLocale();
 
   const [email, setEmail] = useState('');
@@ -36,7 +45,8 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email, password);
-      router.push(`/${locale}/cabinet`);
+      const next = searchParams.get('next');
+      router.push(next || `/${locale}/cabinet`);
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
       else setError(locale === 'ru' ? 'Ошибка входа. Попробуйте снова.' : 'Login failed. Please try again.');

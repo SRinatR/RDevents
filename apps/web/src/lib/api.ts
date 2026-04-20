@@ -244,6 +244,12 @@ export const eventsApi = {
   joinTeamByCode: (eventId: string, code: string, answers?: Record<string, unknown>) =>
     request<{ member: any }>(`/api/events/${eventId}/teams/join-by-code`, { method: 'POST', auth: true, body: { code, answers: answers ?? {} } }),
 
+  removeTeamMember: (eventId: string, teamId: string, userId: string) =>
+    request<{ ok: boolean; team: any }>(`/api/events/${eventId}/teams/${teamId}/members/${userId}`, { method: 'DELETE', auth: true }),
+
+  transferTeamCaptain: (eventId: string, teamId: string, userId: string) =>
+    request<{ ok: boolean; team: any }>(`/api/events/${eventId}/teams/${teamId}/members/${userId}/transfer-captain`, { method: 'POST', auth: true }),
+
   myEvents: () =>
     request<{ events: any[] }>('/api/me/events', { auth: true }),
 
@@ -335,6 +341,18 @@ export const adminApi = {
   }) => {
     const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : '';
     return request<{ data: any[]; meta: any }>(`/api/admin/participants${qs}`, { auth: true });
+  },
+
+  listApplications: (params?: {
+    search?: string;
+    eventId?: string;
+    status?: string;
+    type?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/applications${qs}`, { auth: true });
   },
 
   listTeams: (params?: {
