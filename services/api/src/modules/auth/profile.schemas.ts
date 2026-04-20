@@ -42,6 +42,7 @@ export const profileRegistrationDataSectionSchema = z.object({
   citizenshipCountryCode: optionalCountryCode,
   residenceCountryCode: optionalCountryCode,
   phone: z.string().max(32).optional().or(z.literal('')),
+  telegram: z.string().max(64).optional().or(z.literal('')),
   consentPersonalData: z.boolean().optional(),
   consentMailing: z.boolean().optional(),
 });

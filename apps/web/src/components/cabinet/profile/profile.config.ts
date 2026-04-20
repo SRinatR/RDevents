@@ -58,7 +58,7 @@ export const PROFILE_STATUS_COPY: Record<
   },
 };
 
-export const GENDER_OPTIONS = ['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY'] as const;
+export const GENDER_OPTIONS = ['MALE', 'FEMALE'] as const;
 export const ACTIVITY_STATUS_OPTIONS = ['SCHOOL_STUDENT', 'COLLEGE_STUDENT', 'UNIVERSITY_STUDENT', 'EMPLOYED', 'UNEMPLOYED'] as const;
 export const LANGUAGE_LEVEL_OPTIONS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'NATIVE'] as const;
 export const ACTIVITY_DIRECTION_OPTIONS = [

@@ -22,6 +22,7 @@ export default function ProfilePage() {
   const searchParams = useSearchParams();
   const requiredFields = useMemo(() => parseRequiredFields(searchParams.get('required')), [searchParams]);
   const eventTitle = searchParams.get('event') ?? '';
+  const returnTo = searchParams.get('returnTo') ?? '';
   const activeSection = resolveInitialSectionFromQuery(searchParams);
   const {
     sections,
@@ -46,6 +47,13 @@ export default function ProfilePage() {
     const params = new URLSearchParams(searchParams.toString());
     params.set('section', section);
     router.replace(`/${locale}/cabinet/profile?${params.toString()}`);
+  }
+
+  async function saveSectionAndReturn(section: ProfileSectionKey, payload: Record<string, unknown>) {
+    await saveSection(section, payload);
+    if (isSafeReturnPath(returnTo, locale)) {
+      router.push(returnTo);
+    }
   }
 
   return (
@@ -78,7 +86,7 @@ export default function ProfilePage() {
           requiredFields,
           eventTitle,
           documents,
-          saveSection,
+          saveSection: saveSectionAndReturn,
           uploadAvatar,
           deleteAvatar,
           uploadDocument,
@@ -205,10 +213,10 @@ function resolveInitialSectionFromQuery(searchParams: ReturnType<typeof useSearc
 }
 
 function mapRequiredFieldsToSection(fields: string[]): ProfileSectionKey | null {
-  if (fields.some((field) => ['name', 'phone', 'birthDate', 'gender', 'citizenshipCountryCode', 'residenceCountryCode', 'lastNameCyrillic', 'firstNameCyrillic', 'middleNameCyrillic', 'lastNameLatin', 'firstNameLatin', 'middleNameLatin', 'hasNoLastName', 'hasNoFirstName', 'hasNoMiddleName', 'consentPersonalData', 'consentMailing'].includes(field))) return 'registration_data';
+  if (fields.some((field) => ['name', 'phone', 'telegram', 'birthDate', 'gender', 'citizenshipCountryCode', 'residenceCountryCode', 'lastNameCyrillic', 'firstNameCyrillic', 'middleNameCyrillic', 'lastNameLatin', 'firstNameLatin', 'middleNameLatin', 'hasNoLastName', 'hasNoFirstName', 'hasNoMiddleName', 'consentPersonalData', 'consentMailing'].includes(field))) return 'registration_data';
   if (fields.some((field) => ['avatarUrl', 'avatarAssetId', 'photo', 'city', 'factualAddress', 'regionId', 'districtId', 'settlementId', 'regionText', 'districtText', 'settlementText', 'street', 'house', 'apartment', 'postalCode', 'nativeLanguage', 'communicationLanguage', 'consentClientRules'].includes(field))) return 'general_info';
   if (fields.some((field) => ['domesticDocumentComplete', 'internationalPassportComplete', 'personalDocumentsComplete'].includes(field))) return 'personal_documents';
-  if (fields.some((field) => ['telegram', 'contactDataComplete', 'maxUrl', 'vkUrl', 'telegramUrl', 'instagramUrl', 'facebookUrl', 'xUrl', 'maxAbsent', 'vkAbsent', 'telegramAbsent', 'instagramAbsent', 'facebookAbsent', 'xAbsent'].includes(field))) return 'contact_data';
+  if (fields.some((field) => ['contactDataComplete', 'maxUrl', 'vkUrl', 'telegramUrl', 'instagramUrl', 'facebookUrl', 'xUrl', 'maxAbsent', 'vkAbsent', 'telegramAbsent', 'instagramAbsent', 'facebookAbsent', 'xAbsent'].includes(field))) return 'contact_data';
   if (fields.some((field) => ['activityStatus', 'studiesInRussia', 'organizationName', 'facultyOrDepartment', 'classCourseYear', 'positionTitle', 'activityDirections', 'englishLevel', 'russianLevel', 'additionalLanguages', 'achievementsText', 'emergencyContact'].includes(field))) return 'activity_info';
   return null;
 }
@@ -219,4 +227,8 @@ function parseRequiredFields(value: string | null) {
 
 function isProfileSectionKey(value: string): value is ProfileSectionKey {
   return (PROFILE_SECTION_ORDER as string[]).includes(value);
+}
+
+function isSafeReturnPath(value: string, locale: string) {
+  return value.startsWith(`/${locale}/`) && !value.startsWith(`//`);
 }

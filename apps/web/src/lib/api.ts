@@ -238,6 +238,15 @@ export const eventsApi = {
   submitTeamForApproval: (eventId: string, teamId: string) =>
     request<{ team: any }>(`/api/events/${eventId}/teams/${teamId}/submit`, { method: 'POST', auth: true }),
 
+  getTeamSlots: (eventId: string, teamId: string) =>
+    request<any>(`/api/events/${eventId}/teams/${teamId}/slots`, { auth: true }),
+
+  inviteToTeamByEmail: (eventId: string, teamId: string, body: { slotIndex: number; email: string; message?: string }) =>
+    request<{ invitation: any }>(`/api/events/${eventId}/teams/${teamId}/invitations`, { method: 'POST', auth: true, body }),
+
+  cancelTeamInvitation: (eventId: string, teamId: string, invitationId: string) =>
+    request<{ ok: boolean; invitation: any }>(`/api/events/${eventId}/teams/${teamId}/invitations/${invitationId}`, { method: 'DELETE', auth: true }),
+
   joinTeam: (eventId: string, teamId: string, code?: string, answers?: Record<string, unknown>) =>
     request<{ member: any }>(`/api/events/${eventId}/teams/${teamId}/join`, { method: 'POST', auth: true, body: { code, answers: answers ?? {} } }),
 
@@ -262,6 +271,15 @@ export const eventsApi = {
   myTeams: () =>
     request<{ teams: any[] }>('/api/me/teams', { auth: true }),
 
+  myTeamInvitations: () =>
+    request<{ invitations: any[] }>('/api/me/team-invitations', { auth: true }),
+
+  acceptTeamInvitation: (invitationId: string) =>
+    request<{ invitation: any; member: any }>(`/api/me/team-invitations/${invitationId}/accept`, { method: 'POST', auth: true }),
+
+  declineTeamInvitation: (invitationId: string) =>
+    request<{ invitation: any }>(`/api/me/team-invitations/${invitationId}/decline`, { method: 'POST', auth: true }),
+
   myVolunteerApplications: () =>
     request<{ applications: any[] }>('/api/me/volunteer-applications', { auth: true }),
 };
@@ -279,6 +297,12 @@ export const adminApi = {
 
   updateEvent: (id: string, body: Record<string, unknown>) =>
     request<{ event: any }>(`/api/admin/events/${id}`, { method: 'PATCH', auth: true, body }),
+
+  uploadEventCover: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return requestForm<{ publicUrl: string; storageKey: string }>('/api/uploads/event-cover', formData, true);
+  },
 
   deleteEvent: (id: string) =>
     request<{ ok: boolean }>(`/api/admin/events/${id}`, { method: 'DELETE', auth: true }),

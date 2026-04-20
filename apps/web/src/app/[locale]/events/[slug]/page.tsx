@@ -203,7 +203,7 @@ export default function EventDetailPage() {
 
   function handleApplyCtaClick() {
     if (!slug) return;
-    const cabinetHref = `/${locale}/cabinet/events?event=${encodeURIComponent(slug)}&openApplyChoice=1#event-${slug}`;
+    const cabinetHref = `/${locale}/cabinet/events/${slug}`;
     if (!user) {
       router.push(`/${locale}/login?next=${encodeURIComponent(cabinetHref)}`);
       return;
@@ -270,15 +270,15 @@ export default function EventDetailPage() {
   };
   
   function renderParticipationPanel(className: string) {
-    const cabinetHref = `/${locale}/cabinet/events?event=${encodeURIComponent(event.slug)}#event-${event.slug}`;
+    const cabinetHref = `/${locale}/cabinet/events/${event.slug}`;
 
     return (
       <Panel className={className} id="event-participation">
         <SectionHeader
-          title={locale === 'ru' ? 'Регистрация через личный кабинет' : 'Registration through cabinet'}
+          title={locale === 'ru' ? 'Участие в мероприятии' : 'Event participation'}
           subtitle={locale === 'ru'
-            ? 'Публичная страница показывает информацию о событии. Подача заявки, precheck профиля и командные действия доступны только в ЛК.'
-            : 'The public page shows event information. Application, profile precheck, and team actions are available only in your cabinet.'}
+            ? 'Подайте заявку в личном кабинете. После входа система откроет страницу этого мероприятия и сохранит ваш прогресс.'
+            : 'Apply in your cabinet. After sign-in, this event page opens directly and keeps your progress.'}
         />
 
         {showCountPublicly && (
@@ -308,8 +308,8 @@ export default function EventDetailPage() {
         {participationStatus === 'ACTIVE' || isRegistered ? (
           <Notice tone="success">
             <div>{getParticipationStatusLabel('ACTIVE')}</div>
-            <Link href={`/${locale}/cabinet/my-events/${event.slug}`} className="btn btn-secondary btn-sm" style={{ marginTop: 8 }}>
-              {locale === 'ru' ? 'Открыть рабочее пространство' : 'Open event workspace'}
+            <Link href={cabinetHref} className="btn btn-secondary btn-sm" style={{ marginTop: 8 }}>
+              {locale === 'ru' ? 'Открыть личный кабинет события' : 'Open event cabinet'}
             </Link>
           </Notice>
         )
@@ -331,7 +331,7 @@ export default function EventDetailPage() {
           : (
             <div className="signal-stack">
               <Link href={cabinetHref} className="btn btn-primary">
-                {locale === 'ru' ? 'Перейти в ЛК для подачи заявки' : 'Open cabinet to apply'}
+                {locale === 'ru' ? 'Перейти в личный кабинет' : 'Open cabinet'}
               </Link>
               {event.isTeamBased ? (
                 <Notice tone="info">
@@ -346,7 +346,7 @@ export default function EventDetailPage() {
         {hasActiveVolunteer
           ? <Notice tone="info">{locale === 'ru' ? 'Заявка волонтёра' : 'Volunteer request'}: {volunteerStatus}</Notice>
           : event.volunteerApplicationsEnabled
-            ? <Link href={user ? cabinetHref : `/${locale}/login`} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Волонтёрские действия в ЛК' : 'Volunteer actions in cabinet'}</Link>
+            ? <Link href={user ? cabinetHref : `/${locale}/login?next=${encodeURIComponent(cabinetHref)}`} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Волонтёрские действия в ЛК' : 'Volunteer actions in cabinet'}</Link>
               : null}
       </Panel>
     );
@@ -368,7 +368,7 @@ export default function EventDetailPage() {
                 <h1>{event.title}</h1>
                 <p>{event.shortDescription}</p>
                 <div className="rhq-hero-actions">
-                  <button onClick={handleApplyCtaClick} className="rhq-button rhq-button-primary">{locale === 'ru' ? 'Подать заявку' : 'Apply now'}</button>
+                  <button onClick={handleApplyCtaClick} className="rhq-button rhq-button-primary">{locale === 'ru' ? 'Перейти в личный кабинет' : 'Open cabinet'}</button>
                   <a href="#program" className="rhq-button rhq-button-secondary">{locale === 'ru' ? 'Смотреть программу' : 'View program'}</a>
                 </div>
               </div>
@@ -510,9 +510,9 @@ export default function EventDetailPage() {
             <div className="rhq-container rhq-registration-grid">
               <div>
                 <QuestSectionHeader
-                  eyebrow="Регистрация"
-                  title="Подайте заявку на участие"
-                  copy="Система сохранит статус заявки, команду и дополнительные поля анкеты. Если нужны данные профиля, страница подскажет, что заполнить."
+                  eyebrow="Участие"
+                  title="Участие в мероприятии"
+                  copy="Подайте заявку в личном кабинете. После входа система откроет страницу этого мероприятия и сохранит ваш прогресс."
                 />
                 <div className="rhq-registration-notes">
                   <article>
@@ -523,7 +523,7 @@ export default function EventDetailPage() {
               </div>
               <div className="rhq-registration-card">
                 <button onClick={handleApplyCtaClick} className="rhq-button rhq-button-primary">
-                  {locale === 'ru' ? 'Подать заявку' : 'Apply now'}
+                  {locale === 'ru' ? 'Перейти в личный кабинет' : 'Open cabinet'}
                 </button>
                 <button onClick={handleCopyLink} className="rhq-button rhq-button-secondary rhq-share-button">
                   {copied ? (locale === 'ru' ? 'Ссылка скопирована' : 'Link copied') : (locale === 'ru' ? 'Поделиться событием' : 'Share event')}

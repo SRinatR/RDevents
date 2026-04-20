@@ -81,7 +81,7 @@ function LoginPageContent() {
         <div className="auth-card">
           <h2>{locale === 'ru' ? 'Вход' : 'Sign in'}</h2>
           <p>
-            {locale === 'ru' ? 'Нет аккаунта?' : 'No account?'} <Link href={`/${locale}/register`}>{locale === 'ru' ? 'Зарегистрироваться' : 'Register'}</Link>
+            {locale === 'ru' ? 'Нет аккаунта?' : 'No account?'} <Link href={`/${locale}/register${searchParams.get('next') ? `?next=${encodeURIComponent(searchParams.get('next')!)}` : ''}`}>{locale === 'ru' ? 'Зарегистрироваться' : 'Register'}</Link>
           </p>
 
           <form onSubmit={handleSubmit} className="signal-stack">

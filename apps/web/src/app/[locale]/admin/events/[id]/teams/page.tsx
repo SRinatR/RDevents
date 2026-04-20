@@ -460,5 +460,6 @@ function formatTeamStatus(status: string | null | undefined, locale: string) {
 function formatTeamJoinMode(value: string | null | undefined, locale: string) {
   if (value === 'BY_CODE') return locale === 'ru' ? 'По коду' : 'By code';
   if (value === 'BY_REQUEST') return locale === 'ru' ? 'По заявке' : 'By request';
+  if (value === 'EMAIL_INVITE') return locale === 'ru' ? 'Email-приглашения' : 'Email invites';
   return locale === 'ru' ? 'Открыто' : 'Open';
 }

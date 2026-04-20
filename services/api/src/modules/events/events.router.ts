@@ -3,13 +3,16 @@ import { authenticate, optionalAuth } from '../../common/middleware.js';
 import { eventQuerySchema, registrationAnswersSchema } from './events.schemas.js';
 import {
   applyForVolunteer,
+  cancelTeamInvitation,
   approveTeamMember,
   createTeam,
+  getTeamSlots,
   getEventBySlug,
   getEventMembership,
   getRegistrationPrecheck,
   getTeamById,
   getTeamsByEvent,
+  inviteToTeamByEmail,
   joinTeam,
   joinTeamByCode,
   leaveTeam,
@@ -46,6 +49,18 @@ const registrationFlowErrors: Record<string, [number, string]> = {
   TEAM_APPROVED_LOCKED: [409, 'Approved team is locked. Submit a change request to edit it'],
   TEAM_EMPTY: [400, 'Team has no members'],
   TEAM_MIN_SIZE: [400, 'Team does not meet minimum size'],
+  TEAM_NOT_FULL: [400, 'Team must be full before submission'],
+  TEAM_INVITATIONS_PENDING: [400, 'Team still has pending invitations'],
+  TEAM_INVITATIONS_DISABLED: [400, 'Email invitations are not enabled for this event'],
+  INVALID_INVITATION_EMAIL: [400, 'Invalid invitation email'],
+  INVALID_TEAM_SLOT: [400, 'Invalid team slot'],
+  TEAM_SLOT_OCCUPIED: [409, 'Team slot is occupied'],
+  CANNOT_INVITE_SELF: [400, 'You cannot invite yourself'],
+  INVITATION_ALREADY_EXISTS: [409, 'Invitation already exists'],
+  INVITATION_NOT_FOUND: [404, 'Invitation not found'],
+  INVITATION_CLOSED: [409, 'Invitation is already closed'],
+  INVITATION_EXPIRED: [410, 'Invitation expired'],
+  INVITATION_FORBIDDEN: [403, 'Invitation does not belong to this user'],
   USER_NOT_FOUND: [404, 'User not found'],
 };
 
@@ -211,6 +226,58 @@ eventsRouter.post('/:id/teams', authenticate, async (req, res) => {
     res.status(201).json({ team });
   } catch (err: any) {
     sendMappedError(res, err, { EVENT_NOT_AVAILABLE: [400, 'Event is not available for teams'] });
+  }
+});
+
+// GET /api/events/:id/teams/:teamId/slots
+eventsRouter.get('/:id/teams/:teamId/slots', authenticate, async (req, res) => {
+  try {
+    const slots = await getTeamSlots(String(req.params['teamId']));
+    if (slots.team.eventId !== String(req.params['id'])) {
+      res.status(404).json({ error: 'Team not found', code: 'TEAM_NOT_FOUND' });
+      return;
+    }
+    res.json(slots);
+  } catch (err: any) {
+    sendMappedError(res, err);
+  }
+});
+
+// POST /api/events/:id/teams/:teamId/invitations
+eventsRouter.post('/:id/teams/:teamId/invitations', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  try {
+    const invitation = await inviteToTeamByEmail(
+      String(req.params['id']),
+      String(req.params['teamId']),
+      user.id,
+      Number(req.body?.slotIndex),
+      String(req.body?.email ?? ''),
+      typeof req.body?.message === 'string' ? req.body.message : undefined
+    );
+    res.status(201).json({ invitation });
+  } catch (err: any) {
+    sendMappedError(res, err, {
+      NOT_TEAM_CAPTAIN: [403, 'Only team captain can invite members'],
+    });
+  }
+});
+
+// DELETE /api/events/:id/teams/:teamId/invitations/:invitationId
+eventsRouter.delete('/:id/teams/:teamId/invitations/:invitationId', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  try {
+    const invitation = await cancelTeamInvitation(
+      String(req.params['id']),
+      String(req.params['teamId']),
+      String(req.params['invitationId']),
+      user.id
+    );
+    res.json({ ok: true, invitation });
+  } catch (err: any) {
+    sendMappedError(res, err, {
+      NOT_TEAM_CAPTAIN: [403, 'Only team captain can cancel invitations'],
+    });
   }
 });
 

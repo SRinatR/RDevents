@@ -36,9 +36,15 @@ export function ProfileRegistrationDataSection({ locale, user, status, saving, r
     citizenshipCountryCode: extended.citizenshipCountryCode ?? '',
     residenceCountryCode: extended.residenceCountryCode ?? 'UZ',
     phone: user.phone ?? '',
+    telegram: user.telegram ?? '',
     consentPersonalData: Boolean(user.consentPersonalData),
     consentMailing: Boolean(extended.consentMailing),
   });
+  const [latinDirty, setLatinDirty] = useState(() => ({
+    lastNameLatin: isManualLatin(user.lastNameCyrillic, user.lastNameLatin),
+    firstNameLatin: isManualLatin(user.firstNameCyrillic, user.firstNameLatin),
+    middleNameLatin: isManualLatin(user.middleNameCyrillic, user.middleNameLatin),
+  }));
 
   useEffect(() => {
     referenceApi.countries().then((response) => setCountries(response.data)).catch(() => setCountries([]));
@@ -58,6 +64,23 @@ export function ProfileRegistrationDataSection({ locale, user, status, saving, r
     setForm((previous) => ({ ...previous, [key]: value }));
   }
 
+  function setCyrillicNameField(
+    cyrillicKey: 'lastNameCyrillic' | 'firstNameCyrillic' | 'middleNameCyrillic',
+    latinKey: 'lastNameLatin' | 'firstNameLatin' | 'middleNameLatin',
+    value: string
+  ) {
+    setForm((previous) => ({
+      ...previous,
+      [cyrillicKey]: value,
+      ...(latinDirty[latinKey] ? {} : { [latinKey]: transliterateCyrillic(value) }),
+    }));
+  }
+
+  function setLatinNameField(key: 'lastNameLatin' | 'firstNameLatin' | 'middleNameLatin', value: string) {
+    setLatinDirty((previous) => ({ ...previous, [key]: true }));
+    setField(key, value);
+  }
+
   return (
     <ProfileSectionLayout
       locale={locale}
@@ -69,24 +92,24 @@ export function ProfileRegistrationDataSection({ locale, user, status, saving, r
       <form className="signal-stack" onSubmit={(event) => { event.preventDefault(); void onSave(form); }}>
         <div className="profile-form-three-col">
           <ProfileField label={isRu ? 'Фамилия кириллицей' : 'Last name Cyrillic'} required={!form.hasNoLastName}>
-            <FieldInput className={nameRequiredClass('lastNameCyrillic')} disabled={form.hasNoLastName} value={form.lastNameCyrillic} onChange={(event) => setField('lastNameCyrillic', event.target.value)} />
+            <FieldInput className={nameRequiredClass('lastNameCyrillic')} disabled={form.hasNoLastName} value={form.lastNameCyrillic} onChange={(event) => setCyrillicNameField('lastNameCyrillic', 'lastNameLatin', event.target.value)} />
           </ProfileField>
           <ProfileField label={isRu ? 'Имя кириллицей' : 'First name Cyrillic'} required={!form.hasNoFirstName}>
-            <FieldInput className={nameRequiredClass('firstNameCyrillic')} disabled={form.hasNoFirstName} value={form.firstNameCyrillic} onChange={(event) => setField('firstNameCyrillic', event.target.value)} />
+            <FieldInput className={nameRequiredClass('firstNameCyrillic')} disabled={form.hasNoFirstName} value={form.firstNameCyrillic} onChange={(event) => setCyrillicNameField('firstNameCyrillic', 'firstNameLatin', event.target.value)} />
           </ProfileField>
           <ProfileField label={isRu ? 'Отчество кириллицей' : 'Middle name Cyrillic'} required={!form.hasNoMiddleName}>
-            <FieldInput className={requiredClass('middleNameCyrillic')} disabled={form.hasNoMiddleName} value={form.middleNameCyrillic} onChange={(event) => setField('middleNameCyrillic', event.target.value)} />
+            <FieldInput className={requiredClass('middleNameCyrillic')} disabled={form.hasNoMiddleName} value={form.middleNameCyrillic} onChange={(event) => setCyrillicNameField('middleNameCyrillic', 'middleNameLatin', event.target.value)} />
           </ProfileField>
         </div>
         <div className="profile-form-three-col">
           <ProfileField label={isRu ? 'Фамилия латиницей' : 'Last name Latin'} required={!form.hasNoLastName}>
-            <FieldInput className={nameRequiredClass('lastNameLatin')} disabled={form.hasNoLastName} value={form.lastNameLatin} onChange={(event) => setField('lastNameLatin', event.target.value)} />
+            <FieldInput className={nameRequiredClass('lastNameLatin')} disabled={form.hasNoLastName} value={form.lastNameLatin} onChange={(event) => setLatinNameField('lastNameLatin', event.target.value)} />
           </ProfileField>
           <ProfileField label={isRu ? 'Имя латиницей' : 'First name Latin'} required={!form.hasNoFirstName}>
-            <FieldInput className={nameRequiredClass('firstNameLatin')} disabled={form.hasNoFirstName} value={form.firstNameLatin} onChange={(event) => setField('firstNameLatin', event.target.value)} />
+            <FieldInput className={nameRequiredClass('firstNameLatin')} disabled={form.hasNoFirstName} value={form.firstNameLatin} onChange={(event) => setLatinNameField('firstNameLatin', event.target.value)} />
           </ProfileField>
           <ProfileField label={isRu ? 'Отчество латиницей' : 'Middle name Latin'} required={!form.hasNoMiddleName}>
-            <FieldInput className={requiredClass('middleNameLatin')} disabled={form.hasNoMiddleName} value={form.middleNameLatin} onChange={(event) => setField('middleNameLatin', event.target.value)} />
+            <FieldInput className={requiredClass('middleNameLatin')} disabled={form.hasNoMiddleName} value={form.middleNameLatin} onChange={(event) => setLatinNameField('middleNameLatin', event.target.value)} />
           </ProfileField>
         </div>
         <div className="profile-form-three-col">
@@ -106,8 +129,6 @@ export function ProfileRegistrationDataSection({ locale, user, status, saving, r
               <option value="">{isRu ? 'Выберите' : 'Select'}</option>
               <option value="MALE">{isRu ? 'Мужской' : 'Male'}</option>
               <option value="FEMALE">{isRu ? 'Женский' : 'Female'}</option>
-              <option value="OTHER">{isRu ? 'Другое' : 'Other'}</option>
-              <option value="PREFER_NOT_TO_SAY">{isRu ? 'Не указывать' : 'Prefer not to say'}</option>
             </FieldSelect>
           </ProfileField>
         </div>
@@ -120,6 +141,11 @@ export function ProfileRegistrationDataSection({ locale, user, status, saving, r
           </ProfileField>
           <ProfileField label={isRu ? 'Телефон' : 'Phone'} required>
             <FieldInput className={requiredClass('phone')} value={form.phone} onChange={(event) => setField('phone', event.target.value)} placeholder="+998901234567" />
+          </ProfileField>
+        </div>
+        <div className="profile-form-three-col">
+          <ProfileField label="Telegram" required={isRequired('telegram')}>
+            <FieldInput className={requiredClass('telegram')} value={form.telegram} onChange={(event) => setField('telegram', event.target.value)} placeholder="@username" />
           </ProfileField>
         </div>
         <CheckboxRow label={isRu ? 'Согласен на обработку персональных данных' : 'I consent to personal data processing'} checked={form.consentPersonalData} onChange={(value) => setField('consentPersonalData', value)} />
@@ -155,4 +181,59 @@ function toDateInput(value: string | Date | null | undefined) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return date.toISOString().slice(0, 10);
+}
+
+function isManualLatin(cyrillic: string | null | undefined, latin: string | null | undefined) {
+  const current = String(latin ?? '').trim();
+  if (!current) return false;
+  return current !== transliterateCyrillic(String(cyrillic ?? ''));
+}
+
+function transliterateCyrillic(value: string) {
+  const map: Record<string, string> = {
+    а: 'a',
+    б: 'b',
+    в: 'v',
+    г: 'g',
+    д: 'd',
+    е: 'e',
+    ё: 'yo',
+    ж: 'zh',
+    з: 'z',
+    и: 'i',
+    й: 'y',
+    к: 'k',
+    л: 'l',
+    м: 'm',
+    н: 'n',
+    о: 'o',
+    п: 'p',
+    р: 'r',
+    с: 's',
+    т: 't',
+    у: 'u',
+    ф: 'f',
+    х: 'kh',
+    ц: 'ts',
+    ч: 'ch',
+    ш: 'sh',
+    щ: 'shch',
+    ы: 'y',
+    э: 'e',
+    ю: 'yu',
+    я: 'ya',
+    ъ: '',
+    ь: '',
+  };
+  return value
+    .split('')
+    .map((char) => {
+      const lower = char.toLowerCase();
+      const next = map[lower] ?? char;
+      return char === lower ? next : next.charAt(0).toUpperCase() + next.slice(1);
+    })
+    .join('')
+    .replace(/[^a-zA-Z\s'-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../hooks/useAuth';
 import { ApiError, authApi } from '../../../lib/api';
@@ -12,9 +12,18 @@ type Step = 1 | 2 | 3;
 const TOTAL_STEPS = 3;
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="auth-loading-screen"><div className="spinner" /></div>}>
+      <RegisterPageContent />
+    </Suspense>
+  );
+}
+
+function RegisterPageContent() {
   const t = useTranslations();
   const { completeRegistration } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const locale = useRouteLocale();
 
   const [step, setStep] = useState<Step>(1);
@@ -101,7 +110,7 @@ export default function RegisterPage() {
 
     try {
       await completeRegistration(email, registrationToken, password);
-      router.push(`/${locale}/cabinet`);
+      router.push(searchParams.get('next') || `/${locale}/cabinet`);
     } catch (err) {
       setError(getStepErrorMessage(err, isRu));
       if (err instanceof ApiError && (err.status === 401 || err.status === 410)) {
@@ -180,7 +189,7 @@ export default function RegisterPage() {
           </div>
 
           <h2>{getStepTitle(step, isRu)}</h2>
-          <p>{isRu ? 'Уже есть аккаунт?' : 'Already have an account?'} <Link href={`/${locale}/login`}>{isRu ? 'Войти' : 'Sign in'}</Link></p>
+          <p>{isRu ? 'Уже есть аккаунт?' : 'Already have an account?'} <Link href={`/${locale}/login${searchParams.get('next') ? `?next=${encodeURIComponent(searchParams.get('next')!)}` : ''}`}>{isRu ? 'Войти' : 'Sign in'}</Link></p>
 
           <form onSubmit={handleSubmit} className="signal-stack">
             {step === 1 ? (
