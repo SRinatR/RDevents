@@ -11,6 +11,11 @@ const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
 const ACTIVE_TEAM_MEMBER_STATUSES = ['ACTIVE', 'PENDING'] as const;
 const PLATFORM_ADMIN_ROLES = ['PLATFORM_ADMIN', 'SUPER_ADMIN'] as const;
 const EDITABLE_TEAM_STATUSES = ['DRAFT', 'REJECTED'] as const;
+const FROZEN_TEAM_STATUSES = ['SUBMITTED', 'APPROVED'] as const;
+
+function isTeamFrozen(status: string): boolean {
+  return (FROZEN_TEAM_STATUSES as readonly string[]).includes(status);
+}
 
 async function canManageTeamMembers(eventId: string, teamCaptainUserId: string, actorUserId: string) {
   if (teamCaptainUserId === actorUserId) return true;
@@ -260,6 +265,7 @@ export async function joinTeam(
     include: { _count: { select: { members: { where: { status: 'ACTIVE' } } } } }
   });
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
+  if (isTeamFrozen(team.status)) throw new Error('TEAM_SUBMITTED_LOCKED');
   if (!['ACTIVE', 'DRAFT', 'REJECTED'].includes(team.status)) throw new Error('TEAM_NOT_ACTIVE');
   if (team._count.members >= team.maxSize) throw new Error('TEAM_FULL');
 
@@ -343,6 +349,7 @@ export async function updateTeam(eventId: string, teamId: string, userId: string
   });
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
   if (team.captainUserId !== userId) throw new Error('NOT_TEAM_CAPTAIN');
+  if (isTeamFrozen(team.status)) throw new Error('TEAM_SUBMITTED_LOCKED');
 
   if (team.event.requireAdminApprovalForTeams && !EDITABLE_TEAM_STATUSES.includes(team.status as any)) {
     if (team.status === 'PENDING' || team.status === 'CHANGES_PENDING') throw new Error('TEAM_APPROVAL_PENDING');
@@ -378,6 +385,7 @@ export async function submitTeamForApproval(eventId: string, teamId: string, use
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
   if (team.captainUserId !== userId) throw new Error('NOT_TEAM_CAPTAIN');
   if (!team.event.requireAdminApprovalForTeams) return team;
+  if (isTeamFrozen(team.status)) throw new Error('TEAM_SUBMITTED_LOCKED');
   if (team.status === 'PENDING' || team.status === 'CHANGES_PENDING') throw new Error('TEAM_APPROVAL_PENDING');
   if (!EDITABLE_TEAM_STATUSES.includes(team.status as any)) throw new Error('TEAM_APPROVED_LOCKED');
 
@@ -392,13 +400,13 @@ export async function submitTeamForApproval(eventId: string, teamId: string, use
     const changeRequest = await upsertPendingTeamChangeRequest(tx, team, userId, { memberUserIds: proposedMemberUserIds });
     await tx.eventTeam.update({
       where: { id: teamId },
-      data: { status: 'PENDING' },
+      data: { status: 'SUBMITTED' },
     });
     return changeRequest;
   });
 
   await notifyTeamUpdated(eventId, teamId);
-  return { ...team, status: 'PENDING', changeRequests: [changeRequest] };
+  return { ...team, status: 'SUBMITTED', changeRequests: [changeRequest] };
 }
 
 export async function leaveTeam(eventId: string, teamId: string, userId: string) {
@@ -408,6 +416,7 @@ export async function leaveTeam(eventId: string, teamId: string, userId: string)
   });
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
   if (team.captainUserId === userId) throw new Error('CAPTAIN_CANNOT_LEAVE');
+  if (isTeamFrozen(team.status)) throw new Error('TEAM_SUBMITTED_LOCKED');
   if (team.event.requireAdminApprovalForTeams && !EDITABLE_TEAM_STATUSES.includes(team.status as any)) {
     throw new Error('TEAM_APPROVED_LOCKED');
   }
@@ -490,6 +499,7 @@ export async function removeTeamMember(eventId: string, teamId: string, captainI
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
   if (team.captainUserId !== captainId) throw new Error('NOT_TEAM_CAPTAIN');
   if (team.captainUserId === memberUserId) throw new Error('CANNOT_REMOVE_CAPTAIN');
+  if (isTeamFrozen(team.status)) throw new Error('TEAM_SUBMITTED_LOCKED');
   if (team.event.requireAdminApprovalForTeams && !EDITABLE_TEAM_STATUSES.includes(team.status as any)) {
     throw new Error('TEAM_APPROVED_LOCKED');
   }
@@ -516,6 +526,7 @@ export async function transferTeamCaptain(eventId: string, teamId: string, capta
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
   if (team.captainUserId !== captainId) throw new Error('NOT_TEAM_CAPTAIN');
   if (captainId === memberUserId) throw new Error('CANNOT_TRANSFER_TO_SELF');
+  if (isTeamFrozen(team.status)) throw new Error('TEAM_SUBMITTED_LOCKED');
   if (team.event.requireAdminApprovalForTeams && !EDITABLE_TEAM_STATUSES.includes(team.status as any)) {
     throw new Error('TEAM_APPROVED_LOCKED');
   }

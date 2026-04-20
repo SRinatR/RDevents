@@ -64,6 +64,7 @@ enum EventTeamStatus {
   PENDING
   CHANGES_PENDING
   REJECTED
+  SUBMITTED
   ARCHIVED
 }
 
@@ -284,6 +285,12 @@ model User {
   supportMessages       SupportMessage[] @relation("SupportMessageSender")
   supportReadStates          SupportThreadReadState[] @relation("SupportThreadReadStateUser")
   uploadedSupportAttachments SupportAttachment[]      @relation("SupportAttachmentUploader")
+
+  passwordResetTokens  PasswordResetToken[]
+  preferences          UserPreference[]
+  updatedProfileFieldVisibility ProfileFieldVisibilitySetting[] @relation("ProfileFieldVisibilityUpdatedBy")
+  createdExportPresets ExportPreset[] @relation("ExportPresetCreatedBy")
+
   @@map("users")
 }
 
@@ -647,6 +654,8 @@ model Event {
   teamInvitations                  EventTeamInvitation[]
   analyticsEvents                  AnalyticsEvent[]
   registrationSubmissions          EventRegistrationFormSubmission[]
+  milestones                       EventMilestone[]
+  exportPresets                    ExportPreset[]
 
   @@map("events")
 }
@@ -906,4 +915,107 @@ model SupportThreadReadState {
   @@unique([threadId, userId])
   @@index([userId])
   @@map("support_thread_read_states")
+}
+
+// ─── Password Reset ─────────────────────────────────────────────────────────
+
+model PasswordResetToken {
+  id            String    @id @default(cuid())
+  userId        String
+  tokenHash     String    @unique
+  expiresAt     DateTime
+  usedAt        DateTime?
+  requestedAt   DateTime  @default(now())
+  requestedIp   String?
+  requestedUa   String?
+  consumedIp    String?
+  consumedUa    String?
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
+// ─── Profile Field Visibility ────────────────────────────────────────────────
+
+model ProfileFieldVisibilitySetting {
+  key                  String   @id
+  sectionKey           String
+  isVisibleInCabinet    Boolean  @default(true)
+  updatedByUserId      String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  updatedByUser        User?    @relation("ProfileFieldVisibilityUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([sectionKey])
+  @@map("profile_field_visibility_settings")
+}
+
+// ─── User Preferences ────────────────────────────────────────────────────────
+
+model UserPreference {
+  id        String   @id @default(cuid())
+  userId    String
+  key       String
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId])
+  @@map("user_preferences")
+}
+
+// ─── Event Milestones ────────────────────────────────────────────────────────
+
+enum EventMilestoneType {
+  REGISTRATION_OPEN
+  REGISTRATION_CLOSE
+  TEAM_SUBMIT_DEADLINE
+  DOCUMENT_UPLOAD_DEADLINE
+  CHECK_IN
+  EVENT_START
+  EVENT_END
+  CUSTOM
+}
+
+model EventMilestone {
+  id          String            @id @default(cuid())
+  eventId     String
+  type        EventMilestoneType
+  title       String
+  description String?
+  occursAt    DateTime
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  event       Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, occursAt])
+  @@map("event_milestones")
+}
+
+// ─── Export Presets ──────────────────────────────────────────────────────────
+
+model ExportPreset {
+  id          String   @id @default(cuid())
+  eventId     String?
+  scope       String
+  name        String
+  format      String
+  configJson  Json
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  event      Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdBy  User     @relation("ExportPresetCreatedBy", fields: [createdById], references: [id])
+
+  @@index([eventId])
+  @@map("export_presets")
 }

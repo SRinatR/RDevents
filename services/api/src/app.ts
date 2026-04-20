@@ -19,6 +19,9 @@ import { uploadsRouter } from './modules/uploads/uploads.router.js';
 import { referenceRouter } from './modules/reference/reference.router.js';
 import { supportRouter } from './modules/support/support.router.js';
 import { resendWebhookRouter } from './modules/webhooks/resend.router.js';
+import { passwordResetRouter } from './modules/password-reset/password-reset.router.js';
+import { dashboardRouter } from './modules/dashboard/dashboard.router.js';
+import { calendarRouter } from './modules/calendar/calendar.router.js';
 import { prisma } from './db/prisma.js';
 
 export function createApp() {
@@ -70,11 +73,15 @@ export function createApp() {
 
   // ─── API routes ───────────────────────────────────────────────────────────
   app.use('/api/auth', authRouter);
+  app.use('/api/auth/password', passwordResetRouter);
   app.use('/api/events', eventsRouter);
+  app.use('/api/events/calendar', calendarRouter);
   app.use('/api/me', registrationsRouter);
+  app.use('/api/me/dashboard', dashboardRouter);
   app.use('/api/users', usersRouter);
   app.use('/api/admin', adminRouter);
   app.use('/api/admin/email', adminEmailRouter);
+  app.use('/api/admin/calendar', calendarRouter);
   app.use('/api/analytics', analyticsRouter);
   app.use('/api/volunteers', volunteersRouter);
   app.use('/api/uploads', uploadsRouter);

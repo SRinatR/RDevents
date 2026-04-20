@@ -92,6 +92,12 @@ function LoginPageContent() {
             <button type="submit" disabled={loading} className="btn btn-primary">{loading ? '...' : (locale === 'ru' ? 'Войти' : 'Sign in')}</button>
           </form>
 
+          <div className="auth-links">
+            <Link href={`/${locale}/forgot-password`}>
+              {locale === 'ru' ? 'Забыли пароль?' : 'Forgot password?'}
+            </Link>
+          </div>
+
           {isProduction ? null : (
             <>
               <div className="auth-divider">{locale === 'ru' ? 'или через провайдера' : 'or continue with provider'}</div>

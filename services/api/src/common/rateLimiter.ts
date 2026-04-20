@@ -72,4 +72,5 @@ export const authRateLimits = {
   registerComplete: createRateLimiter({ windowMs: 60000, maxRequests: 5 }),
   login: createRateLimiter({ windowMs: 60000, maxRequests: 10 }),
   refresh: createRateLimiter({ windowMs: 60000, maxRequests: 20 }),
+  passwordResetRequest: createRateLimiter({ windowMs: 3600000, maxRequests: 3 }),
 };

@@ -178,3 +178,156 @@ function escapeHtml(value: string) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+export async function sendPasswordResetEmail(input: {
+  to: string;
+  userName: string;
+  resetUrl: string;
+  expiresAt: string;
+  ipHint?: string;
+  supportContact?: string;
+}) {
+  const client = getResendClient();
+  if (!client) {
+    throw new Error('EMAIL_DELIVERY_NOT_CONFIGURED');
+  }
+  if (!env.RESEND_FROM_EMAIL) {
+    throw new Error('EMAIL_SENDER_NOT_CONFIGURED');
+  }
+
+  const from = formatFromAddress(env.RESEND_FROM_NAME, env.RESEND_FROM_EMAIL);
+  const subject = 'Восстановление пароля / Password Reset — RDEvents';
+  const text = buildPasswordResetText(input);
+  const html = buildPasswordResetHtml(input);
+
+  await client.emails.send({
+    from,
+    to: [input.to],
+    subject,
+    text,
+    html,
+    ...(env.RESEND_REPLY_TO_EMAIL ? { replyTo: env.RESEND_REPLY_TO_EMAIL } : {}),
+  });
+}
+
+function buildPasswordResetText(input: {
+  userName: string;
+  resetUrl: string;
+  expiresAt: string;
+  ipHint?: string;
+  supportContact?: string;
+}) {
+  const expiryDate = new Date(input.expiresAt);
+  const expiryString = expiryDate.toLocaleString('ru-RU', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  return [
+    'RDEvents',
+    '',
+    'RU',
+    `Здравствуйте, ${input.userName}!`,
+    '',
+    'Вы запросили восстановление пароля для вашего аккаунта RDEvents.',
+    '',
+    'Перейдите по ссылке, чтобы задать новый пароль:',
+    input.resetUrl,
+    '',
+    `Ссылка действительна до ${expiryString}.`,
+    '',
+    'Если вы не запрашивали восстановление пароля, проигнорируйте это письмо. Ваш пароль не будет изменён.',
+    ...(input.ipHint ? [`\nIP-адрес запроса: ${input.ipHint}`] : []),
+    ...(input.supportContact ? [`\nСлужба поддержки: ${input.supportContact}`] : []),
+    '',
+    '─────────────────────',
+    '',
+    'EN',
+    '',
+    `Hello, ${input.userName}!`,
+    '',
+    'You requested a password reset for your RDEvents account.',
+    '',
+    'Click the link below to set a new password:',
+    input.resetUrl,
+    '',
+    `This link is valid until ${expiryDate.toLocaleString('en-US', { timeZone: 'Europe/Moscow', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}.`,
+    '',
+    'If you did not request a password reset, ignore this email. Your password will not be changed.',
+    ...(input.ipHint ? [`\nRequest IP address: ${input.ipHint}`] : []),
+    ...(input.supportContact ? [`\nSupport: ${input.supportContact}`] : []),
+  ].join('\n');
+}
+
+function buildPasswordResetHtml(input: {
+  userName: string;
+  resetUrl: string;
+  expiresAt: string;
+  ipHint?: string;
+  supportContact?: string;
+}) {
+  const expiryDate = new Date(input.expiresAt);
+  const expiryStringRu = expiryDate.toLocaleString('ru-RU', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const expiryStringEn = expiryDate.toLocaleString('en-US', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const ipInfo = input.ipHint ? `<p style="margin: 8px 0 0; font-size: 13px; color: #666;">IP-адрес запроса / Request IP: ${escapeHtml(input.ipHint)}</p>` : '';
+  const supportInfo = input.supportContact ? `<p style="margin: 8px 0 0; font-size: 13px; color: #666;">Служба поддержки / Support: ${escapeHtml(input.supportContact)}</p>` : '';
+
+  return `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827; max-width: 600px; margin: 0 auto;">
+      <div style="background: #1f58d8; padding: 24px; text-align: center;">
+        <h1 style="margin: 0; color: #ffffff; font-size: 28px;">RDEvents</h1>
+      </div>
+
+      <div style="padding: 32px 24px; background: #ffffff;">
+        <div style="border-bottom: 1px solid #e5e7eb; padding-bottom: 24px; margin-bottom: 24px;">
+          <h2 style="margin: 0 0 8px; color: #1f58d8;">RU</h2>
+          <p style="margin: 0 0 16px; font-size: 18px;">Здравствуйте, ${escapeHtml(input.userName)}!</p>
+          <p style="margin: 0 0 16px;">Вы запросили восстановление пароля для вашего аккаунта RDEvents.</p>
+          <p style="margin: 0 0 20px;">Перейдите по ссылке, чтобы задать новый пароль:</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${escapeHtml(input.resetUrl)}" style="display: inline-block; background: #1f58d8; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: 700; font-size: 16px;">Восстановить пароль</a>
+          </div>
+          <p style="margin: 0; font-size: 14px; color: #666;">Ссылка действительна до ${expiryStringRu}</p>
+          ${ipInfo}
+          ${supportInfo}
+          <p style="margin: 16px 0 0; font-size: 14px; color: #666;">Если вы не запрашивали восстановление пароля, проигнорируйте это письмо. Ваш пароль не будет изменён.</p>
+        </div>
+
+        <div>
+          <h2 style="margin: 0 0 8px; color: #1f58d8;">EN</h2>
+          <p style="margin: 0 0 16px; font-size: 18px;">Hello, ${escapeHtml(input.userName)}!</p>
+          <p style="margin: 0 0 16px;">You requested a password reset for your RDEvents account.</p>
+          <p style="margin: 0 0 20px;">Click the button below to set a new password:</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${escapeHtml(input.resetUrl)}" style="display: inline-block; background: #1f58d8; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: 700; font-size: 16px;">Reset Password</a>
+          </div>
+          <p style="margin: 0; font-size: 14px; color: #666;">This link is valid until ${expiryStringEn}</p>
+          <p style="margin: 16px 0 0; font-size: 14px; color: #666;">If you did not request a password reset, ignore this email. Your password will not be changed.</p>
+        </div>
+      </div>
+
+      <div style="padding: 16px 24px; background: #f3f4f6; text-align: center;">
+        <p style="margin: 0; font-size: 12px; color: #666;">© ${new Date().getFullYear()} RDEvents</p>
+      </div>
+    </div>
+  `;
+}
