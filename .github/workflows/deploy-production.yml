@@ -198,19 +198,37 @@ jobs:
             verify_http_release() {
               url="$1"
               label="$2"
-              body=$(curl -fsS "$url")
-              if ! printf '%s' "$body" | grep -Fq "$RELEASE_SHA"; then
-                echo "$label did not report release $RELEASE_SHA from $url."
-                echo "$body"
-                exit 1
-              fi
-              echo "$label release endpoint OK."
+              body_file=$(mktemp)
+              err_file=$(mktemp)
+
+              for attempt in $(seq 1 10); do
+                code=$(curl -sS -o "$body_file" -w "%{http_code}" "$url" 2>"$err_file" || true)
+                body=$(cat "$body_file" 2>/dev/null || true)
+
+                if [ "$code" = "200" ] && printf '%s' "$body" | grep -Fq "$RELEASE_SHA"; then
+                  rm -f "$body_file" "$err_file"
+                  echo "$label release endpoint OK."
+                  return 0
+                fi
+
+                echo "$label release check attempt $attempt/10 returned ${code:-curl_error}; retrying..."
+                sleep 2
+              done
+
+              echo "$label did not report release $RELEASE_SHA from $url."
+              echo "Last status: ${code:-curl_error}"
+              echo "Last response body:"
+              cat "$body_file" 2>/dev/null || true
+              echo "Last curl error:"
+              cat "$err_file" 2>/dev/null || true
+              rm -f "$body_file" "$err_file"
+              exit 1
             }
 
             verify_container_release api
             verify_container_release web
             verify_http_release "http://127.0.0.1:4000/api/version" "api local"
-            verify_http_release "http://127.0.0.1:3000/api/version" "web local"
+            verify_http_release "http://127.0.0.1:3000/version" "web local"
 
             docker image prune -f
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
@@ -406,18 +424,36 @@ jobs:
               url="$1"
               label="$2"
               echo "Checking public release marker for $label..."
-              body=$(curl -fsS "$url")
-              if ! printf '%s' "$body" | grep -Fq "$EXPECTED_RELEASE"; then
-                echo "$label does not report deployed release $EXPECTED_RELEASE."
-                echo "Response from $url:"
-                echo "$body"
-                docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
-                exit 1
-              fi
-              echo "$label release marker OK."
+              body_file=$(mktemp)
+              err_file=$(mktemp)
+
+              for attempt in $(seq 1 10); do
+                code=$(curl -sS -o "$body_file" -w "%{http_code}" "$url" 2>"$err_file" || true)
+                body=$(cat "$body_file" 2>/dev/null || true)
+
+                if [ "$code" = "200" ] && printf '%s' "$body" | grep -Fq "$EXPECTED_RELEASE"; then
+                  rm -f "$body_file" "$err_file"
+                  echo "$label release marker OK."
+                  return 0
+                fi
+
+                echo "$label release marker attempt $attempt/10 returned ${code:-curl_error}; retrying..."
+                sleep 2
+              done
+
+              echo "$label does not report deployed release $EXPECTED_RELEASE."
+              echo "URL: $url"
+              echo "Last status: ${code:-curl_error}"
+              echo "Last response body:"
+              cat "$body_file" 2>/dev/null || true
+              echo "Last curl error:"
+              cat "$err_file" 2>/dev/null || true
+              rm -f "$body_file" "$err_file"
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
+              exit 1
             }
 
-            check_release_endpoint "https://rdevents.uz/api/version" "web public"
+            check_release_endpoint "https://rdevents.uz/version" "web public"
             check_release_endpoint "https://api.rdevents.uz/api/version" "api public"
           EOF
 
