@@ -9,6 +9,7 @@ import { EmptyState, FieldInput, FieldSelect, LoadingLines, Notice, PageHeader, 
 
 type ApplicationRow = {
   id: string;
+  applicationType: 'PARTICIPANT' | 'VOLUNTEER' | 'TEAM';
   userId: string;
   userName: string | null;
   userEmail: string;
@@ -26,9 +27,13 @@ type ApplicationRow = {
   middleNameLatin?: string | null;
   fullNameCyrillic?: string | null;
   fullNameLatin?: string | null;
+  teamId?: string | null;
+  teamName?: string | null;
+  teamCaptainName?: string | null;
 };
 
 const STATUS_FILTERS = ['ALL', 'PENDING', 'ACTIVE', 'RESERVE', 'REJECTED', 'CANCELLED'] as const;
+const TYPE_FILTERS = ['ALL', 'PARTICIPANT', 'VOLUNTEER', 'TEAM'] as const;
 
 export default function AdminApplicationsPage() {
   const { user, loading, isAdmin } = useAuth();
@@ -47,6 +52,7 @@ export default function AdminApplicationsPage() {
   const search = searchParams.get('search') ?? '';
   const eventFilter = searchParams.get('eventId') ?? 'ALL';
   const statusFilter = searchParams.get('status') ?? 'ALL';
+  const typeFilter = searchParams.get('type') ?? 'ALL';
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) router.push(`/${locale}`);
@@ -72,12 +78,12 @@ export default function AdminApplicationsPage() {
     setLoadingData(true);
     setError('');
     try {
-      const result = await adminApi.listParticipants({
-        role: 'PARTICIPANT',
+      const result = await adminApi.listApplications({
         search: search || undefined,
         eventId: eventFilter !== 'ALL' ? eventFilter : undefined,
         status: statusFilter !== 'ALL' ? statusFilter : undefined,
-        limit: 100,
+        type: typeFilter !== 'ALL' ? typeFilter : undefined,
+        limit: 150,
       });
       setApplications(result.data ?? []);
     } catch (err: any) {
@@ -86,7 +92,7 @@ export default function AdminApplicationsPage() {
     } finally {
       setLoadingData(false);
     }
-  }, [eventFilter, locale, search, statusFilter]);
+  }, [eventFilter, locale, search, statusFilter, typeFilter]);
 
   useEffect(() => {
     if (!user || !isAdmin) return;
@@ -123,11 +129,38 @@ export default function AdminApplicationsPage() {
     return applications.filter((item) => item.status === statusFilter || stickyIds[item.id]);
   }, [applications, statusFilter, stickyIds]);
 
+  const typeLabel = useCallback((type: string) => {
+    const ru: Record<string, string> = {
+      PARTICIPANT: 'Участник',
+      VOLUNTEER: 'Волонтёр',
+      TEAM: 'Команда',
+    };
+    const en: Record<string, string> = {
+      PARTICIPANT: 'Participant',
+      VOLUNTEER: 'Volunteer',
+      TEAM: 'Team',
+    };
+    return (locale === 'ru' ? ru : en)[type] ?? type;
+  }, [locale]);
+
   const updateStatus = useCallback(async (row: ApplicationRow, nextStatus: 'ACTIVE' | 'RESERVE' | 'REJECTED') => {
     setActionId(row.id);
     setError('');
     try {
-      await adminApi.updateParticipantStatus(row.eventId, row.id, { status: nextStatus });
+      if (row.applicationType === 'TEAM') {
+        if (!row.teamId) throw new Error(locale === 'ru' ? 'Команда не найдена' : 'Team not found');
+        if (nextStatus === 'ACTIVE') {
+          await adminApi.approveTeamChangeRequest(row.eventId, row.teamId, row.id);
+        } else if (nextStatus === 'REJECTED') {
+          await adminApi.rejectTeamChangeRequest(row.eventId, row.teamId, row.id);
+        } else {
+          throw new Error(locale === 'ru' ? 'Для команды доступно только одобрение/отклонение' : 'Only approve/reject is available for team applications');
+        }
+      } else if (row.applicationType === 'VOLUNTEER') {
+        await adminApi.updateVolunteerStatus(row.eventId, row.id, { status: nextStatus });
+      } else {
+        await adminApi.updateParticipantStatus(row.eventId, row.id, { status: nextStatus });
+      }
       setApplications((prev) => prev.map((item) => (item.id === row.id ? { ...item, status: nextStatus } : item)));
       setStickyIds((prev) => ({ ...prev, [row.id]: true }));
     } catch (err: any) {
@@ -151,7 +184,7 @@ export default function AdminApplicationsPage() {
       <Panel variant="elevated" className="admin-command-panel admin-data-panel">
         <SectionHeader
           title={locale === 'ru' ? 'Реестр заявок' : 'Application registry'}
-          subtitle={locale === 'ru' ? 'Поиск по имени, email, городу, дате и названию события' : 'Search by name, email, city, date, and event title'}
+          subtitle={locale === 'ru' ? 'Единый реестр заявок: участник, волонтёр, команда' : 'Unified registry: participant, volunteer, team'}
         />
 
         <ToolbarRow>
@@ -170,6 +203,11 @@ export default function AdminApplicationsPage() {
               <option key={status} value={status}>{status === 'ALL' ? (locale === 'ru' ? 'Все статусы' : 'All statuses') : statusLabel(status)}</option>
             ))}
           </FieldSelect>
+          <FieldSelect value={typeFilter} onChange={(event) => updateFilter('type', event.target.value)} className="admin-filter-select">
+            {TYPE_FILTERS.map((type) => (
+              <option key={type} value={type}>{type === 'ALL' ? (locale === 'ru' ? 'Все типы' : 'All types') : typeLabel(type)}</option>
+            ))}
+          </FieldSelect>
         </ToolbarRow>
 
         {loadingData ? (
@@ -185,6 +223,7 @@ export default function AdminApplicationsPage() {
               <thead>
                 <tr>
                   <th>{locale === 'ru' ? 'Заявитель' : 'Applicant'}</th>
+                  <th>{locale === 'ru' ? 'Тип' : 'Type'}</th>
                   <th>{locale === 'ru' ? 'Email' : 'Email'}</th>
                   <th>{locale === 'ru' ? 'Город' : 'City'}</th>
                   <th>{locale === 'ru' ? 'Статус' : 'Status'}</th>
@@ -207,17 +246,21 @@ export default function AdminApplicationsPage() {
                     <Fragment key={row.id}>
                       <tr>
                         <td><strong>{displayName || '—'}</strong></td>
+                        <td>{typeLabel(row.applicationType)}</td>
                         <td className="signal-overflow-ellipsis">{row.userEmail || '—'}</td>
                         <td>{row.userCity || '—'}</td>
                         <td>{statusLabel(row.status)}</td>
                         <td className="signal-muted">{new Date(row.assignedAt).toLocaleDateString(locale === 'ru' ? 'ru-RU' : 'en-US')}</td>
-                        <td className="signal-overflow-ellipsis">{row.eventTitle || '—'}</td>
+                        <td className="signal-overflow-ellipsis">
+                          {row.eventTitle || '—'}
+                          {row.applicationType === 'TEAM' && row.teamName ? ` · ${row.teamName}` : ''}
+                        </td>
                         <td className="right">
                           <div className="signal-row-actions">
                             {row.status === 'PENDING' ? (
                               <>
                                 <button type="button" className="btn btn-primary btn-sm" disabled={actionId === row.id} onClick={() => void updateStatus(row, 'ACTIVE')}>{locale === 'ru' ? 'Принять' : 'Approve'}</button>
-                                <button type="button" className="btn btn-secondary btn-sm" disabled={actionId === row.id} onClick={() => void updateStatus(row, 'RESERVE')}>{locale === 'ru' ? 'Резерв' : 'Reserve'}</button>
+                                {row.applicationType === 'PARTICIPANT' ? <button type="button" className="btn btn-secondary btn-sm" disabled={actionId === row.id} onClick={() => void updateStatus(row, 'RESERVE')}>{locale === 'ru' ? 'Резерв' : 'Reserve'}</button> : null}
                                 <button type="button" className="btn btn-danger btn-sm" disabled={actionId === row.id} onClick={() => void updateStatus(row, 'REJECTED')}>{locale === 'ru' ? 'Отклонить' : 'Reject'}</button>
                               </>
                             ) : null}
@@ -229,7 +272,7 @@ export default function AdminApplicationsPage() {
                       </tr>
                       {expandedId === row.id ? (
                         <tr className="admin-expanded-row">
-                          <td colSpan={7}>
+                          <td colSpan={8}>
                             {row.answers && Object.keys(row.answers).length > 0 ? (
                               <div className="admin-answer-grid">
                                 {Object.entries(row.answers).map(([key, value]) => (
@@ -240,7 +283,13 @@ export default function AdminApplicationsPage() {
                                 ))}
                               </div>
                             ) : (
-                              <span className="signal-muted">{locale === 'ru' ? 'Ответов анкеты пока нет.' : 'No form answers yet.'}</span>
+                              <span className="signal-muted">
+                                {row.applicationType === 'TEAM'
+                                  ? (locale === 'ru'
+                                    ? `Команда: ${row.teamName ?? '—'} · Капитан: ${row.teamCaptainName ?? '—'}`
+                                    : `Team: ${row.teamName ?? '—'} · Captain: ${row.teamCaptainName ?? '—'}`)
+                                  : (locale === 'ru' ? 'Ответов анкеты пока нет.' : 'No form answers yet.')}
+                              </span>
                             )}
                           </td>
                         </tr>

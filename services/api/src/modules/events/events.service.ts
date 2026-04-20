@@ -171,6 +171,7 @@ export {
   rejectTeamMember,
   rejectTeamChangeRequest,
   removeTeamMember,
+  transferTeamCaptain,
   submitTeamForApproval,
 } from './teams.service.js';
 
@@ -389,6 +390,7 @@ export async function getMyEventWorkspace(userId: string, slug: string) {
           include: {
             captainUser: { select: { id: true, name: true, email: true, avatarUrl: true } },
             members: {
+              where: { status: { notIn: ['REMOVED', 'LEFT'] } },
               include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
               orderBy: { joinedAt: 'asc' },
             },
