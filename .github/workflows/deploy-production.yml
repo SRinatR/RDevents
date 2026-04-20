@@ -131,14 +131,6 @@ jobs:
             # Ensure postgres is running without touching api/web.
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml up -d postgres
 
-            # Wait for postgres to pass its Docker health check (up to 60 s).
-            # docker compose ps --status healthy is unreliable: the compose CLI
-            # --status filter matches the compose *runtime status* label, which
-            # may not reflect the container health state in all Docker/compose
-            # versions, causing a false timeout even when the container is already
-            # (healthy) according to `docker inspect`.
-            # Instead we get the container ID once and poll `docker inspect`
-            # directly, which always reflects the real health check result.
             echo "Waiting for postgres to be healthy..."
             POSTGRES_CID=$(docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps -q postgres 2>/dev/null || true)
             if [ -z "$POSTGRES_CID" ]; then
@@ -162,7 +154,6 @@ jobs:
               sleep 2
             done
 
-            # Create a pre-migration backup — deploy aborts here if backup fails
             BACKUP_DIR="$DEPLOY_ROOT/backups"
             mkdir -p "$BACKUP_DIR"
             BACKUP_FILE="$BACKUP_DIR/pre-migrate-$(date +%Y%m%d-%H%M%S).sql.gz"
@@ -172,14 +163,9 @@ jobs:
             test -s "$BACKUP_FILE"
             echo "Backup written to $BACKUP_FILE ($(du -sh "$BACKUP_FILE" | cut -f1))"
 
-            # Run migrations as a one-off container — deploy aborts here if any migration fails.
-            # --no-deps: postgres is already running; we do not re-start it via depends_on.
-            # Seed (db:seed) is NOT run here and must never be run in production deploy.
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
               run --rm --no-deps api pnpm prisma:deploy
 
-            # Migrations succeeded - now replace api and web with the freshly built images.
-            # This step is only reached when prisma:deploy exited 0.
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
               up -d --force-recreate --remove-orphans api web
 
@@ -230,14 +216,11 @@ jobs:
             verify_container_release api
             verify_container_release web
             verify_http_release "http://127.0.0.1:4000/api/version" "api local"
-            verify_http_release "http://127.0.0.1:3000/release.json" "web local"
+            verify_http_release "http://127.0.0.1:3000/version.txt" "web local"
 
             docker image prune -f
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
           EOF
-
-      # No flat sleep here — each smoke step uses its own retry loop so the
-      # total wait is bounded and the check fires as soon as the service is ready.
 
       - name: Smoke test - API container is running
         shell: bash
@@ -471,8 +454,8 @@ jobs:
               exit 1
             }
 
-            check_release_endpoint "https://rdevents.uz/release.json" "web public" "allow-unavailable"
-            check_release_endpoint "https://api.rdevents.uz/api/version" "api public"
+            check_release_endpoint "https://rdevents.uz/version.txt" "web public" "allow-unavailable"
+            check_release_endpoint "https://api.rdevents.uz/version" "api public"
           EOF
 
       - name: Deployment complete
