@@ -153,6 +153,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         label: 'Management',
         items: [
           { href: `/${locale}/admin/users`, label: t('admin.users'), icon: <UserCogIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/profile-fields`, label: locale === 'ru' ? 'Поля профиля' : 'Profile fields', icon: <FormIcon />, allow: isPlatformAdmin },
           { href: `/${locale}/admin/admins`, label: t('admin.admins'), icon: <ShieldIcon />, allow: isSuperAdmin },
           { href: `/${locale}/admin/settings`, label: t('admin.settings'), icon: <SettingsIcon />, allow: isPlatformAdmin },
           { href: `/${locale}/admin/audit`, label: t('admin.audit'), icon: <AuditIcon />, allow: isPlatformAdmin },

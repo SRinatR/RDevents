@@ -21,6 +21,7 @@ export function useProfileSections(locale = 'ru') {
   const [documents, setDocuments] = useState<ProfileDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingSection, setSavingSection] = useState<ProfileSectionKey | null>(null);
+  const [fieldVisibility, setFieldVisibility] = useState<Record<string, string[]>>({});
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -36,8 +37,9 @@ export function useProfileSections(locale = 'ru') {
 
   const reloadSections = useCallback(async () => {
     if (!user) return;
-    const { sections: nextSections } = await authApi.getProfileSections();
+    const { sections: nextSections, fieldVisibility: nextFieldVisibility } = await authApi.getProfileSections();
     applySections(nextSections as ProfileSectionState[]);
+    setFieldVisibility(nextFieldVisibility ?? {});
   }, [applySections, user]);
 
   const reloadDocuments = useCallback(async () => {
@@ -136,6 +138,7 @@ export function useProfileSections(locale = 'ru') {
       setError('');
       setSuccess('');
     },
+    fieldVisibility,
   };
 }
 

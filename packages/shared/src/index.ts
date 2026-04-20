@@ -84,3 +84,5 @@ export interface AuthResponse {
   user: UserPublic;
   accessToken: string;
 }
+
+export * from './profile/profile-field-registry.js';

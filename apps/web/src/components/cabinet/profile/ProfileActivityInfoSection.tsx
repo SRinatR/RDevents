@@ -14,11 +14,12 @@ type Props = {
   status: ProfileSectionStatus;
   saving: boolean;
   requiredFields: string[];
+  visibleFields: string[];
   eventTitle: string;
   onSave: (payload: Record<string, unknown>) => Promise<void>;
 };
 
-export function ProfileActivityInfoSection({ locale, user, status, saving, requiredFields, eventTitle, onSave }: Props) {
+export function ProfileActivityInfoSection({ locale, user, status, saving, requiredFields, visibleFields, eventTitle, onSave }: Props) {
   const isRu = locale === 'ru';
   const extended = user.extendedProfile ?? {};
   const [form, setForm] = useState({
@@ -47,25 +48,22 @@ export function ProfileActivityInfoSection({ locale, user, status, saving, requi
   }
 
   const requiredClass = (field: string) => requiredFields.includes(field) ? 'signal-field-required' : '';
+  const isVisible = (field: string) => visibleFields.includes(field);
 
   function save() {
     return onSave({
-      activityStatus: form.activityStatus,
-      studiesInRussia: form.studiesInRussia,
-      organizationName: form.organizationName,
-      facultyOrDepartment: form.facultyOrDepartment,
-      classCourseYear: form.classCourseYear,
-      positionTitle: form.positionTitle,
-      achievementsText: form.achievementsText,
-      englishLevel: form.englishLevel,
-      russianLevel: form.russianLevel,
-      activityDirections: directions,
-      additionalLanguages: form.additionalLanguages.split(',').map((item: string) => item.trim()).filter(Boolean),
-      emergencyContact: {
-        fullName: form.emergencyFullName,
-        relationship: form.emergencyRelationship,
-        phone: form.emergencyPhone,
-      },
+      ...(isVisible('activityStatus') && { activityStatus: form.activityStatus }),
+      ...(isVisible('studiesInRussia') && { studiesInRussia: form.studiesInRussia }),
+      ...(isVisible('organizationName') && { organizationName: form.organizationName }),
+      ...(isVisible('facultyOrDepartment') && { facultyOrDepartment: form.facultyOrDepartment }),
+      ...(isVisible('classCourseYear') && { classCourseYear: form.classCourseYear }),
+      ...(isVisible('positionTitle') && { positionTitle: form.positionTitle }),
+      ...(isVisible('achievementsText') && { achievementsText: form.achievementsText }),
+      ...(isVisible('englishLevel') && { englishLevel: form.englishLevel }),
+      ...(isVisible('russianLevel') && { russianLevel: form.russianLevel }),
+      ...(isVisible('activityDirections') && { activityDirections: directions }),
+      ...(isVisible('additionalLanguages') && { additionalLanguages: form.additionalLanguages.split(',').map((item: string) => item.trim()).filter(Boolean) }),
+      ...(isVisible('emergencyContact') && { emergencyContact: { fullName: form.emergencyFullName, relationship: form.emergencyRelationship, phone: form.emergencyPhone } }),
     });
   }
 

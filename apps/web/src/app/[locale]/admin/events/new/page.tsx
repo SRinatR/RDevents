@@ -7,37 +7,6 @@ import { useAuth } from '../../../../../hooks/useAuth';
 import { adminApi } from '../../../../../lib/api';
 import { useRouteLocale } from '../../../../../hooks/useRouteParams';
 
-const PROFILE_REQUIREMENT_OPTIONS = [
-  { key: 'lastNameCyrillic', ru: 'Фамилия кириллицей', en: 'Last name Cyrillic' },
-  { key: 'firstNameCyrillic', ru: 'Имя кириллицей', en: 'First name Cyrillic' },
-  { key: 'middleNameCyrillic', ru: 'Отчество кириллицей', en: 'Middle name Cyrillic' },
-  { key: 'lastNameLatin', ru: 'Фамилия латиницей', en: 'Last name Latin' },
-  { key: 'firstNameLatin', ru: 'Имя латиницей', en: 'First name Latin' },
-  { key: 'middleNameLatin', ru: 'Отчество латиницей', en: 'Middle name Latin' },
-  { key: 'birthDate', ru: 'Дата рождения', en: 'Date of birth' },
-  { key: 'gender', ru: 'Пол', en: 'Gender' },
-  { key: 'citizenshipCountryCode', ru: 'Гражданство', en: 'Citizenship' },
-  { key: 'residenceCountryCode', ru: 'Страна проживания', en: 'Residence country' },
-  { key: 'phone', ru: 'Телефон', en: 'Phone' },
-  { key: 'telegram', ru: 'Telegram', en: 'Telegram' },
-  { key: 'avatarUrl', ru: 'Фото профиля', en: 'Profile photo' },
-  { key: 'regionId', ru: 'Регион проживания', en: 'Residence region' },
-  { key: 'districtId', ru: 'Район проживания', en: 'Residence district' },
-  { key: 'settlementId', ru: 'Населённый пункт', en: 'Settlement' },
-  { key: 'street', ru: 'Улица', en: 'Street' },
-  { key: 'house', ru: 'Дом', en: 'House' },
-  { key: 'postalCode', ru: 'Почтовый индекс', en: 'Postal code' },
-  { key: 'nativeLanguage', ru: 'Родной язык', en: 'Native language' },
-  { key: 'communicationLanguage', ru: 'Язык общения', en: 'Communication language' },
-  { key: 'personalDocumentsComplete', ru: 'Личные документы полностью', en: 'Personal documents complete' },
-  { key: 'contactDataComplete', ru: 'Контактные данные полностью', en: 'Contact data complete' },
-  { key: 'activityStatus', ru: 'Статус активности', en: 'Activity status' },
-  { key: 'organizationName', ru: 'Организация', en: 'Organization' },
-  { key: 'activityDirections', ru: 'Направления активности', en: 'Activity directions' },
-  { key: 'englishLevel', ru: 'Уровень английского', en: 'English level' },
-  { key: 'russianLevel', ru: 'Уровень русского', en: 'Russian level' },
-];
-
 const EVENT_REQUIREMENT_HINT = 'motivation, experience, emergencyContact, university, faculty, course';
 
 const CATEGORY_OPTIONS = [
@@ -60,6 +29,7 @@ export default function NewEventPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [profileRequirementOptions, setProfileRequirementOptions] = useState<Array<{ key: string; ru: string; en: string }>>([]);
 
   const [form, setForm] = useState({
     title: '',
@@ -99,6 +69,13 @@ export default function NewEventPage() {
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) router.push(`/${locale}`);
   }, [user, loading, isAdmin, router, locale]);
+  useEffect(() => {
+    adminApi.getProfileFields()
+      .then(({ fields }) => setProfileRequirementOptions(fields
+        .filter((item: any) => item.allowEventRequirement && item.isVisibleInCabinet)
+        .map((item: any) => ({ key: item.key, ru: item.label?.ru ?? item.key, en: item.label?.en ?? item.key }))))
+      .catch(() => setProfileRequirementOptions([]));
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -369,7 +346,7 @@ export default function NewEventPage() {
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontWeight: 800, fontSize: '0.9rem', marginBottom: 10 }}>{isRu ? 'Обязательные поля профиля' : 'Required profile fields'}</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                {PROFILE_REQUIREMENT_OPTIONS.map(option => (
+                {profileRequirementOptions.map(option => (
                   <label key={option.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', background: form.requiredProfileFields.includes(option.key) ? 'var(--color-primary-subtle)' : 'var(--color-bg-subtle)', fontWeight: 700, fontSize: '0.86rem' }}>
                     <input type="checkbox" checked={form.requiredProfileFields.includes(option.key)} onChange={() => toggleRequiredProfileField(option.key)} />
                     {isRu ? option.ru : option.en}

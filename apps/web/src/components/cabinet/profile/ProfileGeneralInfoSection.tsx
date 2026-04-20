@@ -14,13 +14,14 @@ type Props = {
   status: ProfileSectionStatus;
   saving: boolean;
   requiredFields: string[];
+  visibleFields: string[];
   eventTitle: string;
   onSave: (payload: Record<string, unknown>) => Promise<void>;
   onUpload: (file: File) => Promise<void>;
   onDelete: () => Promise<void>;
 };
 
-export function ProfileGeneralInfoSection({ locale, user, status, saving, requiredFields, eventTitle, onSave, onUpload, onDelete }: Props) {
+export function ProfileGeneralInfoSection({ locale, user, status, saving, requiredFields, visibleFields, eventTitle, onSave, onUpload, onDelete }: Props) {
   const isRu = locale === 'ru';
   const extended = user.extendedProfile ?? {};
   const [countries, setCountries] = useState<ReferenceOption[]>([]);
@@ -101,7 +102,7 @@ export function ProfileGeneralInfoSection({ locale, user, status, saving, requir
       status={status}
     >
       {requiredFields.length > 0 ? <Notice tone="warning">{isRu ? `Эти данные нужны для заявки${eventTitle ? `: ${eventTitle}` : ''}.` : 'These data are required for your application.'}</Notice> : null}
-      <form className="signal-stack" onSubmit={(event) => { event.preventDefault(); void onSave(form); }}>
+      <form className="signal-stack" onSubmit={(event) => { event.preventDefault(); void onSave(Object.fromEntries(Object.entries(form).filter(([key]) => visibleFields.includes(key)))); }}>
         <div className="profile-photo-grid">
           <div className={`profile-upload-zone ${isRequired('avatarUrl') || isRequired('avatarAssetId') || isRequired('photo') ? 'signal-field-required' : ''}`}>
             <div className="profile-photo-preview">

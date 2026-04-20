@@ -145,7 +145,7 @@ export const authApi = {
     request<{ user: any }>('/api/auth/profile', { method: 'PATCH', auth: true, body }),
 
   getProfileSections: () =>
-    request<{ sections: any[] }>('/api/auth/profile/sections', { auth: true }),
+    request<{ sections: any[]; fieldVisibility: Record<string, string[]> }>('/api/auth/profile/sections', { auth: true }),
 
   updateProfileSection: (sectionKey: string, body: Record<string, unknown>) =>
     request<any>(`/api/auth/profile/sections/${sectionKey}`, { method: 'PATCH', auth: true, body }),
@@ -319,6 +319,10 @@ export const adminApi = {
 
   deleteEvent: (id: string) =>
     request<{ ok: boolean }>(`/api/admin/events/${id}`, { method: 'DELETE', auth: true }),
+  getProfileFields: () =>
+    request<{ fields: any[] }>('/api/admin/profile-fields', { auth: true }),
+  patchProfileFieldVisibility: (key: string, isVisibleInCabinet: boolean) =>
+    request<{ ok: boolean }>(`/api/admin/profile-fields/${key}`, { method: 'PATCH', auth: true, body: { isVisibleInCabinet } }),
 
   listEventAdmins: (eventId: string) =>
     request<{ eventAdmins: any[] }>(`/api/admin/events/${eventId}/admins`, { auth: true }),

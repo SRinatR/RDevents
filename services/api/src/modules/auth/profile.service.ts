@@ -15,6 +15,10 @@ import {
   isSocialLinksComplete,
 } from './profile.snapshot.js';
 import {
+  assertProfileSectionPatchAllowed,
+  getVisibleFieldKeysBySection,
+} from '../profile-config/profile-config.service.js';
+import {
   attachAvatarToUser,
   createMediaAsset,
   detachAvatarFromUser,
@@ -29,14 +33,18 @@ type ProfileUser = Record<string, any>;
 export async function getProfileSections(userId: string) {
   const user = await getProfileUserForStatus(userId);
   if (!user) throw new Error('NOT_FOUND');
+  const visibleBySection = await getVisibleFieldKeysBySection();
 
   const sections = [];
   for (const key of PROFILE_SECTION_KEYS) {
-    const status = getSectionStatus(key, user as ProfileUser);
+    const status = getSectionStatus(key, user as ProfileUser, new Set(visibleBySection[key] ?? []));
     sections.push(await upsertSectionState(userId, key, status));
   }
 
-  return sections;
+  return {
+    sections,
+    fieldVisibility: visibleBySection,
+  };
 }
 
 export async function updateProfileSection(userId: string, sectionKey: ProfileSectionKey, input: unknown) {
@@ -53,6 +61,7 @@ export async function updateProfileSection(userId: string, sectionKey: ProfileSe
   }
 
   const data = parsed.data as Record<string, any>;
+  await assertProfileSectionPatchAllowed(sectionKey, data);
 
   if (sectionKey === 'registration_data') {
     await updateRegistrationDataSection(userId, data);
@@ -68,7 +77,8 @@ export async function updateProfileSection(userId: string, sectionKey: ProfileSe
 
   const user = await getProfileUserForResponse(userId);
   const statusUser = await getProfileUserForStatus(userId);
-  const section = await upsertSectionState(userId, sectionKey, getSectionStatus(sectionKey, statusUser as ProfileUser));
+  const visibleBySection = await getVisibleFieldKeysBySection();
+  const section = await upsertSectionState(userId, sectionKey, getSectionStatus(sectionKey, statusUser as ProfileUser, new Set(visibleBySection[sectionKey] ?? [])));
 
   return {
     user: sanitizeUser(user as any),
@@ -83,7 +93,8 @@ export async function uploadProfileAvatar(userId: string, file: Express.Multer.F
 
   const user = await getProfileUserForResponse(userId);
   const statusUser = await getProfileUserForStatus(userId);
-  const section = await upsertSectionState(userId, 'general_info', getSectionStatus('general_info', statusUser as ProfileUser));
+  const visibleBySection = await getVisibleFieldKeysBySection();
+  const section = await upsertSectionState(userId, 'general_info', getSectionStatus('general_info', statusUser as ProfileUser, new Set(visibleBySection.general_info ?? [])));
 
   return {
     asset: publicMediaAsset(asset),
@@ -95,7 +106,8 @@ export async function uploadProfileAvatar(userId: string, file: Express.Multer.F
 export async function removeProfileAvatar(userId: string) {
   await detachAvatarFromUser(userId);
   const statusUser = await getProfileUserForStatus(userId);
-  return upsertSectionState(userId, 'general_info', getSectionStatus('general_info', statusUser as ProfileUser));
+  const visibleBySection = await getVisibleFieldKeysBySection();
+  return upsertSectionState(userId, 'general_info', getSectionStatus('general_info', statusUser as ProfileUser, new Set(visibleBySection.general_info ?? [])));
 }
 
 export async function listProfileDocuments(userId: string) {
@@ -106,7 +118,8 @@ export async function uploadProfileDocument(userId: string, file: Express.Multer
   validateDocumentFile(file);
   const asset = await createMediaAsset(userId, 'DOCUMENT', file);
   const statusUser = await getProfileUserForStatus(userId);
-  const section = await upsertSectionState(userId, 'personal_documents', getSectionStatus('personal_documents', statusUser as ProfileUser));
+  const visibleBySection = await getVisibleFieldKeysBySection();
+  const section = await upsertSectionState(userId, 'personal_documents', getSectionStatus('personal_documents', statusUser as ProfileUser, new Set(visibleBySection.personal_documents ?? [])));
   return { asset: publicMediaAsset(asset), section };
 }
 
@@ -116,7 +129,8 @@ export async function removeProfileDocument(userId: string, assetId: string) {
   await prisma.userIdentityDocument.updateMany({ where: { userId, scanAssetId: assetId }, data: { scanAssetId: null } });
   await prisma.userInternationalPassport.updateMany({ where: { userId, scanAssetId: assetId }, data: { scanAssetId: null } });
   const statusUser = await getProfileUserForStatus(userId);
-  return upsertSectionState(userId, 'personal_documents', getSectionStatus('personal_documents', statusUser as ProfileUser));
+  const visibleBySection = await getVisibleFieldKeysBySection();
+  return upsertSectionState(userId, 'personal_documents', getSectionStatus('personal_documents', statusUser as ProfileUser, new Set(visibleBySection.personal_documents ?? [])));
 }
 
 async function updateRegistrationDataSection(userId: string, input: Record<string, any>) {
@@ -438,7 +452,7 @@ async function upsertSectionState(userId: string, sectionKey: ProfileSectionKey,
   };
 }
 
-function getSectionStatus(sectionKey: ProfileSectionKey, user: ProfileUser): ProfileSectionStatus {
+function getSectionStatus(sectionKey: ProfileSectionKey, user: ProfileUser, visibleFields: Set<string>): ProfileSectionStatus {
   const extended = user.extendedProfile ?? {};
   switch (sectionKey) {
     case 'registration_data': {
@@ -457,7 +471,7 @@ function getSectionStatus(sectionKey: ProfileSectionKey, user: ProfileUser): Pro
         extended.residenceCountryCode,
       ].some(hasValue) || user.consentPersonalData;
       if (!hasAny) return 'NOT_STARTED';
-      return isRegistrationDataComplete(user) ? 'COMPLETED' : 'IN_PROGRESS';
+      return isRegistrationDataComplete(user, visibleFields) ? 'COMPLETED' : 'IN_PROGRESS';
     }
     case 'general_info': {
       const hasAny = [
@@ -472,7 +486,7 @@ function getSectionStatus(sectionKey: ProfileSectionKey, user: ProfileUser): Pro
         extended.postalCode,
       ].some(hasValue) || user.consentClientRules;
       if (!hasAny) return 'NOT_STARTED';
-      return isGeneralInfoComplete(user) ? 'COMPLETED' : 'IN_PROGRESS';
+      return isGeneralInfoComplete(user, visibleFields) ? 'COMPLETED' : 'IN_PROGRESS';
     }
     case 'personal_documents': {
       const hasAny = Boolean(user.identityDocument || user.internationalPassport || (Array.isArray(user.additionalDocuments) && user.additionalDocuments.length > 0) || (Array.isArray(user.mediaAssets) && user.mediaAssets.length > 0));
@@ -491,7 +505,7 @@ function getSectionStatus(sectionKey: ProfileSectionKey, user: ProfileUser): Pro
         extended.achievementsText,
       ].some(hasValue) || (Array.isArray(user.activityDirections) && user.activityDirections.length > 0);
       if (!hasAny) return 'NOT_STARTED';
-      return isActivityInfoComplete(user) ? 'COMPLETED' : 'IN_PROGRESS';
+      return isActivityInfoComplete(user, visibleFields) ? 'COMPLETED' : 'IN_PROGRESS';
     }
   }
 }
@@ -562,7 +576,7 @@ const profileInclude = {
   },
 } as const;
 
-function isRegistrationDataComplete(user: ProfileUser) {
+function isRegistrationDataComplete(user: ProfileUser, visibleFields: Set<string>) {
   const extended = user.extendedProfile ?? {};
   const lastNameOk = user.hasNoLastName || (hasValue(user.lastNameCyrillic) && hasValue(user.lastNameLatin));
   const firstNameOk = user.hasNoFirstName || (hasValue(user.firstNameCyrillic) && hasValue(user.firstNameLatin));
@@ -570,30 +584,43 @@ function isRegistrationDataComplete(user: ProfileUser) {
   return lastNameOk
     && firstNameOk
     && middleNameOk
-    && hasValue(user.birthDate)
-    && hasValue(extended.gender)
-    && hasValue(extended.citizenshipCountryCode)
-    && hasValue(extended.residenceCountryCode)
-    && hasValue(user.phone)
-    && user.consentPersonalData === true;
+    && (!visibleFields.has('birthDate') || hasValue(user.birthDate))
+    && (!visibleFields.has('gender') || hasValue(extended.gender))
+    && (!visibleFields.has('citizenshipCountryCode') || hasValue(extended.citizenshipCountryCode))
+    && (!visibleFields.has('residenceCountryCode') || hasValue(extended.residenceCountryCode))
+    && (!visibleFields.has('phone') || hasValue(user.phone))
+    && (!visibleFields.has('consentPersonalData') || user.consentPersonalData === true);
 }
 
-function isGeneralInfoComplete(user: ProfileUser) {
+function isGeneralInfoComplete(user: ProfileUser, visibleFields: Set<string>) {
   const extended = user.extendedProfile ?? {};
   const addressOk = extended.residenceCountryCode === 'UZ'
-    ? everyValue(extended.regionId, extended.districtId, extended.settlementId, extended.street, extended.house, extended.postalCode)
-    : everyValue(extended.residenceCountryCode, extended.regionText, extended.settlementText, extended.street, extended.house, extended.postalCode);
-  return Boolean(user.avatarAssetId || user.avatarUrl)
+    ? (!visibleFields.has('regionId') || hasValue(extended.regionId))
+      && (!visibleFields.has('districtId') || hasValue(extended.districtId))
+      && (!visibleFields.has('settlementId') || hasValue(extended.settlementId))
+      && (!visibleFields.has('street') || hasValue(extended.street))
+      && (!visibleFields.has('house') || hasValue(extended.house))
+      && (!visibleFields.has('postalCode') || hasValue(extended.postalCode))
+    : (!visibleFields.has('residenceCountryCode') || hasValue(extended.residenceCountryCode))
+      && (!visibleFields.has('regionText') || hasValue(extended.regionText))
+      && (!visibleFields.has('settlementText') || hasValue(extended.settlementText))
+      && (!visibleFields.has('street') || hasValue(extended.street))
+      && (!visibleFields.has('house') || hasValue(extended.house))
+      && (!visibleFields.has('postalCode') || hasValue(extended.postalCode));
+  return (!visibleFields.has('avatarUrl') && !visibleFields.has('avatarAssetId') ? true : Boolean(user.avatarAssetId || user.avatarUrl))
     && addressOk
-    && everyValue(user.nativeLanguage, user.communicationLanguage)
-    && user.consentClientRules === true;
+    && (!visibleFields.has('nativeLanguage') || hasValue(user.nativeLanguage))
+    && (!visibleFields.has('communicationLanguage') || hasValue(user.communicationLanguage))
+    && (!visibleFields.has('consentClientRules') || user.consentClientRules === true);
 }
 
-function isActivityInfoComplete(user: ProfileUser) {
+function isActivityInfoComplete(user: ProfileUser, visibleFields: Set<string>) {
   const extended = user.extendedProfile ?? {};
-  return everyValue(extended.activityStatus, extended.organizationName, extended.englishLevel, extended.russianLevel)
-    && Array.isArray(user.activityDirections)
-    && user.activityDirections.length > 0;
+  return (!visibleFields.has('activityStatus') || hasValue(extended.activityStatus))
+    && (!visibleFields.has('organizationName') || hasValue(extended.organizationName))
+    && (!visibleFields.has('englishLevel') || hasValue(extended.englishLevel))
+    && (!visibleFields.has('russianLevel') || hasValue(extended.russianLevel))
+    && (!visibleFields.has('activityDirections') || (Array.isArray(user.activityDirections) && user.activityDirections.length > 0));
 }
 
 function normalizeDomesticDocument(input: Record<string, any>, country: string | null) {

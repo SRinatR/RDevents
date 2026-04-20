@@ -12,6 +12,7 @@ type Props = {
   status: ProfileSectionStatus;
   saving: boolean;
   requiredFields: string[];
+  visibleFields: string[];
   eventTitle: string;
   onSave: (payload: Record<string, unknown>) => Promise<void>;
 };
@@ -25,7 +26,7 @@ const NETWORKS = [
   ['x', 'X'],
 ] as const;
 
-export function ProfileContactDataSection({ locale, user, status, saving, requiredFields, eventTitle, onSave }: Props) {
+export function ProfileContactDataSection({ locale, user, status, saving, requiredFields, visibleFields, eventTitle, onSave }: Props) {
   const isRu = locale === 'ru';
   const links = user.socialLinks ?? {};
   const [form, setForm] = useState<Record<string, string | boolean>>(() => Object.fromEntries(
@@ -54,11 +55,12 @@ export function ProfileContactDataSection({ locale, user, status, saving, requir
     >
       {requiredFields.length > 0 ? <Notice tone="warning">{isRu ? `Эти контакты нужны для заявки${eventTitle ? `: ${eventTitle}` : ''}.` : 'These contacts are required for your application.'}</Notice> : null}
       <Notice tone="info">{isRu ? 'Правило XOR: ссылка или отметка «нет аккаунта», но не оба варианта сразу.' : 'XOR rule: URL or absent flag, but not both at the same time.'}</Notice>
-      <form className="signal-stack" onSubmit={(event) => { event.preventDefault(); void onSave(form); }}>
+      <form className="signal-stack" onSubmit={(event) => { event.preventDefault(); void onSave(Object.fromEntries(Object.entries(form).filter(([key]) => visibleFields.includes(key)))); }}>
         <div className="profile-form-three-col">
           {NETWORKS.map(([key, label]) => {
             const urlKey = `${key}Url`;
             const absentKey = `${key}Absent`;
+            if (!visibleFields.includes(urlKey) && !visibleFields.includes(absentKey)) return null;
             const absent = Boolean(form[absentKey]);
             return (
               <div key={key} className="cabinet-field-block">

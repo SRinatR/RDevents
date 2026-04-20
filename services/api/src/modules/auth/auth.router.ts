@@ -44,6 +44,7 @@ import {
   uploadProfileAvatar,
   uploadProfileDocument,
 } from './profile.service.js';
+import { ProfileFieldConfigError } from '../profile-config/profile-config.service.js';
 import { isProfileSectionKey } from './profile.sections.js';
 import { ProfileMediaError } from './profile.media.js';
 import { logger } from '../../common/logger.js';
@@ -447,8 +448,8 @@ authRouter.patch('/profile', authenticate, async (req, res) => {
 // GET /api/auth/profile/sections
 authRouter.get('/profile/sections', authenticate, async (req, res) => {
   const user = (req as any).user;
-  const sections = await getProfileSections(user.id);
-  res.json({ sections });
+  const result = await getProfileSections(user.id);
+  res.json(result);
 });
 
 // PATCH /api/auth/profile/sections/:sectionKey
@@ -464,6 +465,10 @@ authRouter.patch('/profile/sections/:sectionKey', authenticate, async (req, res)
     const result = await updateProfileSection(user.id, sectionKey, req.body);
     res.json(result);
   } catch (err: any) {
+    if (err instanceof ProfileFieldConfigError) {
+      res.status(400).json({ error: err.message, code: err.code, details: err.details });
+      return;
+    }
     if (err.message === 'Profile section validation failed') {
       res.status(400).json({ error: 'Validation failed', details: err.details });
       return;

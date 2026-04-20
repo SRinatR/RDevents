@@ -6,6 +6,7 @@ import { createEventSchema, updateEventSchema } from '../events/events.schemas.j
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 import { notifyParticipantStatusChanged } from '../events/notifications.service.js';
 import { approveTeamChangeRequest, rejectTeamChangeRequest } from '../events/events.service.js';
+import { ProfileFieldConfigError, validateEventRequiredProfileFields } from '../profile-config/profile-config.service.js';
 
 export const adminEventsRouter = Router();
 
@@ -150,6 +151,7 @@ adminEventsRouter.post('/', requirePlatformAdmin, async (req, res) => {
 
   const user = (req as any).user as User;
   try {
+    await validateEventRequiredProfileFields(parsed.data.requiredProfileFields);
     const event = await prisma.event.create({
       data: {
         ...parsed.data,
@@ -168,6 +170,10 @@ adminEventsRouter.post('/', requirePlatformAdmin, async (req, res) => {
 
     res.status(201).json({ event });
   } catch (err: any) {
+    if (err instanceof ProfileFieldConfigError) {
+      res.status(400).json({ error: err.message, code: err.code, details: err.details });
+      return;
+    }
     if (err.code === 'P2002') {
       res.status(409).json({ error: 'An event with this slug already exists' });
       return;
@@ -208,8 +214,19 @@ adminEventsRouter.patch('/:id', async (req, res) => {
   if (parsed.data.contactPhone !== undefined) data['contactPhone'] = parsed.data.contactPhone || null;
   if (parsed.data.status === 'PUBLISHED' && existing.status !== 'PUBLISHED') data['publishedAt'] = new Date();
 
-  const event = await prisma.event.update({ where: { id: eventId }, data: data as any });
-  res.json({ event });
+  try {
+    if (Array.isArray(parsed.data.requiredProfileFields)) {
+      await validateEventRequiredProfileFields(parsed.data.requiredProfileFields);
+    }
+    const event = await prisma.event.update({ where: { id: eventId }, data: data as any });
+    res.json({ event });
+  } catch (err: any) {
+    if (err instanceof ProfileFieldConfigError) {
+      res.status(400).json({ error: err.message, code: err.code, details: err.details });
+      return;
+    }
+    throw err;
+  }
 });
 
 // DELETE /admin/events/:id

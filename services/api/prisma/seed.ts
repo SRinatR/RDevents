@@ -4,6 +4,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import argon2 from 'argon2';
 import pg from 'pg';
 import 'dotenv/config';
+import { PROFILE_FIELD_REGISTRY } from '@event-platform/shared';
 
 const connectionString = process.env.DATABASE_URL?.replace('localhost', '127.0.0.1');
 const pool = new pg.Pool({ connectionString });
@@ -108,6 +109,19 @@ async function seedReferenceData() {
   });
 }
 
+
+async function seedProfileFieldVisibilitySettings() {
+  await prisma.profileFieldVisibilitySetting.deleteMany();
+  await prisma.profileFieldVisibilitySetting.createMany({
+    data: PROFILE_FIELD_REGISTRY.map((field) => ({
+      key: field.key,
+      sectionKey: field.sectionKey,
+      isVisibleInCabinet: true,
+    })),
+    skipDuplicates: true,
+  });
+}
+
 async function main() {
   console.log('Seeding database...');
 
@@ -119,6 +133,7 @@ async function main() {
   await prisma.userAccount.deleteMany();
   await prisma.user.deleteMany();
   await seedReferenceData();
+  await seedProfileFieldVisibilitySettings();
 
   const superAdmin = await createUser({
     email: 'admin@example.com',

@@ -36,7 +36,12 @@ export default function ProfilePage() {
     deleteAvatar,
     uploadDocument,
     deleteDocument,
+    fieldVisibility,
   } = useProfileSections(locale);
+  const visibleRequiredFields = useMemo(() => {
+    const visible = new Set(Object.values(fieldVisibility).flat());
+    return requiredFields.filter((field) => visible.has(field));
+  }, [fieldVisibility, requiredFields]);
 
   if (loading || !user) return null;
 
@@ -83,9 +88,10 @@ export default function ProfilePage() {
           user,
           status: currentStatus,
           savingSection,
-          requiredFields,
+          requiredFields: visibleRequiredFields,
           eventTitle,
           documents,
+          fieldVisibility,
           saveSection: saveSectionAndReturn,
           uploadAvatar,
           deleteAvatar,
@@ -104,6 +110,7 @@ function renderSection({
   status,
   savingSection,
   requiredFields,
+  fieldVisibility,
   eventTitle,
   documents,
   saveSection,
@@ -118,6 +125,7 @@ function renderSection({
   status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
   savingSection: ProfileSectionKey | null;
   requiredFields: string[];
+  fieldVisibility: Record<string, string[]>;
   eventTitle: string;
   documents: any[];
   saveSection: (section: ProfileSectionKey, payload: Record<string, unknown>) => Promise<void>;
@@ -134,6 +142,7 @@ function renderSection({
         status={status}
         saving={savingSection === 'registration_data'}
         requiredFields={requiredFields}
+        visibleFields={fieldVisibility.registration_data ?? []}
         eventTitle={eventTitle}
         onSave={(payload) => saveSection('registration_data', payload)}
       />
@@ -148,6 +157,7 @@ function renderSection({
         status={status}
         saving={savingSection === 'general_info'}
         requiredFields={requiredFields}
+        visibleFields={fieldVisibility.general_info ?? []}
         eventTitle={eventTitle}
         onSave={(payload) => saveSection('general_info', payload)}
         onUpload={uploadAvatar}
@@ -164,6 +174,7 @@ function renderSection({
         status={status}
         saving={savingSection === 'personal_documents'}
         requiredFields={requiredFields}
+        visibleFields={fieldVisibility.personal_documents ?? []}
         eventTitle={eventTitle}
         documents={documents}
         onSave={(payload) => saveSection('personal_documents', payload)}
@@ -181,6 +192,7 @@ function renderSection({
         status={status}
         saving={savingSection === 'contact_data'}
         requiredFields={requiredFields}
+        visibleFields={fieldVisibility.contact_data ?? []}
         eventTitle={eventTitle}
         onSave={(payload) => saveSection('contact_data', payload)}
       />
@@ -195,6 +207,7 @@ function renderSection({
         status={status}
         saving={savingSection === 'activity_info'}
         requiredFields={requiredFields}
+        visibleFields={fieldVisibility.activity_info ?? []}
         eventTitle={eventTitle}
         onSave={(payload) => saveSection('activity_info', payload)}
       />

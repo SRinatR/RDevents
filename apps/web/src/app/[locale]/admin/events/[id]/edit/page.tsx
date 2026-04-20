@@ -7,38 +7,7 @@ import { useAuth } from '../../../../../../hooks/useAuth';
 import { adminApi } from '../../../../../../lib/api';
 import { useRouteParams } from '../../../../../../hooks/useRouteParams';
 
-const PROFILE_REQUIREMENT_OPTIONS = [
-  { key: 'lastNameCyrillic', ru: 'Фамилия кириллицей', en: 'Last name Cyrillic' },
-  { key: 'firstNameCyrillic', ru: 'Имя кириллицей', en: 'First name Cyrillic' },
-  { key: 'middleNameCyrillic', ru: 'Отчество кириллицей', en: 'Middle name Cyrillic' },
-  { key: 'lastNameLatin', ru: 'Фамилия латиницей', en: 'Last name Latin' },
-  { key: 'firstNameLatin', ru: 'Имя латиницей', en: 'First name Latin' },
-  { key: 'middleNameLatin', ru: 'Отчество латиницей', en: 'Middle name Latin' },
-  { key: 'birthDate', ru: 'Дата рождения', en: 'Date of birth' },
-  { key: 'gender', ru: 'Пол', en: 'Gender' },
-  { key: 'citizenshipCountryCode', ru: 'Гражданство', en: 'Citizenship' },
-  { key: 'residenceCountryCode', ru: 'Страна проживания', en: 'Residence country' },
-  { key: 'phone', ru: 'Телефон', en: 'Phone' },
-  { key: 'telegram', ru: 'Telegram', en: 'Telegram' },
-  { key: 'avatarUrl', ru: 'Фото профиля', en: 'Profile photo' },
-  { key: 'regionId', ru: 'Регион проживания', en: 'Residence region' },
-  { key: 'districtId', ru: 'Район проживания', en: 'Residence district' },
-  { key: 'settlementId', ru: 'Населённый пункт', en: 'Settlement' },
-  { key: 'street', ru: 'Улица', en: 'Street' },
-  { key: 'house', ru: 'Дом', en: 'House' },
-  { key: 'postalCode', ru: 'Почтовый индекс', en: 'Postal code' },
-  { key: 'nativeLanguage', ru: 'Родной язык', en: 'Native language' },
-  { key: 'communicationLanguage', ru: 'Язык общения', en: 'Communication language' },
-  { key: 'personalDocumentsComplete', ru: 'Личные документы полностью', en: 'Personal documents complete' },
-  { key: 'contactDataComplete', ru: 'Контактные данные полностью', en: 'Contact data complete' },
-  { key: 'activityStatus', ru: 'Статус активности', en: 'Activity status' },
-  { key: 'organizationName', ru: 'Организация', en: 'Organization' },
-  { key: 'activityDirections', ru: 'Направления активности', en: 'Activity directions' },
-  { key: 'englishLevel', ru: 'Уровень английского', en: 'English level' },
-  { key: 'russianLevel', ru: 'Уровень русского', en: 'Russian level' },
-];
 
-const PROFILE_REQUIREMENT_KEYS = new Set(PROFILE_REQUIREMENT_OPTIONS.map((option) => option.key));
 const LEGACY_PROFILE_REQUIREMENT_MAP: Record<string, string[]> = {
   name: ['lastNameCyrillic', 'firstNameCyrillic', 'lastNameLatin', 'firstNameLatin'],
   city: ['settlementId'],
@@ -116,6 +85,7 @@ export default function EditEventPage() {
   const [coverUploading, setCoverUploading] = useState(false);
   const [coverUploadError, setCoverUploadError] = useState('');
   const [coverDragActive, setCoverDragActive] = useState(false);
+  const [profileRequirementOptions, setProfileRequirementOptions] = useState<Array<{ key: string; ru: string; en: string }>>([]);
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) router.push(`/${locale}`);
@@ -155,7 +125,7 @@ export default function EditEventPage() {
             teamJoinMode: e.teamJoinMode ?? 'OPEN',
             requireAdminApprovalForTeams: Boolean(e.requireAdminApprovalForTeams),
             requiredProfileFields: Array.isArray(e.requiredProfileFields)
-              ? normalizeProfileRequirements(e.requiredProfileFields)
+              ? normalizeProfileRequirements(e.requiredProfileFields, new Set(profileRequirementOptions.map((option) => option.key)))
               : [],
             requiredEventFields: Array.isArray(e.requiredEventFields) ? e.requiredEventFields.join(', ') : '',
             // Participation config
@@ -532,7 +502,7 @@ export default function EditEventPage() {
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontWeight: 800, fontSize: '0.9rem', marginBottom: 10 }}>{isRu ? 'Обязательные поля профиля' : 'Required profile fields'}</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                  {PROFILE_REQUIREMENT_OPTIONS.map(option => (
+                  {profileRequirementOptions.map(option => (
                     <label key={option.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', background: form.requiredProfileFields.includes(option.key) ? 'var(--color-primary-subtle)' : 'var(--color-bg-subtle)', fontWeight: 700, fontSize: '0.86rem' }}>
                       <input type="checkbox" checked={form.requiredProfileFields.includes(option.key)} onChange={() => toggleRequiredProfileField(option.key)} />
                       {isRu ? option.ru : option.en}
@@ -640,10 +610,10 @@ function formatUzbekPhone(value: string) {
   ].filter(Boolean).join(' ');
 }
 
-function normalizeProfileRequirements(fields: string[]) {
+function normalizeProfileRequirements(fields: string[], allowedKeys: Set<string>) {
   const normalized = fields.flatMap((field) => {
     if (field === 'consentPersonalData' || field === 'consentClientRules') return [];
-    if (PROFILE_REQUIREMENT_KEYS.has(field)) return [field];
+    if (allowedKeys.has(field)) return [field];
     return LEGACY_PROFILE_REQUIREMENT_MAP[field] ?? [];
   });
   return Array.from(new Set(normalized));

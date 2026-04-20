@@ -7,6 +7,8 @@ import {
   notifyParticipantApplicationSubmitted,
   notifyParticipantStatusChanged,
 } from './notifications.service.js';
+import { PROFILE_FIELD_REGISTRY_BY_KEY } from '@event-platform/shared';
+import { getFieldVisibilityMap } from '../profile-config/profile-config.service.js';
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
 const DEPRECATED_PROFILE_REQUIREMENT_FIELDS = new Set(['consentPersonalData', 'consentClientRules']);
@@ -96,8 +98,14 @@ function buildMissingProfileFields(user: Record<string, unknown>, requiredFields
     }));
 }
 
-function activeProfileRequirementFields(requiredFields: string[]) {
-  return requiredFields.filter(field => !DEPRECATED_PROFILE_REQUIREMENT_FIELDS.has(field));
+async function activeProfileRequirementFields(requiredFields: string[]) {
+  const visibility = await getFieldVisibilityMap();
+  return requiredFields.filter((field) => {
+    if (DEPRECATED_PROFILE_REQUIREMENT_FIELDS.has(field)) return false;
+    const meta = PROFILE_FIELD_REGISTRY_BY_KEY.get(field);
+    if (!meta || !meta.allowEventRequirement) return false;
+    return Boolean(visibility.get(field));
+  });
 }
 
 function buildMissingEventFields(answers: Record<string, unknown>, requiredFields: string[]) {
@@ -159,7 +167,7 @@ export async function getRegistrationPrecheck(
     ...normalizeAnswers(storedAnswers?.answersJson as Record<string, unknown> | undefined),
     ...normalizeAnswers(answersInput),
   };
-  const requiredProfileFields = activeProfileRequirementFields(event.requiredProfileFields);
+  const requiredProfileFields = await activeProfileRequirementFields(event.requiredProfileFields);
   const missingFields = [
     ...buildMissingProfileFields({ ...user, avatarUrl: user.avatarUrl ?? user.avatarAssetId }, requiredProfileFields),
     ...buildMissingEventFields(answers, event.requiredEventFields),

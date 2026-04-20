@@ -284,7 +284,23 @@ model User {
   supportMessages       SupportMessage[] @relation("SupportMessageSender")
   supportReadStates          SupportThreadReadState[] @relation("SupportThreadReadStateUser")
   uploadedSupportAttachments SupportAttachment[]      @relation("SupportAttachmentUploader")
+  updatedProfileFieldVisibilitySettings ProfileFieldVisibilitySetting[]
   @@map("users")
+}
+
+
+model ProfileFieldVisibilitySetting {
+  key                String   @id
+  sectionKey         String
+  isVisibleInCabinet Boolean  @default(true)
+  updatedByUserId    String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  updatedByUser      User?    @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([sectionKey])
+  @@map("profile_field_visibility_settings")
 }
 
 model UserProfileSectionState {

@@ -14,11 +14,12 @@ type Props = {
   status: ProfileSectionStatus;
   saving: boolean;
   requiredFields: string[];
+  visibleFields: string[];
   eventTitle: string;
   onSave: (payload: Record<string, unknown>) => Promise<void>;
 };
 
-export function ProfileRegistrationDataSection({ locale, user, status, saving, requiredFields, eventTitle, onSave }: Props) {
+export function ProfileRegistrationDataSection({ locale, user, status, saving, requiredFields, visibleFields, eventTitle, onSave }: Props) {
   const extended = user.extendedProfile ?? {};
   const [countries, setCountries] = useState<ReferenceOption[]>([]);
   const [form, setForm] = useState({
@@ -57,6 +58,7 @@ export function ProfileRegistrationDataSection({ locale, user, status, saving, r
   ], [countries]);
 
   const isRequired = (field: string) => requiredFields.includes(field);
+  const isVisible = (field: string) => visibleFields.includes(field);
   const requiredClass = (field: string) => isRequired(field) ? 'signal-field-required' : '';
   const nameRequiredClass = (field: string) => isRequired('name') || isRequired(field) ? 'signal-field-required' : '';
 
@@ -89,67 +91,67 @@ export function ProfileRegistrationDataSection({ locale, user, status, saving, r
       status={status}
     >
       {requiredFields.length > 0 ? <Notice tone="warning">{isRu ? `Заполните поля для участия${eventTitle ? ` в "${eventTitle}"` : ''}.` : 'Complete the required fields to continue.'}</Notice> : null}
-      <form className="signal-stack" onSubmit={(event) => { event.preventDefault(); void onSave(form); }}>
-        <div className="profile-form-three-col">
-          <ProfileField label={isRu ? 'Фамилия кириллицей' : 'Last name Cyrillic'} required={!form.hasNoLastName}>
+      <form className="signal-stack" onSubmit={(event) => { event.preventDefault(); void onSave(Object.fromEntries(Object.entries(form).filter(([key]) => isVisible(key)))); }}>
+        {isVisible('lastNameCyrillic') || isVisible('firstNameCyrillic') || isVisible('middleNameCyrillic') ? <div className="profile-form-three-col">
+          {isVisible('lastNameCyrillic') ? <ProfileField label={isRu ? 'Фамилия кириллицей' : 'Last name Cyrillic'} required={!form.hasNoLastName}>
             <FieldInput className={nameRequiredClass('lastNameCyrillic')} disabled={form.hasNoLastName} value={form.lastNameCyrillic} onChange={(event) => setCyrillicNameField('lastNameCyrillic', 'lastNameLatin', event.target.value)} />
-          </ProfileField>
-          <ProfileField label={isRu ? 'Имя кириллицей' : 'First name Cyrillic'} required={!form.hasNoFirstName}>
+          </ProfileField> : null}
+          {isVisible('firstNameCyrillic') ? <ProfileField label={isRu ? 'Имя кириллицей' : 'First name Cyrillic'} required={!form.hasNoFirstName}>
             <FieldInput className={nameRequiredClass('firstNameCyrillic')} disabled={form.hasNoFirstName} value={form.firstNameCyrillic} onChange={(event) => setCyrillicNameField('firstNameCyrillic', 'firstNameLatin', event.target.value)} />
-          </ProfileField>
-          <ProfileField label={isRu ? 'Отчество кириллицей' : 'Middle name Cyrillic'} required={!form.hasNoMiddleName}>
+          </ProfileField> : null}
+          {isVisible('middleNameCyrillic') ? <ProfileField label={isRu ? 'Отчество кириллицей' : 'Middle name Cyrillic'} required={!form.hasNoMiddleName}>
             <FieldInput className={requiredClass('middleNameCyrillic')} disabled={form.hasNoMiddleName} value={form.middleNameCyrillic} onChange={(event) => setCyrillicNameField('middleNameCyrillic', 'middleNameLatin', event.target.value)} />
-          </ProfileField>
-        </div>
-        <div className="profile-form-three-col">
-          <ProfileField label={isRu ? 'Фамилия латиницей' : 'Last name Latin'} required={!form.hasNoLastName}>
+          </ProfileField> : null}
+        </div> : null}
+        {isVisible('lastNameLatin') || isVisible('firstNameLatin') || isVisible('middleNameLatin') ? <div className="profile-form-three-col">
+          {isVisible('lastNameLatin') ? <ProfileField label={isRu ? 'Фамилия латиницей' : 'Last name Latin'} required={!form.hasNoLastName}>
             <FieldInput className={nameRequiredClass('lastNameLatin')} disabled={form.hasNoLastName} value={form.lastNameLatin} onChange={(event) => setLatinNameField('lastNameLatin', event.target.value)} />
-          </ProfileField>
-          <ProfileField label={isRu ? 'Имя латиницей' : 'First name Latin'} required={!form.hasNoFirstName}>
+          </ProfileField> : null}
+          {isVisible('firstNameLatin') ? <ProfileField label={isRu ? 'Имя латиницей' : 'First name Latin'} required={!form.hasNoFirstName}>
             <FieldInput className={nameRequiredClass('firstNameLatin')} disabled={form.hasNoFirstName} value={form.firstNameLatin} onChange={(event) => setLatinNameField('firstNameLatin', event.target.value)} />
-          </ProfileField>
-          <ProfileField label={isRu ? 'Отчество латиницей' : 'Middle name Latin'} required={!form.hasNoMiddleName}>
+          </ProfileField> : null}
+          {isVisible('middleNameLatin') ? <ProfileField label={isRu ? 'Отчество латиницей' : 'Middle name Latin'} required={!form.hasNoMiddleName}>
             <FieldInput className={requiredClass('middleNameLatin')} disabled={form.hasNoMiddleName} value={form.middleNameLatin} onChange={(event) => setLatinNameField('middleNameLatin', event.target.value)} />
-          </ProfileField>
-        </div>
-        <div className="profile-form-three-col">
-          <CheckboxRow label={isRu ? 'Нет фамилии' : 'No last name'} checked={form.hasNoLastName} onChange={(value) => setField('hasNoLastName', value)} />
-          <CheckboxRow label={isRu ? 'Нет имени' : 'No first name'} checked={form.hasNoFirstName} onChange={(value) => setField('hasNoFirstName', value)} />
-          <CheckboxRow label={isRu ? 'Нет отчества' : 'No middle name'} checked={form.hasNoMiddleName} onChange={(value) => setField('hasNoMiddleName', value)} />
-        </div>
+          </ProfileField> : null}
+        </div> : null}
+        {isVisible('hasNoLastName') || isVisible('hasNoFirstName') || isVisible('hasNoMiddleName') ? <div className="profile-form-three-col">
+          {isVisible('hasNoLastName') ? <CheckboxRow label={isRu ? 'Нет фамилии' : 'No last name'} checked={form.hasNoLastName} onChange={(value) => setField('hasNoLastName', value)} /> : null}
+          {isVisible('hasNoFirstName') ? <CheckboxRow label={isRu ? 'Нет имени' : 'No first name'} checked={form.hasNoFirstName} onChange={(value) => setField('hasNoFirstName', value)} /> : null}
+          {isVisible('hasNoMiddleName') ? <CheckboxRow label={isRu ? 'Нет отчества' : 'No middle name'} checked={form.hasNoMiddleName} onChange={(value) => setField('hasNoMiddleName', value)} /> : null}
+        </div> : null}
         <div className="profile-form-three-col">
           <ProfileField label="Email">
             <FieldInput value={user.email ?? ''} readOnly />
           </ProfileField>
-          <ProfileField label={isRu ? 'Дата рождения' : 'Birth date'} required>
+          {isVisible('birthDate') ? <ProfileField label={isRu ? 'Дата рождения' : 'Birth date'} required>
             <FieldInput className={requiredClass('birthDate')} type="date" value={form.birthDate} onChange={(event) => setField('birthDate', event.target.value)} />
-          </ProfileField>
-          <ProfileField label={isRu ? 'Пол' : 'Gender'} required>
+          </ProfileField> : null}
+          {isVisible('gender') ? <ProfileField label={isRu ? 'Пол' : 'Gender'} required>
             <FieldSelect className={requiredClass('gender')} value={form.gender} onChange={(event) => setField('gender', event.target.value)}>
               <option value="">{isRu ? 'Выберите' : 'Select'}</option>
               <option value="MALE">{isRu ? 'Мужской' : 'Male'}</option>
               <option value="FEMALE">{isRu ? 'Женский' : 'Female'}</option>
             </FieldSelect>
-          </ProfileField>
+          </ProfileField> : null}
         </div>
-        <div className="profile-form-three-col">
-          <ProfileField label={isRu ? 'Гражданство' : 'Citizenship'} required>
+        {isVisible('citizenshipCountryCode') || isVisible('residenceCountryCode') || isVisible('phone') ? <div className="profile-form-three-col">
+          {isVisible('citizenshipCountryCode') ? <ProfileField label={isRu ? 'Гражданство' : 'Citizenship'} required>
             <CountrySelect locale={locale} countries={countryOptions} value={form.citizenshipCountryCode} className={requiredClass('citizenshipCountryCode')} onChange={(value) => setField('citizenshipCountryCode', value)} />
-          </ProfileField>
-          <ProfileField label={isRu ? 'Страна проживания' : 'Residence country'} required>
+          </ProfileField> : null}
+          {isVisible('residenceCountryCode') ? <ProfileField label={isRu ? 'Страна проживания' : 'Residence country'} required>
             <CountrySelect locale={locale} countries={countryOptions} value={form.residenceCountryCode} className={requiredClass('residenceCountryCode')} onChange={(value) => setField('residenceCountryCode', value)} />
-          </ProfileField>
-          <ProfileField label={isRu ? 'Телефон' : 'Phone'} required>
+          </ProfileField> : null}
+          {isVisible('phone') ? <ProfileField label={isRu ? 'Телефон' : 'Phone'} required>
             <FieldInput className={requiredClass('phone')} value={form.phone} onChange={(event) => setField('phone', event.target.value)} placeholder="+998901234567" />
-          </ProfileField>
-        </div>
-        <div className="profile-form-three-col">
+          </ProfileField> : null}
+        </div> : null}
+        {isVisible('telegram') ? <div className="profile-form-three-col">
           <ProfileField label="Telegram" required={isRequired('telegram')}>
             <FieldInput className={requiredClass('telegram')} value={form.telegram} onChange={(event) => setField('telegram', event.target.value)} placeholder="@username" />
           </ProfileField>
-        </div>
-        <CheckboxRow label={isRu ? 'Согласен на обработку персональных данных' : 'I consent to personal data processing'} checked={form.consentPersonalData} onChange={(value) => setField('consentPersonalData', value)} />
-        <CheckboxRow label={isRu ? 'Хочу получать информационные рассылки' : 'I agree to receive informational mailings'} checked={form.consentMailing} onChange={(value) => setField('consentMailing', value)} />
+        </div> : null}
+        {isVisible('consentPersonalData') ? <CheckboxRow label={isRu ? 'Согласен на обработку персональных данных' : 'I consent to personal data processing'} checked={form.consentPersonalData} onChange={(value) => setField('consentPersonalData', value)} /> : null}
+        {isVisible('consentMailing') ? <CheckboxRow label={isRu ? 'Хочу получать информационные рассылки' : 'I agree to receive informational mailings'} checked={form.consentMailing} onChange={(value) => setField('consentMailing', value)} /> : null}
         <ProfileSectionActions locale={locale} saving={saving} />
       </form>
     </ProfileSectionLayout>

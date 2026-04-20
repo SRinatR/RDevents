@@ -9,6 +9,7 @@ import { adminApplicationsRouter } from './applications.router.js';
 import { adminUsersRouter } from './users.router.js';
 import { adminAnalyticsRouter } from './analytics.router.js';
 import { adminSupportRouter } from './support.router.js';
+import { profileConfigRouter } from '../profile-config/profile-config.router.js';
 
 export const adminRouter = Router();
 
@@ -21,6 +22,7 @@ adminRouter.use('/applications', adminApplicationsRouter);
 adminRouter.use('/participants', adminParticipantsRouter);
 adminRouter.use('/teams', adminTeamsRouter);
 adminRouter.use('/support', adminSupportRouter);
+adminRouter.use('/profile-fields', profileConfigRouter);
 adminRouter.use('/', adminUsersRouter);
 adminRouter.use('/', adminAnalyticsRouter);
 

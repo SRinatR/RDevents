@@ -13,6 +13,7 @@ type Props = {
   status: ProfileSectionStatus;
   saving: boolean;
   requiredFields: string[];
+  visibleFields: string[];
   eventTitle: string;
   documents: ProfileDocument[];
   onSave: (payload: Record<string, unknown>) => Promise<void>;
@@ -20,7 +21,7 @@ type Props = {
   onDelete: (assetId: string) => Promise<void>;
 };
 
-export function ProfilePersonalDocumentsSection({ locale, user, status, saving, requiredFields, eventTitle, documents, onSave, onUpload, onDelete }: Props) {
+export function ProfilePersonalDocumentsSection({ locale, user, status, saving, requiredFields, visibleFields: _visibleFields, eventTitle, documents, onSave, onUpload, onDelete }: Props) {
   const isRu = locale === 'ru';
   const extended = user.extendedProfile ?? {};
   const domestic = user.identityDocument ?? {};
