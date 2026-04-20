@@ -18,6 +18,9 @@ EXPOSE 4000
 CMD ["sh", "-c", "pnpm prisma generate && pnpm dev"]
 
 FROM deps AS prod
+ARG RELEASE_SHA=unknown
+ENV RELEASE_SHA=${RELEASE_SHA}
+LABEL org.opencontainers.image.revision=${RELEASE_SHA}
 COPY services/api ./services/api
 WORKDIR /app/services/api
 RUN pnpm prisma generate

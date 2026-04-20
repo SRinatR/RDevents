@@ -41,6 +41,15 @@ export function createApp() {
     res.json({ status: 'ok', service: 'event-platform-api', ts: new Date().toISOString() });
   };
 
+  const versionHandler = (_req: express.Request, res: express.Response) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      service: 'event-platform-api',
+      releaseSha: process.env['RELEASE_SHA'] || 'unknown',
+      ts: new Date().toISOString(),
+    });
+  };
+
   const readyHandler = async (_req: express.Request, res: express.Response) => {
     try {
       await prisma.$queryRaw`SELECT 1`;
@@ -52,6 +61,8 @@ export function createApp() {
 
   app.get('/health', healthHandler);
   app.get('/api/health', healthHandler);
+  app.get('/version', versionHandler);
+  app.get('/api/version', versionHandler);
   app.get('/ready', readyHandler);
   app.get('/api/ready', readyHandler);
 
