@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useRouteLocale } from '../../../hooks/useRouteParams';
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordContent() {
   const t = useTranslations();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -125,5 +125,13 @@ export default function ForgotPasswordPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={<div className="auth-loading-screen"><div className="spinner" /></div>}>
+      <ForgotPasswordContent />
+    </Suspense>
   );
 }
