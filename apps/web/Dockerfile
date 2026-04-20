@@ -29,7 +29,8 @@ ENV NEXT_PUBLIC_RELEASE_SHA=${RELEASE_SHA}
 
 COPY apps/web ./apps/web
 COPY packages ./packages
-RUN printf '{"service":"event-platform-web","releaseSha":"%s"}\n' "$RELEASE_SHA" > /app/apps/web/public/release.json
+RUN printf '{"service":"event-platform-web","releaseSha":"%s"}\n' "$RELEASE_SHA" > /app/apps/web/public/release.json \
+ && printf '%s\n' "$RELEASE_SHA" > /app/apps/web/public/version.txt
 
 RUN pnpm --filter @event-platform/web build
 
