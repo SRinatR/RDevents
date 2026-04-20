@@ -123,6 +123,7 @@ jobs:
             cd "$APP_DIR"
 
             # Build new images before touching running containers
+            echo "Release SHA: $RELEASE_SHA"
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml build
 
             # Keep the currently running api/web containers serving traffic until
@@ -180,7 +181,36 @@ jobs:
             # Migrations succeeded - now replace api and web with the freshly built images.
             # This step is only reached when prisma:deploy exited 0.
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
-              up -d --no-build --force-recreate --remove-orphans api web
+              up -d --force-recreate --remove-orphans api web
+
+            verify_container_release() {
+              service="$1"
+              actual=$(docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
+                exec -T "$service" sh -lc 'printf "%s" "${RELEASE_SHA:-}"')
+              if [ "$actual" != "$RELEASE_SHA" ]; then
+                echo "$service is running release '$actual', expected '$RELEASE_SHA'."
+                docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
+                exit 1
+              fi
+              echo "$service release OK ($actual)."
+            }
+
+            verify_http_release() {
+              url="$1"
+              label="$2"
+              body=$(curl -fsS "$url")
+              if ! printf '%s' "$body" | grep -Fq "$RELEASE_SHA"; then
+                echo "$label did not report release $RELEASE_SHA from $url."
+                echo "$body"
+                exit 1
+              fi
+              echo "$label release endpoint OK."
+            }
+
+            verify_container_release api
+            verify_container_release web
+            verify_http_release "http://127.0.0.1:4000/api/version" "api local"
+            verify_http_release "http://127.0.0.1:3000/api/version" "web local"
 
             docker image prune -f
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
@@ -370,6 +400,25 @@ jobs:
             check_ingress "https://rdevents.uz/" "307" "rdevents root"
             check_ingress "https://rdevents.uz/ru" "200" "rdevents /ru"
             check_ingress "https://api.rdevents.uz/health" "200" "api /health"
+
+            EXPECTED_RELEASE=$(cat "$APP_DIR/.release-commit")
+            check_release_endpoint() {
+              url="$1"
+              label="$2"
+              echo "Checking public release marker for $label..."
+              body=$(curl -fsS "$url")
+              if ! printf '%s' "$body" | grep -Fq "$EXPECTED_RELEASE"; then
+                echo "$label does not report deployed release $EXPECTED_RELEASE."
+                echo "Response from $url:"
+                echo "$body"
+                docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
+                exit 1
+              fi
+              echo "$label release marker OK."
+            }
+
+            check_release_endpoint "https://rdevents.uz/api/version" "web public"
+            check_release_endpoint "https://api.rdevents.uz/api/version" "api public"
           EOF
 
       - name: Deployment complete

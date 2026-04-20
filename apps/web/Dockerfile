@@ -22,7 +22,10 @@ CMD ["pnpm", "dev"]
 
 FROM deps AS builder
 ARG NEXT_PUBLIC_API_BASE_URL
+ARG RELEASE_SHA=unknown
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+ENV RELEASE_SHA=${RELEASE_SHA}
+ENV NEXT_PUBLIC_RELEASE_SHA=${RELEASE_SHA}
 
 COPY apps/web ./apps/web
 COPY packages ./packages
@@ -30,8 +33,12 @@ COPY packages ./packages
 RUN pnpm --filter @event-platform/web build
 
 FROM node:24-alpine AS runner
+ARG RELEASE_SHA=unknown
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV RELEASE_SHA=${RELEASE_SHA}
+ENV NEXT_PUBLIC_RELEASE_SHA=${RELEASE_SHA}
+LABEL org.opencontainers.image.revision=${RELEASE_SHA}
 WORKDIR /app
 
 RUN addgroup --system --gid 1001 nodejs
