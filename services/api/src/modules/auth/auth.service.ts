@@ -167,7 +167,10 @@ export async function verifyEmailRegistrationCode(input: VerifyRegistrationCodeI
   };
 }
 
-export async function completeEmailRegistration(input: CompleteRegistrationInput) {
+export async function completeEmailRegistration(
+  input: CompleteRegistrationInput,
+  context: { ipAddress?: string; userAgent?: string; deviceInfo?: string } = {}
+) {
   const existing = await prisma.user.findUnique({ where: { email: input.email } });
   if (existing) throw new Error('EMAIL_TAKEN');
 
@@ -229,12 +232,15 @@ export async function completeEmailRegistration(input: CompleteRegistrationInput
     return created;
   });
 
-  const tokens = await issueTokens(user);
+  const tokens = await issueTokens(user, context);
   await bindPendingInvitationsToUser(user.id, user.email);
   return { user: sanitizeUser(user as any), ...tokens };
 }
 
-export async function loginWithEmail(input: LoginInput) {
+export async function loginWithEmail(
+  input: LoginInput,
+  context: { ipAddress?: string; userAgent?: string; deviceInfo?: string } = {}
+) {
   const user = await prisma.user.findUnique({ where: { email: input.email } });
   if (!user || !user.passwordHash) throw new Error('WRONG_CREDENTIALS');
 
@@ -254,7 +260,7 @@ export async function loginWithEmail(input: LoginInput) {
     meta: { source: 'email_password' },
   });
 
-  const tokens = await issueTokens(user);
+  const tokens = await issueTokens(user, context);
   await bindPendingInvitationsToUser(user.id, user.email);
   return { user: sanitizeUser(user as any), ...tokens };
 }
@@ -496,7 +502,13 @@ async function issueTokens(
   context: { ipAddress?: string; userAgent?: string; deviceInfo?: string } = {}
 ) {
   const accessToken = signAccessToken({ sub: user.id, email: user.email, role: user.role });
-  const { token: refreshToken } = await createSession(user.id, context);
+  const { token: refreshToken, sessionId } = await createSession(user.id, context);
+  logger.info('Auth tokens issued', {
+    module: 'auth',
+    action: 'auth_tokens_issued',
+    userId: user.id,
+    meta: { sessionId },
+  });
   return { accessToken, refreshToken };
 }
 

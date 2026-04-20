@@ -13,7 +13,13 @@ export type AuthenticatedRequest = Request & { user?: User };
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const header = req.headers['authorization'];
   if (!header?.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'Unauthorized' });
+    logger.warn('Auth request rejected', {
+      module: 'auth',
+      action: 'auth_unauthorized',
+      requestId: (req as any).requestId,
+      meta: { path: req.path, reason: 'missing_bearer_token' },
+    });
+    res.status(401).json({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
     return;
   }
 
@@ -22,7 +28,13 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   try {
     payload = verifyAccessToken(token);
   } catch {
-    res.status(401).json({ error: 'Invalid or expired token' });
+    logger.warn('Auth request rejected', {
+      module: 'auth',
+      action: 'auth_unauthorized',
+      requestId: (req as any).requestId,
+      meta: { path: req.path, reason: 'invalid_or_expired_token' },
+    });
+    res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_ACCESS_TOKEN' });
     return;
   }
 
@@ -30,7 +42,14 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     const user = await prisma.user.findUnique({ where: { id: payload.sub } });
 
     if (!user || !user.isActive) {
-      res.status(401).json({ error: 'Unauthorized' });
+      logger.warn('Auth request rejected', {
+        module: 'auth',
+        action: 'auth_unauthorized',
+        requestId: (req as any).requestId,
+        userId: payload.sub,
+        meta: { path: req.path, reason: user ? 'inactive_user' : 'user_not_found' },
+      });
+      res.status(401).json({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
       return;
     }
 

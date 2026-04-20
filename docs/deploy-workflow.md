@@ -96,7 +96,7 @@ Deploy job:
 - starts Postgres, waits for it to become healthy, and writes a non-empty pre-migration database backup
 - runs `pnpm prisma:deploy` only after the backup succeeds
 - recreates API and web with Docker Compose only after backup and migrations succeed
-- runs smoke checks for API, web, `/health`, `/ready`, web `/ru`, and public HTTPS ingress
+- runs smoke checks for API, web, `/health`, `/ready`, web `/ru`, release markers, and public HTTPS ingress
 
 ### Deploy sequence
 
@@ -128,6 +128,8 @@ On failure each check prints `docker compose ps` and recent container logs befor
 | Public root | HTTPS 307 from `https://rdevents.uz/` | `curl -I` from the VPS, retry loop |
 | Public /ru | HTTPS 200 from `https://rdevents.uz/ru` | `curl -I` from the VPS, retry loop |
 | Public API health | HTTPS 200 from `https://api.rdevents.uz/health` | `curl -I` from the VPS, retry loop |
+| Web release marker | HTTP 200 from `https://rdevents.uz/version.txt` and `https://rdevents.uz/release.json`, body contains deployed commit SHA | `curl` from the VPS, retry loop |
+| API release marker | HTTP 200 from `https://api.rdevents.uz/version` and `https://api.rdevents.uz/api/version`, body contains deployed commit SHA | `curl` from the VPS, retry loop |
 
 If a public ingress check fails, the workflow prints the last public response headers, curl error, Docker Compose state, local upstream headers, readable nginx errors, and recent api/web logs.
 
@@ -136,6 +138,19 @@ The production API container CMD is `node dist/main.js`. It never runs `prisma m
 Seed data (`db:seed`) must never be run in production as part of the deploy. It is a local development tool only.
 
 The deploy workflow must not run from `main`, feature branches, or PRs.
+
+### Release marker contract
+
+Every deployed image receives the same `RELEASE_SHA` build argument and runtime environment value. The web image writes it into static public files during Docker build; the API image writes it into `release.txt` and also exposes it through `RELEASE_SHA`.
+
+Required app-level endpoints:
+
+- Web: `GET /version.txt` returns `200 text/plain` with the deployed commit SHA.
+- Web: `GET /release.json` returns `200 application/json` with the deployed commit SHA in `releaseSha`.
+- API: `GET /version` returns `200 text/plain` with the deployed commit SHA.
+- API: `GET /api/version` returns `200 text/plain` with the deployed commit SHA.
+
+These endpoints must not depend on request headers, cookies, or other request-bound dynamic logic. Nginx may keep a static fallback as a safety layer, but the application endpoints are the primary contract and the deploy smoke checks validate that contract.
 
 ## GitHub Environment
 

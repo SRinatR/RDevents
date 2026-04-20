@@ -1,6 +1,6 @@
 'use client';
 
-import { authApi, setAccessToken } from './api';
+import { ApiError, authApi, setAccessToken } from './api';
 
 // Try to refresh access token using the httpOnly cookie.
 // Called on app mount to restore auth session across page reloads.
@@ -19,7 +19,17 @@ export async function tryRefreshSession(): Promise<{ user: any; accessToken: str
 export async function doLogin(email: string, password: string) {
   const result = await authApi.login({ email, password });
   setAccessToken(result.accessToken);
-  return result;
+
+  try {
+    const { user } = await authApi.me();
+    return { ...result, user };
+  } catch (error) {
+    setAccessToken(null);
+    if (error instanceof ApiError) {
+      throw new ApiError(error.status, 'SESSION_VERIFICATION_FAILED', error.details, 'SESSION_VERIFICATION_FAILED');
+    }
+    throw error;
+  }
 }
 
 export async function doCompleteRegistration(email: string, registrationToken: string, password: string, name?: string) {

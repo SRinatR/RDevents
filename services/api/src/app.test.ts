@@ -20,6 +20,14 @@ describe('API health endpoints', () => {
     expect(res.body.status).toBe('ok');
   });
 
+  it.each(['/version', '/api/version'])('GET %s returns the release marker as plain text', async (path) => {
+    const res = await request(app).get(path);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/plain');
+    expect(res.text.trim()).toMatch(/\S+/);
+  });
+
   it('POST /webhooks/resend is routed instead of returning 404', async () => {
     const res = await request(app)
       .post('/webhooks/resend')
