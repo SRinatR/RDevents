@@ -141,7 +141,7 @@ The deploy workflow must not run from `main`, feature branches, or PRs.
 
 ### Release marker contract
 
-Every deployed image receives the same `RELEASE_SHA` build argument and runtime environment value. The web image writes it into static public files during Docker build; the API image writes it into `release.txt` and also exposes it through `RELEASE_SHA`.
+Every deployed image receives the same `RELEASE_SHA` build argument and runtime environment value. The web image writes it into static public files during Docker build; the API image writes it into `release.txt` and also exposes it through `RELEASE_SHA`. While the nginx static fallback aliases remain enabled, the deploy workflow also writes the same SHA to `$DEPLOY_ROOT/runtime/version.txt`, `$DEPLOY_ROOT/runtime/version`, and `$DEPLOY_ROOT/runtime/release.json` so the fallback cannot report a stale release.
 
 Required app-level endpoints:
 

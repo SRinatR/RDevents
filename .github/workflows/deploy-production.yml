@@ -120,6 +120,14 @@ jobs:
             rm -f "$DEPLOY_ROOT/$ARCHIVE_NAME"
             printf '%s\n' "$RELEASE_SHA" > "$APP_DIR/.release-commit"
 
+            # Keep the nginx static fallback in sync with the app-level release
+            # contract while the fallback aliases remain enabled on the VPS.
+            RUNTIME_DIR="$DEPLOY_ROOT/runtime"
+            mkdir -p "$RUNTIME_DIR"
+            printf '%s\n' "$RELEASE_SHA" > "$RUNTIME_DIR/version.txt"
+            printf '%s\n' "$RELEASE_SHA" > "$RUNTIME_DIR/version"
+            printf '{"service":"event-platform-web","releaseSha":"%s"}\n' "$RELEASE_SHA" > "$RUNTIME_DIR/release.json"
+
             cd "$APP_DIR"
 
             # Build new images before touching running containers
