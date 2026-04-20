@@ -7,6 +7,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { ApiError, eventsApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
 import { EmptyState, LoadingLines, Notice, PageHeader, Panel, ToolbarRow } from '@/components/ui/signal-primitives';
+import {
+  buildProfileRequirementUrl,
+  filterEventFormMissingFields,
+  filterProfileMissingFields,
+  type RegistrationMissingField,
+} from '@/components/cabinet/profile/profile.requirements';
 
 export default function CabinetEventsCatalogView() {
   const { user, loading } = useAuth();
@@ -98,9 +104,25 @@ export default function CabinetEventsCatalogView() {
       }));
     } catch (err) {
       if (err instanceof ApiError && Array.isArray((err.details as any)?.missingFields)) {
+        const fields = (err.details as any).missingFields as RegistrationMissingField[];
+        const profileFields = filterProfileMissingFields(fields);
+        const eventFields = filterEventFormMissingFields(fields);
+        if (profileFields.length > 0) {
+          router.push(buildProfileRequirementUrl({
+            locale,
+            requiredFields: profileFields.map((field) => field.key),
+            eventTitle: event.title,
+            returnTo: `/${locale}/cabinet/events/${event.slug}`,
+          }));
+          return;
+        }
+        if (eventFields.length > 0) {
+          router.push(`/${locale}/cabinet/events/${event.slug}`);
+          return;
+        }
         setActionErrors((previous) => ({
           ...previous,
-          [event.id]: locale === 'ru' ? 'Заполните обязательные поля профиля в личном кабинете.' : 'Complete required profile fields in your cabinet.',
+          [event.id]: locale === 'ru' ? 'Заполните недостающие поля для регистрации.' : 'Complete missing registration fields.',
         }));
       } else if (err instanceof ApiError) {
         setActionErrors((previous) => ({ ...previous, [event.id]: err.message }));
