@@ -274,7 +274,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
     setError('');
     setSuccess('');
     try {
-      await eventsApi.leaveTeam(myTeam.id);
+      await eventsApi.leaveTeam();
       setSuccess(isRu ? 'Вы покинули команду.' : 'You left the team.');
       await loadWorkspace();
     } catch (err: any) {

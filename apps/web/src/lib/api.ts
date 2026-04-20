@@ -269,8 +269,8 @@ export const eventsApi = {
   transferTeamCaptain: (eventId: string, teamId: string, userId: string) =>
     request<{ ok: boolean; team: any }>(`/api/events/${eventId}/teams/${teamId}/members/${userId}/transfer-captain`, { method: 'POST', auth: true }),
 
-  leaveTeam: (teamId: string) =>
-    request<{ ok: boolean }>('/api/team/leave', { method: 'POST', auth: true, body: { teamId } }),
+  leaveTeam: () =>
+    request<{ ok: boolean }>('/api/team/leave', { method: 'POST', auth: true }),
 
   myEvents: () =>
     request<{ events: any[] }>('/api/me/events', { auth: true }),

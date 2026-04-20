@@ -423,10 +423,9 @@ export async function leaveTeam(eventId: string, teamId: string, userId: string)
   return { ok: true as const };
 }
 
-export async function leaveTeamByCurrentUser(teamId: string, userId: string) {
+export async function leaveTeamByCurrentUser(userId: string) {
   const membership = await prisma.eventTeamMember.findFirst({
     where: {
-      teamId,
       userId,
       status: { in: ['ACTIVE', 'PENDING'] },
     },
@@ -438,6 +437,7 @@ export async function leaveTeamByCurrentUser(teamId: string, userId: string) {
         },
       },
     },
+    orderBy: { joinedAt: 'desc' },
   });
 
   if (!membership) {
