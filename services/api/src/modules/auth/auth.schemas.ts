@@ -16,6 +16,30 @@ export const completeRegistrationSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').optional(),
 });
 
+export const startPasswordResetSchema = z.object({
+  email: z.string().email(),
+});
+
+export const verifyPasswordResetCodeSchema = z.object({
+  email: z.string().email(),
+  code: z.string().trim().regex(/^\d{6}$/, 'Verification code must contain 6 digits'),
+});
+
+export const completePasswordResetSchema = z.object({
+  email: z.string().email(),
+  resetToken: z.string().min(1),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  confirmPassword: z.string().min(8, 'Password must be at least 8 characters').optional(),
+}).superRefine((value, ctx) => {
+  if (value.confirmPassword !== undefined && value.password !== value.confirmPassword) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['confirmPassword'],
+      message: 'Passwords must match',
+    });
+  }
+});
+
 export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
@@ -57,6 +81,9 @@ export const socialAuthSchema = z.object({
 export type StartRegistrationInput = z.infer<typeof startRegistrationSchema>;
 export type VerifyRegistrationCodeInput = z.infer<typeof verifyRegistrationCodeSchema>;
 export type CompleteRegistrationInput = z.infer<typeof completeRegistrationSchema>;
+export type StartPasswordResetInput = z.infer<typeof startPasswordResetSchema>;
+export type VerifyPasswordResetCodeInput = z.infer<typeof verifyPasswordResetCodeSchema>;
+export type CompletePasswordResetInput = z.infer<typeof completePasswordResetSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type SocialAuthInput = z.infer<typeof socialAuthSchema>;

@@ -88,6 +88,16 @@ function LoginPageContent() {
               <input type={showPass ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} required className="signal-field signal-field-with-action" placeholder={t('auth.password')} />
               <button type="button" onClick={() => setShowPass((value) => !value)} className="auth-eye-toggle">{showPass ? 'Hide' : 'Show'}</button>
             </div>
+            <div className="signal-muted">
+              <Link href={`/${locale}/forgot-password`}>{locale === 'ru' ? 'Забыли пароль?' : 'Forgot password?'}</Link>
+            </div>
+            {searchParams.get('reset') === 'success' ? (
+              <div className="signal-notice auth-inline-notice">
+                {locale === 'ru'
+                  ? 'Пароль успешно изменён. Войдите с новым паролем.'
+                  : 'Password has been reset successfully. Sign in with your new password.'}
+              </div>
+            ) : null}
             {error ? <div className="signal-notice tone-danger auth-inline-notice">{error}</div> : null}
             <button type="submit" disabled={loading} className="btn btn-primary">{loading ? '...' : (locale === 'ru' ? 'Войти' : 'Sign in')}</button>
           </form>

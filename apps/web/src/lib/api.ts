@@ -98,6 +98,15 @@ export const authApi = {
   completeRegistration: (body: { email: string; registrationToken: string; password: string; name?: string }) =>
     request<{ user: any; accessToken: string }>('/api/auth/register/complete', { method: 'POST', body }),
 
+  startPasswordReset: (body: { email: string }) =>
+    request<{ ok: boolean; expiresAt: string; cooldownSeconds: number; devCode?: string }>('/api/auth/password-reset/start', { method: 'POST', body }),
+
+  verifyPasswordResetCode: (body: { email: string; code: string }) =>
+    request<{ resetToken: string; expiresAt: string }>('/api/auth/password-reset/verify', { method: 'POST', body }),
+
+  completePasswordReset: (body: { email: string; resetToken: string; password: string; confirmPassword?: string }) =>
+    request<{ ok: boolean }>('/api/auth/password-reset/complete', { method: 'POST', body }),
+
   login: (body: { email: string; password: string }) =>
     request<{ user: any; accessToken: string }>('/api/auth/login', { method: 'POST', body }),
 

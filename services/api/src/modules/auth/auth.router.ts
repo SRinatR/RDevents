@@ -3,20 +3,26 @@ import multer from 'multer';
 import { authenticate } from '../../common/middleware.js';
 import { authRateLimits } from '../../common/rateLimiter.js';
 import {
+  completePasswordResetSchema,
   completeRegistrationSchema,
   loginSchema,
   socialAuthSchema,
+  startPasswordResetSchema,
   startRegistrationSchema,
   updateProfileSchema,
+  verifyPasswordResetCodeSchema,
   verifyRegistrationCodeSchema,
 } from './auth.schemas.js';
 import {
+  completePasswordReset,
   completeEmailRegistration,
   loginWithEmail,
   loginWithProvider,
+  startPasswordReset,
   startEmailRegistration,
   getMe,
   updateProfile,
+  verifyPasswordResetCode,
   verifyEmailRegistrationCode,
 } from './auth.service.js';
 import { signAccessToken } from '../../common/jwt.js';
@@ -149,6 +155,84 @@ authRouter.post('/register/complete', authRateLimits.registerComplete, async (re
     }
     if (err.message === 'REGISTRATION_SESSION_INVALID') {
       res.status(401).json({ error: 'Registration session is invalid. Verify the code again.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+// POST /api/auth/password-reset/start
+authRouter.post('/password-reset/start', authRateLimits.passwordResetStart, async (req, res) => {
+  const parsed = startPasswordResetSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+    return;
+  }
+
+  try {
+    const result = await startPasswordReset(parsed.data);
+    res.status(201).json({ ok: true, ...result });
+  } catch (err: any) {
+    if (err.message === 'RESEND_COOLDOWN') {
+      res.status(429).json({
+        error: `You can request a new code in ${err.retryAfterSeconds ?? env.REGISTRATION_RESEND_COOLDOWN} seconds.`,
+      });
+      return;
+    }
+    if (err.message === 'EMAIL_DELIVERY_NOT_CONFIGURED' || err.message === 'EMAIL_SENDER_NOT_CONFIGURED') {
+      res.status(503).json({ error: 'Email delivery is not configured on the server.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+// POST /api/auth/password-reset/verify
+authRouter.post('/password-reset/verify', authRateLimits.passwordResetVerify, async (req, res) => {
+  const parsed = verifyPasswordResetCodeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+    return;
+  }
+
+  try {
+    const result = await verifyPasswordResetCode(parsed.data);
+    res.json(result);
+  } catch (err: any) {
+    if (err.message === 'INVALID_CODE') {
+      res.status(400).json({ error: 'Incorrect verification code' });
+      return;
+    }
+    if (err.message === 'CODE_EXPIRED') {
+      res.status(410).json({ error: 'Verification code expired. Request a new code.' });
+      return;
+    }
+    if (err.message === 'TOO_MANY_ATTEMPTS') {
+      res.status(429).json({ error: 'Too many incorrect attempts. Request a new code.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+// POST /api/auth/password-reset/complete
+authRouter.post('/password-reset/complete', authRateLimits.passwordResetComplete, async (req, res) => {
+  const parsed = completePasswordResetSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+    return;
+  }
+
+  try {
+    await completePasswordReset(parsed.data);
+    res.json({ ok: true });
+  } catch (err: any) {
+    if (err.message === 'RESET_SESSION_EXPIRED') {
+      res.status(410).json({ error: 'Password reset session expired. Start over.' });
+      return;
+    }
+    if (err.message === 'RESET_SESSION_INVALID') {
+      res.status(401).json({ error: 'Password reset session is invalid. Verify the code again.' });
       return;
     }
     throw err;

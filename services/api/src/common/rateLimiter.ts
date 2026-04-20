@@ -70,6 +70,9 @@ export const authRateLimits = {
   registerStart: createRateLimiter({ windowMs: 60000, maxRequests: 5 }),
   registerVerify: createRateLimiter({ windowMs: 60000, maxRequests: 10 }),
   registerComplete: createRateLimiter({ windowMs: 60000, maxRequests: 5 }),
+  passwordResetStart: createRateLimiter({ windowMs: 60000, maxRequests: 5 }),
+  passwordResetVerify: createRateLimiter({ windowMs: 60000, maxRequests: 10 }),
+  passwordResetComplete: createRateLimiter({ windowMs: 60000, maxRequests: 5 }),
   login: createRateLimiter({ windowMs: 60000, maxRequests: 10 }),
   refresh: createRateLimiter({ windowMs: 60000, maxRequests: 20 }),
 };

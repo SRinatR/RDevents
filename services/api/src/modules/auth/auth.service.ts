@@ -2,19 +2,22 @@ import { createHash, randomBytes, randomInt } from 'node:crypto';
 import type { AuthProvider } from '@prisma/client';
 import { hashPassword, verifyPassword } from '../../common/password.js';
 import { signAccessToken } from '../../common/jwt.js';
-import { sendRegistrationCodeEmail } from '../../common/email.js';
+import { sendRegistrationCodeEmail, sendPasswordResetCodeEmail } from '../../common/email.js';
 import { logger } from '../../common/logger.js';
 import { buildPublicMediaUrl } from '../../common/storage.js';
 import { env } from '../../config/env.js';
 import { prisma } from '../../db/prisma.js';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 import { bindPendingInvitationsToUser } from '../events/team-invitations.service.js';
-import { createSession } from './auth.sessions.js';
+import { createSession, revokeAllUserSessions } from './auth.sessions.js';
 import type {
+  CompletePasswordResetInput,
   CompleteRegistrationInput,
   LoginInput,
+  StartPasswordResetInput,
   StartRegistrationInput,
   UpdateProfileInput,
+  VerifyPasswordResetCodeInput,
   VerifyRegistrationCodeInput,
 } from './auth.schemas.js';
 
@@ -165,6 +168,165 @@ export async function verifyEmailRegistrationCode(input: VerifyRegistrationCodeI
     registrationToken: completionToken,
     expiresAt: completionTokenExpiresAt.toISOString(),
   };
+}
+
+export async function startPasswordReset(input: StartPasswordResetInput) {
+  const now = Date.now();
+  const existingVerification = await prisma.passwordResetVerification.findUnique({
+    where: { email: input.email },
+  });
+  const lastCodeSentAt = existingVerification?.codeSentAt?.getTime() ?? 0;
+  const cooldownEndsAt = lastCodeSentAt + env.REGISTRATION_RESEND_COOLDOWN * 1000;
+  if (cooldownEndsAt > now) {
+    const error = new Error('RESEND_COOLDOWN');
+    (error as Error & { retryAfterSeconds?: number }).retryAfterSeconds = Math.ceil((cooldownEndsAt - now) / 1000);
+    throw error;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: input.email },
+    include: { accounts: { select: { provider: true } } },
+  });
+  const canUseEmailReset = user?.passwordHash || user?.accounts.some((account) => account.provider === 'EMAIL');
+
+  if (canUseEmailReset) {
+    const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+    const codeSentAt = new Date(now);
+    const codeExpiresAt = new Date(now + env.REGISTRATION_CODE_TTL * 1000);
+
+    await prisma.passwordResetVerification.upsert({
+      where: { email: input.email },
+      update: {
+        codeHash: hashOpaqueValue(code),
+        codeSentAt,
+        codeExpiresAt,
+        verifiedAt: null,
+        resetTokenHash: null,
+        resetTokenExpiresAt: null,
+        attempts: 0,
+      },
+      create: {
+        email: input.email,
+        codeHash: hashOpaqueValue(code),
+        codeSentAt,
+        codeExpiresAt,
+      },
+    });
+
+    try {
+      await sendPasswordResetCodeEmail({
+        to: input.email,
+        code,
+        ttlMinutes: Math.ceil(env.REGISTRATION_CODE_TTL / 60),
+      });
+    } catch (error) {
+      if (!env.isDev) {
+        throw error;
+      }
+    }
+
+    logger.info('Password reset verification code generated', {
+      module: 'auth',
+      action: 'password_reset_code_generated',
+      userId: user?.id,
+      meta: {
+        email: input.email,
+        code,
+        expiresAt: codeExpiresAt.toISOString(),
+        delivery: env.RESEND_API_KEY ? 'resend' : 'dev_log_only',
+      },
+    });
+
+    return {
+      expiresAt: codeExpiresAt.toISOString(),
+      cooldownSeconds: env.REGISTRATION_RESEND_COOLDOWN,
+      ...(env.isDev ? { devCode: code } : {}),
+    };
+  }
+
+  return {
+    expiresAt: new Date(now + env.REGISTRATION_CODE_TTL * 1000).toISOString(),
+    cooldownSeconds: env.REGISTRATION_RESEND_COOLDOWN,
+  };
+}
+
+export async function verifyPasswordResetCode(input: VerifyPasswordResetCodeInput) {
+  const verification = await prisma.passwordResetVerification.findUnique({
+    where: { email: input.email },
+  });
+
+  if (!verification || verification.codeExpiresAt.getTime() <= Date.now()) {
+    throw new Error('CODE_EXPIRED');
+  }
+
+  if (verification.attempts >= env.REGISTRATION_MAX_ATTEMPTS) {
+    throw new Error('TOO_MANY_ATTEMPTS');
+  }
+
+  if (verification.codeHash !== hashOpaqueValue(input.code)) {
+    const attempts = verification.attempts + 1;
+    await prisma.passwordResetVerification.update({
+      where: { email: input.email },
+      data: { attempts },
+    });
+    if (attempts >= env.REGISTRATION_MAX_ATTEMPTS) {
+      throw new Error('TOO_MANY_ATTEMPTS');
+    }
+    throw new Error('INVALID_CODE');
+  }
+
+  const resetToken = randomBytes(24).toString('hex');
+  const resetTokenExpiresAt = new Date(Date.now() + env.REGISTRATION_COMPLETION_TTL * 1000);
+
+  await prisma.passwordResetVerification.update({
+    where: { email: input.email },
+    data: {
+      attempts: 0,
+      verifiedAt: new Date(),
+      resetTokenHash: hashOpaqueValue(resetToken),
+      resetTokenExpiresAt,
+    },
+  });
+
+  return {
+    resetToken,
+    expiresAt: resetTokenExpiresAt.toISOString(),
+  };
+}
+
+export async function completePasswordReset(input: CompletePasswordResetInput) {
+  const verification = await prisma.passwordResetVerification.findUnique({
+    where: { email: input.email },
+  });
+  const isResetExpired = !verification?.resetTokenExpiresAt
+    || verification.resetTokenExpiresAt.getTime() <= Date.now();
+  if (!verification || !verification.verifiedAt || !verification.resetTokenHash || isResetExpired) {
+    throw new Error('RESET_SESSION_EXPIRED');
+  }
+  if (verification.resetTokenHash !== hashOpaqueValue(input.resetToken)) {
+    throw new Error('RESET_SESSION_INVALID');
+  }
+
+  const user = await prisma.user.findUnique({ where: { email: input.email } });
+  if (!user) {
+    await prisma.passwordResetVerification.delete({ where: { email: input.email } });
+    return { ok: true as const };
+  }
+
+  const passwordHash = await hashPassword(input.password);
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        ...(user.emailVerifiedAt ? {} : { emailVerifiedAt: new Date() }),
+      },
+    });
+    await tx.passwordResetVerification.delete({ where: { email: input.email } });
+  });
+  await revokeAllUserSessions(user.id);
+
+  return { ok: true as const };
 }
 
 export async function completeEmailRegistration(

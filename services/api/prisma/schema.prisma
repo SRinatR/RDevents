@@ -588,6 +588,24 @@ model RegistrationVerification {
   @@map("registration_verifications")
 }
 
+model PasswordResetVerification {
+  id                   String   @id @default(cuid())
+  email                String   @unique
+  codeHash             String
+  codeSentAt           DateTime
+  codeExpiresAt        DateTime
+  attempts             Int      @default(0)
+  verifiedAt           DateTime?
+  resetTokenHash       String?
+  resetTokenExpiresAt  DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([codeExpiresAt])
+  @@index([resetTokenExpiresAt])
+  @@map("password_reset_verifications")
+}
+
 model Event {
   id                               String                     @id @default(cuid())
   slug                             String                     @unique
