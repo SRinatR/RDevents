@@ -8,6 +8,7 @@ import { buildPublicMediaUrl } from '../../common/storage.js';
 import { env } from '../../config/env.js';
 import { prisma } from '../../db/prisma.js';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
+import { bindPendingInvitationsToUser } from '../events/team-invitations.service.js';
 import { createSession } from './auth.sessions.js';
 import type {
   CompleteRegistrationInput,
@@ -229,6 +230,7 @@ export async function completeEmailRegistration(input: CompleteRegistrationInput
   });
 
   const tokens = await issueTokens(user);
+  await bindPendingInvitationsToUser(user.id, user.email);
   return { user: sanitizeUser(user as any), ...tokens };
 }
 
@@ -253,6 +255,7 @@ export async function loginWithEmail(input: LoginInput) {
   });
 
   const tokens = await issueTokens(user);
+  await bindPendingInvitationsToUser(user.id, user.email);
   return { user: sanitizeUser(user as any), ...tokens };
 }
 
@@ -294,6 +297,7 @@ export async function loginWithProvider(
       authProvider: provider,
     });
     const tokens = await issueTokens(account.user);
+    await bindPendingInvitationsToUser(account.user.id, account.user.email);
     return { user: sanitizeUser(account.user as any), ...tokens };
   }
 
@@ -343,6 +347,7 @@ export async function loginWithProvider(
   });
 
   const tokens = await issueTokens(user);
+  await bindPendingInvitationsToUser(user.id, user.email);
   return { user: sanitizeUser(user as any), ...tokens };
 }
 

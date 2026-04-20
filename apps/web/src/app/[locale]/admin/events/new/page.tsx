@@ -10,13 +10,16 @@ import { useRouteLocale } from '../../../../../hooks/useRouteParams';
 const PROFILE_REQUIREMENT_OPTIONS = [
   { key: 'lastNameCyrillic', ru: 'Фамилия кириллицей', en: 'Last name Cyrillic' },
   { key: 'firstNameCyrillic', ru: 'Имя кириллицей', en: 'First name Cyrillic' },
+  { key: 'middleNameCyrillic', ru: 'Отчество кириллицей', en: 'Middle name Cyrillic' },
   { key: 'lastNameLatin', ru: 'Фамилия латиницей', en: 'Last name Latin' },
   { key: 'firstNameLatin', ru: 'Имя латиницей', en: 'First name Latin' },
+  { key: 'middleNameLatin', ru: 'Отчество латиницей', en: 'Middle name Latin' },
   { key: 'birthDate', ru: 'Дата рождения', en: 'Date of birth' },
   { key: 'gender', ru: 'Пол', en: 'Gender' },
   { key: 'citizenshipCountryCode', ru: 'Гражданство', en: 'Citizenship' },
   { key: 'residenceCountryCode', ru: 'Страна проживания', en: 'Residence country' },
   { key: 'phone', ru: 'Телефон', en: 'Phone' },
+  { key: 'telegram', ru: 'Telegram', en: 'Telegram' },
   { key: 'avatarUrl', ru: 'Фото профиля', en: 'Profile photo' },
   { key: 'regionId', ru: 'Регион проживания', en: 'Residence region' },
   { key: 'districtId', ru: 'Район проживания', en: 'Residence district' },
@@ -342,6 +345,7 @@ export default function NewEventPage() {
                     <option value="OPEN">{isRu ? 'Свободно' : 'Open'}</option>
                     <option value="BY_CODE">{isRu ? 'По коду команды' : 'By code'}</option>
                     <option value="BY_REQUEST">{isRu ? 'По заявке' : 'By request'}</option>
+                    <option value="EMAIL_INVITE">{isRu ? 'Email-приглашения по слотам' : 'Email invites by slots'}</option>
                   </select>
                 </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700 }}>

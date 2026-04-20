@@ -35,7 +35,7 @@ export const createEventSchema = z.object({
   minTeamSize: z.coerce.number().int().min(1).default(1),
   maxTeamSize: z.coerce.number().int().min(1).default(1),
   allowSoloParticipation: z.boolean().default(true),
-  teamJoinMode: z.enum(['OPEN', 'BY_CODE', 'BY_REQUEST']).default('OPEN'),
+  teamJoinMode: z.enum(['OPEN', 'BY_CODE', 'BY_REQUEST', 'EMAIL_INVITE']).default('OPEN'),
   requireAdminApprovalForTeams: z.boolean().default(false),
   requiredProfileFields: z.array(z.string()).default([]),
   requiredEventFields: z.array(z.string()).default([]),

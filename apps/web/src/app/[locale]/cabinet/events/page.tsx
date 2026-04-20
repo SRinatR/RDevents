@@ -79,8 +79,8 @@ export default function CabinetAllEventsPage() {
   };
 
   const approvedCtaLabel = locale === 'ru'
-    ? 'Перейти к редактированию и созданию команды'
-    : 'Go to editing and team creation';
+    ? 'Открыть кабинет события'
+    : 'Open event cabinet';
 
   async function handleApply(event: any) {
     setSubmittingId(event.id);
@@ -173,7 +173,7 @@ export default function CabinetAllEventsPage() {
                     {volunteerApplications[leadEvent.slug] ? (
                       <span className="signal-muted">{locale === 'ru' ? 'Волонтёрская заявка' : 'Volunteer application'}: {statusLabel(volunteerApplications[leadEvent.slug]?.status)}</span>
                     ) : applications[leadEvent.slug]?.status === 'ACTIVE' ? (
-                      <Link href={`/${locale}/cabinet/my-events/${leadEvent.slug}`} className="btn btn-primary btn-sm">{approvedCtaLabel}</Link>
+                      <Link href={`/${locale}/cabinet/events/${leadEvent.slug}`} className="btn btn-primary btn-sm">{approvedCtaLabel}</Link>
                     ) : (
                       <button onClick={() => handleOpenApplyChoice(leadEvent)} disabled={submittingId === leadEvent.id || applications[leadEvent.slug]?.status === 'PENDING'} className="btn btn-primary btn-sm">
                         {submittingId === leadEvent.id
@@ -209,7 +209,7 @@ export default function CabinetAllEventsPage() {
                       {volunteerApplications[event.slug] ? (
                         <span className="signal-muted">{locale === 'ru' ? 'Волонтёрская заявка' : 'Volunteer application'}: {statusLabel(volunteerApplications[event.slug]?.status)}</span>
                       ) : applications[event.slug]?.status === 'ACTIVE' ? (
-                        <Link href={`/${locale}/cabinet/my-events/${event.slug}`} className="btn btn-primary btn-sm">{approvedCtaLabel}</Link>
+                        <Link href={`/${locale}/cabinet/events/${event.slug}`} className="btn btn-primary btn-sm">{approvedCtaLabel}</Link>
                       ) : (
                         <button onClick={() => handleOpenApplyChoice(event)} disabled={submittingId === event.id || applications[event.slug]?.status === 'PENDING'} className="btn btn-primary btn-sm">
                           {submittingId === event.id

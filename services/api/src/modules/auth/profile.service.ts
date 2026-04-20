@@ -151,6 +151,7 @@ async function updateRegistrationDataSection(userId: string, input: Record<strin
         hasNoMiddleName,
         ...(input['birthDate'] !== undefined && { birthDate: parseDateOrNull(input['birthDate']) }),
         ...(input['phone'] !== undefined && { phone: normalizeUzbekPhone(input['phone']), phoneVerifiedAt: null }),
+        ...(input['telegram'] !== undefined && { telegram: normalizeTelegramUsername(input['telegram']), telegramVerifiedAt: null }),
         ...(input['consentPersonalData'] !== undefined && {
           consentPersonalData: input['consentPersonalData'],
           consentPersonalDataAt: input['consentPersonalData'] ? new Date() : null,
@@ -450,6 +451,7 @@ function getSectionStatus(sectionKey: ProfileSectionKey, user: ProfileUser): Pro
         user.middleNameLatin,
         user.birthDate,
         user.phone,
+        user.telegram,
         extended.gender,
         extended.citizenshipCountryCode,
         extended.residenceCountryCode,
@@ -698,6 +700,22 @@ function normalizeUzbekPhone(value: unknown) {
   if (normalized.length === 0) return null;
   if (normalized.length !== 9) throw new Error('INVALID_UZBEK_PHONE');
   return `+998${normalized}`;
+}
+
+function normalizeTelegramUsername(value: unknown) {
+  if (typeof value !== 'string') return null;
+  const cleaned = value
+    .trim()
+    .replace(/^https?:\/\/(t\.me|telegram\.me)\//i, '')
+    .replace(/^t\.me\//i, '')
+    .replace(/[/?#].*$/, '')
+    .replace(/^@+/, '')
+    .replace(/[^a-zA-Z0-9_]/g, '')
+    .toLowerCase()
+    .slice(0, 32);
+  if (!cleaned) return null;
+  if (cleaned.length < 5) throw new Error('INVALID_TELEGRAM_USERNAME');
+  return `@${cleaned}`;
 }
 
 function publicMediaAsset(asset: Record<string, any>) {

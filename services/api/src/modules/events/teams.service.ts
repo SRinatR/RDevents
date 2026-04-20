@@ -5,6 +5,7 @@ import {
   notifyTeamMemberChanged,
   notifyTeamUpdated,
 } from './notifications.service.js';
+import { assertEmailInviteTeamReady, markMemberInvitationRemoved } from './team-invitations.service.js';
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
 const ACTIVE_TEAM_MEMBER_STATUSES = ['ACTIVE', 'PENDING'] as const;
@@ -372,13 +373,17 @@ export async function updateTeam(eventId: string, teamId: string, userId: string
 export async function submitTeamForApproval(eventId: string, teamId: string, userId: string) {
   const team = await prisma.eventTeam.findUnique({
     where: { id: teamId },
-    include: { event: { select: { requireAdminApprovalForTeams: true, minTeamSize: true } } },
+    include: { event: { select: { requireAdminApprovalForTeams: true, minTeamSize: true, teamJoinMode: true } } },
   });
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
   if (team.captainUserId !== userId) throw new Error('NOT_TEAM_CAPTAIN');
   if (!team.event.requireAdminApprovalForTeams) return team;
   if (team.status === 'PENDING' || team.status === 'CHANGES_PENDING') throw new Error('TEAM_APPROVAL_PENDING');
   if (!EDITABLE_TEAM_STATUSES.includes(team.status as any)) throw new Error('TEAM_APPROVED_LOCKED');
+
+  if (team.event.teamJoinMode === 'EMAIL_INVITE') {
+    await assertEmailInviteTeamReady(teamId);
+  }
 
   const changeRequest = await prisma.$transaction(async (tx: any) => {
     const proposedMemberUserIds = await getProposedMemberUserIds(teamId);
@@ -498,6 +503,7 @@ export async function removeTeamMember(eventId: string, teamId: string, captainI
     where: { id: member.id },
     data: { status: 'REMOVED', removedAt: new Date() }
   });
+  await markMemberInvitationRemoved(teamId, memberUserId);
   await notifyTeamMemberChanged(eventId, teamId, memberUserId, 'REMOVED');
   return getTeamById(eventId, teamId);
 }

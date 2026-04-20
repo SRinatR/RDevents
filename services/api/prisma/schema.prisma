@@ -49,6 +49,7 @@ enum TeamJoinMode {
   OPEN
   BY_CODE
   BY_REQUEST
+  EMAIL_INVITE
 }
 
 enum RegistrationMode {
@@ -84,6 +85,16 @@ enum EventTeamMemberStatus {
   REJECTED
   REMOVED
   LEFT
+}
+
+enum TeamInvitationStatus {
+  PENDING_ACCOUNT
+  PENDING_RESPONSE
+  ACCEPTED
+  DECLINED
+  CANCELLED
+  EXPIRED
+  REMOVED
 }
 
 enum ParticipantLimitMode {
@@ -249,6 +260,8 @@ model User {
   assignedEventMembers  EventMember[] @relation("EventMemberAssignedBy")
   teamMemberships       EventTeamMember[]
   captainedTeams        EventTeam[] @relation("TeamCaptain")
+  receivedTeamInvitations EventTeamInvitation[] @relation("TeamInvitationInvitee")
+  sentTeamInvitations   EventTeamInvitation[] @relation("TeamInvitationInvitedBy")
   requestedTeamChanges  EventTeamChangeRequest[] @relation("TeamChangeRequestedBy")
   decidedTeamChanges    EventTeamChangeRequest[] @relation("TeamChangeDecidedBy")
   analyticsEvents       AnalyticsEvent[]
@@ -631,6 +644,7 @@ model Event {
   createdBy                        User?                      @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   members                          EventMember[]
   teams                            EventTeam[]
+  teamInvitations                  EventTeamInvitation[]
   analyticsEvents                  AnalyticsEvent[]
   registrationSubmissions          EventRegistrationFormSubmission[]
 
@@ -695,6 +709,7 @@ model EventTeam {
   event         Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
   captainUser   User            @relation("TeamCaptain", fields: [captainUserId], references: [id], onDelete: Cascade)
   members       EventTeamMember[]
+  invitations   EventTeamInvitation[]
   changeRequests EventTeamChangeRequest[]
 
   @@index([eventId])
@@ -742,6 +757,37 @@ model EventTeamMember {
   @@index([teamId, status])
   @@index([userId, status])
   @@map("event_team_members")
+}
+
+model EventTeamInvitation {
+  id              String               @id @default(cuid())
+  eventId         String
+  teamId          String
+  slotIndex       Int
+  inviteeEmail    String
+  inviteeUserId   String?
+  invitedByUserId String
+  status          TeamInvitationStatus @default(PENDING_ACCOUNT)
+  message         String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  respondedAt     DateTime?
+  acceptedAt      DateTime?
+  declinedAt      DateTime?
+  cancelledAt     DateTime?
+  expiresAt       DateTime?
+
+  event           Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  team            EventTeam            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  invitee         User?                @relation("TeamInvitationInvitee", fields: [inviteeUserId], references: [id], onDelete: SetNull)
+  invitedBy       User                 @relation("TeamInvitationInvitedBy", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, status])
+  @@index([teamId, slotIndex])
+  @@index([inviteeEmail, status])
+  @@index([inviteeUserId, status])
+  @@index([eventId, status])
+  @@map("event_team_invitations")
 }
 
 model AnalyticsEvent {

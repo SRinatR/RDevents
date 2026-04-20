@@ -1,11 +1,15 @@
 import { Router } from 'express';
 import { authenticate } from '../../common/middleware.js';
 import {
+  acceptTeamInvitation,
+  declineTeamInvitation,
   getMyEventWorkspace,
   getMyEvents,
   getMyParticipantApplications,
   getMyTeams,
   getMyVolunteerApplications,
+  listMyTeamInvitations,
+  RegistrationRequirementsError,
 } from '../events/events.service.js';
 
 export const registrationsRouter = Router();
@@ -58,4 +62,59 @@ registrationsRouter.get('/volunteer-applications', authenticate, async (req, res
   const user = (req as any).user;
   const applications = await getMyVolunteerApplications(user.id);
   res.json({ applications });
+});
+
+// GET /api/me/team-invitations — current user's team invitation inbox and history
+registrationsRouter.get('/team-invitations', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  const invitations = await listMyTeamInvitations(user.id);
+  res.json({ invitations });
+});
+
+// POST /api/me/team-invitations/:invitationId/accept
+registrationsRouter.post('/team-invitations/:invitationId/accept', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  try {
+    const result = await acceptTeamInvitation(String(req.params['invitationId']), user.id);
+    res.json(result);
+  } catch (err: any) {
+    if (err instanceof RegistrationRequirementsError) {
+      res.status(422).json({
+        error: 'Required registration data is missing',
+        code: 'REGISTRATION_REQUIREMENTS_MISSING',
+        details: { missingFields: err.missingFields },
+      });
+      return;
+    }
+
+    const map: Record<string, [number, string]> = {
+      INVITATION_NOT_FOUND: [404, 'Invitation not found'],
+      INVITATION_FORBIDDEN: [403, 'Invitation does not belong to this user'],
+      INVITATION_CLOSED: [409, 'Invitation is already closed'],
+      INVITATION_EXPIRED: [410, 'Invitation expired'],
+      PARTICIPANT_APPROVAL_REQUIRED: [403, 'Approved participant status is required before accepting team invitations'],
+      ALREADY_IN_TEAM: [409, 'You are already in a team for this event'],
+      TEAM_SLOT_OCCUPIED: [409, 'Team slot is occupied'],
+      TEAM_FULL: [400, 'Team is full'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
+  }
+});
+
+// POST /api/me/team-invitations/:invitationId/decline
+registrationsRouter.post('/team-invitations/:invitationId/decline', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  try {
+    const invitation = await declineTeamInvitation(String(req.params['invitationId']), user.id);
+    res.json({ invitation });
+  } catch (err: any) {
+    const map: Record<string, [number, string]> = {
+      INVITATION_NOT_FOUND: [404, 'Invitation not found'],
+      INVITATION_FORBIDDEN: [403, 'Invitation does not belong to this user'],
+      INVITATION_CLOSED: [409, 'Invitation is already closed'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
+  }
 });

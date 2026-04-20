@@ -10,13 +10,16 @@ import { useRouteParams } from '../../../../../../hooks/useRouteParams';
 const PROFILE_REQUIREMENT_OPTIONS = [
   { key: 'lastNameCyrillic', ru: 'Фамилия кириллицей', en: 'Last name Cyrillic' },
   { key: 'firstNameCyrillic', ru: 'Имя кириллицей', en: 'First name Cyrillic' },
+  { key: 'middleNameCyrillic', ru: 'Отчество кириллицей', en: 'Middle name Cyrillic' },
   { key: 'lastNameLatin', ru: 'Фамилия латиницей', en: 'Last name Latin' },
   { key: 'firstNameLatin', ru: 'Имя латиницей', en: 'First name Latin' },
+  { key: 'middleNameLatin', ru: 'Отчество латиницей', en: 'Middle name Latin' },
   { key: 'birthDate', ru: 'Дата рождения', en: 'Date of birth' },
   { key: 'gender', ru: 'Пол', en: 'Gender' },
   { key: 'citizenshipCountryCode', ru: 'Гражданство', en: 'Citizenship' },
   { key: 'residenceCountryCode', ru: 'Страна проживания', en: 'Residence country' },
   { key: 'phone', ru: 'Телефон', en: 'Phone' },
+  { key: 'telegram', ru: 'Telegram', en: 'Telegram' },
   { key: 'avatarUrl', ru: 'Фото профиля', en: 'Profile photo' },
   { key: 'regionId', ru: 'Регион проживания', en: 'Residence region' },
   { key: 'districtId', ru: 'Район проживания', en: 'Residence district' },
@@ -40,7 +43,7 @@ const LEGACY_PROFILE_REQUIREMENT_MAP: Record<string, string[]> = {
   name: ['lastNameCyrillic', 'firstNameCyrillic', 'lastNameLatin', 'firstNameLatin'],
   city: ['settlementId'],
   factualAddress: ['street', 'house', 'postalCode'],
-  telegram: ['telegramUrl'],
+  telegram: ['telegram'],
 };
 
 const EVENT_REQUIREMENT_HINT = 'motivation, experience, emergencyContact, university, faculty, course';
@@ -110,6 +113,9 @@ export default function EditEventPage() {
   const [assigningAdmin, setAssigningAdmin] = useState(false);
   const [assignAdminError, setAssignAdminError] = useState('');
   const [assignAdminSuccess, setAssignAdminSuccess] = useState('');
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [coverUploadError, setCoverUploadError] = useState('');
+  const [coverDragActive, setCoverDragActive] = useState(false);
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) router.push(`/${locale}`);
@@ -198,6 +204,21 @@ export default function EditEventPage() {
         : [...prev.requiredProfileFields, field],
     }));
   };
+
+  async function handleCoverFile(file?: File) {
+    if (!file) return;
+    setCoverUploading(true);
+    setCoverUploadError('');
+    try {
+      const result = await adminApi.uploadEventCover(file);
+      setForm(prev => ({ ...prev, coverImageUrl: result.publicUrl }));
+    } catch (err: any) {
+      setCoverUploadError(err.message || (isRu ? 'Не удалось загрузить обложку' : 'Failed to upload cover'));
+    } finally {
+      setCoverUploading(false);
+      setCoverDragActive(false);
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -334,8 +355,43 @@ export default function EditEventPage() {
 
             {/* Cover image */}
             <div>
-              <label style={{ display: 'block', fontWeight: 700, fontSize: '0.9rem', marginBottom: 6 }}>{isRu ? 'Ссылка на обложку' : 'Cover image URL'}</label>
-              <input name="coverImageUrl" value={form.coverImageUrl} onChange={handleChange} type="url" style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', fontSize: '0.95rem', boxSizing: 'border-box' }} />
+              <label style={{ display: 'block', fontWeight: 700, fontSize: '0.9rem', marginBottom: 6 }}>{isRu ? 'Обложка' : 'Cover image'}</label>
+              <div
+                onDragOver={(event) => { event.preventDefault(); setCoverDragActive(true); }}
+                onDragLeave={() => setCoverDragActive(false)}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  void handleCoverFile(event.dataTransfer.files?.[0]);
+                }}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                  gap: 14,
+                  alignItems: 'center',
+                  padding: 14,
+                  borderRadius: 8,
+                  border: coverDragActive ? '2px solid var(--color-primary)' : '1px dashed var(--color-border)',
+                  background: coverDragActive ? 'var(--color-primary-subtle)' : 'var(--color-bg-subtle)',
+                }}
+              >
+                <div style={{ aspectRatio: '16 / 9', borderRadius: 8, overflow: 'hidden', background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+                  {form.coverImageUrl ? <img src={form.coverImageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--color-text-muted)', fontWeight: 800 }}>{isRu ? 'Превью' : 'Preview'}</div>}
+                </div>
+                <div style={{ display: 'grid', gap: 10 }}>
+                  <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+                    {isRu ? 'Перетащите JPG, PNG или WebP до 5 МБ.' : 'Drop JPG, PNG, or WebP up to 5 MB.'}
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <label className="btn btn-secondary btn-sm">
+                      {coverUploading ? (isRu ? 'Загрузка...' : 'Uploading...') : (isRu ? 'Загрузить файл' : 'Upload file')}
+                      <input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => void handleCoverFile(event.target.files?.[0])} />
+                    </label>
+                    <span style={{ color: 'var(--color-text-muted)', fontSize: '0.82rem' }}>{isRu ? 'или укажите ссылку ниже' : 'or paste a URL below'}</span>
+                  </div>
+                  {coverUploadError ? <div style={{ color: 'var(--color-danger)', fontSize: '0.88rem' }}>{coverUploadError}</div> : null}
+                </div>
+              </div>
+              <input name="coverImageUrl" value={form.coverImageUrl} onChange={handleChange} type="url" placeholder="https://..." style={{ marginTop: 10, width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', fontSize: '0.95rem', boxSizing: 'border-box' }} />
             </div>
 
             {/* Location */}
@@ -392,6 +448,7 @@ export default function EditEventPage() {
                       <option value="OPEN">{isRu ? 'Свободно' : 'Open'}</option>
                       <option value="BY_CODE">{isRu ? 'По коду команды' : 'By code'}</option>
                       <option value="BY_REQUEST">{isRu ? 'По заявке' : 'By request'}</option>
+                      <option value="EMAIL_INVITE">{isRu ? 'Email-приглашения по слотам' : 'Email invites by slots'}</option>
                     </select>
                   </div>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700 }}>

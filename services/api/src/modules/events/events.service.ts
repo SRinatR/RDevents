@@ -175,6 +175,16 @@ export {
   submitTeamForApproval,
 } from './teams.service.js';
 
+export {
+  acceptTeamInvitation,
+  bindPendingInvitationsToUser,
+  cancelTeamInvitation,
+  declineTeamInvitation,
+  getTeamSlots,
+  inviteToTeamByEmail,
+  listMyTeamInvitations,
+} from './team-invitations.service.js';
+
 // Volunteer application function (kept here for backward compatibility)
 export async function applyForVolunteer(eventId: string, userId: string, notes?: string) {
   const event = await prisma.event.findUnique({ where: { id: eventId } });
