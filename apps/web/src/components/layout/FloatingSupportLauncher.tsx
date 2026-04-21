@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { supportChatApi } from '@/lib/api';
 import type { SupportChatMessage, SupportChatThread } from '@/components/support-chat/support-chat.types';
+import { SupportChatMessageBubble } from '@/components/support-chat/SupportChatMessageBubble';
+import { SupportChatComposer } from '@/components/support-chat/SupportChatComposer';
 
 type FloatingSupportLauncherProps = {
   locale: string;
@@ -107,31 +109,27 @@ export function FloatingSupportLauncher({ locale }: FloatingSupportLauncherProps
                     </div>
                   ) : (
                     thread.messages.map((message) => (
-                      <div key={message.id} className={`support-message-bubble ${message.senderId === user.id ? 'is-own' : ''}`}>
-                        <div className="support-message-bubble__meta">
-                          {message.senderId === user.id ? (isRu ? 'Вы' : 'You') : (isRu ? 'Поддержка' : 'Support')}
-                        </div>
-                        <div className="support-message-bubble__body">{message.body}</div>
-                      </div>
+                      <SupportChatMessageBubble
+                        key={message.id}
+                        message={message}
+                        locale={locale}
+                        isOwn={message.senderId === user.id}
+                        ownLabel={isRu ? 'Вы' : 'You'}
+                        otherLabel={isRu ? 'Поддержка' : 'Support'}
+                        compact
+                      />
                     ))
                   )}
                 </div>
-                <div className="floating-support-panel__composer" style={{ display: 'flex', gap: '8px' }}>
-                  <input
+                <div className="floating-support-panel__composer">
+                  <SupportChatComposer
                     value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
+                    onChange={setDraft}
+                    onSend={() => void handleSend()}
+                    sending={sending}
                     placeholder={isRu ? 'Введите сообщение…' : 'Type a message…'}
-                    className="input"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        void handleSend();
-                      }
-                    }}
+                    sendLabel={isRu ? 'Отправить' : 'Send'}
                   />
-                  <button type="button" className="btn btn-primary btn-sm" onClick={() => void handleSend()} disabled={!draft.trim() || sending}>
-                    {sending ? '…' : isRu ? 'Отправить' : 'Send'}
-                  </button>
                 </div>
               </>
             )}

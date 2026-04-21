@@ -9715,6 +9715,125 @@ body {
   }
 }
 
+
+
+.support-chat-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.support-chat-thread__messages {
+  min-height: 220px;
+  max-height: 520px;
+  overflow-y: auto;
+  padding: 4px 2px;
+}
+
+.support-chat-message-row {
+  display: flex;
+  margin-bottom: 12px;
+}
+
+.support-chat-message-row.is-own {
+  justify-content: flex-end;
+}
+
+.support-chat-message-row.is-other {
+  justify-content: flex-start;
+}
+
+.support-chat-message-bubble {
+  width: fit-content;
+  max-width: min(78%, 760px);
+  padding: 10px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--color-border-soft);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.support-chat-message-row.is-own .support-chat-message-bubble {
+  border-radius: 16px 16px 6px 16px;
+  background: var(--color-primary-subtle);
+  border-color: var(--color-primary-glow);
+  box-shadow: none;
+}
+
+.support-chat-message-row.is-other .support-chat-message-bubble {
+  border-radius: 16px 16px 16px 6px;
+}
+
+.support-chat-message-bubble__meta {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-bottom: 5px;
+}
+
+.support-chat-message-bubble__body {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+}
+
+.support-chat-message-bubble__time {
+  margin-top: 7px;
+  font-size: 0.72rem;
+  color: var(--color-text-faint);
+  text-align: right;
+}
+
+.support-chat-message-row.is-other .support-chat-message-bubble__time {
+  text-align: left;
+}
+
+.support-chat-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  border-top: 1px solid var(--color-border-soft);
+  padding-top: 12px;
+}
+
+.support-chat-composer__input-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.support-chat-composer__input-wrap .signal-field {
+  width: 100%;
+  min-height: 42px;
+}
+
+.support-chat-composer__send {
+  flex: 0 0 auto;
+  margin-left: auto;
+  min-width: 102px;
+}
+
+.support-chat-message-row.is-compact .support-chat-message-bubble {
+  max-width: 88%;
+  padding: 9px 11px;
+}
+
+.support-chat-message-row.is-compact .support-chat-message-bubble__meta {
+  font-size: 0.66rem;
+}
+
+.support-chat-message-row.is-compact .support-chat-message-bubble__body {
+  font-size: 0.86rem;
+}
+
+.support-chat-message-row.is-compact .support-chat-message-bubble__time {
+  font-size: 0.68rem;
+}
+
 .floating-support-launcher {
   position: fixed;
   right: max(12px, env(safe-area-inset-right));
@@ -9808,52 +9927,6 @@ body {
   gap: 10px;
 }
 
-.floating-support-panel__list-actions { display: flex; justify-content: flex-end; }
-
-.floating-support-panel__list { display: flex; flex-direction: column; gap: 8px; }
-
-.floating-support-thread-item {
-  border: 1px solid var(--color-border-soft);
-  border-radius: 12px;
-  background: var(--color-surface-elevated);
-  padding: 10px;
-  text-align: left;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.floating-support-thread-item__title-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-}
-
-.floating-support-thread-item__preview {
-  font-size: 0.82rem;
-  color: var(--color-text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.floating-support-thread-item__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-primary);
-  flex-shrink: 0;
-}
-
-.floating-support-panel__thread-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-}
-
 .floating-support-panel__messages {
   flex: 1;
   min-height: 180px;
@@ -9865,6 +9938,16 @@ body {
 .floating-support-panel__composer {
   border-top: 1px solid var(--color-border-soft);
   padding-top: 10px;
+}
+
+.floating-support-panel__composer .support-chat-composer {
+  border-top: 0;
+  padding-top: 0;
+  gap: 10px;
+}
+
+.floating-support-panel__composer .support-chat-composer__send {
+  min-width: 92px;
 }
 
 .floating-support-panel__empty {
@@ -9917,5 +10000,17 @@ body {
 
   .floating-support-launcher span {
     display: none;
+  }
+
+  .support-chat-message-bubble {
+    max-width: 88%;
+  }
+
+  .support-chat-composer {
+    gap: 8px;
+  }
+
+  .support-chat-composer__send {
+    min-width: 86px;
   }
 }
