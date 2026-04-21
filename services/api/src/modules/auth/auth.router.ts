@@ -59,14 +59,12 @@ function getClientContext(req: any) {
 }
 
 function setRefreshCookie(res: any, token: string) {
-  const isProd = env.isProd;
   res.cookie(REFRESH_COOKIE, token, {
     httpOnly: true,
-    secure: isProd,
+    secure: env.isProd,
     sameSite: 'lax',
     maxAge: env.JWT_REFRESH_TTL * 1000,
     path: '/',
-    domain: isProd ? '.rdevents.uz' : undefined,
   });
 }
 
