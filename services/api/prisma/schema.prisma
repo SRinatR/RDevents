@@ -285,6 +285,8 @@ model User {
   supportMessages       SupportMessage[] @relation("SupportMessageSender")
   supportReadStates          SupportThreadReadState[] @relation("SupportThreadReadStateUser")
   uploadedSupportAttachments SupportAttachment[]      @relation("SupportAttachmentUploader")
+  supportChatThread          SupportChatThread?       @relation("SupportChatThreadUser")
+  supportChatMessages        SupportChatMessage[]     @relation("SupportChatMessageSender")
 
   passwordResetTokens  PasswordResetToken[]
   preferences          UserPreference[]
@@ -915,6 +917,35 @@ model SupportThreadReadState {
   @@unique([threadId, userId])
   @@index([userId])
   @@map("support_thread_read_states")
+}
+
+
+model SupportChatThread {
+  id        String               @id @default(cuid())
+  userId    String               @unique
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  user      User                 @relation("SupportChatThreadUser", fields: [userId], references: [id], onDelete: Cascade)
+  messages  SupportChatMessage[]
+
+  @@index([updatedAt])
+  @@map("support_chat_threads")
+}
+
+model SupportChatMessage {
+  id         String            @id @default(cuid())
+  threadId   String
+  senderId   String
+  senderType SupportSenderType
+  body       String            @db.Text
+  createdAt  DateTime          @default(now())
+
+  thread     SupportChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender     User              @relation("SupportChatMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+  @@map("support_chat_messages")
 }
 
 // ─── Password Reset ─────────────────────────────────────────────────────────

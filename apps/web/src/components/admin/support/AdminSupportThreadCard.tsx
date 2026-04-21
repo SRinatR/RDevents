@@ -43,7 +43,7 @@ type Props = {
 export function AdminSupportThreadCard({ thread, locale, deleting = false, onDelete }: Props) {
   return (
     <Link
-      href={`/${locale}/admin/support/${thread.id}`}
+      href={`/${locale}/admin/technical-support/${thread.id}`}
       className="signal-ranked-item cabinet-list-item workspace-event-journey-item"
     >
       <div style={{ flex: 1, minWidth: 0 }}>

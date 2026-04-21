@@ -18,6 +18,7 @@ import { volunteersRouter } from './modules/volunteers/volunteers.router.js';
 import { uploadsRouter } from './modules/uploads/uploads.router.js';
 import { referenceRouter } from './modules/reference/reference.router.js';
 import { supportRouter } from './modules/support/support.router.js';
+import { supportChatRouter } from './modules/support-chat/support-chat.router.js';
 import { resendWebhookRouter } from './modules/webhooks/resend.router.js';
 import { passwordResetRouter } from './modules/password-reset/password-reset.router.js';
 import { dashboardRouter } from './modules/dashboard/dashboard.router.js';
@@ -88,6 +89,8 @@ export function createApp() {
   app.use('/api/uploads', uploadsRouter);
   app.use('/api/reference', referenceRouter);
   app.use('/api/support', supportRouter);
+  app.use('/api/technical-support', supportRouter);
+  app.use('/api/support-chat', supportChatRouter);
 
   // ─── 404 ──────────────────────────────────────────────────────────────────
   app.use((_req, res) => {

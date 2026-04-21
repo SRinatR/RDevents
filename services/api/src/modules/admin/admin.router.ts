@@ -9,6 +9,7 @@ import { adminApplicationsRouter } from './applications.router.js';
 import { adminUsersRouter } from './users.router.js';
 import { adminAnalyticsRouter } from './analytics.router.js';
 import { adminSupportRouter } from './support.router.js';
+import { adminSupportChatRouter } from './support-chat.router.js';
 import { profileConfigRouter } from '../profile-config/profile-config.router.js';
 import { exportsRouter } from '../exports/exports.router.js';
 
@@ -23,10 +24,12 @@ adminRouter.use('/applications', adminApplicationsRouter);
 adminRouter.use('/participants', adminParticipantsRouter);
 adminRouter.use('/teams', adminTeamsRouter);
 adminRouter.use('/support', adminSupportRouter);
+adminRouter.use('/technical-support', adminSupportRouter);
+adminRouter.use('/support-chat', adminSupportChatRouter);
 adminRouter.use('/profile-fields', profileConfigRouter);
 adminRouter.use('/exports', exportsRouter);
 adminRouter.use('/', adminUsersRouter);
 adminRouter.use('/', adminAnalyticsRouter);
 
 // Re-export for convenience
-export { adminEventsRouter, adminApplicationsRouter, adminParticipantsRouter, adminTeamsRouter, adminUsersRouter, adminAnalyticsRouter, adminSupportRouter, profileConfigRouter, exportsRouter };
+export { adminEventsRouter, adminApplicationsRouter, adminParticipantsRouter, adminTeamsRouter, adminUsersRouter, adminAnalyticsRouter, adminSupportRouter, adminSupportChatRouter, profileConfigRouter, exportsRouter };

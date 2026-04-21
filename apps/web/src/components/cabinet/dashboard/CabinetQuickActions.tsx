@@ -28,7 +28,7 @@ function getActionHref(action: QuickAction, event: DashboardEventData, locale: s
     case 'OPEN_CALENDAR':
       return `/api/events/${event.slug}/ics`;
     case 'OPEN_SUPPORT':
-      return `/${locale}/cabinet/support`;
+      return `/${locale}/cabinet/technical-support`;
     default:
       return '#';
   }

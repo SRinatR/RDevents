@@ -138,7 +138,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
       {
         label: 'Communications',
         items: [
-          { href: `/${locale}/admin/support`, label: locale === 'ru' ? 'Поддержка' : 'Support', icon: <SupportIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/support-chat`, label: locale === 'ru' ? 'Чат с поддержкой' : 'Chat with Support', icon: <SupportIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/technical-support`, label: locale === 'ru' ? 'Техническая поддержка' : 'Technical Support', icon: <InboxIcon />, allow: isPlatformAdmin },
           { href: `/${locale}/admin/email`, label: t('admin.email'), icon: <MailIcon />, allow: isPlatformAdmin },
           { href: `/${locale}/admin/email/messages`, label: t('admin.messages'), icon: <InboxIcon />, allow: isPlatformAdmin },
           { href: `/${locale}/admin/email/templates`, label: t('admin.templates'), icon: <TemplateIcon />, allow: isPlatformAdmin },

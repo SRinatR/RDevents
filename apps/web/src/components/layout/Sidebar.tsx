@@ -42,10 +42,10 @@ export default function Sidebar({ locale, userName, userEmail, userAvatar }: Sid
       summary: locale === 'ru' ? 'Команды и приглашения' : 'Teams and invitations',
     },
     {
-      label: locale === 'ru' ? 'Поддержка' : 'Support',
-      href: `/${locale}/cabinet/support`,
+      label: locale === 'ru' ? 'Техническая поддержка' : 'Technical Support',
+      href: `/${locale}/cabinet/technical-support`,
       icon: <SupportIcon />,
-      summary: locale === 'ru' ? 'Обращения и помощь' : 'Tickets and help',
+      summary: locale === 'ru' ? 'Технические обращения и помощь' : 'Technical tickets and help',
     },
   ];
 
