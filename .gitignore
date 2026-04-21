@@ -22,7 +22,6 @@ pnpm-debug.log*
 .env.test.local
 .env.production.local
 .env*.local
-.env
 .env.*
 !.env.example
 
@@ -51,3 +50,11 @@ coverage/
 
 # Cache
 .cache/
+
+# Server-only runtime artifacts
+.release-commit
+deploy.tgz
+runtime/
+backups/
+uploads/
+services/api/uploads/

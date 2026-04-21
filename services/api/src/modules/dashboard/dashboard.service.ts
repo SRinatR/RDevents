@@ -182,30 +182,7 @@ async function buildDashboardEvent(
               name: true,
               status: true,
               captainUserId: true,
-              maxSize: true,
-              members: {
-                where: { status: { notIn: ['REMOVED', 'LEFT'] } },
-                include: {
-                  user: {
-                    select: {
-                      id: true,
-                      name: true,
-                      email: true,
-                      avatarUrl: true,
-                    },
-                  },
-                },
-                orderBy: { joinedAt: 'asc' },
-              },
-              invitations: {
-                where: { status: { in: ['PENDING_ACCOUNT', 'PENDING_RESPONSE'] } },
-                select: { id: true, status: true },
-              },
-              _count: {
-                select: {
-                  members: { where: { status: 'ACTIVE' } },
-                },
-              },
+              _count: { select: { members: { where: { status: 'ACTIVE' } } } },
             },
           },
         },
@@ -221,17 +198,7 @@ async function buildDashboardEvent(
           status: teamMembership.team.status,
           isCaptain,
           membersCount: teamMembership.team._count.members,
-          maxMembers: teamMembership.team.maxSize,
-          pendingInvites: teamMembership.team.invitations.length,
           canEdit,
-          members: teamMembership.team.members.map((member) => ({
-            userId: member.userId,
-            name: member.user.name || member.user.email,
-            email: member.user.email,
-            avatar: member.user.avatarUrl,
-            role: member.userId === teamMembership.team.captainUserId ? 'CAPTAIN' : 'MEMBER',
-            status: member.status,
-          })),
         };
       }
     } catch (err) {
