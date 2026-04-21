@@ -23,7 +23,9 @@ export default function AdminSupportThreadPage({ params }: { params: Promise<{ t
 
   const [thread, setThread] = useState<any | null>(null);
   const [threadLoading, setThreadLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const localeRef = useRef(locale);
   localeRef.current = locale;
@@ -80,6 +82,29 @@ export default function AdminSupportThreadPage({ params }: { params: Promise<{ t
     setThread((prev: any) => (prev ? { ...prev, ...updated } : prev));
   }
 
+  async function handleDeleteCurrentThread() {
+    if (!thread || deleting) return;
+    const confirmed = window.confirm(
+      locale === 'ru'
+        ? 'Удалить это обращение и всю переписку? Действие нельзя отменить.'
+        : 'Delete this ticket and all messages? This action cannot be undone.',
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setError('');
+    setSuccessMessage('');
+    try {
+      await adminSupportApi.deleteThread(thread.id);
+      setSuccessMessage(locale === 'ru' ? 'Обращение удалено.' : 'Ticket deleted.');
+      router.replace(`/${locale}/admin/support`);
+    } catch {
+      setError(locale === 'ru' ? 'Не удалось удалить обращение.' : 'Failed to delete ticket.');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (loading || !user) return null;
 
   const isClosed = thread?.status === 'CLOSED';
@@ -96,6 +121,16 @@ export default function AdminSupportThreadPage({ params }: { params: Promise<{ t
         actions={
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             {thread && <SupportStatusBadge status={thread.status} locale={locale} />}
+            {thread ? (
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                onClick={() => void handleDeleteCurrentThread()}
+                disabled={deleting}
+              >
+                {deleting ? '...' : locale === 'ru' ? 'Удалить' : 'Delete'}
+              </button>
+            ) : null}
             <Link href={`/${locale}/admin/support`} className="btn btn-secondary btn-sm">
               {locale === 'ru' ? 'Назад' : 'Back'}
             </Link>
@@ -115,6 +150,7 @@ export default function AdminSupportThreadPage({ params }: { params: Promise<{ t
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '16px', alignItems: 'start' }}>
           {/* Main conversation panel */}
           <Panel variant="elevated" className="admin-command-panel">
+            {successMessage ? <Notice tone="success">{successMessage}</Notice> : null}
             {/* Message history */}
             <div
               ref={messagesContainerRef}

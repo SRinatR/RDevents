@@ -17,6 +17,7 @@ import {
   updateThreadStatus,
   markAdminThreadRead,
   uploadSupportAttachments,
+  deleteAdminThread,
 } from '../support/support.service.js';
 
 export const adminSupportRouter = Router();
@@ -45,6 +46,16 @@ adminSupportRouter.get('/threads/:threadId', async (req, res) => {
     return;
   }
   res.json({ thread });
+});
+
+// DELETE /api/admin/support/threads/:threadId
+adminSupportRouter.delete('/threads/:threadId', async (req, res) => {
+  const result = await deleteAdminThread(String(req.params['threadId']));
+  if (!result) {
+    res.status(404).json({ error: 'Thread not found' });
+    return;
+  }
+  res.json(result);
 });
 
 // POST /api/admin/support/threads/:threadId/reply

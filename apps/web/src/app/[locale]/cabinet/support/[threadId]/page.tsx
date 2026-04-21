@@ -22,7 +22,9 @@ export default function SupportThreadPage({ params }: { params: Promise<{ thread
 
   const [thread, setThread] = useState<SupportThreadDetail | null>(null);
   const [threadLoading, setThreadLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const localeRef = useRef(locale);
   localeRef.current = locale;
@@ -84,6 +86,31 @@ export default function SupportThreadPage({ params }: { params: Promise<{ thread
     );
   }
 
+  async function handleDeleteCurrentThread() {
+    if (!thread || deleting) return;
+    const confirmed = window.confirm(
+      locale === 'ru'
+        ? 'Удалить это обращение и всю переписку? Действие нельзя отменить.'
+        : 'Delete this ticket and all messages? This action cannot be undone.',
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setError('');
+    setSuccessMessage('');
+    try {
+      await supportApi.deleteThread(thread.id);
+      setSuccessMessage(locale === 'ru' ? 'Обращение удалено.' : 'Ticket deleted.');
+      router.replace(`/${locale}/cabinet/support`);
+    } catch {
+      setError(
+        locale === 'ru' ? 'Не удалось удалить обращение.' : 'Failed to delete ticket.',
+      );
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (loading || !user) return null;
 
   const isClosed = thread?.status === 'CLOSED';
@@ -100,6 +127,16 @@ export default function SupportThreadPage({ params }: { params: Promise<{ thread
         actions={
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             {thread && <SupportStatusBadge status={thread.status} locale={locale} />}
+            {thread ? (
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                onClick={() => void handleDeleteCurrentThread()}
+                disabled={deleting}
+              >
+                {deleting ? '...' : locale === 'ru' ? 'Удалить' : 'Delete'}
+              </button>
+            ) : null}
             <Link href={`/${locale}/cabinet/support`} className="btn btn-secondary btn-sm">
               {locale === 'ru' ? 'Назад' : 'Back'}
             </Link>
@@ -114,6 +151,7 @@ export default function SupportThreadPage({ params }: { params: Promise<{ thread
           <Notice tone="danger">{error}</Notice>
         ) : !thread ? null : (
           <>
+            {successMessage ? <Notice tone="success">{successMessage}</Notice> : null}
             {/* Message history */}
             <div
               ref={messagesContainerRef}

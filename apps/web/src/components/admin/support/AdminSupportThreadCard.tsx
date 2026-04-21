@@ -33,7 +33,14 @@ interface AdminThread extends SupportThread {
   assignedAdmin: { id: string; name: string | null; email: string } | null;
 }
 
-export function AdminSupportThreadCard({ thread, locale }: { thread: AdminThread; locale: string }) {
+type Props = {
+  thread: AdminThread;
+  locale: string;
+  deleting?: boolean;
+  onDelete?: (thread: AdminThread) => void;
+};
+
+export function AdminSupportThreadCard({ thread, locale, deleting = false, onDelete }: Props) {
   return (
     <Link
       href={`/${locale}/admin/support/${thread.id}`}
@@ -63,6 +70,20 @@ export function AdminSupportThreadCard({ thread, locale }: { thread: AdminThread
       </div>
       <ToolbarRow>
         <SupportStatusBadge status={thread.status} locale={locale} />
+        {onDelete ? (
+          <button
+            type="button"
+            className="btn btn-danger btn-sm"
+            disabled={deleting}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onDelete(thread);
+            }}
+          >
+            {deleting ? '...' : locale === 'ru' ? 'Удалить' : 'Delete'}
+          </button>
+        ) : null}
         <span className="signal-chip-link">{locale === 'ru' ? 'Открыть' : 'Open'}</span>
       </ToolbarRow>
     </Link>

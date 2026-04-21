@@ -11,6 +11,7 @@ import {
   listUserThreads,
   createThread,
   deleteEmptyThread,
+  deleteUserThread,
   getUserThread,
   addUserMessage,
   markUserThreadRead,
@@ -51,6 +52,17 @@ supportRouter.post('/threads', async (req, res) => {
 supportRouter.delete('/threads/:threadId/empty', async (req, res) => {
   const userId = (req as AuthenticatedRequest).user!.id;
   const result = await deleteEmptyThread(userId, String(req.params['threadId']));
+  if (!result) {
+    res.status(404).json({ error: 'Thread not found' });
+    return;
+  }
+  res.json(result);
+});
+
+// DELETE /api/support/threads/:threadId
+supportRouter.delete('/threads/:threadId', async (req, res) => {
+  const userId = (req as AuthenticatedRequest).user!.id;
+  const result = await deleteUserThread(userId, String(req.params['threadId']));
   if (!result) {
     res.status(404).json({ error: 'Thread not found' });
     return;

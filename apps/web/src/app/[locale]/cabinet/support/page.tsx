@@ -25,7 +25,9 @@ function SupportPageInner() {
 
   const [threads, setThreads] = useState<SupportThread[]>([]);
   const [threadsLoading, setThreadsLoading] = useState(true);
+  const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   // Auto-open the new ticket form when ?new=1 is present
   const [showNewForm, setShowNewForm] = useState(searchParams.get('new') === '1');
 
@@ -50,6 +52,30 @@ function SupportPageInner() {
     setShowNewForm(false);
     const t = thread as { id: string };
     router.push(`/${locale}/cabinet/support/${t.id}`);
+  }
+
+  async function handleDeleteThread(thread: SupportThread) {
+    const confirmed = window.confirm(
+      locale === 'ru'
+        ? 'Удалить это обращение и всю переписку? Действие нельзя отменить.'
+        : 'Delete this ticket and all messages? This action cannot be undone.',
+    );
+    if (!confirmed) return;
+
+    setDeletingThreadId(thread.id);
+    setError('');
+    setSuccessMessage('');
+    try {
+      await supportApi.deleteThread(thread.id);
+      setThreads((prev) => prev.filter((item) => item.id !== thread.id));
+      setSuccessMessage(locale === 'ru' ? 'Обращение удалено.' : 'Ticket deleted.');
+    } catch {
+      setError(
+        locale === 'ru' ? 'Не удалось удалить обращение.' : 'Failed to delete ticket.',
+      );
+    } finally {
+      setDeletingThreadId(null);
+    }
   }
 
   if (loading || !user) return null;
@@ -81,6 +107,7 @@ function SupportPageInner() {
 
       {(threadsLoading || !!error || threads.length > 0 || !showNewForm) && (
       <Panel variant="elevated" className="cabinet-workspace-panel">
+        {successMessage ? <Notice tone="success">{successMessage}</Notice> : null}
         {threadsLoading ? (
           <LoadingLines rows={5} />
         ) : error ? (
@@ -102,7 +129,13 @@ function SupportPageInner() {
         ) : (
           <div className="signal-stack cabinet-list-stack cabinet-list-stack-premium">
             {threads.map((thread) => (
-              <SupportThreadCard key={thread.id} thread={thread} locale={locale} />
+              <SupportThreadCard
+                key={thread.id}
+                thread={thread}
+                locale={locale}
+                deleting={deletingThreadId === thread.id}
+                onDelete={(item) => void handleDeleteThread(item)}
+              />
             ))}
           </div>
         )}

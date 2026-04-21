@@ -24,7 +24,9 @@ export default function AdminSupportInboxPage() {
 
   const [threads, setThreads] = useState<any[]>([]);
   const [threadsLoading, setThreadsLoading] = useState(true);
+  const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   const [status, setStatus] = useState('');
   const [unassigned, setUnassigned] = useState(false);
@@ -83,6 +85,28 @@ export default function AdminSupportInboxPage() {
     );
   }, [threads, search]);
 
+  async function handleDeleteThread(thread: any) {
+    const confirmed = window.confirm(
+      locale === 'ru'
+        ? 'Удалить это обращение и всю переписку? Действие нельзя отменить.'
+        : 'Delete this ticket and all messages? This action cannot be undone.',
+    );
+    if (!confirmed) return;
+
+    setDeletingThreadId(thread.id);
+    setError('');
+    setSuccessMessage('');
+    try {
+      await adminSupportApi.deleteThread(thread.id);
+      setThreads((prev) => prev.filter((item) => item.id !== thread.id));
+      setSuccessMessage(locale === 'ru' ? 'Обращение удалено.' : 'Ticket deleted.');
+    } catch {
+      setError(locale === 'ru' ? 'Не удалось удалить обращение.' : 'Failed to delete ticket.');
+    } finally {
+      setDeletingThreadId(null);
+    }
+  }
+
   if (loading || !user) return null;
 
   return (
@@ -106,6 +130,7 @@ export default function AdminSupportInboxPage() {
           search={search}
           onSearchChange={setSearch}
         />
+        {successMessage ? <Notice tone="success">{successMessage}</Notice> : null}
 
         {threadsLoading ? (
           <LoadingLines rows={6} />
@@ -121,11 +146,17 @@ export default function AdminSupportInboxPage() {
             }
           />
         ) : (
-          <div className="signal-stack cabinet-list-stack cabinet-list-stack-premium">
-            {filteredThreads.map((thread) => (
-              <AdminSupportThreadCard key={thread.id} thread={thread} locale={locale} />
-            ))}
-          </div>
+            <div className="signal-stack cabinet-list-stack cabinet-list-stack-premium">
+              {filteredThreads.map((thread) => (
+                <AdminSupportThreadCard
+                  key={thread.id}
+                  thread={thread}
+                  locale={locale}
+                  deleting={deletingThreadId === thread.id}
+                  onDelete={(item) => void handleDeleteThread(item)}
+                />
+              ))}
+            </div>
         )}
       </Panel>
     </div>

@@ -129,6 +129,18 @@ export async function deleteEmptyThread(userId: string, threadId: string) {
   return { deleted: true };
 }
 
+export async function deleteUserThread(userId: string, threadId: string) {
+  const thread = await prisma.supportThread.findUnique({
+    where: { id: threadId },
+    select: { id: true, userId: true },
+  });
+
+  if (!thread || thread.userId !== userId) return null;
+
+  await prisma.supportThread.delete({ where: { id: threadId } });
+  return { deleted: true };
+}
+
 export async function getUserThread(userId: string, threadId: string) {
   const thread = await prisma.supportThread.findUnique({
     where: { id: threadId },
@@ -378,4 +390,15 @@ export async function markAdminThreadRead(adminId: string, threadId: string) {
   });
 
   return { ok: true };
+}
+
+export async function deleteAdminThread(threadId: string) {
+  const thread = await prisma.supportThread.findUnique({
+    where: { id: threadId },
+    select: { id: true },
+  });
+  if (!thread) return null;
+
+  await prisma.supportThread.delete({ where: { id: threadId } });
+  return { deleted: true };
 }

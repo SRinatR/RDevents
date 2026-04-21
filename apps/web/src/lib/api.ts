@@ -494,6 +494,9 @@ export const supportApi = {
   deleteEmptyThread: (threadId: string) =>
     request<{ deleted?: boolean; skipped?: boolean }>(`/api/support/threads/${threadId}/empty`, { method: 'DELETE', auth: true }),
 
+  deleteThread: (threadId: string) =>
+    request<{ deleted: boolean }>(`/api/support/threads/${threadId}`, { method: 'DELETE', auth: true }),
+
   getThread: (threadId: string) =>
     request<{ thread: any }>(`/api/support/threads/${threadId}`, { auth: true }),
 
@@ -523,6 +526,9 @@ export const adminSupportApi = {
 
   getThread: (threadId: string) =>
     request<{ thread: any }>(`/api/admin/support/threads/${threadId}`, { auth: true }),
+
+  deleteThread: (threadId: string) =>
+    request<{ deleted: boolean }>(`/api/admin/support/threads/${threadId}`, { method: 'DELETE', auth: true }),
 
   reply: (threadId: string, body: { body: string; attachmentIds?: string[] }) =>
     request<{ message: any }>(`/api/admin/support/threads/${threadId}/reply`, { method: 'POST', auth: true, body }),

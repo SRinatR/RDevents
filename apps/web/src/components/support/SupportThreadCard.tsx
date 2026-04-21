@@ -28,7 +28,14 @@ function UnreadDot() {
   );
 }
 
-export function SupportThreadCard({ thread, locale }: { thread: SupportThread; locale: string }) {
+type Props = {
+  thread: SupportThread;
+  locale: string;
+  deleting?: boolean;
+  onDelete?: (thread: SupportThread) => void;
+};
+
+export function SupportThreadCard({ thread, locale, deleting = false, onDelete }: Props) {
   return (
     <Link
       href={`/${locale}/cabinet/support/${thread.id}`}
@@ -52,6 +59,20 @@ export function SupportThreadCard({ thread, locale }: { thread: SupportThread; l
       </div>
       <ToolbarRow>
         <SupportStatusBadge status={thread.status} locale={locale} />
+        {onDelete ? (
+          <button
+            type="button"
+            className="btn btn-danger btn-sm"
+            disabled={deleting}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onDelete(thread);
+            }}
+          >
+            {deleting ? '...' : locale === 'ru' ? 'Удалить' : 'Delete'}
+          </button>
+        ) : null}
         <span className="signal-chip-link">{locale === 'ru' ? 'Открыть' : 'Open'}</span>
       </ToolbarRow>
     </Link>
