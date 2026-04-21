@@ -41,8 +41,16 @@ export interface DashboardEvent {
   } | null;
   missingProfileFields: string[];
   missingEventFields: string[];
+  missingEventFieldsCalculated?: boolean;
   deadlines: Array<{ type: string; at: string }>;
   quickActions: string[];
+  invitations?: Array<{
+    id: string;
+    teamName: string;
+    teamId: string;
+    invitedBy: string;
+    expiresAt: string;
+  }>;
 }
 
 export interface DashboardData {
@@ -95,8 +103,51 @@ function getMissingEventFields(
   userId: string,
   eventId: string,
   requiredFields: string[]
-): string[] {
-  return requiredFields;
+): { fields: string[]; calculated: boolean } {
+  return {
+    fields: requiredFields,
+    calculated: false,
+  };
+}
+
+async function getMissingEventFieldsReal(
+  userId: string,
+  eventId: string,
+  requiredFields: string[]
+): Promise<{ fields: string[]; calculated: boolean }> {
+  if (!requiredFields || requiredFields.length === 0) {
+    return { fields: [], calculated: true };
+  }
+
+  const submission = await prisma.eventRegistrationFormSubmission.findUnique({
+    where: {
+      eventId_userId: { eventId, userId },
+    },
+    select: {
+      answersJson: true,
+    },
+  });
+
+  const answeredKeys = new Set<string>();
+  
+  if (submission?.answersJson) {
+    const answers = submission.answersJson as Record<string, unknown>;
+    for (const key of Object.keys(answers)) {
+      const value = answers[key];
+      if (value !== null && value !== undefined && value !== '') {
+        answeredKeys.add(key);
+      }
+    }
+  }
+
+  const missing: string[] = [];
+  for (const field of requiredFields) {
+    if (!answeredKeys.has(field)) {
+      missing.push(field);
+    }
+  }
+
+  return { fields: missing, calculated: true };
 }
 
 function calculateQuickActions(
@@ -199,6 +250,43 @@ export async function getUserDashboard(userId: string): Promise<DashboardData> {
   const events: DashboardEvent[] = await Promise.all(
     memberships.map(async (membership) => {
       const event = membership.event;
+
+      const invitations = await prisma.eventTeamInvitation.findMany({
+        where: {
+          inviteeUserId: userId,
+          status: 'PENDING_RESPONSE',
+          team: { eventId: event.id },
+        },
+        select: {
+          id: true,
+          teamId: true,
+          invitedByUserId: true,
+          team: {
+            select: {
+              name: true,
+            },
+          },
+          invitedByUser: {
+            select: {
+              name: true,
+            },
+          },
+          expiresAt: true,
+        },
+        take: 5,
+      });
+
+      const invitationsData = invitations.map((inv) => {
+        const invitedByUser = inv.invitedByUser as { name?: string | null } | null;
+        return {
+          id: inv.id,
+          teamName: inv.team.name,
+          teamId: inv.teamId,
+          invitedBy: invitedByUser?.name || 'Неизвестно',
+          expiresAt: inv.expiresAt.toISOString(),
+        };
+      });
+
       const isTeamEvent = event.requiredProfileFields.includes('teamRegistration');
 
       let team = null;
@@ -242,7 +330,7 @@ export async function getUserDashboard(userId: string): Promise<DashboardData> {
         event.requiredProfileFields,
         user
       );
-      const missingEventFields = getMissingEventFields(
+      const missingEventFieldsResult = await getMissingEventFieldsReal(
         userId,
         event.id,
         event.requiredEventFields
@@ -276,7 +364,7 @@ export async function getUserDashboard(userId: string): Promise<DashboardData> {
           myRoles: [{ role: membership.role, status: membership.status }],
           team,
           missingProfileFields,
-          missingEventFields,
+          missingEventFields: missingEventFieldsResult.fields,
           deadlines,
           quickActions: [],
         },
@@ -294,9 +382,11 @@ export async function getUserDashboard(userId: string): Promise<DashboardData> {
         myRoles: [{ role: membership.role, status: membership.status }],
         team,
         missingProfileFields,
-        missingEventFields,
+        missingEventFields: missingEventFieldsResult.fields,
+        missingEventFieldsCalculated: missingEventFieldsResult.calculated,
         deadlines,
         quickActions,
+        invitations: invitationsData,
       };
     })
   );
@@ -489,7 +579,7 @@ export async function getEventWorkspace(
     ? getMissingProfileFields(userId, event.requiredProfileFields, user)
     : [];
 
-  const missingEventFields = getMissingEventFields(
+  const missingEventFieldsResult = await getMissingEventFieldsReal(
     userId,
     eventId,
     event.requiredEventFields
@@ -576,7 +666,8 @@ export async function getEventWorkspace(
       createdAt: inv.createdAt.toISOString(),
     })),
     missingProfileFields,
-    missingEventFields,
+    missingEventFields: missingEventFieldsResult.fields,
+    missingEventFieldsCalculated: missingEventFieldsResult.calculated,
     deadlines,
     milestones: milestones.map((m) => ({
       id: m.id,
