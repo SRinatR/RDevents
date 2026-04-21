@@ -59,12 +59,14 @@ function getClientContext(req: any) {
 }
 
 function setRefreshCookie(res: any, token: string) {
+  const isProd = env.isProd;
   res.cookie(REFRESH_COOKIE, token, {
     httpOnly: true,
-    secure: env.isProd,
+    secure: isProd,
     sameSite: 'lax',
     maxAge: env.JWT_REFRESH_TTL * 1000,
     path: '/',
+    domain: isProd ? '.rdevents.uz' : undefined,
   });
 }
 
@@ -237,7 +239,10 @@ authRouter.post('/logout-all', authenticate, async (req, res) => {
   await revokeAllUserSessions(user.id);
 
   // Clear current cookie
-  res.clearCookie(REFRESH_COOKIE, { path: '/' });
+  res.clearCookie(REFRESH_COOKIE, {
+    path: '/',
+    domain: env.isProd ? '.rdevents.uz' : undefined,
+  });
   res.json({ ok: true });
 });
 
