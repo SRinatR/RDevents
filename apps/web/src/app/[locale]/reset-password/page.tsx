@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useRouteLocale } from '../../../hooks/useRouteParams';
+import { authApi } from '@/lib/api';
 
 function ResetPasswordPageContent() {
   const t = useTranslations();
@@ -38,17 +39,7 @@ function ResetPasswordPageContent() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/auth/password/reset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, newPassword: password }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Reset failed');
-      }
-
+      await authApi.resetPassword(token!, password);
       setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');

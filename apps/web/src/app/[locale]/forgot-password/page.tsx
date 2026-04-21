@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useRouteLocale } from '../../../hooks/useRouteParams';
+import { authApi } from '@/lib/api';
 
 function ForgotPasswordContent() {
   const t = useTranslations();
@@ -23,17 +24,7 @@ function ForgotPasswordContent() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/auth/password/forgot', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Request failed');
-      }
-
+      await authApi.forgotPassword(email);
       setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');

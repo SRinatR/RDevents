@@ -9,6 +9,7 @@ WORKDIR /app
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY services/api/package.json services/api/package.json
+COPY services/api/docker-entrypoint.sh services/api/docker-entrypoint.sh
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
   pnpm install --frozen-lockfile --filter @event-platform/api...
 
@@ -27,4 +28,4 @@ RUN printf '%s\n' "$RELEASE_SHA" > /app/services/api/release.txt
 RUN pnpm prisma generate
 RUN pnpm build
 EXPOSE 4000
-CMD ["node", "dist/main.js"]
+ENTRYPOINT ["sh", "docker-entrypoint.sh"]
