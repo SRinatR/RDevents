@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../hooks/useAuth';
 import { useRouteLocale } from '../../../hooks/useRouteParams';
+import { eventsApi } from '@/lib/api';
 import { LoadingLines, Notice } from '@/components/ui/signal-primitives';
 
 interface DashboardEvent {
@@ -46,9 +47,7 @@ export default function CabinetPage() {
 
   const fetchDashboard = useCallback(async () => {
     try {
-      const response = await fetch('/api/me/dashboard');
-      if (!response.ok) throw new Error('Failed to fetch dashboard');
-      const data = await response.json();
+      const data = await eventsApi.dashboard();
       setDashboard(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');

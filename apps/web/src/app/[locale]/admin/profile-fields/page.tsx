@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
 import { LoadingLines, Notice } from '@/components/ui/signal-primitives';
 import { useAuth } from '../../../../hooks/useAuth';
+import { adminApi, ApiError } from '@/lib/api';
 
 interface ProfileField {
   key: string;
@@ -50,17 +51,14 @@ export default function ProfileFieldsAdminPage() {
 
   const fetchFields = useCallback(async () => {
     try {
-      const response = await fetch('/api/admin/profile-fields');
-      if (!response.ok) {
-        if (response.status === 403) {
-          throw new Error(locale === 'ru' ? 'Доступ запрещён' : 'Access denied');
-        }
-        throw new Error('Failed to fetch fields');
-      }
-      const data: ProfileFieldsData = await response.json();
+      const data = await adminApi.listProfileFields();
       setFields(data.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
+      if (err instanceof ApiError && err.status === 403) {
+        setError(locale === 'ru' ? 'Доступ запрещён' : 'Access denied');
+      } else {
+        setError(err instanceof Error ? err.message : 'Something went wrong');
+      }
     } finally {
       setLoading(false);
     }
@@ -75,31 +73,22 @@ export default function ProfileFieldsAdminPage() {
   async function toggleVisibility(fieldKey: string, currentVisibility: boolean) {
     setSaving(fieldKey);
     try {
-      const response = await fetch(`/api/admin/profile-fields/${fieldKey}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          key: fieldKey,
-          isVisibleInCabinet: !currentVisibility,
-        }),
+      await adminApi.updateProfileField(fieldKey, {
+        key: fieldKey,
+        isVisibleInCabinet: !currentVisibility,
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        if (data.code === 'PROFILE_FIELD_IN_USE') {
-          const eventTitles = data.usedInEvents?.map((e: any) => e.title).join(', ');
-          throw new Error(
-            locale === 'ru'
-              ? `Невозможно скрыть: поле используется в событиях: ${eventTitles}`
-              : `Cannot hide: field is used in events: ${eventTitles}`
-          );
-        }
-        throw new Error(data.error || 'Update failed');
-      }
-
       await fetchFields();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
+      if (err instanceof ApiError && err.code === 'PROFILE_FIELD_IN_USE') {
+        const eventTitles = (err.details as any)?.usedInEvents?.map((e: any) => e.title).join(', ');
+        setError(
+          locale === 'ru'
+            ? `Невозможно скрыть: поле используется в событиях: ${eventTitles}`
+            : `Cannot hide: field is used in events: ${eventTitles}`
+        );
+      } else {
+        setError(err instanceof Error ? err.message : 'Something went wrong');
+      }
     } finally {
       setSaving(null);
     }

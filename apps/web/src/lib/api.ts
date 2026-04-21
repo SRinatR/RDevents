@@ -170,6 +170,12 @@ export const authApi = {
 
   loginWithTelegram: (payload: { providerAccountId: string; providerEmail?: string; providerUsername?: string }) =>
     request<{ user: any; accessToken: string }>('/api/auth/telegram', { method: 'POST', body: payload }),
+
+  forgotPassword: (email: string) =>
+    request<{ ok: boolean }>('/api/auth/password/forgot', { method: 'POST', body: { email } }),
+
+  resetPassword: (token: string, newPassword: string) =>
+    request<{ ok: boolean }>('/api/auth/password/reset', { method: 'POST', body: { token, newPassword } }),
 };
 
 // ─── Reference Data ──────────────────────────────────────────────────────────
@@ -283,6 +289,12 @@ export const eventsApi = {
 
   myVolunteerApplications: () =>
     request<{ applications: any[] }>('/api/me/volunteer-applications', { auth: true }),
+
+  dashboard: () =>
+    request<{ activeEventId: string | null; events: any[] }>('/api/me/dashboard', { auth: true }),
+
+  setActiveEvent: (eventId: string | null) =>
+    request<{ ok: boolean }>('/api/me/dashboard/active-event', { method: 'PATCH', auth: true, body: { activeEventId: eventId } }),
 };
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
@@ -407,6 +419,12 @@ export const adminApi = {
 
   getAnalytics: () =>
     request<any>('/api/admin/analytics', { auth: true }),
+
+  listProfileFields: () =>
+    request<{ data: any[] }>('/api/admin/profile-fields', { auth: true }),
+
+  updateProfileField: (key: string, body: { key: string; isVisibleInCabinet?: boolean }) =>
+    request<any>(`/api/admin/profile-fields/${key}`, { method: 'PATCH', auth: true, body }),
 };
 
 // ─── Admin Email ──────────────────────────────────────────────────────────────
