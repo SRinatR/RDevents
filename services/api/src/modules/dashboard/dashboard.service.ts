@@ -133,7 +133,7 @@ async function buildDashboardEvent(
           name: true,
         },
       },
-      invitedByUser: {
+      invitedBy: {
         select: {
           name: true,
         },
@@ -144,7 +144,7 @@ async function buildDashboardEvent(
   });
 
   const invitationsData = invitations.map((inv: any) => {
-    const invitedByUser = inv.invitedByUser as { name?: string | null } | null;
+    const invitedByUser = inv.invitedBy as { name?: string | null } | null;
     return {
       id: inv.id,
       teamName: inv.team.name,
