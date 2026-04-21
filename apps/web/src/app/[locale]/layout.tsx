@@ -3,6 +3,7 @@ import { getMessages, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { AuthProvider } from '../../hooks/useAuth';
 import { Navbar } from '../../components/layout/Navbar';
+import { FloatingSupportLauncher } from '../../components/layout/FloatingSupportLauncher';
 
 const SUPPORTED_LOCALES = ['en', 'ru'] as const;
 
@@ -29,6 +30,7 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
         <div className="app-shell app-shell-public" data-shell="public">
           <Navbar locale={locale} />
           <div className="app-shell-main app-shell-main-public">{children}</div>
+          <FloatingSupportLauncher locale={locale} />
         </div>
       </AuthProvider>
     </NextIntlClientProvider>
