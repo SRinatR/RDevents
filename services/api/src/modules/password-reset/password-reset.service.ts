@@ -77,7 +77,7 @@ export async function requestPasswordReset(
     await sendPasswordResetEmail({
       to: user.email,
       userName: user.name ?? user.email,
-      resetUrl,
+      resetUrl: resetUrl.toString(),
       expiresAt: expiresAt.toISOString(),
       ipHint: context.ipAddress ?? undefined,
       supportContact: env.SUPPORT_EMAIL ?? undefined,
