@@ -1,5 +1,6 @@
 import { prisma } from '../../db/prisma.js';
 import { getVisibleProfileFieldsForUser } from '../profile-config/profile-config.service.js';
+import { logger } from '../../common/logger.js';
 
 const PROFILE_FIELD_REGISTRY: Array<{
   key: string;
@@ -107,6 +108,152 @@ function getMissingEventFields(
   return {
     fields: requiredFields,
     calculated: false,
+  };
+}
+
+async function buildDashboardEvent(
+  membership: any,
+  user: any,
+  hasPendingInvitations: boolean
+): Promise<DashboardEvent> {
+  const event = membership.event;
+
+  const invitations = await prisma.eventTeamInvitation.findMany({
+    where: {
+      inviteeUserId: user.id,
+      status: 'PENDING_RESPONSE',
+      team: { eventId: event.id },
+    },
+    select: {
+      id: true,
+      teamId: true,
+      invitedByUserId: true,
+      team: {
+        select: {
+          name: true,
+        },
+      },
+      invitedByUser: {
+        select: {
+          name: true,
+        },
+      },
+      expiresAt: true,
+    },
+    take: 5,
+  });
+
+  const invitationsData = invitations.map((inv: any) => {
+    const invitedByUser = inv.invitedByUser as { name?: string | null } | null;
+    return {
+      id: inv.id,
+      teamName: inv.team.name,
+      teamId: inv.teamId,
+      invitedBy: invitedByUser?.name || 'Неизвестно',
+      expiresAt: inv.expiresAt.toISOString(),
+    };
+  });
+
+  const isTeamEvent = event.isTeamBased === true;
+
+  let team = null;
+  if (isTeamEvent) {
+    const teamMembership = await prisma.eventTeamMember.findFirst({
+      where: {
+        team: { eventId: event.id },
+        userId: user.id,
+        status: { notIn: ['REMOVED', 'LEFT'] },
+      },
+      include: {
+        team: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            captainUserId: true,
+            _count: { select: { members: { where: { status: 'ACTIVE' } } } },
+          },
+        },
+      },
+    });
+
+    if (teamMembership) {
+      const isCaptain = teamMembership.team.captainUserId === user.id;
+      const canEdit = ['DRAFT', 'ACTIVE'].includes(teamMembership.team.status);
+
+      team = {
+        id: teamMembership.team.id,
+        name: teamMembership.team.name,
+        status: teamMembership.team.status,
+        isCaptain,
+        membersCount: teamMembership.team._count.members,
+        canEdit,
+      };
+    }
+  }
+
+  const missingProfileFields = getMissingProfileFields(
+    user.id,
+    event.requiredProfileFields,
+    user
+  );
+  const missingEventFieldsResult = await getMissingEventFieldsReal(
+    user.id,
+    event.id,
+    event.requiredEventFields
+  );
+
+  const deadlines: Array<{ type: string; at: string }> = [];
+  if (event.registrationDeadline) {
+    deadlines.push({
+      type: 'REGISTRATION_DEADLINE',
+      at: event.registrationDeadline.toISOString(),
+    });
+  }
+  deadlines.push({
+    type: 'EVENT_START',
+    at: event.startsAt.toISOString(),
+  });
+  deadlines.push({
+    type: 'EVENT_END',
+    at: event.endsAt.toISOString(),
+  });
+
+  const quickActions = calculateQuickActions(
+    {
+      eventId: event.id,
+      slug: event.slug,
+      title: event.title,
+      startsAt: event.startsAt.toISOString(),
+      endsAt: event.endsAt.toISOString(),
+      location: event.location,
+      status: event.status,
+      myRoles: [{ role: membership.role, status: membership.status }],
+      team,
+      missingProfileFields,
+      missingEventFields: missingEventFieldsResult.fields,
+      deadlines,
+      quickActions: [],
+    },
+    hasPendingInvitations
+  );
+
+  return {
+    eventId: event.id,
+    slug: event.slug,
+    title: event.title,
+    startsAt: event.startsAt.toISOString(),
+    endsAt: event.endsAt.toISOString(),
+    location: event.location,
+    status: event.status,
+    myRoles: [{ role: membership.role, status: membership.status }],
+    team,
+    missingProfileFields,
+    missingEventFields: missingEventFieldsResult.fields,
+    missingEventFieldsCalculated: missingEventFieldsResult.calculated,
+    deadlines,
+    quickActions,
+    invitations: invitationsData,
   };
 }
 
@@ -232,6 +379,7 @@ export async function getUserDashboard(userId: string): Promise<DashboardData> {
             registrationDeadline: true,
             requiredProfileFields: true,
             requiredEventFields: true,
+            isTeamBased: true,
           },
         },
       },
@@ -249,166 +397,41 @@ export async function getUserDashboard(userId: string): Promise<DashboardData> {
 
   const events: DashboardEvent[] = await Promise.all(
     memberships.map(async (membership) => {
-      const event = membership.event;
-
-      const invitations = await prisma.eventTeamInvitation.findMany({
-        where: {
-          inviteeUserId: userId,
-          status: 'PENDING_RESPONSE',
-          team: { eventId: event.id },
-        },
-        select: {
-          id: true,
-          teamId: true,
-          invitedByUserId: true,
-          team: {
-            select: {
-              name: true,
-            },
-          },
-          invitedByUser: {
-            select: {
-              name: true,
-            },
-          },
-          expiresAt: true,
-        },
-        take: 5,
-      });
-
-      const invitationsData = invitations.map((inv) => {
-        const invitedByUser = inv.invitedByUser as { name?: string | null } | null;
-        return {
-          id: inv.id,
-          teamName: inv.team.name,
-          teamId: inv.teamId,
-          invitedBy: invitedByUser?.name || 'Неизвестно',
-          expiresAt: inv.expiresAt.toISOString(),
-        };
-      });
-
-      const isTeamEvent = event.requiredProfileFields.includes('teamRegistration');
-
-      let team = null;
-      if (isTeamEvent) {
-        const teamMembership = await prisma.eventTeamMember.findFirst({
-          where: {
-            team: { eventId: event.id },
-            userId,
-            status: { notIn: ['REMOVED', 'LEFT'] },
-          },
-          include: {
-            team: {
-              select: {
-                id: true,
-                name: true,
-                status: true,
-                captainUserId: true,
-                _count: { select: { members: { where: { status: 'ACTIVE' } } } },
-              },
-            },
-          },
+      try {
+        return await buildDashboardEvent(membership, user, hasPendingInvitations);
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        logger.error('Failed to build dashboard event', error, {
+          userId,
+          eventId: membership.eventId,
+          module: 'dashboard',
+          action: 'buildDashboardEvent',
         });
-
-        if (teamMembership) {
-          const isCaptain = teamMembership.team.captainUserId === userId;
-          const canEdit = ['DRAFT', 'ACTIVE'].includes(teamMembership.team.status);
-
-          team = {
-            id: teamMembership.team.id,
-            name: teamMembership.team.name,
-            status: teamMembership.team.status,
-            isCaptain,
-            membersCount: teamMembership.team._count.members,
-            canEdit,
-          };
-        }
+        return null;
       }
-
-      const missingProfileFields = getMissingProfileFields(
-        userId,
-        event.requiredProfileFields,
-        user
-      );
-      const missingEventFieldsResult = await getMissingEventFieldsReal(
-        userId,
-        event.id,
-        event.requiredEventFields
-      );
-
-      const deadlines: Array<{ type: string; at: string }> = [];
-      if (event.registrationDeadline) {
-        deadlines.push({
-          type: 'REGISTRATION_DEADLINE',
-          at: event.registrationDeadline.toISOString(),
-        });
-      }
-      deadlines.push({
-        type: 'EVENT_START',
-        at: event.startsAt.toISOString(),
-      });
-      deadlines.push({
-        type: 'EVENT_END',
-        at: event.endsAt.toISOString(),
-      });
-
-      const quickActions = calculateQuickActions(
-        {
-          eventId: event.id,
-          slug: event.slug,
-          title: event.title,
-          startsAt: event.startsAt.toISOString(),
-          endsAt: event.endsAt.toISOString(),
-          location: event.location,
-          status: event.status,
-          myRoles: [{ role: membership.role, status: membership.status }],
-          team,
-          missingProfileFields,
-          missingEventFields: missingEventFieldsResult.fields,
-          deadlines,
-          quickActions: [],
-        },
-        hasPendingInvitations
-      );
-
-      return {
-        eventId: event.id,
-        slug: event.slug,
-        title: event.title,
-        startsAt: event.startsAt.toISOString(),
-        endsAt: event.endsAt.toISOString(),
-        location: event.location,
-        status: event.status,
-        myRoles: [{ role: membership.role, status: membership.status }],
-        team,
-        missingProfileFields,
-        missingEventFields: missingEventFieldsResult.fields,
-        missingEventFieldsCalculated: missingEventFieldsResult.calculated,
-        deadlines,
-        quickActions,
-        invitations: invitationsData,
-      };
     })
   );
 
+  const validEvents = events.filter((e): e is DashboardEvent => e !== null);
+
   let resolvedActiveEventId = activeEventId;
 
-  if (!resolvedActiveEventId && events.length > 0) {
+  if (!resolvedActiveEventId && validEvents.length > 0) {
     const now = new Date();
-    const activeEvents = events.filter(
+    const activeEvents = validEvents.filter(
       (e) => new Date(e.startsAt) > now || new Date(e.endsAt) > now
     );
 
     if (activeEvents.length > 0) {
       resolvedActiveEventId = activeEvents[0].eventId;
     } else {
-      resolvedActiveEventId = events[0]?.eventId ?? null;
+      resolvedActiveEventId = validEvents[0]?.eventId ?? null;
     }
   }
 
   return {
     activeEventId: resolvedActiveEventId,
-    events,
+    events: validEvents,
   };
 }
 

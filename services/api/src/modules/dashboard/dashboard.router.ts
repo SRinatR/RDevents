@@ -6,6 +6,7 @@ import {
   setActiveEvent,
   getEventWorkspace,
 } from './dashboard.service.js';
+import { logger } from '../../common/logger.js';
 
 export const dashboardRouter = Router();
 
@@ -15,8 +16,26 @@ const setActiveEventSchema = z.object({
 
 dashboardRouter.get('/', authenticate, async (req, res) => {
   const user = (req as any).user;
-  const dashboard = await getUserDashboard(user.id);
-  res.json(dashboard);
+  const requestId = (req as any).requestId ?? 'unknown';
+
+  try {
+    const dashboard = await getUserDashboard(user.id);
+    res.json(dashboard);
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    logger.error('Dashboard GET /api/me/dashboard failed', error, {
+      requestId,
+      userId: user.id,
+      module: 'dashboard',
+      action: 'getUserDashboard',
+      meta: { route: 'GET /api/me/dashboard' },
+    });
+    res.status(500).json({
+      error: 'Internal error',
+      code: 'DASHBOARD_ERROR',
+      requestId,
+    });
+  }
 });
 
 dashboardRouter.patch('/active-event', authenticate, async (req, res) => {
