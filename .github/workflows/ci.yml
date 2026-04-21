@@ -1,177 +1,362 @@
-name: CI
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+name: Deploy production
 
 on:
   push:
     branches:
-      - main
-      - develop
-      - 'feature/**'
-      - 'fix/**'
-      - 'hotfix/**'
-  pull_request:
-    branches:
-      - main
-      - develop
       - production
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: production-deploy
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  DEPLOY_ROOT: /opt/rdevents
+  APP_DIR: /opt/rdevents/app
+  ARCHIVE_NAME: deploy.tgz
 
 jobs:
-  typecheck:
-    name: Type check
+  validate-ref:
+    name: Validate production ref
     runs-on: ubuntu-latest
+    steps:
+      - name: Confirm production branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF}" != "refs/heads/production" ]; then
+            echo "Production deploy can only run from refs/heads/production."
+            echo "Current ref: ${GITHUB_REF}"
+            exit 1
+          fi
+
+  deploy:
+    name: Deploy production
+    runs-on: ubuntu-latest
+    needs: validate-ref
+    environment: production
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.33.0
+      - name: Confirm deployment commit
+        run: echo "Deploying ${GITHUB_SHA} from ${GITHUB_REF}"
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Generate Prisma client
-        run: pnpm db:generate
-
-      - name: Type check
-        run: pnpm typecheck
-
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.33.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Lint
-        run: pnpm lint
-
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:17-alpine
+      - name: Prepare SSH
+        shell: bash
         env:
-          POSTGRES_DB: event_platform
-          POSTGRES_USER: event_platform_user
-          POSTGRES_PASSWORD: event_platform_password
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U event_platform_user -d event_platform"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s' "$PROD_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "$PROD_PORT" -H "$PROD_HOST" >> ~/.ssh/known_hosts
 
-    env:
-      DATABASE_URL: postgresql://event_platform_user:event_platform_password@127.0.0.1:5432/event_platform?schema=public
-      JWT_ACCESS_SECRET: test_access_secret_123456789012345678901234567890
-      JWT_REFRESH_SECRET: test_refresh_secret_123456789012345678901234567890
-      CORS_ORIGIN: http://127.0.0.1:3000
-      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:4000
+      - name: Pack project
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCHIVE_PATH="$RUNNER_TEMP/$ARCHIVE_NAME"
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+          tar \
+            --exclude=.git \
+            --exclude=.github \
+            --exclude=.env \
+            --exclude=.env.production \
+            --exclude=node_modules \
+            --exclude=deploy.tgz \
+            -czf "$ARCHIVE_PATH" .
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.33.0
+          ls -lh "$ARCHIVE_PATH"
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
+      - name: Upload archive
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          set -euo pipefail
+          ARCHIVE_PATH="$RUNNER_TEMP/$ARCHIVE_NAME"
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "mkdir -p $DEPLOY_ROOT"
+          scp -P "$PROD_PORT" -i ~/.ssh/id_ed25519 "$ARCHIVE_PATH" "$PROD_USER@$PROD_HOST:$DEPLOY_ROOT/$ARCHIVE_NAME"
 
-      - name: Generate Prisma client
-        run: pnpm db:generate
+      - name: Write env file on server
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+          PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "mkdir -p $DEPLOY_ROOT"
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "cat > $DEPLOY_ROOT/.env" <<< "$PROD_ENV_FILE"
 
-      - name: Test
-        run: pnpm test
+      - name: Deploy on server
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' ARCHIVE_NAME='$ARCHIVE_NAME' RELEASE_SHA='$GITHUB_SHA' bash -se" << 'EOF'
+            set -euo pipefail
 
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    needs: [typecheck, lint, test]
+            mkdir -p "$APP_DIR"
+            find "$APP_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+            tar -xzf "$DEPLOY_ROOT/$ARCHIVE_NAME" -C "$APP_DIR"
+            rm -f "$DEPLOY_ROOT/$ARCHIVE_NAME"
+            printf '%s\n' "$RELEASE_SHA" > "$APP_DIR/.release-commit"
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.33.0
+            RUNTIME_DIR="$DEPLOY_ROOT/runtime"
+            mkdir -p "$RUNTIME_DIR"
+            printf '%s\n' "$RELEASE_SHA" > "$RUNTIME_DIR/version.txt"
+            printf '%s\n' "$RELEASE_SHA" > "$RUNTIME_DIR/version"
+            printf '{"service":"event-platform-web","releaseSha":"%s"}\n' "$RELEASE_SHA" > "$RUNTIME_DIR/release.json"
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
+            cd "$APP_DIR"
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+            echo "Release SHA: $RELEASE_SHA"
+            export RELEASE_SHA
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml build
 
-      - name: Generate Prisma client
-        run: pnpm db:generate
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml up -d postgres
 
-      - name: Build
-        run: pnpm build
+            echo "Waiting for postgres to be healthy..."
+            POSTGRES_CID=$(docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps -q postgres 2>/dev/null || true)
+            if [ -z "$POSTGRES_CID" ]; then
+              echo "Could not find postgres container ID — compose ps -q returned empty."
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
+              exit 1
+            fi
 
-  docker-build:
-    name: Docker build
-    runs-on: ubuntu-latest
-    needs: [typecheck, lint, test, build]
+            for i in $(seq 1 30); do
+              HEALTH=$(docker inspect -f '{{.State.Health.Status}}' "$POSTGRES_CID" 2>/dev/null || echo "unknown")
+              if [ "$HEALTH" = "healthy" ]; then
+                echo "Postgres is healthy."
+                break
+              fi
+              if [ "$i" -eq 30 ]; then
+                echo "Postgres did not become healthy in time (last status: $HEALTH)."
+                docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
+                docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=40 postgres
+                exit 1
+              fi
+              echo "Waiting for postgres... ($i/30, status: $HEALTH)"
+              sleep 2
+            done
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+            BACKUP_DIR="$DEPLOY_ROOT/backups"
+            mkdir -p "$BACKUP_DIR"
+            BACKUP_FILE="$BACKUP_DIR/pre-migrate-$(date +%Y%m%d-%H%M%S).sql.gz"
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
+              exec -T postgres sh -lc 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+              | gzip > "$BACKUP_FILE"
+            test -s "$BACKUP_FILE"
+            echo "Backup written to $BACKUP_FILE ($(du -sh "$BACKUP_FILE" | cut -f1))"
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
+              run --rm --no-deps api pnpm prisma:deploy
 
-      - name: Docker compose build
-        run: docker compose -f docker-compose.prod.yml build --no-progress web api
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
+              up -d --force-recreate --remove-orphans api web
+
+            verify_container_release() {
+              service="$1"
+              path="$2"
+
+              actual=$(docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
+                exec -T "$service" sh -lc "cat '$path'" 2>/dev/null | tr -d '\r\n')
+
+              if [ "$actual" != "$RELEASE_SHA" ]; then
+                echo "$service is running release '$actual', expected '$RELEASE_SHA'."
+                docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
+                exit 1
+              fi
+              echo "$service release OK ($actual)."
+            }
+
+            verify_http_release() {
+              url="$1"
+              label="$2"
+              body_file=$(mktemp)
+              err_file=$(mktemp)
+
+              for attempt in $(seq 1 10); do
+                code=$(curl -sS -o "$body_file" -w "%{http_code}" "$url" 2>"$err_file" || true)
+                body=$(cat "$body_file" 2>/dev/null || true)
+
+                if [ "$code" = "200" ] && printf '%s' "$body" | grep -Fq "$RELEASE_SHA"; then
+                  rm -f "$body_file" "$err_file"
+                  echo "$label release endpoint OK."
+                  return 0
+                fi
+
+                if [ "$attempt" -lt 10 ]; then
+                  echo "$label release check attempt $attempt/10 returned ${code:-curl_error}; retrying..."
+                  sleep 2
+                fi
+              done
+
+              echo "$label did not report release $RELEASE_SHA from $url."
+              echo "Last status: ${code:-curl_error}"
+              echo "Last response body:"
+              cat "$body_file" 2>/dev/null || true
+              echo "Last curl error:"
+              cat "$err_file" 2>/dev/null || true
+              rm -f "$body_file" "$err_file"
+              exit 1
+            }
+
+            verify_container_release api "/app/services/api/release.txt"
+            verify_container_release web "/app/apps/web/public/release.txt"
+            verify_http_release "http://127.0.0.1:4000/version" "api local /version"
+            verify_http_release "http://127.0.0.1:4000/api/version" "api local /api/version"
+            verify_http_release "http://127.0.0.1:3000/version.txt" "web local /version.txt"
+            verify_http_release "http://127.0.0.1:3000/release.json" "web local /release.json"
+
+            docker image prune -f
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
+          EOF
+
+      - name: Smoke test - API container is running
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
+            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' bash -se" << 'EOF'
+            set -euo pipefail
+            echo "Waiting for API container to reach running state..."
+            for attempt in $(seq 1 30); do
+              if docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" \
+                  ps --status running --services 2>/dev/null | grep -qx api; then
+                echo "API container is running."
+                exit 0
+              fi
+              echo "  attempt $attempt/30 — API not running yet, retrying in 2 s..."
+              sleep 2
+            done
+            echo "API container is not running after 60 s."
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 api
+            exit 1
+          EOF
+
+      - name: Smoke test - API health
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
+            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' bash -se" << 'EOF'
+            set -euo pipefail
+            echo "Waiting for API /health..."
+            for attempt in $(seq 1 30); do
+              if wget --spider -q http://127.0.0.1:4000/health 2>/dev/null; then
+                echo "API /health OK."
+                exit 0
+              fi
+              echo "  attempt $attempt/30 — API /health not ready, retrying in 2 s..."
+              sleep 2
+            done
+            echo "API /health did not respond after 60 s."
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 api
+            exit 1
+          EOF
+
+      - name: Smoke test - API ready
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
+            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' bash -se" << 'EOF'
+            set -euo pipefail
+            echo "Waiting for API /ready..."
+            for attempt in $(seq 1 30); do
+              if wget --spider -q http://127.0.0.1:4000/ready 2>/dev/null; then
+                echo "API /ready OK."
+                exit 0
+              fi
+              echo "  attempt $attempt/30 — API /ready not ready, retrying in 2 s..."
+              sleep 2
+            done
+            echo "API /ready did not respond after 60 s."
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 api
+            exit 1
+          EOF
+
+      - name: Smoke test - Web container is running
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
+            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' bash -se" << 'EOF'
+            set -euo pipefail
+            echo "Waiting for web container to reach running state..."
+            for attempt in $(seq 1 30); do
+              if docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" \
+                  ps --status running --services 2>/dev/null | grep -qx web; then
+                echo "Web container is running."
+                exit 0
+              fi
+              echo "  attempt $attempt/30 — web not running yet, retrying in 2 s..."
+              sleep 2
+            done
+            echo "Web container is not running after 60 s."
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 web
+            exit 1
+          EOF
+
+      - name: Smoke test - Web /ru
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
+            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' bash -se" << 'EOF'
+            set -euo pipefail
+            echo "Waiting for web /ru..."
+            for attempt in $(seq 1 30); do
+              if wget --spider -q http://127.0.0.1:3000/ru 2>/dev/null; then
+                echo "Web /ru OK."
+                exit 0
+              fi
+              echo "  attempt $attempt/30 — web /ru not ready, retrying in 2 s..."
+              sleep 2
+            done
+            echo "Web /ru did not respond after 60 s."
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 web
