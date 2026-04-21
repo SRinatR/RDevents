@@ -3,16 +3,27 @@ name: CI
 on:
   pull_request:
     branches:
+      - main
       - production
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+      - edited
   push:
     branches:
-      - production
+      - main
+      - 'feature/**'
+      - 'fix/**'
+      - 'hotfix/**'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -62,6 +73,7 @@ jobs:
       APP_URL: http://localhost:3000
       DEFAULT_LOCALE: ru
       NODE_ENV: test
+      PORT: 4000
 
     steps:
       - name: Checkout
@@ -92,10 +104,25 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: event_platform
+          POSTGRES_USER: event_platform_user
+          POSTGRES_PASSWORD: event_platform_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U event_platform_user -d event_platform"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
 
     env:
-      DATABASE_URL: postgresql://event_platform_user:event_platform_password@localhost:5432/event_platform?schema=public
+      DATABASE_URL: postgresql://event_platform_user:event_platform_password@127.0.0.1:5432/event_platform?schema=public
       JWT_ACCESS_SECRET: ci-access-secret
       JWT_REFRESH_SECRET: ci-refresh-secret
       CORS_ORIGIN: http://localhost:3000
@@ -143,6 +170,7 @@ jobs:
       APP_URL: http://localhost:3000
       DEFAULT_LOCALE: ru
       NODE_ENV: production
+      PORT: 4000
       NEXT_PUBLIC_API_BASE_URL: https://api.rdevents.uz
       RELEASE_SHA: ${{ github.sha }}
 
