@@ -70,7 +70,8 @@ export async function requestPasswordReset(
     },
   });
 
-  const resetUrl = `${env.APP_URL}/${env.DEFAULT_LOCALE}/reset-password?token=${token}`;
+  const resetUrl = new URL(`/${env.DEFAULT_LOCALE}/reset-password`, env.APP_URL);
+  resetUrl.searchParams.set('token', token);
 
   try {
     await sendPasswordResetEmail({

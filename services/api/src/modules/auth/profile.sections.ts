@@ -13,11 +13,11 @@ export type ProfileSectionStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
 export const PROFILE_SECTION_META: Record<ProfileSectionKey, { title: string; description: string }> = {
   registration_data: {
     title: 'Registration data',
-    description: 'Identity, citizenship, phone, and core consent',
+    description: 'Profile photo, identity, citizenship, phone, and core consent',
   },
   general_info: {
     title: 'General information',
-    description: 'Photo, address, languages, and platform rules',
+    description: 'Address, languages, and platform rules',
   },
   personal_documents: {
     title: 'Personal documents',

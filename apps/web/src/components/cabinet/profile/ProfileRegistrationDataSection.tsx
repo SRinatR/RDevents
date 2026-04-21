@@ -16,10 +16,14 @@ type Props = {
   requiredFields: string[];
   eventTitle: string;
   onSave: (payload: Record<string, unknown>) => Promise<void>;
+  onUpload: (file: File) => Promise<void>;
+  onDelete: () => Promise<void>;
 };
 
-export function ProfileRegistrationDataSection({ locale, user, status, saving, requiredFields, eventTitle, onSave }: Props) {
+export function ProfileRegistrationDataSection({ locale, user, status, saving, requiredFields, eventTitle, onSave, onUpload, onDelete }: Props) {
+  const isRu = locale === 'ru';
   const extended = user.extendedProfile ?? {};
+  const [uploading, setUploading] = useState(false);
   const [countries, setCountries] = useState<ReferenceOption[]>([]);
   const [form, setForm] = useState({
     lastNameCyrillic: user.lastNameCyrillic ?? '',
@@ -50,7 +54,6 @@ export function ProfileRegistrationDataSection({ locale, user, status, saving, r
     referenceApi.countries().then((response) => setCountries(response.data)).catch(() => setCountries([]));
   }, []);
 
-  const isRu = locale === 'ru';
   const countryOptions = useMemo(() => countries.length ? countries : [
     { code: 'UZ', nameRu: 'Узбекистан', nameEn: 'Uzbekistan' },
     { code: 'RU', nameRu: 'Россия', nameEn: 'Russia' },
@@ -81,15 +84,54 @@ export function ProfileRegistrationDataSection({ locale, user, status, saving, r
     setField(key, value);
   }
 
+  async function handleFile(file?: File) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      await onUpload(file);
+    } finally {
+      setUploading(false);
+    }
+  }
+
   return (
     <ProfileSectionLayout
       locale={locale}
       title={isRu ? 'Регистрационные данные' : 'Registration data'}
-      description={isRu ? 'Юридическое имя, гражданство, дата рождения, телефон и согласие на обработку данных.' : 'Legal name, citizenship, birth date, phone, and data-processing consent.'}
+      description={isRu ? 'Фото профиля, ФИО, гражданство, дата рождения, телефон и согласия.' : 'Profile photo, identity, citizenship, birth date, phone, and consent.'}
       status={status}
     >
       {requiredFields.length > 0 ? <Notice tone="warning">{isRu ? `Заполните поля для участия${eventTitle ? ` в "${eventTitle}"` : ''}.` : 'Complete the required fields to continue.'}</Notice> : null}
       <form className="signal-stack" onSubmit={(event) => { event.preventDefault(); void onSave(form); }}>
+        <div className="profile-photo-grid">
+          <div className={`profile-upload-zone ${isRequired('avatarUrl') || isRequired('avatarAssetId') || isRequired('photo') ? 'signal-field-required' : ''}`}>
+            <div className="profile-photo-preview">
+              {user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : <span>{(user.name || user.email || '?').slice(0, 2).toUpperCase()}</span>}
+            </div>
+            <div className="profile-upload-copy">
+              <strong>{isRu ? 'Фото профиля' : 'Profile photo'}</strong>
+              <span>{isRu ? 'JPG, PNG или WebP до 3 МБ.' : 'JPG, PNG, or WebP up to 3 MB.'}</span>
+            </div>
+            <div className="profile-photo-actions">
+              <label className="btn btn-secondary btn-sm">
+                {uploading ? (isRu ? 'Загрузка...' : 'Uploading...') : (isRu ? 'Загрузить' : 'Upload')}
+                <input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => void handleFile(event.target.files?.[0])} />
+              </label>
+              {user.avatarUrl ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => void onDelete()}>{isRu ? 'Удалить' : 'Delete'}</button> : null}
+            </div>
+          </div>
+          <div className="profile-requirements-panel">
+            <h3>{isRu ? 'Готовность раздела' : 'Section readiness'}</h3>
+            <ul>
+              <li>{isRu ? 'Фото профиля' : 'Profile photo'}</li>
+              <li>{isRu ? 'ФИО (кириллица и латиница)' : 'Full name (Cyrillic and Latin)'}</li>
+              <li>{isRu ? 'Дата рождения и пол' : 'Birth date and gender'}</li>
+              <li>{isRu ? 'Гражданство и страна проживания' : 'Citizenship and residence country'}</li>
+              <li>{isRu ? 'Телефон и Telegram' : 'Phone and Telegram'}</li>
+              <li>{isRu ? 'Согласие на обработку данных' : 'Data processing consent'}</li>
+            </ul>
+          </div>
+        </div>
         <div className="profile-form-three-col">
           <ProfileField label={isRu ? 'Фамилия кириллицей' : 'Last name Cyrillic'} required={!form.hasNoLastName}>
             <FieldInput className={nameRequiredClass('lastNameCyrillic')} disabled={form.hasNoLastName} value={form.lastNameCyrillic} onChange={(event) => setCyrillicNameField('lastNameCyrillic', 'lastNameLatin', event.target.value)} />

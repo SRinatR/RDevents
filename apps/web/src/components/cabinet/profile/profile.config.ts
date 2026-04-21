@@ -17,11 +17,11 @@ export const PROFILE_SECTION_COPY: Record<
 > = {
   registration_data: {
     title: { ru: 'Регистрационные данные', en: 'Registration data' },
-    description: { ru: 'ФИО, гражданство, дата рождения, телефон и согласия', en: 'Identity, citizenship, birth date, phone, and consent' },
+    description: { ru: 'Фото профиля, ФИО, гражданство, дата рождения, телефон и согласия', en: 'Profile photo, identity, citizenship, birth date, phone, and consent' },
   },
   general_info: {
     title: { ru: 'Общая информация', en: 'General information' },
-    description: { ru: 'Фото, адрес проживания, языки и правила платформы', en: 'Photo, address, languages, and platform rules' },
+    description: { ru: 'Адрес проживания, языки и правила платформы', en: 'Address, languages, and platform rules' },
   },
   personal_documents: {
     title: { ru: 'Личные документы', en: 'Personal documents' },

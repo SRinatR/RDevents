@@ -51,7 +51,7 @@ export interface InvitationData {
   teamName: string;
   teamId: string;
   invitedBy: string;
-  expiresAt: string;
+  expiresAt: string | null;
 }
 
 export interface DashboardEventData {

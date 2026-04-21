@@ -83,7 +83,7 @@ export async function uploadProfileAvatar(userId: string, file: Express.Multer.F
 
   const user = await getProfileUserForResponse(userId);
   const statusUser = await getProfileUserForStatus(userId);
-  const section = await upsertSectionState(userId, 'general_info', getSectionStatus('general_info', statusUser as ProfileUser));
+  const section = await upsertSectionState(userId, 'registration_data', getSectionStatus('registration_data', statusUser as ProfileUser));
 
   return {
     asset: publicMediaAsset(asset),
@@ -95,7 +95,7 @@ export async function uploadProfileAvatar(userId: string, file: Express.Multer.F
 export async function removeProfileAvatar(userId: string) {
   await detachAvatarFromUser(userId);
   const statusUser = await getProfileUserForStatus(userId);
-  return upsertSectionState(userId, 'general_info', getSectionStatus('general_info', statusUser as ProfileUser));
+  return upsertSectionState(userId, 'registration_data', getSectionStatus('registration_data', statusUser as ProfileUser));
 }
 
 export async function listProfileDocuments(userId: string) {
@@ -443,6 +443,8 @@ function getSectionStatus(sectionKey: ProfileSectionKey, user: ProfileUser): Pro
   switch (sectionKey) {
     case 'registration_data': {
       const hasAny = [
+        user.avatarAssetId,
+        user.avatarUrl,
         user.lastNameCyrillic,
         user.firstNameCyrillic,
         user.middleNameCyrillic,
@@ -461,8 +463,6 @@ function getSectionStatus(sectionKey: ProfileSectionKey, user: ProfileUser): Pro
     }
     case 'general_info': {
       const hasAny = [
-        user.avatarAssetId,
-        user.avatarUrl,
         user.nativeLanguage,
         user.communicationLanguage,
         extended.regionId,
@@ -567,7 +567,8 @@ function isRegistrationDataComplete(user: ProfileUser) {
   const lastNameOk = user.hasNoLastName || (hasValue(user.lastNameCyrillic) && hasValue(user.lastNameLatin));
   const firstNameOk = user.hasNoFirstName || (hasValue(user.firstNameCyrillic) && hasValue(user.firstNameLatin));
   const middleNameOk = user.hasNoMiddleName || (hasValue(user.middleNameCyrillic) && hasValue(user.middleNameLatin));
-  return lastNameOk
+  return Boolean(user.avatarAssetId || user.avatarUrl)
+    && lastNameOk
     && firstNameOk
     && middleNameOk
     && hasValue(user.birthDate)
@@ -583,8 +584,7 @@ function isGeneralInfoComplete(user: ProfileUser) {
   const addressOk = extended.residenceCountryCode === 'UZ'
     ? everyValue(extended.regionId, extended.districtId, extended.settlementId, extended.street, extended.house, extended.postalCode)
     : everyValue(extended.residenceCountryCode, extended.regionText, extended.settlementText, extended.street, extended.house, extended.postalCode);
-  return Boolean(user.avatarAssetId || user.avatarUrl)
-    && addressOk
+  return addressOk
     && everyValue(user.nativeLanguage, user.communicationLanguage)
     && user.consentClientRules === true;
 }

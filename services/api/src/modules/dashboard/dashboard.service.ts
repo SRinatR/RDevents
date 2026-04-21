@@ -50,7 +50,7 @@ export interface DashboardEvent {
     teamName: string;
     teamId: string;
     invitedBy: string;
-    expiresAt: string;
+    expiresAt: string | null;
   }>;
 }
 
@@ -118,90 +118,134 @@ async function buildDashboardEvent(
 ): Promise<DashboardEvent> {
   const event = membership.event;
 
-  const invitations = await prisma.eventTeamInvitation.findMany({
-    where: {
-      inviteeUserId: user.id,
-      status: 'PENDING_RESPONSE',
-      team: { eventId: event.id },
-    },
-    select: {
-      id: true,
-      teamId: true,
-      invitedByUserId: true,
-      team: {
-        select: {
-          name: true,
-        },
+  let invitationsData: DashboardEvent['invitations'] = [];
+  try {
+    const invitations = await prisma.eventTeamInvitation.findMany({
+      where: {
+        inviteeUserId: user.id,
+        status: 'PENDING_RESPONSE',
+        team: { eventId: event.id },
       },
-      invitedBy: {
-        select: {
-          name: true,
+      select: {
+        id: true,
+        teamId: true,
+        invitedByUserId: true,
+        team: {
+          select: {
+            name: true,
+          },
         },
+        invitedBy: {
+          select: {
+            name: true,
+          },
+        },
+        expiresAt: true,
       },
-      expiresAt: true,
-    },
-    take: 5,
-  });
+      take: 5,
+    });
 
-  const invitationsData = invitations.map((inv: any) => {
-    const invitedByUser = inv.invitedBy as { name?: string | null } | null;
-    return {
-      id: inv.id,
-      teamName: inv.team.name,
-      teamId: inv.teamId,
-      invitedBy: invitedByUser?.name || 'Неизвестно',
-      expiresAt: inv.expiresAt.toISOString(),
-    };
-  });
+    invitationsData = invitations.map((inv: any) => {
+      const invitedByUser = inv.invitedBy as { name?: string | null } | null;
+      return {
+        id: inv.id,
+        teamName: inv.team.name,
+        teamId: inv.teamId,
+        invitedBy: invitedByUser?.name || 'Неизвестно',
+        expiresAt: inv.expiresAt ? inv.expiresAt.toISOString() : null,
+      };
+    });
+  } catch (err) {
+    logger.warn('Failed to load invitations for dashboard event', {
+      userId: user.id,
+      eventId: event.id,
+      meta: { reason: err instanceof Error ? err.message : String(err) },
+    });
+    invitationsData = [];
+  }
 
   const isTeamEvent = event.isTeamBased === true;
 
-  let team = null;
+  let team: DashboardEvent['team'] = null;
   if (isTeamEvent) {
-    const teamMembership = await prisma.eventTeamMember.findFirst({
-      where: {
-        team: { eventId: event.id },
-        userId: user.id,
-        status: { notIn: ['REMOVED', 'LEFT'] },
-      },
-      include: {
-        team: {
-          select: {
-            id: true,
-            name: true,
-            status: true,
-            captainUserId: true,
-            _count: { select: { members: { where: { status: 'ACTIVE' } } } },
+    try {
+      const teamMembership = await prisma.eventTeamMember.findFirst({
+        where: {
+          team: { eventId: event.id },
+          userId: user.id,
+          status: { notIn: ['REMOVED', 'LEFT'] },
+        },
+        include: {
+          team: {
+            select: {
+              id: true,
+              name: true,
+              status: true,
+              captainUserId: true,
+              _count: { select: { members: { where: { status: 'ACTIVE' } } } },
+            },
           },
         },
-      },
-    });
+      });
 
-    if (teamMembership) {
-      const isCaptain = teamMembership.team.captainUserId === user.id;
-      const canEdit = ['DRAFT', 'ACTIVE'].includes(teamMembership.team.status);
+      if (teamMembership) {
+        const isCaptain = teamMembership.team.captainUserId === user.id;
+        const canEdit = ['DRAFT', 'ACTIVE'].includes(teamMembership.team.status);
 
-      team = {
-        id: teamMembership.team.id,
-        name: teamMembership.team.name,
-        status: teamMembership.team.status,
-        isCaptain,
-        membersCount: teamMembership.team._count.members,
-        canEdit,
-      };
+        team = {
+          id: teamMembership.team.id,
+          name: teamMembership.team.name,
+          status: teamMembership.team.status,
+          isCaptain,
+          membersCount: teamMembership.team._count.members,
+          canEdit,
+        };
+      }
+    } catch (err) {
+      logger.warn('Failed to load team membership for dashboard event', {
+        userId: user.id,
+        eventId: event.id,
+        meta: { reason: err instanceof Error ? err.message : String(err) },
+      });
+      team = null;
     }
   }
 
-  const missingProfileFields = getMissingProfileFields(
-    user.id,
-    event.requiredProfileFields,
-    user
-  );
-  const missingEventFieldsResult = await getMissingEventFieldsReal(
-    user.id,
-    event.id,
-    event.requiredEventFields
-  );
+  let missingProfileFields: string[] = [];
+  try {
+    missingProfileFields = getMissingProfileFields(
+      user.id,
+      event.requiredProfileFields,
+      user
+    );
+  } catch (err) {
+    logger.warn('Failed to calculate missing profile fields', {
+      userId: user.id,
+      eventId: event.id,
+      meta: { reason: err instanceof Error ? err.message : String(err) },
+    });
+    missingProfileFields = [];
+  }
+
+  let missingEventFields: string[] = [];
+  let missingEventFieldsCalculated = false;
+  try {
+    const result = await getMissingEventFieldsReal(
+      user.id,
+      event.id,
+      event.requiredEventFields
+    );
+    missingEventFields = result.fields;
+    missingEventFieldsCalculated = result.calculated;
+  } catch (err) {
+    logger.warn('Failed to calculate missing event fields', {
+      userId: user.id,
+      eventId: event.id,
+      meta: { reason: err instanceof Error ? err.message : String(err) },
+    });
+    missingEventFields = [];
+    missingEventFieldsCalculated = false;
+  }
 
   const deadlines: Array<{ type: string; at: string }> = [];
   if (event.registrationDeadline) {
@@ -219,24 +263,34 @@ async function buildDashboardEvent(
     at: event.endsAt.toISOString(),
   });
 
-  const quickActions = calculateQuickActions(
-    {
+  let quickActions: string[] = [];
+  try {
+    quickActions = calculateQuickActions(
+      {
+        eventId: event.id,
+        slug: event.slug,
+        title: event.title,
+        startsAt: event.startsAt.toISOString(),
+        endsAt: event.endsAt.toISOString(),
+        location: event.location,
+        status: event.status,
+        myRoles: [{ role: membership.role, status: membership.status }],
+        team,
+        missingProfileFields,
+        missingEventFields,
+        deadlines,
+        quickActions: [],
+      },
+      hasPendingInvitations
+    );
+  } catch (err) {
+    logger.warn('Failed to calculate quick actions', {
+      userId: user.id,
       eventId: event.id,
-      slug: event.slug,
-      title: event.title,
-      startsAt: event.startsAt.toISOString(),
-      endsAt: event.endsAt.toISOString(),
-      location: event.location,
-      status: event.status,
-      myRoles: [{ role: membership.role, status: membership.status }],
-      team,
-      missingProfileFields,
-      missingEventFields: missingEventFieldsResult.fields,
-      deadlines,
-      quickActions: [],
-    },
-    hasPendingInvitations
-  );
+      meta: { reason: err instanceof Error ? err.message : String(err) },
+    });
+    quickActions = ['OPEN_CALENDAR', 'OPEN_SUPPORT'];
+  }
 
   return {
     eventId: event.id,
@@ -249,8 +303,8 @@ async function buildDashboardEvent(
     myRoles: [{ role: membership.role, status: membership.status }],
     team,
     missingProfileFields,
-    missingEventFields: missingEventFieldsResult.fields,
-    missingEventFieldsCalculated: missingEventFieldsResult.calculated,
+    missingEventFields,
+    missingEventFieldsCalculated,
     deadlines,
     quickActions,
     invitations: invitationsData,
