@@ -6,6 +6,20 @@ export type AuthProvider = 'EMAIL' | 'GOOGLE' | 'YANDEX' | 'TELEGRAM';
 export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'CANCELLED' | 'COMPLETED';
 export type EventMemberRole = 'PARTICIPANT' | 'VOLUNTEER' | 'EVENT_ADMIN';
 export type EventMemberStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'ACTIVE' | 'REMOVED';
+export type EventTeamStatus = 'DRAFT' | 'ACTIVE' | 'PENDING' | 'CHANGES_PENDING' | 'REJECTED' | 'SUBMITTED' | 'ARCHIVED';
+export type EventTeamRole = 'CAPTAIN' | 'MEMBER';
+export type EventTeamMemberStatus = 'PENDING' | 'ACTIVE' | 'REJECTED' | 'REMOVED' | 'LEFT';
+
+export {
+  PROFILE_FIELD_REGISTRY,
+  PROFILE_SECTION_LABELS,
+  getFieldByKey,
+  getFieldsBySection,
+  getVisibleFieldsForRequirement,
+  type ProfileFieldDefinition,
+  type ProfileFieldType,
+  type ProfileSectionKey,
+} from './profile/profile-field-registry.js';
 
 export interface UserPublic {
   id: string;

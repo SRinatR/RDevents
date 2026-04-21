@@ -71,6 +71,10 @@ export function FieldSelect(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return <select {...props} className={cn('signal-field signal-select', props.className)} />;
 }
 
+export function StatusBadge({ children, tone = 'neutral' }: { children: ReactNode; tone?: StatusTone }) {
+  return <span className={cn('signal-status-pill', `tone-${tone}`)}>{children}</span>;
+}
+
 export function TableShell({ children }: { children: ReactNode }) {
   return <div className="signal-table-shell">{children}</div>;
 }

@@ -6,6 +6,7 @@ type ProfileWorkspaceShellProps = {
   locale: string;
   sections: ProfileSectionState[];
   activeSection: ProfileSectionKey;
+  requiredSectionCounts?: Partial<Record<ProfileSectionKey, number>>;
   onSectionChange: (section: ProfileSectionKey) => void;
   children: ReactNode;
 };
@@ -14,6 +15,7 @@ export function ProfileWorkspaceShell({
   locale,
   sections,
   activeSection,
+  requiredSectionCounts,
   onSectionChange,
   children,
 }: ProfileWorkspaceShellProps) {
@@ -54,6 +56,7 @@ export function ProfileWorkspaceShell({
           locale={locale}
           sections={sections}
           activeSection={activeSection}
+          requiredSectionCounts={requiredSectionCounts}
           onSectionChange={onSectionChange}
         />
 

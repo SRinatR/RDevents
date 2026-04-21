@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../../../../hooks/useAuth';
 import { adminApi } from '../../../../../../lib/api';
 import { useRouteParams } from '../../../../../../hooks/useRouteParams';
+import { AdminDateTimePicker } from '@/components/admin/AdminDateTimePicker';
 
 const PROFILE_REQUIREMENT_OPTIONS = [
   { key: 'lastNameCyrillic', ru: 'Фамилия кириллицей', en: 'Last name Cyrillic' },
@@ -196,6 +197,10 @@ export default function EditEventPage() {
     });
   };
 
+  const setDateField = (name: 'startsAt' | 'endsAt' | 'registrationOpensAt' | 'registrationDeadline', value: string) => {
+    setForm(prev => ({ ...prev, [name]: value }));
+  };
+
   const toggleRequiredProfileField = (field: string) => {
     setForm(prev => ({
       ...prev,
@@ -225,6 +230,12 @@ export default function EditEventPage() {
     setError('');
     setSuccess(false);
     setSubmitting(true);
+
+    if (!form.startsAt || !form.endsAt) {
+      setError(isRu ? 'Укажите дату и время начала и окончания.' : 'Set start and end date/time.');
+      setSubmitting(false);
+      return;
+    }
 
     const payload = {
       ...form,
@@ -402,22 +413,10 @@ export default function EditEventPage() {
 
             {/* Dates */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16 }}>
-              <div>
-                <label style={{ display: 'block', fontWeight: 700, fontSize: '0.9rem', marginBottom: 6 }}>{isRu ? 'Начало *' : 'Starts at *'}</label>
-                <input name="startsAt" value={form.startsAt} onChange={handleChange} required type="datetime-local" style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', fontSize: '0.95rem', boxSizing: 'border-box' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontWeight: 700, fontSize: '0.9rem', marginBottom: 6 }}>{isRu ? 'Окончание *' : 'Ends at *'}</label>
-                <input name="endsAt" value={form.endsAt} onChange={handleChange} required type="datetime-local" style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', fontSize: '0.95rem', boxSizing: 'border-box' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontWeight: 700, fontSize: '0.9rem', marginBottom: 6 }}>{isRu ? 'Открытие регистрации' : 'Registration opens'}</label>
-                <input name="registrationOpensAt" value={form.registrationOpensAt} onChange={handleChange} type="datetime-local" style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', fontSize: '0.95rem', boxSizing: 'border-box' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontWeight: 700, fontSize: '0.9rem', marginBottom: 6 }}>{isRu ? 'Дедлайн регистрации' : 'Registration deadline'}</label>
-                <input name="registrationDeadline" value={form.registrationDeadline} onChange={handleChange} type="datetime-local" style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', fontSize: '0.95rem', boxSizing: 'border-box' }} />
-              </div>
+              <AdminDateTimePicker label={isRu ? 'Начало *' : 'Starts at *'} value={form.startsAt} onChange={(value) => setDateField('startsAt', value)} locale={locale} required />
+              <AdminDateTimePicker label={isRu ? 'Окончание *' : 'Ends at *'} value={form.endsAt} onChange={(value) => setDateField('endsAt', value)} locale={locale} required />
+              <AdminDateTimePicker label={isRu ? 'Открытие регистрации' : 'Registration opens'} value={form.registrationOpensAt} onChange={(value) => setDateField('registrationOpensAt', value)} locale={locale} />
+              <AdminDateTimePicker label={isRu ? 'Дедлайн регистрации' : 'Registration deadline'} value={form.registrationDeadline} onChange={(value) => setDateField('registrationDeadline', value)} locale={locale} />
             </div>
 
             {/* Capacity */}

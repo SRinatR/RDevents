@@ -83,3 +83,80 @@ adminTeamsRouter.get('/', async (req, res) => {
 
   res.json({ data, meta: { total, page, limit, pages: Math.ceil(total / limit) } });
 });
+
+// GET /admin/teams/:teamId
+adminTeamsRouter.get('/:teamId', async (req, res) => {
+  const user = (req as any).user as User;
+  const { teamId } = req.params;
+
+  const team = await prisma.eventTeam.findUnique({
+    where: { id: teamId },
+    include: {
+      event: { select: { id: true, title: true, slug: true } },
+      captainUser: { select: { id: true, name: true, email: true, avatarUrl: true } },
+      members: {
+        where: { status: { notIn: ['REMOVED', 'LEFT'] } },
+        include: {
+          user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+        },
+        orderBy: { joinedAt: 'asc' },
+      },
+      invitations: {
+        where: { status: { in: ['PENDING_ACCOUNT', 'PENDING_RESPONSE'] } },
+        select: { id: true, inviteeEmail: true, status: true },
+      },
+      changeRequests: {
+        where: { status: { in: ['PENDING'] } },
+        orderBy: { createdAt: 'desc' },
+      },
+    },
+  });
+
+  if (!team) {
+    res.status(404).json({ error: 'Team not found' });
+    return;
+  }
+
+  const managedEventIds = await getManagedEventIds(user);
+  if (managedEventIds && !managedEventIds.includes(team.eventId)) {
+    res.status(403).json({ error: 'Access denied' });
+    return;
+  }
+
+  res.json({ data: team });
+});
+
+// PATCH /admin/teams/:teamId/status
+adminTeamsRouter.patch('/:teamId/status', async (req, res) => {
+  const user = (req as any).user as User;
+  const { teamId } = req.params;
+  const { status, notes } = req.body;
+
+  const team = await prisma.eventTeam.findUnique({
+    where: { id: teamId },
+  });
+
+  if (!team) {
+    res.status(404).json({ error: 'Team not found' });
+    return;
+  }
+
+  const managedEventIds = await getManagedEventIds(user);
+  if (managedEventIds && !managedEventIds.includes(team.eventId)) {
+    res.status(403).json({ error: 'Access denied' });
+    return;
+  }
+
+  const allowedStatuses = ['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'ARCHIVED', 'CHANGES_PENDING'];
+  if (!allowedStatuses.includes(status)) {
+    res.status(400).json({ error: 'Invalid status' });
+    return;
+  }
+
+  const updated = await prisma.eventTeam.update({
+    where: { id: teamId },
+    data: { status },
+  });
+
+  res.json({ data: updated });
+});

@@ -7,6 +7,12 @@ import { useAuth } from '../../../../hooks/useAuth';
 import { ApiError, eventsApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
 import { EmptyState, LoadingLines, Notice, PageHeader, Panel, ToolbarRow } from '@/components/ui/signal-primitives';
+import {
+  buildProfileRequirementUrl,
+  filterEventFormMissingFields,
+  filterProfileMissingFields,
+  type RegistrationMissingField,
+} from '@/components/cabinet/profile/profile.requirements';
 
 const OPEN_STATUSES = new Set(['PENDING_ACCOUNT', 'PENDING_RESPONSE']);
 
@@ -52,13 +58,23 @@ export default function TeamInvitationsPage() {
       router.push(`/${locale}/cabinet/events/${invitation.event?.slug}`);
     } catch (err: any) {
       if (err instanceof ApiError && Array.isArray((err.details as any)?.missingFields)) {
-        const fields = (err.details as any).missingFields.map((field: any) => field.key).join(',');
-        const params = new URLSearchParams({
-          required: fields,
-          event: invitation.event?.title ?? '',
-          returnTo: `/${locale}/cabinet/events/${invitation.event?.slug}`,
-        });
-        router.push(`/${locale}/cabinet/profile?${params.toString()}`);
+        const fields = (err.details as any).missingFields as RegistrationMissingField[];
+        const profileFields = filterProfileMissingFields(fields);
+        const eventFields = filterEventFormMissingFields(fields);
+        if (profileFields.length > 0) {
+          router.push(buildProfileRequirementUrl({
+            locale,
+            requiredFields: profileFields.map((field) => field.key),
+            eventTitle: invitation.event?.title ?? '',
+            returnTo: `/${locale}/cabinet/events/${invitation.event?.slug}`,
+          }));
+          return;
+        }
+        if (eventFields.length > 0) {
+          router.push(`/${locale}/cabinet/events/${invitation.event?.slug}`);
+          return;
+        }
+        setError(isRu ? 'Заполните недостающие поля для регистрации.' : 'Complete missing registration fields.');
         return;
       }
       setError(err.message || (isRu ? 'Не удалось принять приглашение' : 'Failed to accept invitation'));

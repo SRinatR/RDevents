@@ -5,8 +5,9 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminApi } from '@/lib/api';
+import { downloadCsv, formatCsvDate } from '@/lib/exportCsv';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, FieldInput, FieldSelect, LoadingLines, PageHeader, Panel, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, PageHeader, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 
 interface Team {
   id: string;
@@ -37,6 +38,7 @@ export default function AdminTeamsPage() {
   const [events, setEvents] = useState<EventsOption[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [totalPages, setTotalPages] = useState(1);
+  const [exporting, setExporting] = useState(false);
 
   // Filters from URL
   const search = searchParams.get('search') ?? '';
@@ -109,11 +111,45 @@ export default function AdminTeamsPage() {
   }, [fetchTeams]);
 
   // Status colors - fixed mapping
-  const toneByStatus: Record<string, 'success' | 'warning' | 'neutral'> = {
+  const toneByStatus: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
     ACTIVE: 'success',
     PENDING: 'warning',
-    REJECTED: 'neutral',
-    ARCHIVED: 'warning',
+    CHANGES_PENDING: 'info',
+    DRAFT: 'neutral',
+    REJECTED: 'danger',
+    ARCHIVED: 'neutral',
+  };
+
+  const exportTeamRows = (entries: Team[]) => {
+    downloadCsv(`admin-teams-${new Date().toISOString().slice(0, 10)}.csv`, entries.map((team) => ({
+      id: team.id,
+      name: team.name,
+      eventId: team.eventId,
+      eventTitle: team.eventTitle,
+      captainUserId: team.captainUserId || '',
+      captainUserName: team.captainUserName || '',
+      membersCount: team.membersCount,
+      status: team.status,
+      createdAt: formatCsvDate(team.createdAt, locale),
+    })));
+  };
+
+  const handleExportTeams = async () => {
+    setExporting(true);
+    try {
+      const result = await adminApi.listTeams({
+        search: debouncedSearch || undefined,
+        eventId: eventFilter !== 'ALL' ? eventFilter : undefined,
+        status: statusFilter !== 'ALL' ? statusFilter : undefined,
+        page: 1,
+        limit: 1000,
+      });
+      exportTeamRows(result.data || []);
+    } catch {
+      exportTeamRows(teams);
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -144,6 +180,9 @@ export default function AdminTeamsPage() {
             <option value="REJECTED">{locale === 'ru' ? 'Отклонённые' : 'Rejected'}</option>
             <option value="ARCHIVED">{locale === 'ru' ? 'Архивные' : 'Archived'}</option>
           </FieldSelect>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => void handleExportTeams()} disabled={teams.length === 0 || exporting}>
+            {exporting ? (locale === 'ru' ? 'Готовим...' : 'Preparing...') : (locale === 'ru' ? 'Выгрузить CSV' : 'Export CSV')}
+          </button>
         </ToolbarRow>
 
         {loadingData ? (
@@ -174,8 +213,8 @@ export default function AdminTeamsPage() {
                       <td><strong>{team.name}</strong></td>
                       <td className="signal-muted signal-overflow-ellipsis">{team.eventTitle}</td>
                       <td>{team.captainUserName ?? '—'}</td>
-                      <td></td>
-                      <td></td>
+                      <td>{team.membersCount}</td>
+                      <td><StatusBadge tone={toneByStatus[team.status] ?? 'neutral'}>{formatTeamStatus(team.status, locale)}</StatusBadge></td>
                       <td className="signal-muted">{new Date(team.createdAt).toLocaleDateString()}</td>
                       <td className="right">
                         <div className="signal-row-actions">
@@ -214,4 +253,24 @@ export default function AdminTeamsPage() {
       </Panel>
     </div>
   );
+}
+
+function formatTeamStatus(status: string, locale: string) {
+  const ru: Record<string, string> = {
+    DRAFT: 'Черновик',
+    PENDING: 'На проверке',
+    CHANGES_PENDING: 'Изменения на проверке',
+    ACTIVE: 'Активна',
+    REJECTED: 'Отклонена',
+    ARCHIVED: 'Архив',
+  };
+  const en: Record<string, string> = {
+    DRAFT: 'Draft',
+    PENDING: 'Pending',
+    CHANGES_PENDING: 'Changes pending',
+    ACTIVE: 'Active',
+    REJECTED: 'Rejected',
+    ARCHIVED: 'Archived',
+  };
+  return (locale === 'ru' ? ru : en)[status] ?? status;
 }

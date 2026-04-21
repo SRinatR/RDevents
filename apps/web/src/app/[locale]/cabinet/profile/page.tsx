@@ -10,6 +10,13 @@ import { ProfilePersonalDocumentsSection } from '@/components/cabinet/profile/Pr
 import { ProfileRegistrationDataSection } from '@/components/cabinet/profile/ProfileRegistrationDataSection';
 import { ProfileWorkspaceShell } from '@/components/cabinet/profile/ProfileWorkspaceShell';
 import { PROFILE_SECTION_ORDER } from '@/components/cabinet/profile/profile.config';
+import {
+  getFirstRequiredSection,
+  getProfileRequirementDetails,
+  getProfileRequirementSection,
+  getRequiredSectionCounts,
+  parseRequiredFields,
+} from '@/components/cabinet/profile/profile.requirements';
 import type { ProfileSectionKey } from '@/components/cabinet/profile/profile.types';
 import { useAuth } from '../../../../hooks/useAuth';
 import { useProfileSections } from '../../../../hooks/useProfileSections';
@@ -21,6 +28,8 @@ export default function ProfilePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requiredFields = useMemo(() => parseRequiredFields(searchParams.get('required')), [searchParams]);
+  const requiredSectionCounts = useMemo(() => getRequiredSectionCounts(requiredFields), [requiredFields]);
+  const requiredDetails = useMemo(() => getProfileRequirementDetails(requiredFields, locale), [requiredFields, locale]);
   const eventTitle = searchParams.get('event') ?? '';
   const returnTo = searchParams.get('returnTo') ?? '';
   const activeSection = resolveInitialSectionFromQuery(searchParams);
@@ -51,8 +60,31 @@ export default function ProfilePage() {
 
   async function saveSectionAndReturn(section: ProfileSectionKey, payload: Record<string, unknown>) {
     await saveSection(section, payload);
+    const remainingFields = requiredFields.filter((field) => {
+      const fieldSection = getProfileRequirementSection(field);
+      return fieldSection && fieldSection !== section;
+    });
+
+    if (remainingFields.length > 0) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('required', remainingFields.join(','));
+      params.set('section', getFirstRequiredSection(remainingFields) ?? 'registration_data');
+      router.replace(`/${locale}/cabinet/profile?${params.toString()}`);
+      return;
+    }
+
     if (isSafeReturnPath(returnTo, locale)) {
       router.push(returnTo);
+      return;
+    }
+
+    if (requiredFields.length > 0) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('required');
+      params.delete('event');
+      params.delete('returnTo');
+      params.set('section', section);
+      router.replace(`/${locale}/cabinet/profile?${params.toString()}`);
     }
   }
 
@@ -61,14 +93,27 @@ export default function ProfilePage() {
       locale={locale}
       sections={sections}
       activeSection={activeSection}
+      requiredSectionCounts={requiredSectionCounts}
       onSectionChange={handleSectionChange}
     >
       {requiredFields.length > 0 ? (
-        <Notice tone="warning">
-          {locale === 'ru'
-            ? `Чтобы завершить участие${eventTitle ? ` в "${eventTitle}"` : ''}, заполните нужные поля.`
-            : `To complete participation${eventTitle ? ` in "${eventTitle}"` : ''}, fill the required fields.`}
-        </Notice>
+        <div className="profile-required-summary">
+          <Notice tone="warning">
+            {locale === 'ru'
+              ? `Чтобы завершить участие${eventTitle ? ` в "${eventTitle}"` : ''}, заполните конкретные поля ниже. Разделы с недостающими данными подсвечены.`
+              : `To complete participation${eventTitle ? ` in "${eventTitle}"` : ''}, fill the fields below. Sections with missing data are highlighted.`}
+          </Notice>
+          {requiredDetails.length > 0 ? (
+            <div className="profile-required-groups" aria-label={locale === 'ru' ? 'Недостающие поля' : 'Missing fields'}>
+              {requiredDetails.map((group) => (
+                <div key={group.section} className="profile-required-group">
+                  <strong>{group.title}</strong>
+                  <span>{group.fields.map((field) => field.label).join(', ')}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
       ) : null}
 
       {error ? <Notice tone="danger">{error}</Notice> : null}
@@ -208,21 +253,8 @@ function resolveInitialSectionFromQuery(searchParams: ReturnType<typeof useSearc
   const explicit = searchParams.get('section');
   if (explicit && isProfileSectionKey(explicit)) return explicit;
 
-  const requiredSection = mapRequiredFieldsToSection(parseRequiredFields(searchParams.get('required')));
+  const requiredSection = getFirstRequiredSection(parseRequiredFields(searchParams.get('required')));
   return requiredSection ?? 'registration_data';
-}
-
-function mapRequiredFieldsToSection(fields: string[]): ProfileSectionKey | null {
-  if (fields.some((field) => ['name', 'phone', 'telegram', 'birthDate', 'gender', 'citizenshipCountryCode', 'residenceCountryCode', 'lastNameCyrillic', 'firstNameCyrillic', 'middleNameCyrillic', 'lastNameLatin', 'firstNameLatin', 'middleNameLatin', 'hasNoLastName', 'hasNoFirstName', 'hasNoMiddleName', 'consentPersonalData', 'consentMailing'].includes(field))) return 'registration_data';
-  if (fields.some((field) => ['avatarUrl', 'avatarAssetId', 'photo', 'city', 'factualAddress', 'regionId', 'districtId', 'settlementId', 'regionText', 'districtText', 'settlementText', 'street', 'house', 'apartment', 'postalCode', 'nativeLanguage', 'communicationLanguage', 'consentClientRules'].includes(field))) return 'general_info';
-  if (fields.some((field) => ['domesticDocumentComplete', 'internationalPassportComplete', 'personalDocumentsComplete'].includes(field))) return 'personal_documents';
-  if (fields.some((field) => ['contactDataComplete', 'maxUrl', 'vkUrl', 'telegramUrl', 'instagramUrl', 'facebookUrl', 'xUrl', 'maxAbsent', 'vkAbsent', 'telegramAbsent', 'instagramAbsent', 'facebookAbsent', 'xAbsent'].includes(field))) return 'contact_data';
-  if (fields.some((field) => ['activityStatus', 'studiesInRussia', 'organizationName', 'facultyOrDepartment', 'classCourseYear', 'positionTitle', 'activityDirections', 'englishLevel', 'russianLevel', 'additionalLanguages', 'achievementsText', 'emergencyContact'].includes(field))) return 'activity_info';
-  return null;
-}
-
-function parseRequiredFields(value: string | null) {
-  return (value ?? '').split(',').map((field) => field.trim()).filter(Boolean);
 }
 
 function isProfileSectionKey(value: string): value is ProfileSectionKey {
