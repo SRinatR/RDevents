@@ -77,7 +77,7 @@ export default function AdminSupportChatThreadPage({ params }: { params: Promise
                   message={m}
                   locale={locale}
                   isOwn={m.senderId === user.id}
-                  ownLabel={isRu ? 'Администратор' : 'Admin'}
+                  ownLabel={isRu ? 'Поддержка' : 'Support'}
                   otherLabel={isRu ? 'Пользователь' : 'User'}
                 />
               ))}
