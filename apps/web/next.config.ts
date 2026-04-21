@@ -23,7 +23,10 @@ const nextConfig: NextConfig = {
         hostname: '**'
       }
     ]
-  }
+  },
+  generateBuildId: async () => {
+    return process.env['RELEASE_SHA'] || 'local';
+  },
 };
 
 export default withNextIntl(nextConfig);
