@@ -2,7 +2,7 @@
 -- Created: 2026-04-21
 
 CREATE TABLE IF NOT EXISTS "password_reset_tokens" (
-    "id" TEXT NOT NULL DEFAULT cuid(),
+    "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "tokenHash" TEXT NOT NULL,
     "expiresAt" TIMESTAMP(3) NOT NULL,
