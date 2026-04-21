@@ -1,7 +1,5 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
-
 interface StatusBadgeProps {
   status: string;
   type?: 'event' | 'team' | 'registration' | 'participant_role';
@@ -63,6 +61,7 @@ interface RoleBadgeProps {
 export function RoleBadge({ role, size = 'md' }: RoleBadgeProps) {
   const ROLE_COLORS: Record<string, { color: string; bg: string; icon: string }> = {
     CAPTAIN: { color: 'text-amber-800', bg: 'bg-amber-50', icon: '👑' },
+    MEMBER: { color: 'text-blue-800', bg: 'bg-blue-50', icon: '👤' },
     PARTICIPANT: { color: 'text-blue-800', bg: 'bg-blue-50', icon: '👤' },
     VOLUNTEER: { color: 'text-green-800', bg: 'bg-green-50', icon: '🌟' },
     EVENT_ADMIN: { color: 'text-purple-800', bg: 'bg-purple-50', icon: '⚡' },
@@ -73,6 +72,7 @@ export function RoleBadge({ role, size = 'md' }: RoleBadgeProps) {
 
   const ROLE_LABELS: Record<string, string> = {
     CAPTAIN: 'Капитан',
+    MEMBER: 'Участник',
     PARTICIPANT: 'Участник',
     VOLUNTEER: 'Волонтёр',
     EVENT_ADMIN: 'Администратор',

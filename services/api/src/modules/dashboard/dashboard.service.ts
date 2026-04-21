@@ -38,7 +38,17 @@ export interface DashboardEvent {
     status: string;
     isCaptain: boolean;
     membersCount: number;
+    maxMembers?: number;
+    pendingInvites?: number;
     canEdit: boolean;
+    members?: Array<{
+      userId: string;
+      name: string;
+      email: string;
+      role: string;
+      status: string;
+      avatar?: string | null;
+    }>;
   } | null;
   missingProfileFields: string[];
   missingEventFields: string[];
@@ -182,7 +192,30 @@ async function buildDashboardEvent(
               name: true,
               status: true,
               captainUserId: true,
-              _count: { select: { members: { where: { status: 'ACTIVE' } } } },
+              maxSize: true,
+              members: {
+                where: { status: { notIn: ['REMOVED', 'LEFT'] } },
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      name: true,
+                      email: true,
+                      avatarUrl: true,
+                    },
+                  },
+                },
+                orderBy: { joinedAt: 'asc' },
+              },
+              invitations: {
+                where: { status: { in: ['PENDING_ACCOUNT', 'PENDING_RESPONSE'] } },
+                select: { id: true, status: true },
+              },
+              _count: {
+                select: {
+                  members: { where: { status: 'ACTIVE' } },
+                },
+              },
             },
           },
         },
@@ -198,7 +231,17 @@ async function buildDashboardEvent(
           status: teamMembership.team.status,
           isCaptain,
           membersCount: teamMembership.team._count.members,
+          maxMembers: teamMembership.team.maxSize,
+          pendingInvites: teamMembership.team.invitations.length,
           canEdit,
+          members: teamMembership.team.members.map((member) => ({
+            userId: member.userId,
+            name: member.user.name || member.user.email,
+            email: member.user.email,
+            role: member.role,
+            status: member.status,
+            avatar: member.user.avatarUrl,
+          })),
         };
       }
     } catch (err) {

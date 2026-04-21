@@ -71,7 +71,7 @@ function TeamMembersList({ team, locale }: { team: TeamData; locale: string }) {
         <div key={member.userId} className="team-member-row">
           <TeamAvatar name={member.name} src={member.avatar} />
           <div className="team-member-info">
-            <span className="team-member-name">{member.name}</span>
+            <span className="team-member-name">{member.name || member.email}</span>
             <RoleBadge role={member.role} size="sm" />
           </div>
         </div>
@@ -121,7 +121,7 @@ export function CabinetTeamCard({ team, event, locale }: CabinetTeamCardProps) {
           
           <div className="team-actions">
             {team.canEdit && (
-              <Link href={`/${locale}/cabinet/events/${event.slug}/team`} className="btn btn-secondary btn-sm">
+              <Link href={`/${locale}/cabinet/events/${event.slug}`} className="btn btn-secondary btn-sm">
                 {locale === 'ru' ? 'Редактировать' : 'Edit'}
               </Link>
             )}
