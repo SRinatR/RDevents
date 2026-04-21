@@ -294,7 +294,7 @@ export const eventsApi = {
     request<{ activeEventId: string | null; events: any[] }>('/api/me/dashboard', { auth: true }),
 
   setActiveEvent: (eventId: string | null) =>
-    request<{ ok: boolean }>('/api/me/dashboard/active-event', { method: 'PATCH', auth: true, body: { eventId } }),
+    request<{ ok: boolean }>('/api/me/dashboard/active-event', { method: 'PATCH', auth: true, body: { activeEventId: eventId } }),
 };
 
 // ─── Admin ────────────────────────────────────────────────────────────────────

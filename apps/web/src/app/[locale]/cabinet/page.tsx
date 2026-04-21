@@ -3,25 +3,37 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
-import { useRouteLocale } from '@/hooks/useRouteParams';
+import { useAuth } from '../../../hooks/useAuth';
+import { useRouteLocale } from '../../../hooks/useRouteParams';
 import { eventsApi } from '@/lib/api';
-import { LoadingLines, Notice, EmptyState } from '@/components/ui/signal-primitives';
-import {
-  CabinetDashboardHeader,
-  CabinetActiveEventCard,
-  CabinetTeamCard,
-  CabinetMissingDataCard,
-  CabinetDeadlinesCard,
-  CabinetQuickActions,
-  CabinetInvitationsCard,
-  CabinetOtherEventsList,
-  CabinetQuickLinks,
-  type DashboardResponse,
-} from '@/components/cabinet/dashboard';
+import { LoadingLines, Notice } from '@/components/ui/signal-primitives';
 
-interface MyEventsResponse {
-  events: Array<{ id: string; slug: string; title: string }>;
+interface DashboardEvent {
+  eventId: string;
+  slug: string;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  location: string;
+  status: string;
+  myRoles: Array<{ role: string; status: string }>;
+  team: {
+    id: string;
+    name: string;
+    status: string;
+    isCaptain: boolean;
+    membersCount: number;
+    canEdit: boolean;
+  } | null;
+  missingProfileFields: string[];
+  missingEventFields: string[];
+  deadlines: Array<{ type: string; at: string }>;
+  quickActions: string[];
+}
+
+interface DashboardData {
+  activeEventId: string | null;
+  events: DashboardEvent[];
 }
 
 export default function CabinetPage() {
@@ -39,8 +51,7 @@ export default function CabinetPage() {
   const fetchDashboard = useCallback(async () => {
     try {
       const data = await eventsApi.dashboard();
-      setDashboard(data as DashboardResponse);
-      setDashboardLoadAttempted(true);
+      setDashboard(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
       setDashboardLoadAttempted(true);
