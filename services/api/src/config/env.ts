@@ -13,6 +13,17 @@ function optional_env(key: string, fallback: string): string {
   return process.env[key] ?? fallback;
 }
 
+function getAppUrl(): string {
+  const value = process.env['APP_URL'];
+  if (!value) {
+    if (process.env['NODE_ENV'] === 'production') {
+      throw new Error('Missing required environment variable: APP_URL (must be set in production)');
+    }
+    return 'http://localhost:3000';
+  }
+  return value.replace(/\/$/, '');
+}
+
 export const env = {
   NODE_ENV: optional_env('NODE_ENV', 'development'),
   PORT: parseInt(optional_env('PORT', '4000'), 10),
@@ -36,7 +47,8 @@ export const env = {
   RESEND_WEBHOOK_SECRET: process.env['RESEND_WEBHOOK_SECRET'] ?? '',
   RESEND_WEBHOOK_ENDPOINT: process.env['RESEND_WEBHOOK_ENDPOINT'] ?? '',
   SUPPORT_EMAIL: process.env['SUPPORT_EMAIL'] ?? '',
-  APP_URL: optional_env('APP_URL', 'http://localhost:3000'),
+  APP_URL: getAppUrl(),
+  DEFAULT_LOCALE: optional_env('DEFAULT_LOCALE', 'ru'),
 
   MEDIA_STORAGE_DRIVER: optional_env('MEDIA_STORAGE_DRIVER', 'local'),
   MEDIA_UPLOAD_DIR: optional_env('MEDIA_UPLOAD_DIR', './uploads'),

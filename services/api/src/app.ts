@@ -26,6 +26,7 @@ import { prisma } from './db/prisma.js';
 
 export function createApp() {
   const app = express();
+  app.set('trust proxy', 1);
   const corsOrigin = env.CORS_ORIGIN
     .split(',')
     .map((origin) => origin.trim())

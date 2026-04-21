@@ -91,14 +91,14 @@ export function useProfileSections(locale = 'ru') {
   }, [localeKey, refreshUser, reloadSections]);
 
   const uploadAvatar = useCallback(async (file: File) => {
-    await runSectionAction('general_info', async () => {
+    await runSectionAction('registration_data', async () => {
       await authApi.uploadAvatar(file);
       await refreshUser();
     }, localeKey === 'ru' ? 'Фото обновлено.' : 'Photo updated.');
   }, [localeKey, refreshUser, reloadSections]);
 
   const deleteAvatar = useCallback(async () => {
-    await runSectionAction('general_info', async () => {
+    await runSectionAction('registration_data', async () => {
       await authApi.deleteAvatar();
       await refreshUser();
     }, localeKey === 'ru' ? 'Фото удалено.' : 'Photo deleted.');

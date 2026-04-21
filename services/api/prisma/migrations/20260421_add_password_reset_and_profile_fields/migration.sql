@@ -6,7 +6,7 @@ ALTER TYPE "EventTeamStatus" ADD VALUE IF NOT EXISTS 'SUBMITTED';
 
 -- Create PasswordResetToken table
 CREATE TABLE IF NOT EXISTS "password_reset_tokens" (
-    "id" TEXT NOT NULL DEFAULT cuid(),
+    "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "tokenHash" TEXT NOT NULL,
     "expiresAt" TIMESTAMP(3) NOT NULL,
@@ -40,7 +40,7 @@ CREATE INDEX IF NOT EXISTS "profile_field_visibility_settings_sectionKey_idx" ON
 
 -- Create UserPreference table
 CREATE TABLE IF NOT EXISTS "user_preferences" (
-    "id" TEXT NOT NULL DEFAULT cuid(),
+    "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "key" TEXT NOT NULL,
     "value" TEXT NOT NULL,
@@ -62,7 +62,7 @@ END $$;
 
 -- Create EventMilestone table
 CREATE TABLE IF NOT EXISTS "event_milestones" (
-    "id" TEXT NOT NULL DEFAULT cuid(),
+    "id" TEXT NOT NULL,
     "eventId" TEXT NOT NULL,
     "type" "EventMilestoneType" NOT NULL,
     "title" TEXT NOT NULL,
@@ -78,7 +78,7 @@ CREATE INDEX IF NOT EXISTS "event_milestones_eventId_occursAt_idx" ON "event_mil
 
 -- Create ExportPreset table
 CREATE TABLE IF NOT EXISTS "export_presets" (
-    "id" TEXT NOT NULL DEFAULT cuid(),
+    "id" TEXT NOT NULL,
     "eventId" TEXT,
     "scope" TEXT NOT NULL,
     "name" TEXT NOT NULL,

@@ -24,16 +24,22 @@ export default function Sidebar({ locale, userName, userEmail, userAvatar }: Sid
 
   const primaryItems: MenuItem[] = [
     {
-      label: locale === 'ru' ? 'Профиль' : 'Profile',
+      label: locale === 'ru' ? 'Мой кабинет' : 'My cabinet',
       href: `/${locale}/cabinet`,
+      icon: <DashboardIcon />,
+      summary: locale === 'ru' ? 'Обзор и участие' : 'Overview and participation',
+    },
+    {
+      label: locale === 'ru' ? 'Профиль' : 'Profile',
+      href: `/${locale}/cabinet/profile`,
       icon: <ProfileIcon />,
       summary: locale === 'ru' ? 'Личные данные и готовность' : 'Personal data and readiness',
     },
     {
-      label: locale === 'ru' ? 'Мои заявки' : 'My applications',
-      href: `/${locale}/cabinet/applications`,
-      icon: <ListIcon />,
-      summary: locale === 'ru' ? 'Команды и волонтёрство' : 'Teams and volunteering',
+      label: locale === 'ru' ? 'Приглашения' : 'Invitations',
+      href: `/${locale}/cabinet/team-invitations`,
+      icon: <InviteIcon />,
+      summary: locale === 'ru' ? 'Команды и приглашения' : 'Teams and invitations',
     },
     {
       label: locale === 'ru' ? 'Поддержка' : 'Support',
@@ -106,8 +112,9 @@ function NavItem({ item, pathname }: { item: MenuItem; pathname: string }) {
 function IconFrame({ children }: { children: React.ReactNode }) {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{children}</svg>;
 }
+function DashboardIcon() { return <IconFrame><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></IconFrame>; }
 function ProfileIcon() { return <IconFrame><path d="M20 21a8 8 0 0 0-16 0" /><circle cx="12" cy="7" r="4" /></IconFrame>; }
-function ListIcon() { return <IconFrame><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></IconFrame>; }
+function InviteIcon() { return <IconFrame><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" /></IconFrame>; }
 function CalendarIcon() { return <IconFrame><rect x="3" y="5" width="18" height="16" rx="2" /><line x1="16" y1="3" x2="16" y2="7" /><line x1="8" y1="3" x2="8" y2="7" /><line x1="3" y1="11" x2="21" y2="11" /></IconFrame>; }
 function FlagIcon() { return <IconFrame><path d="M4 4v16" /><path d="M4 5h11l-1.5 3L15 11H4" /></IconFrame>; }
 function SupportIcon() { return <IconFrame><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></IconFrame>; }

@@ -70,13 +70,14 @@ export async function requestPasswordReset(
     },
   });
 
-  const resetUrl = `${env.APP_URL}/reset-password?token=${token}`;
+  const resetUrl = new URL(`/${env.DEFAULT_LOCALE}/reset-password`, env.APP_URL);
+  resetUrl.searchParams.set('token', token);
 
   try {
     await sendPasswordResetEmail({
       to: user.email,
       userName: user.name ?? user.email,
-      resetUrl,
+      resetUrl: resetUrl.toString(),
       expiresAt: expiresAt.toISOString(),
       ipHint: context.ipAddress ?? undefined,
       supportContact: env.SUPPORT_EMAIL ?? undefined,

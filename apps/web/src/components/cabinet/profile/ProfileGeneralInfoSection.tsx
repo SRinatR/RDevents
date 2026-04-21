@@ -16,18 +16,15 @@ type Props = {
   requiredFields: string[];
   eventTitle: string;
   onSave: (payload: Record<string, unknown>) => Promise<void>;
-  onUpload: (file: File) => Promise<void>;
-  onDelete: () => Promise<void>;
 };
 
-export function ProfileGeneralInfoSection({ locale, user, status, saving, requiredFields, eventTitle, onSave, onUpload, onDelete }: Props) {
+export function ProfileGeneralInfoSection({ locale, user, status, saving, requiredFields, eventTitle, onSave }: Props) {
   const isRu = locale === 'ru';
   const extended = user.extendedProfile ?? {};
   const [countries, setCountries] = useState<ReferenceOption[]>([]);
   const [regions, setRegions] = useState<ReferenceOption[]>([]);
   const [districts, setDistricts] = useState<ReferenceOption[]>([]);
   const [settlements, setSettlements] = useState<ReferenceOption[]>([]);
-  const [uploading, setUploading] = useState(false);
   const [form, setForm] = useState({
     residenceCountryCode: extended.residenceCountryCode ?? 'UZ',
     regionId: extended.regionId ?? '',
@@ -83,53 +80,15 @@ export function ProfileGeneralInfoSection({ locale, user, status, saving, requir
     setForm((previous) => ({ ...previous, [key]: value }));
   }
 
-  async function handleFile(file?: File) {
-    if (!file) return;
-    setUploading(true);
-    try {
-      await onUpload(file);
-    } finally {
-      setUploading(false);
-    }
-  }
-
   return (
     <ProfileSectionLayout
       locale={locale}
       title={isRu ? 'Общая информация' : 'General information'}
-      description={isRu ? 'Фото, адрес, языки и согласие с правилами платформы.' : 'Photo, address, languages, and platform rules consent.'}
+      description={isRu ? 'Адрес проживания, языки и правила платформы.' : 'Address, languages, and platform rules.'}
       status={status}
     >
       {requiredFields.length > 0 ? <Notice tone="warning">{isRu ? `Эти данные нужны для заявки${eventTitle ? `: ${eventTitle}` : ''}.` : 'These data are required for your application.'}</Notice> : null}
       <form className="signal-stack" onSubmit={(event) => { event.preventDefault(); void onSave(form); }}>
-        <div className="profile-photo-grid">
-          <div className={`profile-upload-zone ${isRequired('avatarUrl') || isRequired('avatarAssetId') || isRequired('photo') ? 'signal-field-required' : ''}`}>
-            <div className="profile-photo-preview">
-              {user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : <span>{(user.name || user.email || '?').slice(0, 2).toUpperCase()}</span>}
-            </div>
-            <div className="profile-upload-copy">
-              <strong>{isRu ? 'Фото профиля' : 'Profile photo'}</strong>
-              <span>{isRu ? 'JPG, PNG или WebP до 3 МБ.' : 'JPG, PNG, or WebP up to 3 MB.'}</span>
-            </div>
-            <div className="profile-photo-actions">
-              <label className="btn btn-secondary btn-sm">
-                {uploading ? (isRu ? 'Загрузка...' : 'Uploading...') : (isRu ? 'Загрузить' : 'Upload')}
-                <input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => void handleFile(event.target.files?.[0])} />
-              </label>
-              {user.avatarUrl ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => void onDelete()}>{isRu ? 'Удалить' : 'Delete'}</button> : null}
-            </div>
-          </div>
-          <div className="profile-requirements-panel">
-            <h3>{isRu ? 'Готовность раздела' : 'Section readiness'}</h3>
-            <ul>
-              <li>{isRu ? 'Фото профиля' : 'Profile photo'}</li>
-              <li>{isRu ? 'Адрес проживания' : 'Residence address'}</li>
-              <li>{isRu ? 'Родной и коммуникационный язык' : 'Native and communication languages'}</li>
-              <li>{isRu ? 'Согласие с правилами клиента' : 'Client rules consent'}</li>
-            </ul>
-          </div>
-        </div>
-
         <div className="profile-form-three-col">
           <ProfileField label={isRu ? 'Страна проживания' : 'Residence country'} required>
             <FieldSelect className={requiredClass('residenceCountryCode')} value={form.residenceCountryCode} onChange={(event) => setField('residenceCountryCode', event.target.value)}>

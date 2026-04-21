@@ -181,6 +181,8 @@ function renderSection({
         requiredFields={requiredFields}
         eventTitle={eventTitle}
         onSave={(payload) => saveSection('registration_data', payload)}
+        onUpload={uploadAvatar}
+        onDelete={deleteAvatar}
       />
     );
   }
@@ -195,8 +197,6 @@ function renderSection({
         requiredFields={requiredFields}
         eventTitle={eventTitle}
         onSave={(payload) => saveSection('general_info', payload)}
-        onUpload={uploadAvatar}
-        onDelete={deleteAvatar}
       />
     );
   }
