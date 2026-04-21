@@ -30,28 +30,28 @@ jobs:
           set -euo pipefail
 
           if [ "$GITHUB_EVENT_NAME" = "workflow_run" ]; then
-            if [ "$GITHUB_WORKFLOW" != "Deploy production" ]; then
+            if [ "${GITHUB_WORKFLOW}" != "CI" ]; then
               echo "This workflow should only be triggered by the CI workflow."
               exit 1
             fi
-            BRANCH=$(gh api "workflows/CI.yml/runs/$GITHUB_RUN_ID" --jq '.head_branch')
-            CONCLUSION=$(gh api "workflows/CI.yml/runs/$GITHUB_RUN_ID" --jq '.conclusion')
-            if [ "$BRANCH" != "production" ]; then
-              echo "CI workflow was not triggered from production branch (head_branch: $BRANCH)."
+            if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+              echo "CI workflow did not pass (conclusion: ${{ github.event.workflow_run.conclusion }}). Deployment is blocked."
               exit 1
             fi
-            if [ "$CONCLUSION" != "success" ]; then
-              echo "CI workflow did not pass (conclusion: $CONCLUSION). Deployment is blocked."
+            if [ "${{ github.event.workflow_run.head_branch }}" != "production" ]; then
+              echo "CI workflow was not triggered from production branch (head_branch: ${{ github.event.workflow_run.head_branch }})."
               exit 1
             fi
             echo "CI passed on production. Proceeding with deployment."
+            echo "RELEASE_SHA=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_ENV
           elif [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            if [ "$GITHUB_REF" != "refs/heads/production" ]; then
+            if [ "${GITHUB_REF}" != "refs/heads/production" ]; then
               echo "Manual deploy is only allowed from refs/heads/production."
-              echo "Current ref: $GITHUB_REF"
+              echo "Current ref: ${GITHUB_REF}"
               exit 1
             fi
-            echo "Manual deploy triggered. Proceeding."
+            echo "RELEASE_SHA=${GITHUB_SHA}" >> $GITHUB_ENV
+            echo "Manual deploy triggered from production. Proceeding."
           else
             echo "Deploy production can only be triggered by workflow_run (CI completed) or workflow_dispatch."
             exit 1
@@ -64,13 +64,13 @@ jobs:
     environment: production
 
     steps:
-      - name: Checkout
+      - name: Checkout exact SHA from CI
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ env.RELEASE_SHA }}
 
       - name: Confirm deployment commit
-        run: echo "Deploying $GITHUB_SHA from $GITHUB_REF"
+        run: echo "Deploying ${RELEASE_SHA}"
 
       - name: Prepare SSH
         shell: bash
@@ -135,7 +135,8 @@ jobs:
           PROD_USER: ${{ secrets.PROD_USER }}
         run: |
           set -euo pipefail
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' ARCHIVE_NAME='$ARCHIVE_NAME' RELEASE_SHA='$GITHUB_SHA' bash -se" << 'EOF'
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
+            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' ARCHIVE_NAME='$ARCHIVE_NAME' RELEASE_SHA='${RELEASE_SHA}' bash -se" << 'EOF'
             set -euo pipefail
 
             mkdir -p "$APP_DIR"
@@ -166,6 +167,7 @@ jobs:
               docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
               exit 1
             fi
+
             for i in $(seq 1 30); do
               HEALTH=$(docker inspect -f '{{.State.Health.Status}}' "$POSTGRES_CID" 2>/dev/null || echo "unknown")
               if [ "$HEALTH" = "healthy" ]; then
@@ -197,46 +199,86 @@ jobs:
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
               up -d --force-recreate --remove-orphans api web
 
-            verify_container_release() {
+            verify_container_sha() {
               service="$1"
+              path="$2"
+              label="$3"
+
               actual=$(docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
-                exec -T "$service" sh -lc 'printf "%s" "${RELEASE_SHA:-}"')
+                exec -T "$service" sh -lc "cat '$path'" 2>/dev/null | tr -d '\r\n')
+
               if [ "$actual" != "$RELEASE_SHA" ]; then
-                echo "$service is running release '$actual', expected '$RELEASE_SHA'."
+                echo "FAIL: $label container release is '$actual', expected '$RELEASE_SHA'."
                 docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
-                exit 1
+                docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=20 "$service"
+                return 1
               fi
-              echo "$service release OK ($actual)."
+              echo "OK: $label container release = $actual"
+              return 0
             }
 
-            verify_http_release() {
+            verify_http_sha() {
               url="$1"
               label="$2"
+
               body_file=$(mktemp)
               err_file=$(mktemp)
+              ret=1
 
-              for attempt in $(seq 1 10); do
-                if curl -fsSL "$url" -o "$body_file" 2>"$err_file"; then
-                  echo "$label HTTP OK: $url"
-                  return 0
+              for attempt in $(seq 1 15); do
+                code=$(curl -sS -o "$body_file" -w "%{http_code}" "$url" 2>"$err_file" || true)
+                body=$(cat "$body_file" 2>/dev/null || true)
+
+                if [ "$code" = "200" ] && [ "$body" = "$RELEASE_SHA" ]; then
+                  echo "OK: $label HTTP endpoint $url returned correct SHA: $body"
+                  ret=0
+                  break
                 fi
-                echo "Attempt $attempt/10 failed for $label ($url): $(cat "$err_file")"
-                [ "$attempt" -lt 10 ] && sleep 5
+
+                echo "Attempt $attempt/15: $label $url returned code=$code body='$body'"
+                if [ "$attempt" -lt 15 ]; then
+                  sleep 3
+                fi
               done
 
-              echo "FAILED: $label did not respond successfully within 50 seconds."
-              cat "$body_file" 2>/dev/null || true
-              echo "--- last curl error ---"
-              cat "$err_file"
-              exit 1
+              if [ $ret -ne 0 ]; then
+                echo "FAIL: $label HTTP endpoint $url did not return expected SHA '$RELEASE_SHA'."
+                echo "Last status: code=$code body='$(cat "$body_file" 2>/dev/null || true)'"
+                echo "Last curl error: $(cat "$err_file" 2>/dev/null || true)"
+              fi
+
+              rm -f "$body_file" "$err_file"
+              return $ret
             }
 
-            verify_container_release api
-            verify_container_release web
-            verify_http_release "http://127.0.0.1:4000/health" "API"
-            verify_http_release "http://127.0.0.1:3000/api/health" "WEB"
+            FAILED=0
 
-            echo "Deployment complete."
+            verify_container_sha api "/app/services/api/release.txt" "API" || FAILED=1
+            verify_container_sha web "/app/apps/web/public/release.txt" "Web" || FAILED=1
+
+            verify_http_sha "http://127.0.0.1:4000/version" "API /version" || FAILED=1
+            verify_http_sha "http://127.0.0.1:4000/api/version" "API /api/version" || FAILED=1
+            verify_http_sha "http://127.0.0.1:3000/version.txt" "Web /version.txt" || FAILED=1
+            verify_http_sha "http://127.0.0.1:3000/release.json" "Web /release.json" || FAILED=1
+
+            if [ $FAILED -ne 0 ]; then
+              echo ""
+              echo "=========================================="
+              echo "DEPLOYMENT FAILED: SHA verification failed."
+              echo "Expected RELEASE_SHA: $RELEASE_SHA"
+              echo "=========================================="
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
+              exit 1
+            fi
+
+            echo ""
+            echo "=========================================="
+            echo "DEPLOYMENT SUCCESS: All containers are running the correct release."
+            echo "Release SHA: $RELEASE_SHA"
+            echo "=========================================="
+            docker image prune -f
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
-            echo "All done. Release SHA: $RELEASE_SHA"
           EOF
+
+      - name: Final status
+        run: echo "Deploy production completed for SHA ${RELEASE_SHA}"
