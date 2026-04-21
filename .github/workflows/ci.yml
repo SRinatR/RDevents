@@ -17,6 +17,8 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  NODE_VERSION: '24'
+  PNPM_VERSION: '10.33.0'
 
 jobs:
   lint:
@@ -31,14 +33,14 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10.33.0
+          version: ${{ env.PNPM_VERSION }}
           run_install: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
-          cache: 'pnpm'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
@@ -50,7 +52,16 @@ jobs:
   typecheck:
     name: Typecheck
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+
+    env:
+      DATABASE_URL: postgresql://event_platform_user:event_platform_password@localhost:5432/event_platform?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret
+      JWT_REFRESH_SECRET: ci-refresh-secret
+      CORS_ORIGIN: http://localhost:3000
+      APP_URL: http://localhost:3000
+      DEFAULT_LOCALE: ru
+      NODE_ENV: test
 
     steps:
       - name: Checkout
@@ -59,18 +70,21 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10.33.0
+          version: ${{ env.PNPM_VERSION }}
           run_install: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
-          cache: 'pnpm'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @event-platform/api prisma:generate
 
       - name: Run typecheck
         run: pnpm typecheck
@@ -78,7 +92,17 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+
+    env:
+      DATABASE_URL: postgresql://event_platform_user:event_platform_password@localhost:5432/event_platform?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret
+      JWT_REFRESH_SECRET: ci-refresh-secret
+      CORS_ORIGIN: http://localhost:3000
+      APP_URL: http://localhost:3000
+      DEFAULT_LOCALE: ru
+      NODE_ENV: test
+      PORT: 4000
 
     steps:
       - name: Checkout
@@ -87,18 +111,21 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10.33.0
+          version: ${{ env.PNPM_VERSION }}
           run_install: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
-          cache: 'pnpm'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @event-platform/api prisma:generate
 
       - name: Run tests
         run: pnpm test
@@ -106,7 +133,18 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
+
+    env:
+      DATABASE_URL: postgresql://event_platform_user:event_platform_password@localhost:5432/event_platform?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret
+      JWT_REFRESH_SECRET: ci-refresh-secret
+      CORS_ORIGIN: http://localhost:3000
+      APP_URL: http://localhost:3000
+      DEFAULT_LOCALE: ru
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE_URL: https://api.rdevents.uz
+      RELEASE_SHA: ${{ github.sha }}
 
     steps:
       - name: Checkout
@@ -115,18 +153,21 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10.33.0
+          version: ${{ env.PNPM_VERSION }}
           run_install: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
-          cache: 'pnpm'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @event-platform/api prisma:generate
 
       - name: Run build
         run: pnpm build
@@ -134,12 +175,16 @@ jobs:
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     needs:
       - lint
       - typecheck
       - test
       - build
+
+    env:
+      NEXT_PUBLIC_API_BASE_URL: https://api.rdevents.uz
+      RELEASE_SHA: ${{ github.sha }}
 
     steps:
       - name: Checkout
