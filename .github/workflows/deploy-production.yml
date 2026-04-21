@@ -132,6 +132,7 @@ jobs:
 
             # Build new images before touching running containers
             echo "Release SHA: $RELEASE_SHA"
+            export RELEASE_SHA
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml build
 
             # Keep the currently running api/web containers serving traffic until
