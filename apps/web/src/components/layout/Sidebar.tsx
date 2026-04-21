@@ -96,7 +96,10 @@ export default function Sidebar({ locale, userName, userEmail, userAvatar }: Sid
 }
 
 function NavItem({ item, pathname }: { item: MenuItem; pathname: string }) {
-  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+  const isRootCabinetItem = item.href.endsWith('/cabinet');
+  const isActive = isRootCabinetItem
+    ? pathname === item.href
+    : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
   return (
     <Link href={item.href} className={cn('cabinet-nav-link', isActive && 'active')} aria-current={isActive ? 'page' : undefined}>
