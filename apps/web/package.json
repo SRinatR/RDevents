@@ -1,0 +1,30 @@
+{
+  "name": "@event-platform/web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build && node -e \"const fs=require('fs');const d='.next/standalone/apps/web/public';if(!fs.existsSync(d))fs.mkdirSync(d,{recursive:true});fs.writeFileSync(d+'/release.json',JSON.stringify({service:'event-platform-web',releaseSha:process.env['RELEASE_SHA']||'local'}));fs.writeFileSync(d+'/version.txt',process.env['RELEASE_SHA']||'local')\"",
+    "start": "next start --port 3000",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run",
+    "clean": "node -e \"const fs=require('fs'); ['.next','node_modules'].forEach(p=>fs.rmSync(p,{recursive:true,force:true}))\""
+  },
+  "dependencies": {
+    "next": "16.2.3",
+    "next-intl": "4.9.1",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "zod": "^4.0.17"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "autoprefixer": "10.4.20",
+    "postcss": "8.5.3",
+    "tailwindcss": "3.4.17",
+    "typescript": "6.0.2"
+  }
+}

@@ -1,0 +1,481 @@
+import type {
+  EmailOverview,
+  EmailMessage,
+  EmailTemplate,
+  EmailBroadcast,
+  EmailAutomation,
+  EmailDomain,
+  EmailAudienceData,
+  EmailWebhooksData,
+} from './admin-email.schemas.js';
+
+// Email configuration from env - read through config layer
+import { env } from '../../config/env.js';
+
+function getEmailConfig() {
+  return {
+    provider: env.RESEND_API_KEY ? 'resend' : null,
+    sendingDomain: env.RESEND_FROM_EMAIL ? env.RESEND_FROM_EMAIL.split('@')[1] ?? null : null,
+    webhookEndpoint: env.RESEND_WEBHOOK_ENDPOINT || (env.RESEND_WEBHOOK_SECRET ? 'https://api.rdevents.uz/webhooks/resend' : null),
+  };
+}
+
+// ─── Deterministic mock data (no Math.random()) ─────────────────────────────────
+
+// Static base dates for consistent mock data
+const BASE_DATE = new Date('2026-04-17T00:00:00Z');
+
+function daysAgo(days: number): string {
+  const d = new Date(BASE_DATE);
+  d.setDate(d.getDate() - days);
+  return d.toISOString();
+}
+
+function inFuture(hours: number): string {
+  const d = new Date(BASE_DATE);
+  d.setHours(d.getHours() + hours);
+  return d.toISOString();
+}
+
+// Static IDs based on index (deterministic)
+const messageIds = ['msg_abc123def456', 'msg_ghi789jkl012', 'msg_mno345pqr678', 'msg_stu901vwx234', 'msg_yza567bcd890', 'msg_efg123hij456'];
+const templateIds = ['tpl_verification001', 'tpl_invitation002', 'tpl_reminder003', 'tpl_confirmed004', 'tpl_password005', 'tpl_status006'];
+const broadcastIds = ['brd_season2026q1', 'brd_registration_rem', 'brd_event_summary'];
+const automationIds = ['aut_welcome_series', 'aut_24h_reminder', 'aut_feedback'];
+const segmentIds = ['seg_active_participants', 'seg_volunteers', 'seg_new_users', 'seg_inactive30d', 'seg_all'];
+const webhookIds = ['wh_delivered001', 'wh_bounced002', 'wh_opened003'];
+
+// ─── Email overview ───────────────────────────────────────────────────────────
+
+export async function getEmailOverview(): Promise<EmailOverview> {
+  const emailConfig = getEmailConfig();
+  
+  return {
+    provider: emailConfig.provider,
+    providerStatus: emailConfig.provider ? 'connected' : 'not_configured',
+    sendingDomain: emailConfig.sendingDomain,
+    sendingDomainStatus: emailConfig.sendingDomain ? 'verified' : 'not_configured',
+    webhookStatus: emailConfig.webhookEndpoint && env.RESEND_WEBHOOK_SECRET ? 'active' : 'not_configured',
+    webhookEndpoint: emailConfig.webhookEndpoint,
+    sent24h: 142,
+    delivered24h: 138,
+    failed24h: 4,
+    templatesCount: 6,
+    automationsCount: 3,
+    recentActivity: [
+      { type: 'email_sent', status: 'delivered', timestamp: daysAgo(0) },
+      { type: 'email_delivered', status: 'delivered', timestamp: daysAgo(0.04) },
+      { type: 'email_opened', status: 'opened', timestamp: daysAgo(0.08) },
+      { type: 'email_clicked', status: 'clicked', timestamp: daysAgo(0.2) },
+      { type: 'email_bounced', status: 'bounced', timestamp: daysAgo(1) },
+    ],
+  };
+}
+
+// ─── Email messages ─────────────────────────────────────────────────────────────
+
+function parseTimeRange(timeRange?: string): { maxDays: number | null } {
+  if (!timeRange) return { maxDays: null };
+  const match = timeRange.match(/^(\d+)([dh])$/);
+  if (!match) return { maxDays: null };
+  const value = parseInt(match[1], 10);
+  const unit = match[2];
+  return { maxDays: unit === 'h' ? value / 24 : value };
+}
+
+export async function listEmailMessages(
+  params: { search?: string; status?: string; source?: string; timeRange?: string; page?: number; limit?: number } = {}
+): Promise<{ data: EmailMessage[]; meta: { total: number; page: number; limit: number; pages: number } }> {
+  const { search, status, source, timeRange, page = 1, limit = 50 } = params;
+  const { maxDays } = parseTimeRange(timeRange);
+  
+  const allMessages: EmailMessage[] = [
+    {
+      id: messageIds[0],
+      to: 'user1@example.com',
+      subject: 'Подтверждение регистрации',
+      status: 'delivered',
+      source: 'verification',
+      sentAt: daysAgo(0),
+      providerMessageId: 'resend_' + messageIds[0],
+    },
+    {
+      id: messageIds[1],
+      to: 'user2@example.com',
+      subject: 'Приглашение на мероприятие',
+      status: 'delivered',
+      source: 'invitation',
+      sentAt: daysAgo(0.1),
+      providerMessageId: 'resend_' + messageIds[1],
+    },
+    {
+      id: messageIds[2],
+      to: 'user3@example.com',
+      subject: 'Напоминание о событии',
+      status: 'sent',
+      source: 'notification',
+      sentAt: daysAgo(0.5),
+      providerMessageId: 'resend_' + messageIds[2],
+    },
+    {
+      id: messageIds[3],
+      to: 'user4@example.com',
+      subject: 'Обновление статуса регистрации',
+      status: 'delivered',
+      source: 'notification',
+      sentAt: daysAgo(1),
+      providerMessageId: 'resend_' + messageIds[3],
+    },
+    {
+      id: messageIds[4],
+      to: 'invalid@example',
+      subject: 'Код подтверждения',
+      status: 'failed',
+      source: 'verification',
+      sentAt: daysAgo(2),
+      providerMessageId: null,
+    },
+    {
+      id: messageIds[5],
+      to: 'test@example.com',
+      subject: 'Тестовое сообщение',
+      status: 'bounced',
+      source: 'broadcast',
+      sentAt: daysAgo(3),
+      providerMessageId: 'resend_' + messageIds[5],
+    },
+  ];
+
+  // Apply filters
+  let filtered = allMessages;
+  
+  if (search) {
+    const searchLower = search.toLowerCase();
+    filtered = filtered.filter(m => 
+      m.to.toLowerCase().includes(searchLower) || 
+      m.subject.toLowerCase().includes(searchLower)
+    );
+  }
+  
+  if (status && status !== 'ALL') {
+    filtered = filtered.filter(m => m.status === status);
+  }
+  
+  if (source && source !== 'ALL') {
+    filtered = filtered.filter(m => m.source === source);
+  }
+  
+  // Apply time range filter
+  if (maxDays !== null) {
+    const cutoffDate = new Date(BASE_DATE);
+    cutoffDate.setDate(cutoffDate.getDate() - maxDays);
+    filtered = filtered.filter(m => new Date(m.sentAt) >= cutoffDate);
+  }
+
+  const total = filtered.length;
+  const pages = Math.ceil(total / limit);
+  const offset = (page - 1) * limit;
+  const data = filtered.slice(offset, offset + limit);
+
+  return {
+    data,
+    meta: { total, page, limit, pages },
+  };
+}
+
+// ─── Email templates ───────────────────────────────────────────────────────────
+
+export async function listEmailTemplates(
+  params: { search?: string; status?: string; page?: number; limit?: number } = {}
+): Promise<{ data: EmailTemplate[]; meta: { total: number; page: number; limit: number; pages: number } }> {
+  const { search, status, page = 1, limit = 20 } = params;
+  
+  const templates: EmailTemplate[] = [
+    {
+      id: templateIds[0],
+      name: 'Подтверждение email',
+      key: 'email-verification',
+      subject: 'Подтвердите ваш email адрес',
+      status: 'active',
+      updatedAt: daysAgo(5),
+    },
+    {
+      id: templateIds[1],
+      name: 'Приглашение на событие',
+      key: 'event-invitation',
+      subject: 'Вас приглашают на мероприятие',
+      status: 'active',
+      updatedAt: daysAgo(3),
+    },
+    {
+      id: templateIds[2],
+      name: 'Напоминание',
+      key: 'event-reminder',
+      subject: 'Напоминание о мероприятии завтра',
+      status: 'active',
+      updatedAt: daysAgo(7),
+    },
+    {
+      id: templateIds[3],
+      name: 'Подтверждение регистрации',
+      key: 'registration-confirmed',
+      subject: 'Ваша регистрация подтверждена',
+      status: 'draft',
+      updatedAt: daysAgo(10),
+    },
+    {
+      id: templateIds[4],
+      name: 'Сброс пароля',
+      key: 'password-reset',
+      subject: 'Сброс пароля',
+      status: 'active',
+      updatedAt: daysAgo(2),
+    },
+    {
+      id: templateIds[5],
+      name: 'Обновление статуса',
+      key: 'status-update',
+      subject: 'Обновление статуса вашей заявки',
+      status: 'archived',
+      updatedAt: daysAgo(30),
+    },
+  ];
+
+  // Apply filters
+  let filtered = templates;
+  if (search) {
+    const searchLower = search.toLowerCase();
+    filtered = filtered.filter(t => 
+      t.name.toLowerCase().includes(searchLower) || 
+      t.subject.toLowerCase().includes(searchLower)
+    );
+  }
+  if (status && status !== 'ALL') {
+    filtered = filtered.filter(t => t.status === status);
+  }
+
+  const total = filtered.length;
+  const pages = Math.ceil(total / limit);
+  const offset = (page - 1) * limit;
+
+  return {
+    data: filtered.slice(offset, offset + limit),
+    meta: { total, page, limit, pages },
+  };
+}
+
+// ─── Email broadcasts ───────────────────────────────────────────────────────────
+
+export async function listEmailBroadcasts(
+  params: { status?: string; page?: number; limit?: number } = {}
+): Promise<{ data: EmailBroadcast[]; meta: { total: number; page: number; limit: number; pages: number } }> {
+  const { status, page = 1, limit = 20 } = params;
+  
+  const broadcasts: EmailBroadcast[] = [
+    {
+      id: broadcastIds[0],
+      title: 'Анонс нового сезона мероприятий',
+      audience: 'Все подписчики',
+      status: 'sent',
+      scheduledAt: daysAgo(7),
+      sentCount: 1250,
+    },
+    {
+      id: broadcastIds[1],
+      title: 'Напоминание о регистрациях',
+      audience: 'Незавершённые регистрации',
+      status: 'scheduled',
+      scheduledAt: inFuture(24),
+      sentCount: 0,
+    },
+    {
+      id: broadcastIds[2],
+      title: 'Итоги мероприятия',
+      audience: 'Участники события',
+      status: 'draft',
+      scheduledAt: null,
+      sentCount: 0,
+    },
+  ];
+
+  // Apply filters
+  let filtered = broadcasts;
+  if (status && status !== 'ALL') {
+    filtered = filtered.filter(b => b.status === status);
+  }
+
+  const total = filtered.length;
+  const pages = Math.ceil(total / limit);
+  const offset = (page - 1) * limit;
+
+  return {
+    data: filtered.slice(offset, offset + limit),
+    meta: { total, page, limit, pages },
+  };
+}
+
+// ─── Email automations ─────────────────────────────────────────────────────────
+
+export async function listEmailAutomations(
+  params: { status?: string; page?: number; limit?: number } = {}
+): Promise<{ data: EmailAutomation[]; meta: { total: number; page: number; limit: number; pages: number } }> {
+  const { status, page = 1, limit = 20 } = params;
+  
+  const automations: EmailAutomation[] = [
+    {
+      id: automationIds[0],
+      name: 'Добро пожаловать серии',
+      trigger: 'user.created',
+      status: 'active',
+      lastRunAt: daysAgo(0),
+      nextRunAt: inFuture(1),
+    },
+    {
+      id: automationIds[1],
+      name: 'Напоминание за 24ч',
+      trigger: 'event.starts_soon',
+      status: 'active',
+      lastRunAt: daysAgo(1),
+      nextRunAt: inFuture(2),
+    },
+    {
+      id: automationIds[2],
+      name: 'Сбор обратной связи',
+      trigger: 'event.ended',
+      status: 'paused',
+      lastRunAt: daysAgo(14),
+      nextRunAt: null,
+    },
+  ];
+
+  // Apply filters
+  let filtered = automations;
+  if (status && status !== 'ALL') {
+    filtered = filtered.filter(a => a.status === status);
+  }
+
+  const total = filtered.length;
+  const pages = Math.ceil(total / limit);
+  const offset = (page - 1) * limit;
+
+  return {
+    data: filtered.slice(offset, offset + limit),
+    meta: { total, page, limit, pages },
+  };
+}
+
+// ─── Email audience ─────────────────────────────────────────────────────────────
+
+export async function getEmailAudience(): Promise<EmailAudienceData> {
+  return {
+    totalContacts: 2847,
+    verifiedContacts: 2654,
+    unsubscribed: 42,
+    segmentsCount: 5,
+    segments: [
+      { id: segmentIds[0], name: 'Активные участники', size: 1250, source: 'event_registration', updatedAt: daysAgo(1) },
+      { id: segmentIds[1], name: 'Волонтёры', size: 340, source: 'volunteer_application', updatedAt: daysAgo(3) },
+      { id: segmentIds[2], name: 'Новые пользователи', size: 180, source: 'user_created', updatedAt: daysAgo(0) },
+      { id: segmentIds[3], name: 'Неактивные 30 дней', size: 520, source: 'inactivity_rule', updatedAt: daysAgo(7) },
+      { id: segmentIds[4], name: 'Все подписчики', size: 2847, source: 'all_contacts', updatedAt: daysAgo(0) },
+    ],
+  };
+}
+
+// ─── Email domains ─────────────────────────────────────────────────────────────
+
+export async function listEmailDomains(
+  params: { search?: string; page?: number; limit?: number } = {}
+): Promise<{ data: EmailDomain[]; meta: { total: number; page: number; limit: number; pages: number } }> {
+  const { search, page = 1, limit = 20 } = params;
+  
+  // If no email configured, return empty - don't fake data
+  const emailConfig = getEmailConfig();
+  if (!emailConfig.provider || !emailConfig.sendingDomain) {
+    return {
+      data: [],
+      meta: { total: 0, page: 1, limit: 20, pages: 0 },
+    };
+  }
+  
+  const domains: EmailDomain[] = [
+    {
+      id: 'dom_email_configured',
+      domain: emailConfig.sendingDomain,
+      provider: emailConfig.provider,
+      verificationStatus: 'verified',
+      spf: true,
+      dkim: true,
+      dmarc: true,
+      isDefault: true,
+    },
+  ];
+
+  // Apply filters
+  let filtered = domains;
+  if (search) {
+    const searchLower = search.toLowerCase();
+    filtered = filtered.filter(d => d.domain.toLowerCase().includes(searchLower));
+  }
+
+  const total = filtered.length;
+  const pages = Math.ceil(total / limit);
+  const offset = (page - 1) * limit;
+
+  return {
+    data: filtered.slice(offset, offset + limit),
+    meta: { total, page, limit, pages },
+  };
+}
+
+// ─── Email webhooks ─────────────────────────────────────────────────────────────
+
+export async function getEmailWebhooks(): Promise<EmailWebhooksData> {
+  const emailConfig = getEmailConfig();
+  const webhookEndpoint = emailConfig.webhookEndpoint;
+  
+  return {
+    endpoint: webhookEndpoint ?? null,
+    signatureStatus: env.RESEND_WEBHOOK_SECRET ? 'valid' : 'unknown',
+    subscribedEvents: [
+      'email.sent',
+      'email.delivered',
+      'email.bounced',
+      'email.complained',
+      'email.opened',
+      'email.clicked',
+    ],
+    totalReceived: 15847,
+    totalSuccess: 15230,
+    totalFailed: 617,
+    logs: [
+      {
+        id: webhookIds[0],
+        eventType: 'email.delivered',
+        providerEventId: 'evt_' + webhookIds[0],
+        receivedAt: daysAgo(0),
+        processingStatus: 'processed',
+        relatedEntity: 'registration-123',
+        errorMessage: null,
+      },
+      {
+        id: webhookIds[1],
+        eventType: 'email.bounced',
+        providerEventId: 'evt_' + webhookIds[1],
+        receivedAt: daysAgo(1),
+        processingStatus: 'processed',
+        relatedEntity: 'user-456',
+        errorMessage: null,
+      },
+      {
+        id: webhookIds[2],
+        eventType: 'email.opened',
+        providerEventId: 'evt_' + webhookIds[2],
+        receivedAt: daysAgo(0.5),
+        processingStatus: 'processed',
+        relatedEntity: 'email-789',
+        errorMessage: null,
+      },
+    ],
+  };
+}

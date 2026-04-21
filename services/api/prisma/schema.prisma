@@ -1,0 +1,1021 @@
+// Prisma schema for Event Platform MVP
+// Single PostgreSQL database. Platform roles stay on User; event roles live in EventMember.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  PLATFORM_ADMIN
+  SUPER_ADMIN
+}
+
+enum AuthProvider {
+  EMAIL
+  GOOGLE
+  YANDEX
+  TELEGRAM
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  COMPLETED
+}
+
+enum EventMemberRole {
+  PARTICIPANT
+  VOLUNTEER
+  EVENT_ADMIN
+}
+
+enum EventMemberStatus {
+  PENDING
+  APPROVED
+  ACTIVE
+  RESERVE
+  REJECTED
+  CANCELLED
+  REMOVED
+}
+
+enum TeamJoinMode {
+  OPEN
+  BY_CODE
+  BY_REQUEST
+  EMAIL_INVITE
+}
+
+enum RegistrationMode {
+  INDIVIDUAL
+  TEAM
+  BOTH
+}
+
+enum EventTeamStatus {
+  DRAFT
+  ACTIVE
+  PENDING
+  CHANGES_PENDING
+  REJECTED
+  SUBMITTED
+  ARCHIVED
+}
+
+enum EventTeamChangeRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum EventTeamRole {
+  CAPTAIN
+  MEMBER
+}
+
+enum EventTeamMemberStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+  REMOVED
+  LEFT
+}
+
+enum TeamInvitationStatus {
+  PENDING_ACCOUNT
+  PENDING_RESPONSE
+  ACCEPTED
+  DECLINED
+  CANCELLED
+  EXPIRED
+  REMOVED
+}
+
+enum ParticipantLimitMode {
+  UNLIMITED
+  GOAL_LIMIT
+  STRICT_LIMIT
+}
+
+enum ParticipantCountVisibility {
+  PUBLIC
+  HIDDEN
+}
+
+enum AnalyticsEventType {
+  HOME_VIEW
+  EVENTS_LIST_VIEW
+  EVENT_DETAIL_VIEW
+  REGISTER_CLICK
+  EVENT_REGISTRATION
+  USER_REGISTER
+  USER_LOGIN
+  PROVIDER_USED
+  TEAM_CREATED
+  TEAM_JOIN_REQUESTED
+  TEAM_MEMBER_APPROVED
+  VOLUNTEER_APPLICATION_SUBMITTED
+  VOLUNTEER_APPLICATION_APPROVED
+  VOLUNTEER_APPLICATION_REJECTED
+  EVENT_ADMIN_ASSIGNED
+}
+
+enum ProfileSectionStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum IdentityDocumentType {
+  PASSPORT
+  ID_CARD
+  RESIDENCE_PERMIT
+  OTHER
+}
+
+enum ActivityStatus {
+  SCHOOL_STUDENT
+  COLLEGE_STUDENT
+  UNIVERSITY_STUDENT
+  EMPLOYED
+  UNEMPLOYED
+}
+
+enum LanguageLevel {
+  A1
+  A2
+  B1
+  B2
+  C1
+  C2
+  NATIVE
+}
+
+enum ActivityDirection {
+  SCIENCE_EDUCATION
+  PUBLIC_ADMINISTRATION_LAW
+  MEDIA
+  CREATIVE_INDUSTRIES
+  ENTREPRENEURSHIP
+  SPORT_HEALTHCARE
+  AGRICULTURE_AGROTECH
+  DIGITALIZATION_IT
+  TOURISM_HOSPITALITY
+  ECOLOGY
+  CIVIL_SOCIETY
+  ARCHITECTURE_CONSTRUCTION
+  ECONOMICS_FINANCE
+  INDUSTRY_TECHNOLOGY_ENGINEERING
+  OTHER
+}
+
+enum AdditionalDocumentType {
+  SCHOOL_PROOF
+  STUDENT_PROOF
+  BIRTH_CERTIFICATE
+}
+
+
+enum SupportThreadStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_USER
+  CLOSED
+}
+
+enum SupportSenderType {
+  USER
+  ADMIN
+}
+
+enum MediaAssetPurpose {
+  AVATAR
+  DOCUMENT
+}
+
+enum MediaAssetStatus {
+  ACTIVE
+  DELETED
+}
+
+model User {
+  id                    String   @id @default(cuid())
+  email                 String   @unique
+  passwordHash          String?
+  name                  String?
+
+  // Name fields
+  lastNameCyrillic      String?
+  firstNameCyrillic     String?
+  middleNameCyrillic    String?
+  lastNameLatin         String?
+  firstNameLatin        String?
+  middleNameLatin       String?
+  hasNoLastName         Boolean  @default(false)
+  hasNoFirstName        Boolean  @default(false)
+  hasNoMiddleName       Boolean  @default(false)
+  fullNameCyrillic      String?
+  fullNameLatin         String?
+
+  bio                   String?
+  city                  String?
+  factualAddress        String?
+  phone                 String?
+  telegram              String?
+  phoneVerifiedAt       DateTime?
+  telegramVerifiedAt    DateTime?
+  nativeLanguage        String?
+  communicationLanguage String?
+  consentPersonalData   Boolean  @default(false)
+  consentPersonalDataAt DateTime?
+  consentClientRules    Boolean  @default(false)
+  consentClientRulesAt  DateTime?
+  birthDate             DateTime?
+  avatarUrl             String?
+  avatarAssetId         String?
+  role                  UserRole @default(USER)
+  isActive              Boolean  @default(true)
+  emailVerifiedAt       DateTime?
+  registeredAt          DateTime @default(now())
+  lastLoginAt           DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  accounts              UserAccount[]
+  createdEvents         Event[] @relation("CreatedBy")
+  eventMemberships      EventMember[] @relation("EventMemberUser")
+  assignedEventMembers  EventMember[] @relation("EventMemberAssignedBy")
+  teamMemberships       EventTeamMember[]
+  captainedTeams        EventTeam[] @relation("TeamCaptain")
+  receivedTeamInvitations EventTeamInvitation[] @relation("TeamInvitationInvitee")
+  sentTeamInvitations   EventTeamInvitation[] @relation("TeamInvitationInvitedBy")
+  requestedTeamChanges  EventTeamChangeRequest[] @relation("TeamChangeRequestedBy")
+  decidedTeamChanges    EventTeamChangeRequest[] @relation("TeamChangeDecidedBy")
+  analyticsEvents       AnalyticsEvent[]
+  registrationSubmissions EventRegistrationFormSubmission[]
+  refreshSessions       RefreshSession[]
+  avatarAsset           MediaAsset? @relation("UserAvatar", fields: [avatarAssetId], references: [id], onDelete: SetNull)
+  profileSectionStates  UserProfileSectionState[]
+  extendedProfile       UserExtendedProfile?
+  identityDocument      UserIdentityDocument?
+  internationalPassport UserInternationalPassport?
+  socialLinks           UserSocialLinks?
+  activityDirections    UserActivityDirection[]
+  additionalLanguages   UserAdditionalLanguage[]
+  additionalDocuments   UserAdditionalDocument[]
+  emergencyContact      UserEmergencyContact?
+  mediaAssets           MediaAsset[] @relation("MediaAssetOwner")
+
+  supportThreads        SupportThread[] @relation("SupportThreadUser")
+  assignedSupportThreads SupportThread[] @relation("SupportThreadAdmin")
+  supportMessages       SupportMessage[] @relation("SupportMessageSender")
+  supportReadStates          SupportThreadReadState[] @relation("SupportThreadReadStateUser")
+  uploadedSupportAttachments SupportAttachment[]      @relation("SupportAttachmentUploader")
+
+  passwordResetTokens  PasswordResetToken[]
+  preferences          UserPreference[]
+  updatedProfileFieldVisibility ProfileFieldVisibilitySetting[] @relation("ProfileFieldVisibilityUpdatedBy")
+  createdExportPresets ExportPreset[] @relation("ExportPresetCreatedBy")
+
+  @@map("users")
+}
+
+model UserProfileSectionState {
+  id         String               @id @default(cuid())
+  userId     String
+  sectionKey String
+  status     ProfileSectionStatus @default(NOT_STARTED)
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sectionKey])
+  @@index([userId])
+  @@map("user_profile_section_states")
+}
+
+model UserExtendedProfile {
+  userId                       String         @id
+  gender                       Gender?
+  citizenshipCountryCode       String?
+  residenceCountryCode         String?
+  regionId                     String?
+  districtId                   String?
+  settlementId                 String?
+  regionText                   String?
+  districtText                 String?
+  settlementText               String?
+  street                       String?
+  house                        String?
+  apartment                    String?
+  postalCode                   String?
+  consentMailing               Boolean        @default(false)
+  consentMailingAt             DateTime?
+  activityStatus               ActivityStatus?
+  studiesInRussia              Boolean        @default(false)
+  organizationName             String?
+  facultyOrDepartment          String?
+  classCourseYear              String?
+  positionTitle                String?
+  achievementsText             String?        @db.Text
+  englishLevel                 LanguageLevel?
+  russianLevel                 LanguageLevel?
+  createdAt                    DateTime       @default(now())
+  updatedAt                    DateTime       @updatedAt
+
+  user                         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  region                       ReferenceUzRegion? @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  district                     ReferenceUzDistrict? @relation(fields: [districtId], references: [id], onDelete: SetNull)
+  settlement                   ReferenceUzSettlement? @relation(fields: [settlementId], references: [id], onDelete: SetNull)
+
+  @@map("user_extended_profiles")
+}
+
+model UserIdentityDocument {
+  id                           String                @id @default(cuid())
+  userId                       String                @unique
+  documentType                 IdentityDocumentType?
+  citizenshipCountryCode       String?
+  documentSeries               String?
+  documentNumber               String?
+  issueDate                    DateTime?
+  issuedBy                     String?
+  issueCountryCode             String?
+  expiryDate                   DateTime?
+  placeOfBirth                 String?
+  pinfl                        String?
+  passportSeries               String?
+  passportNumber               String?
+  subdivisionCode              String?
+  snils                        String?
+  hasSecondCitizenship         Boolean               @default(false)
+  secondCitizenshipCountryCode String?
+  scanAssetId                  String?               @unique
+  createdAt                    DateTime              @default(now())
+  updatedAt                    DateTime              @updatedAt
+
+  user                         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scanAsset                    MediaAsset?           @relation("IdentityDocumentScan", fields: [scanAssetId], references: [id], onDelete: SetNull)
+
+  @@map("user_identity_documents")
+}
+
+model UserInternationalPassport {
+  id             String      @id @default(cuid())
+  userId         String      @unique
+  countryCode    String?
+  series         String?
+  number         String?
+  issueDate      DateTime?
+  expiryDate     DateTime?
+  issuedBy       String?
+  scanAssetId    String?     @unique
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scanAsset      MediaAsset? @relation("InternationalPassportScan", fields: [scanAssetId], references: [id], onDelete: SetNull)
+
+  @@map("user_international_passports")
+}
+
+model UserSocialLinks {
+  userId          String   @id
+  maxUrl          String?
+  maxAbsent       Boolean  @default(false)
+  vkUrl           String?
+  vkAbsent        Boolean  @default(false)
+  telegramUrl     String?
+  telegramAbsent  Boolean  @default(false)
+  instagramUrl    String?
+  instagramAbsent Boolean  @default(false)
+  facebookUrl     String?
+  facebookAbsent  Boolean  @default(false)
+  xUrl            String?
+  xAbsent         Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_social_links")
+}
+
+model UserActivityDirection {
+  id        String            @id @default(cuid())
+  userId    String
+  direction ActivityDirection
+  createdAt DateTime          @default(now())
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, direction])
+  @@index([userId])
+  @@map("user_activity_directions")
+}
+
+model UserAdditionalLanguage {
+  id           String   @id @default(cuid())
+  userId       String
+  languageName String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, languageName])
+  @@index([userId])
+  @@map("user_additional_languages")
+}
+
+model UserAdditionalDocument {
+  id        String                 @id @default(cuid())
+  userId    String
+  type      AdditionalDocumentType
+  assetId   String                 @unique
+  notes     String?
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+
+  user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset     MediaAsset             @relation("UserAdditionalDocumentAsset", fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@index([userId])
+  @@map("user_additional_documents")
+}
+
+model UserEmergencyContact {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  fullName     String?
+  relationship String?
+  phone        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_emergency_contacts")
+}
+
+model ReferenceCountry {
+  code      String   @id
+  nameRu    String
+  nameEn    String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("reference_countries")
+}
+
+model ReferenceUzRegion {
+  id        String               @id @default(cuid())
+  code      String               @unique
+  nameRu    String
+  nameEn    String
+  sortOrder Int                  @default(0)
+  isActive  Boolean              @default(true)
+
+  districts ReferenceUzDistrict[]
+  profiles  UserExtendedProfile[]
+
+  @@map("reference_uz_regions")
+}
+
+model ReferenceUzDistrict {
+  id          String                 @id @default(cuid())
+  regionId    String
+  code        String                 @unique
+  nameRu      String
+  nameEn      String
+  sortOrder   Int                    @default(0)
+  isActive    Boolean                @default(true)
+
+  region      ReferenceUzRegion      @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  settlements ReferenceUzSettlement[]
+  profiles    UserExtendedProfile[]
+
+  @@index([regionId])
+  @@map("reference_uz_districts")
+}
+
+model ReferenceUzSettlement {
+  id         String                @id @default(cuid())
+  districtId String
+  code       String                @unique
+  nameRu     String
+  nameEn     String
+  type       String?
+  sortOrder  Int                   @default(0)
+  isActive   Boolean               @default(true)
+
+  district   ReferenceUzDistrict   @relation(fields: [districtId], references: [id], onDelete: Cascade)
+  profiles   UserExtendedProfile[]
+
+  @@index([districtId])
+  @@map("reference_uz_settlements")
+}
+
+model MediaAsset {
+  id               String            @id @default(cuid())
+  ownerUserId      String
+  purpose          MediaAssetPurpose
+  status           MediaAssetStatus  @default(ACTIVE)
+  originalFilename String
+  mimeType         String
+  sizeBytes        Int
+  storageDriver    String
+  storageKey       String
+  publicUrl        String
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  deletedAt        DateTime?
+
+  ownerUser        User              @relation("MediaAssetOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  avatarForUsers   User[]            @relation("UserAvatar")
+  identityDocumentScanFor UserIdentityDocument? @relation("IdentityDocumentScan")
+  internationalPassportScanFor UserInternationalPassport? @relation("InternationalPassportScan")
+  userAdditionalDocumentFor UserAdditionalDocument? @relation("UserAdditionalDocumentAsset")
+
+  @@index([ownerUserId, purpose, status])
+  @@map("media_assets")
+}
+
+model UserAccount {
+  id                 String       @id @default(cuid())
+  userId             String
+  provider           AuthProvider
+  providerAccountId  String
+  providerEmail      String?
+  providerUsername   String?
+  providerAvatarUrl  String?
+  linkedAt           DateTime     @default(now())
+  lastUsedAt         DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("user_accounts")
+}
+
+model RegistrationVerification {
+  id                          String   @id @default(cuid())
+  email                       String   @unique
+  codeHash                    String
+  codeSentAt                  DateTime
+  codeExpiresAt               DateTime
+  verifiedAt                  DateTime?
+  completionTokenHash         String?
+  completionTokenExpiresAt    DateTime?
+  attempts                    Int      @default(0)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  @@index([codeExpiresAt])
+  @@index([completionTokenExpiresAt])
+  @@map("registration_verifications")
+}
+
+model Event {
+  id                               String                     @id @default(cuid())
+  slug                             String                     @unique
+  title                            String
+  shortDescription                 String
+  fullDescription                  String                     @db.Text
+  coverImageUrl                    String?
+  category                         String
+  location                         String
+
+  // Registration and limits
+  capacity                         Int                        @default(100)
+  registrationsCount               Int                        @default(0)
+
+  // Timing
+  startsAt                         DateTime
+  endsAt                           DateTime
+  registrationOpensAt              DateTime?
+  registrationDeadline             DateTime?
+
+  // Registration Settings
+  registrationEnabled              Boolean                    @default(true)
+  registrationMode                 RegistrationMode           @default(INDIVIDUAL)
+  volunteerApplicationsEnabled     Boolean                    @default(false)
+  requiredProfileFields            String[]                   @default([])
+  requiredEventFields              String[]                   @default([])
+  customRegistrationFields         Json?
+  conditions                       String?
+  contactEmail                     String?
+  contactPhone                     String?
+  tags                             String[]
+  status                           EventStatus                @default(DRAFT)
+  isFeatured                       Boolean                    @default(false)
+
+  // Team settings
+  isTeamBased                      Boolean                    @default(false)
+  minTeamSize                      Int                        @default(1)
+  maxTeamSize                      Int                        @default(1)
+  allowSoloParticipation           Boolean                    @default(true)
+  teamJoinMode                     TeamJoinMode               @default(OPEN)
+  requireAdminApprovalForTeams     Boolean                    @default(false)
+
+  // Individual participation config
+  requireParticipantApproval       Boolean                    @default(false)
+  participantLimitMode             ParticipantLimitMode       @default(UNLIMITED)
+  participantTarget                Int?
+  participantCountVisibility       ParticipantCountVisibility @default(PUBLIC)
+
+  publishedAt                      DateTime?
+  createdById                      String?
+  createdAt                        DateTime                   @default(now())
+  updatedAt                        DateTime                   @updatedAt
+
+  createdBy                        User?                      @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  members                          EventMember[]
+  teams                            EventTeam[]
+  teamInvitations                  EventTeamInvitation[]
+  analyticsEvents                  AnalyticsEvent[]
+  registrationSubmissions          EventRegistrationFormSubmission[]
+  milestones                       EventMilestone[]
+  exportPresets                    ExportPreset[]
+
+  @@map("events")
+}
+
+model EventRegistrationFormSubmission {
+  id          String   @id @default(cuid())
+  eventId     String
+  userId      String
+  answersJson Json
+  isComplete  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([userId])
+  @@map("event_registration_form_submissions")
+}
+
+model EventMember {
+  id               String             @id @default(cuid())
+  eventId          String
+  userId           String
+  role             EventMemberRole
+  status           EventMemberStatus  @default(PENDING)
+  assignedByUserId String?
+  assignedAt       DateTime           @default(now())
+  approvedAt       DateTime?
+  rejectedAt       DateTime?
+  removedAt        DateTime?
+  notes            String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  event            Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user             User   @relation("EventMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedByUser   User?  @relation("EventMemberAssignedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, userId, role])
+  @@index([userId, role, status])
+  @@index([eventId, role, status])
+  @@map("event_members")
+}
+
+model EventTeam {
+  id            String          @id @default(cuid())
+  eventId       String
+  name          String
+  slug          String          @unique
+  joinCode      String?         @unique
+  description   String?
+  captainUserId String
+  status        EventTeamStatus @default(ACTIVE)
+  maxSize       Int             @default(5)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  event         Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  captainUser   User            @relation("TeamCaptain", fields: [captainUserId], references: [id], onDelete: Cascade)
+  members       EventTeamMember[]
+  invitations   EventTeamInvitation[]
+  changeRequests EventTeamChangeRequest[]
+
+  @@index([eventId])
+  @@index([captainUserId])
+  @@map("event_teams")
+}
+
+model EventTeamChangeRequest {
+  id                    String                       @id @default(cuid())
+  teamId                String
+  requestedByUserId     String
+  decidedByUserId       String?
+  status                EventTeamChangeRequestStatus @default(PENDING)
+  proposedName          String
+  proposedDescription   String?
+  proposedMemberUserIds String[]
+  notes                 String?
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
+  decidedAt             DateTime?
+
+  team                  EventTeam                    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  requestedByUser       User                         @relation("TeamChangeRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Cascade)
+  decidedByUser         User?                        @relation("TeamChangeDecidedBy", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([teamId, status])
+  @@index([requestedByUserId])
+  @@map("event_team_change_requests")
+}
+
+model EventTeamMember {
+  id         String                @id @default(cuid())
+  teamId     String
+  userId     String
+  role       EventTeamRole         @default(MEMBER)
+  status     EventTeamMemberStatus @default(PENDING)
+  joinedAt   DateTime              @default(now())
+  approvedAt DateTime?
+  removedAt  DateTime?
+
+  team       EventTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([teamId, status])
+  @@index([userId, status])
+  @@map("event_team_members")
+}
+
+model EventTeamInvitation {
+  id              String               @id @default(cuid())
+  eventId         String
+  teamId          String
+  slotIndex       Int
+  inviteeEmail    String
+  inviteeUserId   String?
+  invitedByUserId String
+  status          TeamInvitationStatus @default(PENDING_ACCOUNT)
+  message         String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  respondedAt     DateTime?
+  acceptedAt      DateTime?
+  declinedAt      DateTime?
+  cancelledAt     DateTime?
+  expiresAt       DateTime?
+
+  event           Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  team            EventTeam            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  invitee         User?                @relation("TeamInvitationInvitee", fields: [inviteeUserId], references: [id], onDelete: SetNull)
+  invitedBy       User                 @relation("TeamInvitationInvitedBy", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, status])
+  @@index([teamId, slotIndex])
+  @@index([inviteeEmail, status])
+  @@index([inviteeUserId, status])
+  @@index([eventId, status])
+  @@map("event_team_invitations")
+}
+
+model AnalyticsEvent {
+  id           String              @id @default(cuid())
+  type         AnalyticsEventType
+  userId       String?
+  eventId      String?
+  authProvider AuthProvider?
+  sessionId    String?
+  locale       String?
+  path         String?
+  meta         Json?
+  createdAt    DateTime            @default(now())
+
+  user         User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  event        Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([type])
+  @@index([createdAt])
+  @@index([eventId])
+  @@map("analytics_events")
+}
+
+model RefreshSession {
+  id               String          @id @default(cuid())
+  userId           String
+  tokenHash        String          @unique
+  deviceInfo       String?
+  ipAddress        String?
+  userAgent        String?
+  createdAt        DateTime        @default(now())
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  replacedById     String?
+
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy       RefreshSession? @relation("SessionRotation", fields: [replacedById], references: [id])
+  replacedSessions RefreshSession[] @relation("SessionRotation")
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("refresh_sessions")
+}
+
+// ─── Support ticket system ──────────────────────────────────────────────────
+
+model SupportThread {
+  id              String              @id @default(cuid())
+  userId          String
+  subject         String
+  status          SupportThreadStatus @default(OPEN)
+  assignedAdminId String?
+  closedAt        DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  user            User                @relation("SupportThreadUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedAdmin   User?               @relation("SupportThreadAdmin", fields: [assignedAdminId], references: [id], onDelete: SetNull)
+  messages        SupportMessage[]
+  attachments     SupportAttachment[] @relation("SupportAttachmentThread")
+  readStates      SupportThreadReadState[]
+
+  @@index([userId, status])
+  @@index([assignedAdminId, status])
+  @@index([status, createdAt])
+  @@map("support_threads")
+}
+
+model SupportMessage {
+  id          String            @id @default(cuid())
+  threadId    String
+  senderId    String
+  senderType  SupportSenderType
+  body        String            @db.Text
+  createdAt   DateTime          @default(now())
+
+  thread      SupportThread     @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender      User              @relation("SupportMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  attachments SupportAttachment[]
+
+  @@index([threadId, createdAt])
+  @@map("support_messages")
+}
+
+model SupportAttachment {
+  id         String          @id @default(cuid())
+  messageId  String?
+  threadId   String
+  uploaderId String
+  filename   String
+  mimeType   String
+  sizeBytes  Int
+  storageKey String
+  publicUrl  String
+  createdAt  DateTime        @default(now())
+
+  message    SupportMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  thread     SupportThread   @relation("SupportAttachmentThread", fields: [threadId], references: [id], onDelete: Cascade)
+  uploader   User            @relation("SupportAttachmentUploader", fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([threadId])
+  @@index([uploaderId])
+  @@map("support_attachments")
+}
+
+model SupportThreadReadState {
+  id         String        @id @default(cuid())
+  threadId   String
+  userId     String
+  lastReadAt DateTime      @default(now())
+
+  thread     SupportThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user       User          @relation("SupportThreadReadStateUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, userId])
+  @@index([userId])
+  @@map("support_thread_read_states")
+}
+
+// ─── Password Reset ─────────────────────────────────────────────────────────
+
+model PasswordResetToken {
+  id            String    @id @default(cuid())
+  userId        String
+  tokenHash     String    @unique
+  expiresAt     DateTime
+  usedAt        DateTime?
+  requestedAt   DateTime  @default(now())
+  requestedIp   String?
+  requestedUa   String?
+  consumedIp    String?
+  consumedUa    String?
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
+// ─── Profile Field Visibility ────────────────────────────────────────────────
+
+model ProfileFieldVisibilitySetting {
+  key                  String   @id
+  sectionKey           String
+  isVisibleInCabinet    Boolean  @default(true)
+  updatedByUserId      String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  updatedByUser        User?    @relation("ProfileFieldVisibilityUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([sectionKey])
+  @@map("profile_field_visibility_settings")
+}
+
+// ─── User Preferences ────────────────────────────────────────────────────────
+
+model UserPreference {
+  id        String   @id @default(cuid())
+  userId    String
+  key       String
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId])
+  @@map("user_preferences")
+}
+
+// ─── Event Milestones ────────────────────────────────────────────────────────
+
+enum EventMilestoneType {
+  REGISTRATION_OPEN
+  REGISTRATION_CLOSE
+  TEAM_SUBMIT_DEADLINE
+  DOCUMENT_UPLOAD_DEADLINE
+  CHECK_IN
+  EVENT_START
+  EVENT_END
+  CUSTOM
+}
+
+model EventMilestone {
+  id          String            @id @default(cuid())
+  eventId     String
+  type        EventMilestoneType
+  title       String
+  description String?
+  occursAt    DateTime
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  event       Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, occursAt])
+  @@map("event_milestones")
+}
+
+// ─── Export Presets ──────────────────────────────────────────────────────────
+
+model ExportPreset {
+  id          String   @id @default(cuid())
+  eventId     String?
+  scope       String
+  name        String
+  format      String
+  configJson  Json
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  event      Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdBy  User     @relation("ExportPresetCreatedBy", fields: [createdById], references: [id])
+
+  @@index([eventId])
+  @@map("export_presets")
+}

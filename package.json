@@ -1,0 +1,61 @@
+{
+  "name": "event-platform-mvp",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=10.33.0"
+  },
+  "scripts": {
+    "dev": "corepack pnpm --parallel --filter @event-platform/web --filter @event-platform/api run dev",
+    "dev:web": "corepack pnpm --filter @event-platform/web run dev",
+    "dev:api": "corepack pnpm --filter @event-platform/api run dev",
+    "build": "corepack pnpm --filter @event-platform/shared run build && corepack pnpm --filter @event-platform/ui run build && corepack pnpm --filter @event-platform/api run build && corepack pnpm --filter @event-platform/web run build",
+    "build:web": "corepack pnpm --filter @event-platform/web run build",
+    "build:api": "corepack pnpm --filter @event-platform/api run build",
+    "typecheck": "corepack pnpm --filter @event-platform/shared run typecheck && corepack pnpm --filter @event-platform/ui run typecheck && corepack pnpm --filter @event-platform/api run typecheck && corepack pnpm --filter @event-platform/web run typecheck",
+    "lint": "corepack pnpm --filter @event-platform/shared run lint && corepack pnpm --filter @event-platform/ui run lint && corepack pnpm --filter @event-platform/api run lint && corepack pnpm --filter @event-platform/web run lint",
+    "test": "corepack pnpm --filter @event-platform/shared run test && corepack pnpm --filter @event-platform/ui run test && corepack pnpm --filter @event-platform/api run test && corepack pnpm --filter @event-platform/web run test",
+    "clean": "corepack pnpm --filter @event-platform/shared run clean && corepack pnpm --filter @event-platform/ui run clean && corepack pnpm --filter @event-platform/api run clean && corepack pnpm --filter @event-platform/web run clean && node -e \"const fs=require('fs'); ['node_modules','.turbo'].forEach(p=>fs.rmSync(p,{recursive:true,force:true}))\"",
+    "db:generate": "corepack pnpm --filter @event-platform/api prisma generate",
+    "db:migrate": "corepack pnpm --filter @event-platform/api prisma migrate dev",
+    "db:deploy": "corepack pnpm --filter @event-platform/api prisma migrate deploy",
+    "db:push": "corepack pnpm --filter @event-platform/api prisma db push",
+    "db:seed": "corepack pnpm --filter @event-platform/api prisma db seed",
+    "db:studio": "corepack pnpm --filter @event-platform/api prisma studio",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@parcel/watcher",
+      "@prisma/client",
+      "@prisma/engines",
+      "@swc/core",
+      "argon2",
+      "esbuild",
+      "prisma",
+      "sharp"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.25.0",
+    "@next/eslint-plugin-next": "^16.2.3",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@types/supertest": "^6.0.3",
+    "@types/node": "^24.0.0",
+    "eslint": "^9.25.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^15.15.0",
+    "jsdom": "^26.1.0",
+    "supertest": "^7.1.1",
+    "turbo": "2.9.6",
+    "typescript": "6.0.2",
+    "typescript-eslint": "^8.30.1",
+    "vitest": "^3.2.4"
+  }
+}
