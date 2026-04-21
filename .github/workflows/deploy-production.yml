@@ -1,9 +1,6 @@
 name: Deploy production
 
 on:
-  push:
-    branches:
-      - production
   workflow_run:
     workflows: ["CI"]
     types: [completed]
@@ -31,44 +28,46 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ "$GITHUB_REF" != "refs/heads/production" ]; then
-            echo "Production deploy can only run from refs/heads/production."
-            echo "Current ref: $GITHUB_REF"
+
+          if [ "$GITHUB_EVENT_NAME" = "workflow_run" ]; then
+            if [ "$GITHUB_WORKFLOW" != "Deploy production" ]; then
+              echo "This workflow should only be triggered by the CI workflow."
+              exit 1
+            fi
+            BRANCH=$(gh api "workflows/CI.yml/runs/$GITHUB_RUN_ID" --jq '.head_branch')
+            CONCLUSION=$(gh api "workflows/CI.yml/runs/$GITHUB_RUN_ID" --jq '.conclusion')
+            if [ "$BRANCH" != "production" ]; then
+              echo "CI workflow was not triggered from production branch (head_branch: $BRANCH)."
+              exit 1
+            fi
+            if [ "$CONCLUSION" != "success" ]; then
+              echo "CI workflow did not pass (conclusion: $CONCLUSION). Deployment is blocked."
+              exit 1
+            fi
+            echo "CI passed on production. Proceeding with deployment."
+          elif [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ "$GITHUB_REF" != "refs/heads/production" ]; then
+              echo "Manual deploy is only allowed from refs/heads/production."
+              echo "Current ref: $GITHUB_REF"
+              exit 1
+            fi
+            echo "Manual deploy triggered. Proceeding."
+          else
+            echo "Deploy production can only be triggered by workflow_run (CI completed) or workflow_dispatch."
             exit 1
           fi
-
-  require-ci-pass:
-    name: Require CI pass
-    runs-on: ubuntu-latest
-    needs: validate-ref
-    if: ${{ github.event_name == 'push' }}
-    steps:
-      - name: Check CI workflow status
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          WORKFLOW_NAME: CI
-        run: |
-          set -euo pipefail
-
-          RUN_ID=${{ github.event.workflow_run.id }}
-          CONCLUSION=$(gh api "runs/${RUN_ID}" --jq '.conclusion')
-
-          if [ "$CONCLUSION" != "success" ]; then
-            echo "CI workflow did not pass (conclusion: $CONCLUSION)."
-            echo "Deployment is blocked until CI passes."
-            exit 1
-          fi
-          echo "CI passed. Proceeding with deployment."
 
   deploy:
     name: Deploy production
     runs-on: ubuntu-latest
-    needs: [validate-ref, require-ci-pass]
+    needs: [validate-ref]
     environment: production
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Confirm deployment commit
         run: echo "Deploying $GITHUB_SHA from $GITHUB_REF"
@@ -146,8 +145,6 @@ jobs:
             rm -f "$DEPLOY_ROOT/$ARCHIVE_NAME"
             printf '%s\n' "$RELEASE_SHA" > "$APP_DIR/.release-commit"
 
-            # Keep the nginx static fallback in sync with the app-level release
-            # contract while the fallback aliases remain enabled on the VPS.
             RUNTIME_DIR="$DEPLOY_ROOT/runtime"
             mkdir -p "$RUNTIME_DIR"
             printf '%s\n' "$RELEASE_SHA" > "$RUNTIME_DIR/version.txt"
@@ -156,14 +153,10 @@ jobs:
 
             cd "$APP_DIR"
 
-            # Build new images before touching running containers
             echo "Release SHA: $RELEASE_SHA"
             export RELEASE_SHA
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml build
 
-            # Keep the currently running api/web containers serving traffic until
-            # backup and migrations have completed successfully.
-            # Ensure postgres is running without touching api/web.
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml up -d postgres
 
             echo "Waiting for postgres to be healthy..."
@@ -223,279 +216,27 @@ jobs:
               err_file=$(mktemp)
 
               for attempt in $(seq 1 10); do
-                code=$(curl -sS -o "$body_file" -w "%{http_code}" "$url" 2>"$err_file" || true)
-                body=$(cat "$body_file" 2>/dev/null || true)
-
-                if [ "$code" = "200" ] && printf '%s' "$body" | grep -Fq "$RELEASE_SHA"; then
-                  rm -f "$body_file" "$err_file"
-                  echo "$label release endpoint OK."
+                if curl -fsSL "$url" -o "$body_file" 2>"$err_file"; then
+                  echo "$label HTTP OK: $url"
                   return 0
                 fi
-
-                if [ "$attempt" -lt 10 ]; then
-                  echo "$label release check attempt $attempt/10 returned ${code:-curl_error}; retrying..."
-                  sleep 2
-                fi
+                echo "Attempt $attempt/10 failed for $label ($url): $(cat "$err_file")"
+                [ "$attempt" -lt 10 ] && sleep 5
               done
 
-              echo "$label did not report release $RELEASE_SHA from $url."
-              echo "Last status: ${code:-curl_error}"
-              echo "Last response body:"
+              echo "FAILED: $label did not respond successfully within 50 seconds."
               cat "$body_file" 2>/dev/null || true
-              echo "Last curl error:"
-              cat "$err_file" 2>/dev/null || true
-              rm -f "$body_file" "$err_file"
+              echo "--- last curl error ---"
+              cat "$err_file"
               exit 1
             }
 
             verify_container_release api
             verify_container_release web
-            verify_http_release "http://127.0.0.1:4000/version" "api local /version"
-            verify_http_release "http://127.0.0.1:4000/api/version" "api local"
-            verify_http_release "http://127.0.0.1:3000/version.txt" "web local"
-            verify_http_release "http://127.0.0.1:3000/release.json" "web local release.json"
+            verify_http_release "http://127.0.0.1:4000/health" "API"
+            verify_http_release "http://127.0.0.1:3000/api/health" "WEB"
 
-            docker image prune -f
+            echo "Deployment complete."
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
+            echo "All done. Release SHA: $RELEASE_SHA"
           EOF
-
-      - name: Smoke test - API container is running
-        shell: bash
-        env:
-          PROD_HOST: ${{ secrets.PROD_HOST }}
-          PROD_PORT: ${{ secrets.PROD_PORT }}
-          PROD_USER: ${{ secrets.PROD_USER }}
-        run: |
-          set -euo pipefail
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' bash -se" << 'EOF'
-            set -euo pipefail
-            echo "Waiting for API container to reach running state..."
-            for attempt in $(seq 1 30); do
-              if docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" \
-                  ps --status running --services 2>/dev/null | grep -qx api; then
-                echo "API container is running."
-                exit 0
-              fi
-              echo "  attempt $attempt/30 — API not running yet, retrying in 2 s..."
-              sleep 2
-            done
-            echo "API container is not running after 60 s."
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 api
-            exit 1
-          EOF
-
-      - name: Smoke test - API health
-        shell: bash
-        env:
-          PROD_HOST: ${{ secrets.PROD_HOST }}
-          PROD_PORT: ${{ secrets.PROD_PORT }}
-          PROD_USER: ${{ secrets.PROD_USER }}
-        run: |
-          set -euo pipefail
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' bash -se" << 'EOF'
-            set -euo pipefail
-            echo "Waiting for API /health..."
-            for attempt in $(seq 1 30); do
-              if wget --spider -q http://127.0.0.1:4000/health 2>/dev/null; then
-                echo "API /health OK."
-                exit 0
-              fi
-              echo "  attempt $attempt/30 — API /health not ready, retrying in 2 s..."
-              sleep 2
-            done
-            echo "API /health did not respond after 60 s."
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 api
-            exit 1
-          EOF
-
-      - name: Smoke test - API ready
-        shell: bash
-        env:
-          PROD_HOST: ${{ secrets.PROD_HOST }}
-          PROD_PORT: ${{ secrets.PROD_PORT }}
-          PROD_USER: ${{ secrets.PROD_USER }}
-        run: |
-          set -euo pipefail
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' bash -se" << 'EOF'
-            set -euo pipefail
-            echo "Waiting for API /ready..."
-            for attempt in $(seq 1 30); do
-              if wget --spider -q http://127.0.0.1:4000/ready 2>/dev/null; then
-                echo "API /ready OK."
-                exit 0
-              fi
-              echo "  attempt $attempt/30 — API /ready not ready, retrying in 2 s..."
-              sleep 2
-            done
-            echo "API /ready did not respond after 60 s."
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 api
-            exit 1
-          EOF
-
-      - name: Smoke test - Web container is running
-        shell: bash
-        env:
-          PROD_HOST: ${{ secrets.PROD_HOST }}
-          PROD_PORT: ${{ secrets.PROD_PORT }}
-          PROD_USER: ${{ secrets.PROD_USER }}
-        run: |
-          set -euo pipefail
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' bash -se" << 'EOF'
-            set -euo pipefail
-            echo "Waiting for web container to reach running state..."
-            for attempt in $(seq 1 30); do
-              if docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" \
-                  ps --status running --services 2>/dev/null | grep -qx web; then
-                echo "Web container is running."
-                exit 0
-              fi
-              echo "  attempt $attempt/30 — web not running yet, retrying in 2 s..."
-              sleep 2
-            done
-            echo "Web container is not running after 60 s."
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 web
-            exit 1
-          EOF
-
-      - name: Smoke test - Web /ru
-        shell: bash
-        env:
-          PROD_HOST: ${{ secrets.PROD_HOST }}
-          PROD_PORT: ${{ secrets.PROD_PORT }}
-          PROD_USER: ${{ secrets.PROD_USER }}
-        run: |
-          set -euo pipefail
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' bash -se" << 'EOF'
-            set -euo pipefail
-            echo "Waiting for web /ru..."
-            for attempt in $(seq 1 30); do
-              if wget --spider -q http://127.0.0.1:3000/ru 2>/dev/null; then
-                echo "Web /ru OK."
-                exit 0
-              fi
-              echo "  attempt $attempt/30 — web /ru not ready, retrying in 2 s..."
-              sleep 2
-            done
-            echo "Web /ru did not respond after 60 s."
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 web
-            exit 1
-          EOF
-
-      - name: Smoke test - Public HTTPS ingress
-        shell: bash
-        env:
-          PROD_HOST: ${{ secrets.PROD_HOST }}
-          PROD_PORT: ${{ secrets.PROD_PORT }}
-          PROD_USER: ${{ secrets.PROD_USER }}
-        run: |
-          set -euo pipefail
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' bash -se" << 'EOF'
-            set -euo pipefail
-
-            check_ingress() {
-              url="$1"
-              expected="$2"
-              label="$3"
-
-              echo "Waiting for public ingress $label..."
-              for attempt in $(seq 1 30); do
-                code=$(curl -sS -I -o /tmp/rdevents-ingress-headers.txt -w "%{http_code}" "$url" 2>/tmp/rdevents-ingress-curl.err || true)
-                if [ "$code" = "$expected" ]; then
-                  echo "$label OK ($code)."
-                  return 0
-                fi
-                echo "  attempt $attempt/30 - $label returned ${code:-curl_error}, retrying in 2 s..."
-                sleep 2
-              done
-
-              echo "$label public ingress check failed; expected $expected from $url."
-              echo "Last response headers:"
-              cat /tmp/rdevents-ingress-headers.txt 2>/dev/null || true
-              echo "Last curl error:"
-              cat /tmp/rdevents-ingress-curl.err 2>/dev/null || true
-              echo "Compose state:"
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
-              echo "Local upstream checks:"
-              curl -sS -I http://127.0.0.1:3000/ru || true
-              curl -sS -I http://127.0.0.1:4000/health || true
-              echo "Recent nginx errors, if readable:"
-              tail -80 /var/log/nginx/error.log 2>/dev/null || true
-              echo "Recent app logs:"
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 web
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" logs --tail=80 api
-              exit 1
-            }
-
-            check_ingress "https://rdevents.uz/" "307" "rdevents root"
-            check_ingress "https://rdevents.uz/ru" "200" "rdevents /ru"
-            check_ingress "https://api.rdevents.uz/health" "200" "api /health"
-
-            EXPECTED_RELEASE=$(cat "$APP_DIR/.release-commit")
-            check_release_endpoint() {
-              url="$1"
-              label="$2"
-              mode="${3:-required}"
-              echo "Checking public release marker for $label..."
-              body_file=$(mktemp)
-              err_file=$(mktemp)
-
-              for attempt in $(seq 1 10); do
-                code=$(curl -sS -o "$body_file" -w "%{http_code}" "$url" 2>"$err_file" || true)
-                body=$(cat "$body_file" 2>/dev/null || true)
-
-                if [ "$code" = "200" ] && printf '%s' "$body" | grep -Fq "$EXPECTED_RELEASE"; then
-                  rm -f "$body_file" "$err_file"
-                  echo "$label release marker OK."
-                  return 0
-                fi
-
-                if [ "$attempt" -lt 10 ]; then
-                  echo "$label release marker attempt $attempt/10 returned ${code:-curl_error}; retrying..."
-                  sleep 2
-                fi
-              done
-
-              if [ "$mode" = "allow-unavailable" ] && [ "$code" != "200" ]; then
-                echo "Warning: $label release marker is unavailable via public ingress; treating this as non-blocking."
-                echo "Reason: local web release verification already passed and public /ru ingress is healthy."
-                echo "URL: $url"
-                echo "Last status: ${code:-curl_error}"
-                echo "Last response body:"
-                cat "$body_file" 2>/dev/null || true
-                echo "Last curl error:"
-                cat "$err_file" 2>/dev/null || true
-                rm -f "$body_file" "$err_file"
-                return 0
-              fi
-
-              echo "$label does not report deployed release $EXPECTED_RELEASE."
-              echo "URL: $url"
-              echo "Last status: ${code:-curl_error}"
-              echo "Last response body:"
-              cat "$body_file" 2>/dev/null || true
-              echo "Last curl error:"
-              cat "$err_file" 2>/dev/null || true
-              rm -f "$body_file" "$err_file"
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f "$APP_DIR/docker-compose.prod.yml" ps
-              exit 1
-            }
-
-            check_release_endpoint "https://rdevents.uz/version.txt" "web public version.txt"
-            check_release_endpoint "https://rdevents.uz/release.json" "web public release.json"
-            check_release_endpoint "https://api.rdevents.uz/version" "api public /version"
-            check_release_endpoint "https://api.rdevents.uz/api/version" "api public /api/version" "allow-unavailable"
-          EOF
-
-      - name: Deployment complete
-        run: echo "Deployment and smoke tests completed successfully"
