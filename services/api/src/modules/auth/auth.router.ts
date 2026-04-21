@@ -237,10 +237,7 @@ authRouter.post('/logout-all', authenticate, async (req, res) => {
   await revokeAllUserSessions(user.id);
 
   // Clear current cookie
-  res.clearCookie(REFRESH_COOKIE, {
-    path: '/',
-    domain: env.isProd ? '.rdevents.uz' : undefined,
-  });
+  res.clearCookie(REFRESH_COOKIE, { path: '/' });
   res.json({ ok: true });
 });
 
