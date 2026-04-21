@@ -15,7 +15,7 @@ export const passwordResetRouter = Router();
 
 function getClientContext(req: any) {
   return {
-    ipAddress: req.ip ?? req.connection?.remoteAddress ?? null,
+    ipAddress: req.ip ?? null,
     userAgent: req.get('User-Agent') ?? null,
   };
 }
