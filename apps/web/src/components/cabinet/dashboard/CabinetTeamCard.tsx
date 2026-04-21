@@ -121,7 +121,7 @@ export function CabinetTeamCard({ team, event, locale }: CabinetTeamCardProps) {
           
           <div className="team-actions">
             {team.canEdit && (
-              <Link href={`/${locale}/cabinet/events/${event.slug}`} className="btn btn-secondary btn-sm">
+              <Link href={`/${locale}/cabinet/events/${event.slug}/team`} className="btn btn-secondary btn-sm">
                 {locale === 'ru' ? 'Редактировать' : 'Edit'}
               </Link>
             )}
