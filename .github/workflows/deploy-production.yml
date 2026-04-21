@@ -1,9 +1,9 @@
 name: Deploy production
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
+  push:
+    branches:
+      - production
   workflow_dispatch:
 
 permissions:
@@ -35,38 +35,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_run" ]; then
-            if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
-              echo "CI did not pass. Deployment is blocked."
-              exit 1
-            fi
-
-            if [ "${{ github.event.workflow_run.head_branch }}" != "production" ]; then
-              echo "CI was not run for production branch."
-              exit 1
-            fi
-
-            echo "release_sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
-            echo "release_ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
-            echo "Validated workflow_run for production."
-            exit 0
+          if [ "${GITHUB_REF}" != "refs/heads/production" ]; then
+            echo "Production deploy can only run from refs/heads/production."
+            echo "Current ref: ${GITHUB_REF}"
+            exit 1
           fi
 
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-            if [ "${GITHUB_REF}" != "refs/heads/production" ]; then
-              echo "Manual deploy is allowed only from production branch."
-              echo "Current ref: ${GITHUB_REF}"
-              exit 1
-            fi
-
-            echo "release_sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-            echo "release_ref=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-            echo "Validated manual deploy from production."
-            exit 0
-          fi
-
-          echo "Unsupported event: ${GITHUB_EVENT_NAME}"
-          exit 1
+          echo "release_sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "release_ref=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "Validated deploy from production."
 
   deploy:
     name: Deploy production
@@ -85,9 +62,11 @@ jobs:
           ref: ${{ needs.validate-ref.outputs.release_ref }}
 
       - name: Confirm deployment commit
+        shell: bash
         run: |
           set -euo pipefail
           echo "Deploying RELEASE_SHA=${RELEASE_SHA}"
+          echo "Deploying GITHUB_REF=${GITHUB_REF}"
 
       - name: Prepare SSH
         shell: bash
@@ -162,14 +141,16 @@ jobs:
 
             tar -xzf "$DEPLOY_ROOT/$ARCHIVE_NAME" -C "$APP_DIR"
             rm -f "$DEPLOY_ROOT/$ARCHIVE_NAME"
-            printf '%s\n' "$RELEASE_SHA" > "$APP_DIR/.release-commit"
 
             cd "$APP_DIR"
 
             echo "Release SHA: $RELEASE_SHA"
             export RELEASE_SHA
 
+            # Build new images before touching running app containers.
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml build api web
+
+            # Ensure postgres is up, without touching running api/web yet.
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml up -d postgres
 
             echo "Waiting for postgres to be healthy..."
@@ -304,36 +285,103 @@ jobs:
               return $ret
             }
 
+            check_ingress_status() {
+              url="$1"
+              expected="$2"
+              label="$3"
+
+              body_file=$(mktemp)
+              err_file=$(mktemp)
+              ret=1
+
+              for attempt in $(seq 1 15); do
+                code=$(curl -sS -I -o "$body_file" -w "%{http_code}" "$url" 2>"$err_file" || true)
+
+                if [ "$code" = "$expected" ]; then
+                  echo "OK: $label returned expected status $code"
+                  ret=0
+                  break
+                fi
+
+                echo "Attempt $attempt/15: $label returned code=$code, expected=$expected"
+                if [ "$attempt" -lt 15 ]; then
+                  sleep 3
+                fi
+              done
+
+              if [ $ret -ne 0 ]; then
+                echo "FAIL: $label did not return expected status $expected"
+                echo "Last response headers:"
+                cat "$body_file" 2>/dev/null || true
+                echo "Last curl error:"
+                cat "$err_file" 2>/dev/null || true
+              fi
+
+              rm -f "$body_file" "$err_file"
+              return $ret
+            }
+
             FAILED=0
 
             API_CONTAINER_SHA=$(verify_container_sha api "/app/services/api/release.txt" "API") || FAILED=1
-            WEB_CONTAINER_SHA=$(verify_container_sha web "/app/apps/web/public/release.txt" "Web") || FAILED=1
+            WEB_CONTAINER_SHA=$(verify_container_sha web "/app/apps/web/public/version.txt" "Web") || FAILED=1
 
-            if [ "${FAILED}" -eq 0 ] && [ "$API_CONTAINER_SHA" != "$WEB_CONTAINER_SHA" ]; then
+            if [ "$FAILED" -eq 0 ] && [ "$API_CONTAINER_SHA" != "$WEB_CONTAINER_SHA" ]; then
               echo "FAIL: API and Web container SHAs differ: api='$API_CONTAINER_SHA', web='$WEB_CONTAINER_SHA'"
               FAILED=1
             fi
 
-            verify_http_sha_plain "http://127.0.0.1:4000/version" "API /version" || FAILED=1
-            verify_http_sha_plain "http://127.0.0.1:4000/api/version" "API /api/version" || FAILED=1
-            verify_http_sha_plain "http://127.0.0.1:3000/version.txt" "Web /version.txt" || FAILED=1
-            verify_http_sha_json "http://127.0.0.1:3000/release.json" "Web /release.json" || FAILED=1
+            verify_http_sha_plain "http://127.0.0.1:4000/version" "API local /version" || FAILED=1
+            verify_http_sha_plain "http://127.0.0.1:4000/api/version" "API local /api/version" || FAILED=1
+            verify_http_sha_plain "http://127.0.0.1:3000/version.txt" "Web local /version.txt" || FAILED=1
+            verify_http_sha_json "http://127.0.0.1:3000/release.json" "Web local /release.json" || FAILED=1
 
             if [ $FAILED -ne 0 ]; then
               echo ""
               echo "=========================================="
-              echo "DEPLOYMENT FAILED: SHA verification failed."
+              echo "DEPLOYMENT FAILED: Local SHA verification failed."
               echo "Expected RELEASE_SHA: $RELEASE_SHA"
               echo "=========================================="
               docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=40 api
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=40 web
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=80 api
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=80 web
               exit 1
             fi
 
+            # Sync nginx runtime fallback only after local app verification passed.
+            RUNTIME_DIR="$DEPLOY_ROOT/runtime"
+            mkdir -p "$RUNTIME_DIR"
+            printf '%s\n' "$RELEASE_SHA" > "$RUNTIME_DIR/version.txt"
+            printf '%s\n' "$RELEASE_SHA" > "$RUNTIME_DIR/version"
+            printf '{"service":"event-platform-web","releaseSha":"%s"}\n' "$RELEASE_SHA" > "$RUNTIME_DIR/release.json"
+
+            check_ingress_status "https://rdevents.uz/" "307" "Public root" || FAILED=1
+            check_ingress_status "https://rdevents.uz/ru" "200" "Public /ru" || FAILED=1
+            check_ingress_status "https://api.rdevents.uz/health" "200" "Public API /health" || FAILED=1
+
+            verify_http_sha_plain "https://api.rdevents.uz/version" "API public /version" || FAILED=1
+            verify_http_sha_plain "https://rdevents.uz/version.txt" "Web public /version.txt" || FAILED=1
+            verify_http_sha_json "https://rdevents.uz/release.json" "Web public /release.json" || FAILED=1
+
+            if [ $FAILED -ne 0 ]; then
+              echo ""
+              echo "=========================================="
+              echo "DEPLOYMENT FAILED: Public verification failed."
+              echo "Expected RELEASE_SHA: $RELEASE_SHA"
+              echo "=========================================="
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=80 api
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=80 web
+              tail -80 /var/log/nginx/error.log 2>/dev/null || true
+              exit 1
+            fi
+
+            # Mark release as successful only after all checks passed.
+            printf '%s\n' "$RELEASE_SHA" > "$APP_DIR/.release-commit"
+
             echo ""
             echo "=========================================="
-            echo "DEPLOYMENT SUCCESS: All containers are running the correct release."
+            echo "DEPLOYMENT SUCCESS: All containers and public endpoints are on the correct release."
             echo "Release SHA: $RELEASE_SHA"
             echo "=========================================="
 
@@ -341,5 +389,8 @@ jobs:
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
           EOF
 
-      - name: Final status
-        run: echo "Deploy production completed for SHA ${RELEASE_SHA}"
+      - name: Deployment complete
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Deploy production completed successfully for SHA ${RELEASE_SHA}"
