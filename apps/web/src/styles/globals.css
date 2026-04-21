@@ -5289,11 +5289,6 @@ body {
   margin-top: 4px;
 }
 
-/* Tabs sit directly on cabinet-content-surface — no inner card wrapper */
-.profile-tab-area {
-  /* intentionally empty: single surface provided by cabinet-content-surface */
-}
-
 /* Light control strip tab list */
 .profile-workspace .cabinet-tabs-list {
   padding-bottom: 14px;
@@ -6127,6 +6122,12 @@ body {
   right: 0;
   z-index: 80;
   display: grid;
+  gap: 5px;
+  border: 1px solid rgba(185, 200, 223, 0.94);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 20px 46px rgba(15, 23, 42, 0.14);
+  padding: 8px;
 }
 
 /* ═══════════════════════════════════════
@@ -6743,13 +6744,6 @@ body {
   .quick-links-grid {
     grid-template-columns: 1fr;
   }
-}
-  gap: 5px;
-  border: 1px solid rgba(185, 200, 223, 0.94);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 20px 46px rgba(15, 23, 42, 0.14);
-  padding: 8px;
 }
 
 .admin-event-selector-hint,
