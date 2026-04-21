@@ -16,7 +16,6 @@ import {
   CabinetQuickActions,
   CabinetInvitationsCard,
   CabinetOtherEventsList,
-  CabinetQuickLinks,
   type DashboardResponse,
 } from '@/components/cabinet/dashboard';
 
@@ -218,7 +217,6 @@ export default function CabinetPage() {
             event={activeEvent} 
             locale={locale} 
           />
-          <CabinetQuickLinks locale={locale} />
         </div>
       </div>
 

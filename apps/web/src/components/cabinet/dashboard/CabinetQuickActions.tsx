@@ -24,7 +24,7 @@ function getActionHref(action: QuickAction, event: DashboardEventData, locale: s
     case 'OPEN_TEAM':
       return event.team ? `/${locale}/events/${event.slug}/team/${event.team.id}` : '#';
     case 'EDIT_TEAM':
-      return `/${locale}/cabinet/events/${event.slug}`;
+      return `/${locale}/cabinet/events/${event.slug}?team=edit`;
     case 'OPEN_CALENDAR':
       return `/api/events/${event.slug}/ics`;
     case 'OPEN_SUPPORT':

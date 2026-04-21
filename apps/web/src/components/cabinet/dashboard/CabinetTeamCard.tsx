@@ -12,10 +12,16 @@ interface CabinetTeamCardProps {
   locale: string;
 }
 
+function getTeamEditHref(event: DashboardEventData, locale: string): string {
+  return `/${locale}/cabinet/events/${event.slug}?team=edit`;
+}
+
 function TeamAvatar({ name, src }: { name: string; src?: string | null }) {
-  const initials = name
+  const safeName = name.trim() || 'U';
+  const initials = safeName
     .split(' ')
-    .map(n => n[0])
+    .map((part) => part[0])
+    .filter(Boolean)
     .join('')
     .toUpperCase()
     .slice(0, 2);
@@ -62,25 +68,34 @@ function NoTeamState({ event, locale }: { event: DashboardEventData; locale: str
 function TeamMembersList({ team, locale }: { team: TeamData; locale: string }) {
   if (!team.members || team.members.length === 0) return null;
 
-  const displayedMembers = team.members.slice(0, 5);
-  const remainingCount = team.members.length - 5;
+  const members = [...team.members].sort((left, right) => {
+    if (left.role === right.role) {
+      return left.name.localeCompare(right.name, locale === 'ru' ? 'ru' : 'en');
+    }
+
+    if (left.role === 'CAPTAIN') return -1;
+    if (right.role === 'CAPTAIN') return 1;
+    return 0;
+  });
 
   return (
     <div className="team-members-list">
-      {displayedMembers.map((member) => (
+      {members.map((member) => {
+        const memberName = member.name || member.email;
+
+        return (
         <div key={member.userId} className="team-member-row">
-          <TeamAvatar name={member.name} src={member.avatar} />
+          <TeamAvatar name={memberName} src={member.avatar} />
           <div className="team-member-info">
-            <span className="team-member-name">{member.name || member.email}</span>
+            <span className="team-member-name">{memberName}</span>
+            {member.email && member.email !== memberName ? (
+              <span className="signal-muted">{member.email}</span>
+            ) : null}
             <RoleBadge role={member.role} size="sm" />
           </div>
         </div>
-      ))}
-      {remainingCount > 0 && (
-        <p className="signal-muted team-members-more">
-          +{remainingCount} {locale === 'ru' ? 'ещё' : 'more'}
-        </p>
-      )}
+        );
+      })}
     </div>
   );
 }
@@ -111,7 +126,7 @@ export function CabinetTeamCard({ team, event, locale }: CabinetTeamCardProps) {
           
           <TeamMembersList team={team} locale={locale} />
           
-          {team.pendingInvites && team.pendingInvites > 0 && (
+          {typeof team.pendingInvites === 'number' && team.pendingInvites > 0 && (
             <Notice tone="warning">
               {locale === 'ru' 
                 ? `${team.pendingInvites} приглашение(й) ожидает ответа` 
@@ -121,7 +136,7 @@ export function CabinetTeamCard({ team, event, locale }: CabinetTeamCardProps) {
           
           <div className="team-actions">
             {team.canEdit && (
-              <Link href={`/${locale}/cabinet/events/${event.slug}`} className="btn btn-secondary btn-sm">
+              <Link href={getTeamEditHref(event, locale)} className="btn btn-secondary btn-sm">
                 {locale === 'ru' ? 'Редактировать' : 'Edit'}
               </Link>
             )}

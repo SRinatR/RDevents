@@ -115,6 +115,15 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
     () => invitations.filter((invitation) => OPEN_INVITATION_STATUSES.has(invitation.status)),
     [invitations],
   );
+  const myTeam = teamSlots?.team ?? membership?.teamMembership?.team ?? null;
+  const isCaptain = Boolean(myTeam && myTeam.captainUserId === user?.id);
+
+  useEffect(() => {
+    if (!myTeam) return;
+
+    setTeamName(myTeam.name ?? '');
+    setTeamDescription(myTeam.description ?? '');
+  }, [myTeam?.id, myTeam?.name, myTeam?.description]);
 
   if (loading || !user) return null;
   if (pageLoading) {
@@ -137,8 +146,6 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
 
   const participantMembership = getParticipantMembership(event, membership);
   const isActiveParticipant = participantMembership?.status === 'ACTIVE';
-  const myTeam = teamSlots?.team ?? membership?.teamMembership?.team ?? null;
-  const isCaptain = Boolean(myTeam && myTeam.captainUserId === user.id);
 
   async function handleJoinEvent() {
     setActionLoading('join-event');
@@ -179,6 +186,47 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       await loadWorkspace();
     } catch (err: any) {
       setError(err.message || (isRu ? 'Не удалось создать команду' : 'Failed to create team'));
+    } finally {
+      setActionLoading('');
+    }
+  }
+
+  async function handleUpdateTeam() {
+    if (!myTeam) return;
+
+    const nextName = teamName.trim();
+    const nextDescription = teamDescription.trim();
+    const currentDescription = String(myTeam.description ?? '').trim();
+
+    if (!nextName) {
+      setError(isRu ? 'Укажите название команды.' : 'Enter team name.');
+      return;
+    }
+
+    if (nextName === myTeam.name && nextDescription === currentDescription) {
+      setSuccess(isRu ? 'Изменений нет.' : 'No changes to save.');
+      return;
+    }
+
+    setActionLoading('update-team');
+    setError('');
+    setSuccess('');
+
+    try {
+      await eventsApi.updateTeam(event.id, myTeam.id, {
+        name: nextName,
+        description: nextDescription || undefined,
+      });
+
+      const teamRequiresApproval = event.requireAdminApprovalForTeams && myTeam.status === 'ACTIVE';
+      setSuccess(
+        teamRequiresApproval
+          ? (isRu ? 'Изменения команды отправлены на согласование организатору.' : 'Team changes were sent for organizer approval.')
+          : (isRu ? 'Данные команды обновлены.' : 'Team details updated.')
+      );
+      await loadWorkspace();
+    } catch (err: any) {
+      setError(err.message || (isRu ? 'Не удалось сохранить изменения команды' : 'Failed to save team changes'));
     } finally {
       setActionLoading('');
     }
@@ -442,12 +490,17 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
           teamSlots={teamSlots}
           isCaptain={isCaptain}
           actionLoading={actionLoading}
+          teamName={teamName}
+          teamDescription={teamDescription}
           slotEmails={slotEmails}
+          onTeamNameChange={setTeamName}
+          onTeamDescriptionChange={setTeamDescription}
           onSlotEmailChange={(slotIndex, value) => setSlotEmails((previous) => ({ ...previous, [slotIndex]: value }))}
           onInvite={handleInvite}
           onCancelInvitation={handleCancelInvitation}
           onRemoveMember={handleRemoveMember}
           onTransferCaptain={handleTransferCaptain}
+          onUpdateTeam={handleUpdateTeam}
           onSubmitTeam={handleSubmitTeam}
         />
       )}
@@ -489,12 +542,17 @@ function TeamSlotsWorkspace({
   teamSlots,
   isCaptain,
   actionLoading,
+  teamName,
+  teamDescription,
   slotEmails,
+  onTeamNameChange,
+  onTeamDescriptionChange,
   onSlotEmailChange,
   onInvite,
   onCancelInvitation,
   onRemoveMember,
   onTransferCaptain,
+  onUpdateTeam,
   onSubmitTeam,
 }: {
   locale: string;
@@ -503,12 +561,17 @@ function TeamSlotsWorkspace({
   teamSlots: any;
   isCaptain: boolean;
   actionLoading: string;
+  teamName: string;
+  teamDescription: string;
   slotEmails: Record<number, string>;
+  onTeamNameChange: (value: string) => void;
+  onTeamDescriptionChange: (value: string) => void;
   onSlotEmailChange: (slotIndex: number, value: string) => void;
   onInvite: (slotIndex: number) => void;
   onCancelInvitation: (invitationId: string) => void;
   onRemoveMember: (member: any) => void;
   onTransferCaptain: (member: any) => void;
+  onUpdateTeam: () => void;
   onSubmitTeam: () => void;
 }) {
   const isRu = locale === 'ru';
@@ -517,6 +580,10 @@ function TeamSlotsWorkspace({
   const progress = teamSlots?.progress ?? { active: 0, max: event.maxTeamSize ?? 5 };
   const editable = isCaptain && (['DRAFT', 'REJECTED'].includes(team?.status) || (!event.requireAdminApprovalForTeams && team?.status === 'ACTIVE'));
   const canSubmit = isCaptain && ['DRAFT', 'REJECTED'].includes(team?.status) && Boolean(teamSlots?.canSubmit);
+  const canEditTeamDetails = isCaptain && ['DRAFT', 'REJECTED', 'ACTIVE'].includes(team?.status);
+  const editButtonLabel = team?.status === 'ACTIVE' && event.requireAdminApprovalForTeams
+    ? (isRu ? 'Отправить изменения' : 'Submit changes')
+    : (isRu ? 'Сохранить изменения' : 'Save changes');
 
   return (
     <Panel variant="elevated" className="workspace-event-panel">
@@ -527,6 +594,34 @@ function TeamSlotsWorkspace({
       <div className="signal-stack">
         {team?.changeRequests?.[0] ? (
           <Notice tone="warning">{isRu ? 'Команда ждёт решения организатора.' : 'Team is waiting for organizer decision.'}</Notice>
+        ) : null}
+        {canEditTeamDetails ? (
+          <div className="signal-stack">
+            <SectionHeader
+              title={isRu ? 'Редактирование команды' : 'Edit team'}
+              subtitle={
+                team?.status === 'ACTIVE' && event.requireAdminApprovalForTeams
+                  ? (isRu ? 'После сохранения изменения уйдут организатору на согласование.' : 'After saving, changes will be sent to organizer approval.')
+                  : (isRu ? 'Измените название и описание команды.' : 'Update team name and description.')
+              }
+            />
+            <FieldInput
+              value={teamName}
+              onChange={(event) => onTeamNameChange(event.target.value)}
+              placeholder={isRu ? 'Название команды' : 'Team name'}
+            />
+            <FieldTextarea
+              value={teamDescription}
+              onChange={(event) => onTeamDescriptionChange(event.target.value)}
+              placeholder={isRu ? 'Описание команды' : 'Team description'}
+              rows={3}
+            />
+            <ToolbarRow>
+              <button onClick={onUpdateTeam} disabled={actionLoading === 'update-team'} className="btn btn-secondary btn-sm">
+                {actionLoading === 'update-team' ? (isRu ? 'Сохраняем...' : 'Saving...') : editButtonLabel}
+              </button>
+            </ToolbarRow>
+          </div>
         ) : null}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
           {slots.map((slot: any) => (
