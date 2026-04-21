@@ -27,4 +27,4 @@ RUN printf '%s\n' "$RELEASE_SHA" > /app/services/api/release.txt
 RUN pnpm prisma generate
 RUN pnpm build
 EXPOSE 4000
-CMD ["node", "dist/main.js"]
+CMD ["sh", "-c", "pnpm prisma migrate deploy && node dist/main.js"]
