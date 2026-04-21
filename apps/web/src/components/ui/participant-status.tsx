@@ -16,10 +16,17 @@ const STATUS_STEPS = {
   CONFIRMED: { step: 4, label: 'Подтверждена' },
   REJECTED: { step: -1, label: 'Отклонена' },
   RESERVE: { step: 3, label: 'В резерве' },
-};
+} as const;
+
+type RegistrationStatus = keyof typeof STATUS_STEPS;
+
+function isRegistrationStatus(value: string): value is RegistrationStatus {
+  return value in STATUS_STEPS;
+}
 
 function RegistrationProgress({ status }: { status: string }) {
-  const currentStep = STATUS_STEPS[status]?.step ?? 1;
+  const safeStatus: RegistrationStatus = isRegistrationStatus(status) ? status : 'DRAFT';
+  const currentStep = STATUS_STEPS[safeStatus].step;
   const isRejected = currentStep === -1;
 
   if (isRejected) {
@@ -30,7 +37,7 @@ function RegistrationProgress({ status }: { status: string }) {
           <line x1="15" y1="9" x2="9" y2="15" />
           <line x1="9" y1="9" x2="15" y2="15" />
         </svg>
-        <span>{STATUS_STEPS[status]?.label ?? status}</span>
+        <span>{STATUS_STEPS[safeStatus].label}</span>
       </div>
     );
   }
@@ -45,11 +52,9 @@ function RegistrationProgress({ status }: { status: string }) {
     <div className="registration-progress">
       {steps.map((step, idx) => (
         <div key={step.num} className="progress-step-wrapper">
-          <div 
+          <div
             className={`progress-step ${
-              currentStep >= step.num 
-                ? 'active' 
-                : ''
+              currentStep >= step.num ? 'active' : ''
             }`}
           >
             {currentStep > step.num ? (
@@ -60,9 +65,11 @@ function RegistrationProgress({ status }: { status: string }) {
               step.num
             )}
           </div>
+
           <span className={`progress-label ${currentStep >= step.num ? 'active' : ''}`}>
             {step.label}
           </span>
+
           {idx < steps.length - 1 && (
             <div className={`progress-line ${currentStep > step.num ? 'active' : ''}`} />
           )}
@@ -73,7 +80,7 @@ function RegistrationProgress({ status }: { status: string }) {
 }
 
 export function ParticipantStatus({ roles, eventSlug, locale }: ParticipantStatusProps) {
-  const participantRole = roles.find(r => r.role === 'PARTICIPANT' || r.role === 'CAPTAIN');
+  const participantRole = roles.find((r) => r.role === 'PARTICIPANT' || r.role === 'CAPTAIN');
   const status = participantRole?.status ?? 'DRAFT';
 
   return (
@@ -84,7 +91,7 @@ export function ParticipantStatus({ roles, eventSlug, locale }: ParticipantStatu
 
       <div className="status-roles">
         {roles.map((role, idx) => (
-          <RoleBadge key={idx} role={role.role} size="md" />
+          <RoleBadge key={`${role.role}-${idx}`} role={role.role} size="md" />
         ))}
       </div>
 

@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - production
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -34,10 +37,33 @@ jobs:
             exit 1
           fi
 
+  require-ci-pass:
+    name: Require CI pass
+    runs-on: ubuntu-latest
+    needs: validate-ref
+    if: ${{ github.event_name == 'push' }}
+    steps:
+      - name: Check CI workflow status
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WORKFLOW_NAME: CI
+        run: |
+          set -euo pipefail
+
+          RUN_ID=${{ github.event.workflow_run.id }}
+          CONCLUSION=$(gh api "runs/${RUN_ID}" --jq '.conclusion')
+
+          if [ "$CONCLUSION" != "success" ]; then
+            echo "CI workflow did not pass (conclusion: $CONCLUSION)."
+            echo "Deployment is blocked until CI passes."
+            exit 1
+          fi
+          echo "CI passed. Proceeding with deployment."
+
   deploy:
     name: Deploy production
     runs-on: ubuntu-latest
-    needs: validate-ref
+    needs: [validate-ref, require-ci-pass]
     environment: production
 
     steps:
