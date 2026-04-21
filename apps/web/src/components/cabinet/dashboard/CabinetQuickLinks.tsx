@@ -11,7 +11,7 @@ const QUICK_LINKS = [
   { href: 'profile', labelKey: 'Профиль', labelKeyEn: 'Profile', icon: '👤' },
   { href: 'my-events', labelKey: 'Мои события', labelKeyEn: 'My events', icon: '📅' },
   { href: 'team-invitations', labelKey: 'Приглашения', labelKeyEn: 'Invitations', icon: '📬' },
-  { href: 'support', labelKey: 'Поддержка', labelKeyEn: 'Support', icon: '💬' },
+  { href: 'technical-support', labelKey: 'Техподдержка', labelKeyEn: 'Technical Support', icon: '🛠️' },
 ] as const;
 
 export function CabinetQuickLinks({ locale }: CabinetQuickLinksProps) {

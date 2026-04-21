@@ -551,3 +551,98 @@ export const adminSupportApi = {
     return requestForm<{ attachments: any[] }>(`/api/admin/support/threads/${threadId}/attachments`, formData, true);
   },
 };
+
+
+export const supportChatApi = {
+  getThread: () =>
+    request<{ thread: any }>('/api/support-chat/thread', { auth: true }),
+
+  sendMessage: (body: { body: string }) =>
+    request<{ message: any }>('/api/support-chat/thread/messages', { method: 'POST', auth: true, body }),
+};
+
+export const adminSupportChatApi = {
+  listThreads: (params?: { page?: number; limit?: number; q?: string }) => {
+    const entries = Object.entries(params ?? {})
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => [k, String(v)]);
+    const qs = entries.length ? '?' + new URLSearchParams(entries).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/support-chat/threads${qs}`, { auth: true });
+  },
+
+  getThread: (threadId: string) =>
+    request<{ thread: any }>(`/api/admin/support-chat/threads/${threadId}`, { auth: true }),
+
+  sendMessage: (threadId: string, body: { body: string }) =>
+    request<{ message: any }>(`/api/admin/support-chat/threads/${threadId}/messages`, { method: 'POST', auth: true, body }),
+};
+
+export const technicalSupportApi = {
+  listThreads: (params?: { page?: number; limit?: number; status?: string }) => {
+    const qs = params
+      ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString()
+      : '';
+    return request<{ data: any[]; meta: any }>(`/api/technical-support/threads${qs}`, { auth: true });
+  },
+
+  createThread: (body: { subject: string }) =>
+    request<{ thread: any }>('/api/technical-support/threads', { method: 'POST', auth: true, body }),
+
+  deleteEmptyThread: (threadId: string) =>
+    request<{ deleted?: boolean; skipped?: boolean }>(`/api/technical-support/threads/${threadId}/empty`, { method: 'DELETE', auth: true }),
+
+  deleteThread: (threadId: string) =>
+    request<{ deleted: boolean }>(`/api/technical-support/threads/${threadId}`, { method: 'DELETE', auth: true }),
+
+  getThread: (threadId: string) =>
+    request<{ thread: any }>(`/api/technical-support/threads/${threadId}`, { auth: true }),
+
+  sendMessage: (threadId: string, body: { body: string; attachmentIds?: string[] }) =>
+    request<{ message: any }>(`/api/technical-support/threads/${threadId}/messages`, { method: 'POST', auth: true, body }),
+
+  uploadAttachments: (threadId: string, files: File[]) => {
+    const formData = new FormData();
+    for (const file of files) formData.append('files', file);
+    return requestForm<{ attachments: any[] }>(`/api/technical-support/threads/${threadId}/attachments`, formData, true);
+  },
+
+  markRead: (threadId: string) =>
+    request<{ ok: boolean }>(`/api/technical-support/threads/${threadId}/read`, { method: 'POST', auth: true }),
+};
+
+export const adminTechnicalSupportApi = {
+  listThreads: (params?: { page?: number; limit?: number; status?: string; assignedAdminId?: string; unassigned?: boolean }) => {
+    const entries = Object.entries(params ?? {})
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => [k, String(v)]);
+    const qs = entries.length ? '?' + new URLSearchParams(entries).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/technical-support/threads${qs}`, { auth: true });
+  },
+
+  getThread: (threadId: string) =>
+    request<{ thread: any }>(`/api/admin/technical-support/threads/${threadId}`, { auth: true }),
+
+  deleteThread: (threadId: string) =>
+    request<{ deleted: boolean }>(`/api/admin/technical-support/threads/${threadId}`, { method: 'DELETE', auth: true }),
+
+  reply: (threadId: string, body: { body: string; attachmentIds?: string[] }) =>
+    request<{ message: any }>(`/api/admin/technical-support/threads/${threadId}/reply`, { method: 'POST', auth: true, body }),
+
+  takeThread: (threadId: string) =>
+    request<{ thread: any }>(`/api/admin/technical-support/threads/${threadId}/take`, { method: 'POST', auth: true }),
+
+  assignThread: (threadId: string, body: { adminUserId: string }) =>
+    request<{ thread: any }>(`/api/admin/technical-support/threads/${threadId}/assign`, { method: 'POST', auth: true, body }),
+
+  setStatus: (threadId: string, body: { status: string }) =>
+    request<{ thread: any }>(`/api/admin/technical-support/threads/${threadId}/status`, { method: 'POST', auth: true, body }),
+
+  markRead: (threadId: string) =>
+    request<{ ok: boolean }>(`/api/admin/technical-support/threads/${threadId}/read`, { method: 'POST', auth: true }),
+
+  uploadAttachments: (threadId: string, files: File[]) => {
+    const formData = new FormData();
+    for (const file of files) formData.append('files', file);
+    return requestForm<{ attachments: any[] }>(`/api/admin/technical-support/threads/${threadId}/attachments`, formData, true);
+  },
+};

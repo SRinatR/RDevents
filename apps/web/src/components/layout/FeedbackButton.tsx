@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 export function FeedbackButton({ locale }: { locale: string }) {
   const { user } = useAuth();
-  const supportPath = `/${locale}/cabinet/support?new=1`;
+  const supportPath = `/${locale}/cabinet/technical-support?new=1`;
   const href = user
     ? supportPath
     : `/${locale}/login?next=${encodeURIComponent(supportPath)}`;
