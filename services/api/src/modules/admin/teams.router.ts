@@ -44,17 +44,6 @@ async function archiveTeam(teamId: string, actor: User) {
       },
     });
 
-    await tx.eventTeamMember.updateMany({
-      where: {
-        teamId,
-        status: { notIn: ['REMOVED', 'LEFT'] },
-      },
-      data: {
-        status: 'REMOVED',
-        removedAt: new Date(),
-      },
-    });
-
     await tx.eventTeam.update({
       where: { id: teamId },
       data: {

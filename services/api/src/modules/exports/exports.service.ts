@@ -558,7 +558,7 @@ export async function generateAvatarBundle(
   return {
     jobId,
     format: 'zip',
-    contains: ['avatars/', 'manifest.csv', 'manifest.xlsx'],
+    contains: ['avatars/', 'manifest.csv'],
     participants: manifest,
   };
 }

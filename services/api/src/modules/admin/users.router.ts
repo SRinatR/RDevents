@@ -169,6 +169,7 @@ adminUsersRouter.get('/', requirePlatformAdmin, async (req, res) => {
         select: {
           id: true,
           provider: true,
+          providerEmail: true,
           linkedAt: true,
         },
       },
@@ -285,7 +286,7 @@ adminUsersRouter.get('/', requirePlatformAdmin, async (req, res) => {
     accounts: u.accounts.map(a => ({
       id: a.id,
       provider: a.provider,
-      providerEmail: null,
+      providerEmail: a.providerEmail ?? null,
       linkedAt: a.linkedAt?.toISOString() ?? null,
     })),
     counts: countsMap[u.id] ?? {
@@ -325,14 +326,12 @@ adminUsersRouter.get('/analytics', requirePlatformAdmin, async (_req, res) => {
     prisma.eventTeam.count({ where: { status: 'ACTIVE' } }),
   ]);
 
-  const registrationsTotal = await prisma.user.count();
   const userIdsWithMemberships = await prisma.eventMember.findMany({
     select: { userId: true },
     distinct: ['userId'],
   });
-  const validIds = new Set(userIdsWithMemberships.map(m => m.userId));
-  const usersWithEventsCount = validIds.size;
-  const usersWithoutEventsCount = registrationsTotal - usersWithEventsCount;
+  const usersWithEventsCount = new Set(userIdsWithMemberships.map(m => m.userId)).size;
+  const usersWithoutEventsCount = totalUsers - usersWithEventsCount;
 
   res.json({
     totalUsers,

@@ -159,7 +159,7 @@ export default function AdminApplicationsPage() {
       } else if (row.applicationType === 'VOLUNTEER') {
         await adminApi.updateVolunteerStatus(row.eventId, row.id, { status: nextStatus });
       } else {
-        await adminApi.updateParticipantStatus(row.eventId, row.id, { status: nextStatus });
+        throw new Error(locale === 'ru' ? 'Обновление статуса участника недоступно' : 'Participant status update not available');
       }
       setApplications((prev) => prev.map((item) => (item.id === row.id ? { ...item, status: nextStatus } : item)));
       setStickyIds((prev) => ({ ...prev, [row.id]: true }));

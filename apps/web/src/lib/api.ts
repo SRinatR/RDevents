@@ -375,9 +375,6 @@ export const adminApi = {
   listEventMembers: (eventId: string) =>
     request<{ members: any[] }>(`/api/admin/events/${eventId}/members`, { auth: true }),
 
-  updateParticipantStatus: (eventId: string, memberId: string, body: { status: string; notes?: string }) =>
-    request<{ membership: any }>(`/api/admin/events/${eventId}/participations/${memberId}`, { method: 'PATCH', auth: true, body }),
-
   listEventTeams: (eventId: string) =>
     request<{ teams: any[] }>(`/api/admin/events/${eventId}/teams`, { auth: true }),
 
@@ -413,14 +410,14 @@ export const adminApi = {
   },
 
   removeParticipant: (eventId: string, memberId: string, notes?: string) =>
-    request<any>(`/api/admin/participants/events/${eventId}/participants/${memberId}/remove`, {
+    request<any>(`/api/admin/events/${eventId}/participants/${memberId}/remove`, {
       method: 'POST',
       auth: true,
       body: { notes },
     }),
 
   rejectParticipant: (eventId: string, memberId: string, notes?: string) =>
-    request<any>(`/api/admin/participants/events/${eventId}/participants/${memberId}/reject`, {
+    request<any>(`/api/admin/events/${eventId}/participants/${memberId}/reject`, {
       method: 'POST',
       auth: true,
       body: { notes },
@@ -477,7 +474,7 @@ export const adminApi = {
   updateUserRole: (id: string, role: string) =>
     request<{ user: any }>(`/api/admin/users/${id}/role`, { method: 'PATCH', auth: true, body: { role } }),
 
-  getUserFullProfile: (userId: string, eventId?: string) => {
+  getUserProfile: (userId: string, eventId?: string) => {
     const qs = eventId ? `?eventId=${encodeURIComponent(eventId)}` : '';
     return request<any>(`/api/admin/users/${userId}/profile${qs}`, { auth: true });
   },
@@ -497,7 +494,9 @@ export const adminApi = {
     if (params?.eventId) qp.set('eventId', params.eventId);
     if (params?.includeInactive) qp.set('includeInactive', 'true');
     qp.set('format', params?.format ?? 'csv');
-    await downloadWithAuth(`/api/admin/users/export?${qp.toString()}`, 'users_export.csv');
+
+    const fallback = params?.format === 'json' ? 'users_export.json' : 'users_export.csv';
+    await downloadWithAuth(`/api/admin/users/export?${qp.toString()}`, fallback);
   },
 
   archiveTeam: (teamId: string) =>
@@ -688,13 +687,13 @@ function buildExportPath(eventId: string, scope: string, format = 'csv', filters
 
 export const adminExportsApi = {
   downloadParticipants: async (eventId: string, format = 'csv', filters?: ExportFilters) => {
-    await downloadWithAuth(buildExportPath(eventId, 'participants', format, filters), `export_${eventId}_participants.csv`);
+    await downloadWithAuth(buildExportPath(eventId, 'participants', format, filters), `export_${eventId}_participants.${format}`);
   },
   downloadTeams: async (eventId: string, format = 'csv', filters?: ExportFilters) => {
-    await downloadWithAuth(buildExportPath(eventId, 'teams', format, filters), `export_${eventId}_teams.csv`);
+    await downloadWithAuth(buildExportPath(eventId, 'teams', format, filters), `export_${eventId}_teams.${format}`);
   },
   downloadTeamMembers: async (eventId: string, format = 'csv', filters?: ExportFilters) => {
-    await downloadWithAuth(buildExportPath(eventId, 'team_members', format, filters), `export_${eventId}_team_members.csv`);
+    await downloadWithAuth(buildExportPath(eventId, 'team_members', format, filters), `export_${eventId}_team_members.${format}`);
   },
 };
 

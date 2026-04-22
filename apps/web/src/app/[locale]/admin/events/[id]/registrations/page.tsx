@@ -95,7 +95,13 @@ export default function EventRegistrationsPage() {
     setSuccess('');
 
     try {
-      await adminApi.updateParticipantStatus(eventId, memberId, { status: nextStatus });
+      if (nextStatus === 'REJECTED') {
+        await adminApi.rejectParticipant(eventId, memberId);
+      } else if (nextStatus === 'CANCELLED') {
+        await adminApi.removeParticipant(eventId, memberId);
+      } else {
+        throw new Error(locale === 'ru' ? 'Обновление статуса участника недоступно' : 'Participant status update not available');
+      }
       setSuccess(locale === 'ru' ? 'Заявка обновлена.' : 'Registration updated.');
       await loadData();
     } catch (err: any) {

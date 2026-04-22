@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
-import { adminApi } from '@/lib/api';
+import { adminApi, adminExportsApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
 import { EmptyState, FieldInput, FieldSelect, LoadingLines, PageHeader, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 
@@ -199,6 +199,34 @@ export default function AdminParticipantsPage() {
             <option value="CANCELLED">{locale === 'ru' ? 'Отменённые' : 'Cancelled'}</option>
             <option value="REMOVED">{locale === 'ru' ? 'Удалённые админом' : 'Removed by admin'}</option>
           </FieldSelect>
+          {eventFilter !== 'ALL' && (
+            <>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => void adminExportsApi.downloadParticipants(eventFilter, 'csv', {
+                  ...(statusFilter !== 'ALL' ? { status: [statusFilter] } : {}),
+                  includeRejected: statusFilter === 'REJECTED',
+                  includeCancelled: statusFilter === 'CANCELLED',
+                  includeRemoved: statusFilter === 'REMOVED',
+                })}
+              >
+                {locale === 'ru' ? 'Выгрузить участников CSV' : 'Export participants CSV'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => void adminExportsApi.downloadParticipants(eventFilter, 'json', {
+                  ...(statusFilter !== 'ALL' ? { status: [statusFilter] } : {}),
+                  includeRejected: statusFilter === 'REJECTED',
+                  includeCancelled: statusFilter === 'CANCELLED',
+                  includeRemoved: statusFilter === 'REMOVED',
+                })}
+              >
+                {locale === 'ru' ? 'Выгрузить участников JSON' : 'Export participants JSON'}
+              </button>
+            </>
+          )}
         </ToolbarRow>
 
         {loadingData ? (

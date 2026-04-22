@@ -175,27 +175,6 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
     }
   }
 
-  async function handleUnregister() {
-    const confirmed = window.confirm(isRu ? 'Вы уверены, что хотите отказаться от участия в мероприятии?' : 'Are you sure you want to cancel your participation in this event?');
-    if (!confirmed) return;
-    setActionLoading('unregister');
-    setError('');
-    setSuccess('');
-    try {
-      await eventsApi.unregister(event.id);
-      setSuccess(isRu ? 'Вы отказались от участия.' : 'You have cancelled your participation.');
-      await loadWorkspace();
-    } catch (err: any) {
-      if (err.code === 'CAPTAIN_CANNOT_CANCEL_EVENT_PARTICIPATION') {
-        setError(isRu ? 'Сначала передайте капитанство или решите вопрос с командой.' : 'First transfer captain role or resolve team issues.');
-      } else {
-        setError(err.message || (isRu ? 'Не удалось отказаться от участия' : 'Failed to cancel participation'));
-      }
-    } finally {
-      setActionLoading('');
-    }
-  }
-
   async function handleCancelParticipation() {
     const confirmed = window.confirm(
       isRu
@@ -446,8 +425,8 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
                 <Notice tone="warning">{isRu ? 'Заявка участника ожидает решения организатора.' : 'Participant application is pending organizer review.'}</Notice>
               ) : null}
               <ToolbarRow>
-                <button onClick={handleUnregister} disabled={actionLoading === 'unregister'} className="btn btn-secondary btn-sm">
-                  {actionLoading === 'unregister' ? (isRu ? 'Отменяем...' : 'Cancelling...') : (isRu ? 'Отказаться от участия' : 'Cancel participation')}
+                <button onClick={handleCancelParticipation} disabled={actionLoading === 'cancel-participation'} className="btn btn-secondary btn-sm">
+                  {actionLoading === 'cancel-participation' ? (isRu ? 'Отменяем...' : 'Cancelling...') : (isRu ? 'Отказаться от участия' : 'Cancel participation')}
                 </button>
               </ToolbarRow>
             </div>
@@ -512,10 +491,40 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
             </ToolbarRow>
           )}
         </Panel>
+      ) : !event.isTeamBased ? (
+        <Panel variant="elevated" className="workspace-event-panel">
+          <SectionHeader
+            title={isRu ? 'Участие подтверждено' : 'Participation confirmed'}
+            subtitle={isRu ? 'Это индивидуальное мероприятие, команда не требуется.' : 'This is an individual event, no team is required.'}
+          />
+          <ToolbarRow>
+            <button
+              onClick={handleCancelParticipation}
+              disabled={actionLoading === 'cancel-participation'}
+              className="btn btn-danger btn-sm"
+            >
+              {actionLoading === 'cancel-participation'
+                ? (isRu ? 'Отменяем...' : 'Cancelling...')
+                : (isRu ? 'Отказаться от участия' : 'Cancel participation')}
+            </button>
+          </ToolbarRow>
+        </Panel>
       ) : !myTeam ? (
         <Panel variant="elevated" className="workspace-event-panel">
           <SectionHeader title={isRu ? 'Команда' : 'Team'} subtitle={isRu ? 'Создайте команду или ответьте на входящее приглашение.' : 'Create a team or respond to an incoming invitation.'} />
           <div className="signal-stack">
+            <ToolbarRow>
+              <button
+                onClick={handleCancelParticipation}
+                disabled={actionLoading === 'cancel-participation'}
+                className="btn btn-danger btn-sm"
+              >
+                {actionLoading === 'cancel-participation'
+                  ? (isRu ? 'Отменяем...' : 'Cancelling...')
+                  : (isRu ? 'Отказаться от участия' : 'Cancel participation')}
+              </button>
+            </ToolbarRow>
+
             {openInvitations.length > 0 ? (
               <IncomingInvitations
                 locale={locale}
@@ -525,6 +534,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
                 onDecline={handleDeclineInvitation}
               />
             ) : null}
+
             <div className="signal-stack">
               <FieldInput value={teamName} onChange={(event) => setTeamName(event.target.value)} placeholder={isRu ? 'Название команды' : 'Team name'} />
               <FieldInput value={teamDescription} onChange={(event) => setTeamDescription(event.target.value)} placeholder={isRu ? 'Комментарий' : 'Comment'} />
@@ -532,43 +542,50 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
                 <button onClick={handleCreateTeam} disabled={actionLoading === 'create-team' || !teamName.trim()} className="btn btn-primary btn-sm">
                   {actionLoading === 'create-team' ? (isRu ? 'Создаём...' : 'Creating...') : (isRu ? 'Создать команду' : 'Create team')}
                 </button>
-                <Link href={`/${locale}/cabinet/team-invitations`} className="btn btn-secondary btn-sm">{isRu ? 'Все приглашения' : 'All invitations'}</Link>
+                <Link href={`/${locale}/cabinet/team-invitations`} className="btn btn-secondary btn-sm">
+                  {isRu ? 'Все приглашения' : 'All invitations'}
+                </Link>
               </ToolbarRow>
             </div>
           </div>
         </Panel>
       ) : (
         <>
-        <Panel variant="elevated" className="workspace-event-panel">
-          <ToolbarRow>
-            <button onClick={handleCancelParticipation} disabled={actionLoading === 'cancel-participation'} className="btn btn-danger btn-sm">
-              {actionLoading === 'cancel-participation'
-                ? (isRu ? 'Отменяем...' : 'Cancelling...')
-                : (isRu ? 'Отказаться от участия' : 'Cancel participation')}
-            </button>
-          </ToolbarRow>
-        </Panel>
-        <TeamSlotsWorkspace
-          locale={locale}
-          userId={user.id}
-          event={event}
-          teamSlots={teamSlots}
-          isCaptain={isCaptain}
-          focusTeamEditor={openTeamEditor}
-          actionLoading={actionLoading}
-          teamName={teamName}
-          teamDescription={teamDescription}
-          slotEmails={slotEmails}
-          onTeamNameChange={setTeamName}
-          onTeamDescriptionChange={setTeamDescription}
-          onSlotEmailChange={(slotIndex, value) => setSlotEmails((previous) => ({ ...previous, [slotIndex]: value }))}
-          onInvite={handleInvite}
-          onCancelInvitation={handleCancelInvitation}
-          onRemoveMember={handleRemoveMember}
-          onTransferCaptain={handleTransferCaptain}
-          onUpdateTeam={handleUpdateTeam}
-          onSubmitTeam={handleSubmitTeam}
-        />
+          <Panel variant="elevated" className="workspace-event-panel">
+            <ToolbarRow>
+              <button
+                onClick={handleCancelParticipation}
+                disabled={actionLoading === 'cancel-participation'}
+                className="btn btn-danger btn-sm"
+              >
+                {actionLoading === 'cancel-participation'
+                  ? (isRu ? 'Отменяем...' : 'Cancelling...')
+                  : (isRu ? 'Отказаться от участия' : 'Cancel participation')}
+              </button>
+            </ToolbarRow>
+          </Panel>
+
+          <TeamSlotsWorkspace
+            locale={locale}
+            userId={user.id}
+            event={event}
+            teamSlots={teamSlots}
+            isCaptain={isCaptain}
+            focusTeamEditor={openTeamEditor}
+            actionLoading={actionLoading}
+            teamName={teamName}
+            teamDescription={teamDescription}
+            slotEmails={slotEmails}
+            onTeamNameChange={setTeamName}
+            onTeamDescriptionChange={setTeamDescription}
+            onSlotEmailChange={(slotIndex, value) => setSlotEmails((previous) => ({ ...previous, [slotIndex]: value }))}
+            onInvite={handleInvite}
+            onCancelInvitation={handleCancelInvitation}
+            onRemoveMember={handleRemoveMember}
+            onTransferCaptain={handleTransferCaptain}
+            onUpdateTeam={handleUpdateTeam}
+            onSubmitTeam={handleSubmitTeam}
+          />
         </>
       )}
     </div>
