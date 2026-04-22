@@ -5607,6 +5607,7 @@ body {
 }
 
 .catalog-v6-card-cover {
+  position: relative;
   height: 220px;
   overflow: hidden;
   background: var(--color-bg-subtle);
