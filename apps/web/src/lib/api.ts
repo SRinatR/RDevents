@@ -449,9 +449,6 @@ export const adminApi = {
     return request<{ data: any[]; meta: any }>(`/api/admin/teams${qs}`, { auth: true });
   },
 
-  removeTeam: (teamId: string) =>
-    request<any>(`/api/admin/teams/${teamId}/remove`, { method: 'POST', auth: true }),
-
   getTeam: (teamId: string) =>
     request<{ data: any }>(`/api/admin/teams/${teamId}`, { auth: true }),
 

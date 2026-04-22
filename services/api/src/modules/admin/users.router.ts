@@ -63,20 +63,19 @@ function isPlatformScopeUser(user: User) {
 async function canAdminAccessUserProfile(actor: User, targetUserId: string, eventId?: string) {
   if (isPlatformScopeUser(actor)) return true;
 
-  if (!actor.role || actor.role === 'USER') return false;
   if (!eventId) return false;
 
-  const actorMembership = await prisma.eventMember.findFirst({
+  const actorEventAdminMembership = await prisma.eventMember.findFirst({
     where: {
       userId: actor.id,
       eventId,
       role: 'EVENT_ADMIN',
-      status: 'ACTIVE',
+      status: { in: ['ACTIVE'] },
     },
     select: { id: true },
   });
 
-  if (!actorMembership) return false;
+  if (!actorEventAdminMembership) return false;
 
   const [member, teamMember, submission] = await Promise.all([
     prisma.eventMember.findFirst({
@@ -691,17 +690,16 @@ adminUsersRouter.get('/export', requirePlatformAdmin, async (req, res) => {
     where['eventMemberships'] = {
       some: {
         eventId,
-        status: { not: 'REMOVED' },
       },
     };
   } else if (hasEventMembership === 'YES') {
     where['eventMemberships'] = {
-      some: { status: { not: 'REMOVED' } },
+      some: {},
     };
   } else if (hasEventMembership === 'NO') {
     where['NOT'] = {
       eventMemberships: {
-        some: { status: { not: 'REMOVED' } },
+        some: {},
       },
     };
   }
@@ -746,20 +744,26 @@ adminUsersRouter.get('/export', requirePlatformAdmin, async (req, res) => {
     orderBy: { registeredAt: 'desc' },
   });
 
+  const userIds = users.map(u => u.id);
+
   const [membershipCounts, teamCounts, extendedProfiles, emergencyContacts] = await Promise.all([
     prisma.eventMember.groupBy({
       by: ['userId', 'role', 'status'],
       where: {
-        userId: { in: users.map(u => u.id) },
+        userId: { in: userIds },
       },
       _count: true,
     }),
     prisma.eventTeamMember.groupBy({
       by: ['userId'],
-      where: { status: { notIn: ['REMOVED', 'LEFT'] } },
+      where: {
+        userId: { in: userIds },
+        status: { notIn: ['REMOVED', 'LEFT'] },
+      },
       _count: true,
     }),
     prisma.userExtendedProfile.findMany({
+      where: { userId: { in: userIds } },
       select: {
         userId: true,
         citizenshipCountryCode: true,
@@ -777,6 +781,7 @@ adminUsersRouter.get('/export', requirePlatformAdmin, async (req, res) => {
       },
     }),
     prisma.userEmergencyContact.findMany({
+      where: { userId: { in: userIds } },
       select: {
         userId: true,
         fullName: true,
@@ -814,9 +819,11 @@ adminUsersRouter.get('/export', requirePlatformAdmin, async (req, res) => {
 
   const [activityDirections, additionalLanguages] = await Promise.all([
     prisma.userActivityDirection.findMany({
+      where: { userId: { in: userIds } },
       select: { userId: true, direction: true },
     }),
     prisma.userAdditionalLanguage.findMany({
+      where: { userId: { in: userIds } },
       select: { userId: true, languageName: true },
     }),
   ]);

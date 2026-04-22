@@ -264,7 +264,7 @@ export default function TeamDetailPage() {
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm"
-                  onClick={() => router.push(`/${locale}/admin/users/${team.captainUser.id}`)}
+                  onClick={() => router.push(`/${locale}/admin/users/${team.captainUser.id}?eventId=${team.event.id}`)}
                 >
                   {team.captainUser.name ?? team.captainUser.email ?? '—'}
                 </button>
@@ -325,7 +325,7 @@ export default function TeamDetailPage() {
                           <button
                             type="button"
                             className="btn btn-ghost btn-sm"
-                            onClick={() => router.push(`/${locale}/admin/users/${member.user.id}`)}
+                            onClick={() => router.push(`/${locale}/admin/users/${member.user.id}?eventId=${team.event.id}`)}
                           >
                             {member.user.name ?? member.user.email ?? '—'}
                           </button>

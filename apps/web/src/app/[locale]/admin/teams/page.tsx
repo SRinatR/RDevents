@@ -241,7 +241,7 @@ export default function AdminTeamsPage() {
                           {team.captainUserId && (
                             <button
                               className="btn btn-ghost btn-sm"
-                              onClick={() => router.push(`/${locale}/admin/users/${team.captainUserId}`)}
+                              onClick={() => router.push(`/${locale}/admin/users/${team.captainUserId}?eventId=${team.eventId}`)}
                             >
                               {locale === 'ru' ? 'Профиль' : 'Profile'}
                             </button>

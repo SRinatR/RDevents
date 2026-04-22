@@ -327,8 +327,7 @@ export async function exportTeams(eventId: string, config: { filters?: ExtendedE
   const includeArchived = config.filters?.includeArchived ?? false;
   const includeRejected = config.filters?.includeRejected ?? false;
 
-  const statusList: EventTeamStatus[] = [];
-  if (!includeArchived) statusList.push('ACTIVE', 'PENDING', 'SUBMITTED', 'DRAFT', 'CHANGES_PENDING');
+  const statusList: EventTeamStatus[] = ['ACTIVE', 'PENDING', 'SUBMITTED', 'DRAFT', 'CHANGES_PENDING'];
   if (includeRejected) statusList.push('REJECTED');
   if (includeArchived) statusList.push('ARCHIVED');
 
