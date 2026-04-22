@@ -1097,6 +1097,7 @@ img { display: block; max-width: 100%; }
 .signal-table tbody tr:last-child td { border-bottom: none; }
 
 .signal-avatar {
+  position: relative;
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -4870,9 +4871,7 @@ body {
   box-shadow: 0 0 0 3px rgba(31, 88, 216, 0.14), var(--shadow-sm);
 }
 
-.workspace-event-lead-cover {
-  height: 220px;
-}
+.workspace-event-lead-cover { position: relative; height: 220px; }
 
 .workspace-event-lead-cover img {
   width: 100%;
@@ -4880,11 +4879,7 @@ body {
   object-fit: cover;
 }
 
-.workspace-event-lead-body {
-  padding: 12px;
-  display: grid;
-  gap: 8px;
-}
+.workspace-event-lead-body { position: relative; z-index: 1; padding: 12px; display: grid; gap: 8px; }
 
 .workspace-event-lead-body h2 {
   margin: 0;
@@ -8518,6 +8513,7 @@ body {
 }
 
 .profile-photo-preview {
+  position: relative;
   width: 112px;
   height: 112px;
   border-radius: 8px;
