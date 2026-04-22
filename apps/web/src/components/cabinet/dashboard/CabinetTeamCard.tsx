@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -32,9 +33,11 @@ function TeamAvatar({ name, src }: { name: string; src?: string | null }) {
 
   if (src) {
     return (
-      <img 
+      <Image 
         src={src} 
         alt={name} 
+        width={40}
+        height={40}
         className="team-member-avatar" 
       />
     );

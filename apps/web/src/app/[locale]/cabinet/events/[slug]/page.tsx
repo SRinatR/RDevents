@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -403,7 +404,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       <Panel variant="elevated" className="workspace-event-panel">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, alignItems: 'center' }}>
           <div style={{ aspectRatio: '16 / 9', borderRadius: 8, overflow: 'hidden', background: 'var(--color-bg-subtle)' }}>
-            {event.coverImageUrl ? <img src={event.coverImageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : null}
+            {event.coverImageUrl ? <Image src={event.coverImageUrl} alt="" fill sizes="(max-width: 768px) 100vw, 400px" style={{ objectFit: 'cover' }} /> : null}
           </div>
           <div className="signal-stack">
             <SectionHeader title={isRu ? 'Статус участия' : 'Participation status'} subtitle={event.shortDescription} />

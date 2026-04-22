@@ -7,7 +7,7 @@
     "dev": "next dev --port 3000",
     "build": "next build && node -e \"const fs=require('fs');const d='.next/standalone/apps/web/public';if(!fs.existsSync(d))fs.mkdirSync(d,{recursive:true});fs.writeFileSync(d+'/release.json',JSON.stringify({service:'event-platform-web',releaseSha:process.env['RELEASE_SHA']||'local'}));fs.writeFileSync(d+'/version.txt',process.env['RELEASE_SHA']||'local')\"",
     "start": "next start --port 3000",
-    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint": "eslint \"src/**/*.{ts,tsx}\" --max-warnings=0",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "clean": "node -e \"const fs=require('fs'); ['.next','node_modules'].forEach(p=>fs.rmSync(p,{recursive:true,force:true}))\""

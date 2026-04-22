@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { FeedbackButton } from './FeedbackButton';
 
@@ -8,7 +9,7 @@ export function PublicFooter({ locale }: { locale: string }) {
         <div className="public-footer-grid">
           <div>
             <div className="public-footer-brand">
-              <img src="/site-logo.png" alt="Русский Дом" className="public-logo-mark public-logo-mark-footer" />
+              <Image src="/site-logo.png" alt="Русский Дом" width={100} height={34} className="public-logo-mark public-logo-mark-footer" />
             </div>
             <FeedbackButton locale={locale} />
           </div>

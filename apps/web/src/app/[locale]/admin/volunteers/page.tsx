@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -102,7 +103,7 @@ export default function AdminVolunteersPage() {
                   <article key={membership.id} className="signal-ranked-item admin-volunteer-item">
                     <div className="admin-user-cell">
                       <span className="signal-avatar">
-                        {membership.user?.avatarUrl ? <img src={membership.user.avatarUrl} alt="" /> : (membership.user?.name || membership.user?.email || '?').charAt(0).toUpperCase()}
+                        {membership.user?.avatarUrl ? <Image src={membership.user.avatarUrl} alt="" width={40} height={40} /> : (membership.user?.name || membership.user?.email || '?').charAt(0).toUpperCase()}
                       </span>
                       <div>
                         <strong>{membership.user?.name || membership.user?.email}</strong>

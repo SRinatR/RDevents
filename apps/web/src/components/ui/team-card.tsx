@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { RoleBadge, StatusBadge } from './status-badge';
@@ -40,9 +41,11 @@ function Avatar({ name, src }: { name: string; src?: string }) {
 
   if (src) {
     return (
-      <img 
+      <Image 
         src={src} 
         alt={name} 
+        width={40}
+        height={40}
         className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
       />
     );

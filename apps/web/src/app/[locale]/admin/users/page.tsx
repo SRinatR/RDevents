@@ -6,6 +6,7 @@ import { useAuth } from '../../../../hooks/useAuth';
 import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
 import { EmptyState, FieldInput, FieldSelect, LoadingLines, MetricCard, PageHeader, Panel, SectionHeader, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import styles from './page.module.css';
 
 interface UsersStats {
@@ -338,11 +339,11 @@ export default function AdminUsersPage() {
                     <tr key={entry.id} onClick={() => handleRowClick(entry.id)} className={styles.clickableRow}>
                       <td>
                         <div className="admin-user-cell">
-                          <span className="signal-avatar">
+                          <Avatar>
                             {entry.avatarUrl
-                              ? <img src={entry.avatarUrl} alt="" />
-                              : (entry.name || entry.email || '?').charAt(0).toUpperCase()}
-                          </span>
+                              ? <AvatarImage src={entry.avatarUrl} alt="" />
+                              : <AvatarFallback>{(entry.name || entry.email || '?').charAt(0).toUpperCase()}</AvatarFallback>}
+                          </Avatar>
                           <div>
                             <strong>{entry.name || '—'}</strong>
                           </div>

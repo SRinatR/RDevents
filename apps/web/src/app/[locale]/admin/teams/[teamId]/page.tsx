@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -257,7 +258,7 @@ export default function TeamDetailPage() {
               <span>{locale === 'ru' ? 'Капитан' : 'Captain'}</span>
               <div className="admin-user-chip">
                 {team.captainUser.avatarUrl && (
-                  <img src={team.captainUser.avatarUrl} alt="" className="admin-user-avatar" />
+                  <Image src={team.captainUser.avatarUrl} alt="" width={32} height={32} className="admin-user-avatar" />
                 )}
                 <button
                   type="button"
@@ -318,7 +319,7 @@ export default function TeamDetailPage() {
                       <td>
                         <div className="admin-user-chip">
                           {member.user.avatarUrl && (
-                            <img src={member.user.avatarUrl} alt="" className="admin-user-avatar" />
+                            <Image src={member.user.avatarUrl} alt="" width={32} height={32} className="admin-user-avatar" />
                           )}
                           <button
                             type="button"

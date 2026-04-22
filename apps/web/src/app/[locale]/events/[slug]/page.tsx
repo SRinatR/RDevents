@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -360,7 +361,7 @@ export default function EventDetailPage() {
       <div className="public-page-shell route-shell route-event-detail route-russia-house-quest">
         <main className="rhq-page">
           <section className="rhq-hero" id="top">
-            <img className="rhq-hero-image" src={heroImage} alt={event.title} />
+            <Image className="rhq-hero-image" src={heroImage} alt={event.title} fill sizes="100vw" style={{ objectFit: 'cover' }} priority />
             <div className="rhq-hero-overlay" />
             <div className="rhq-container rhq-hero-inner">
               <div className="rhq-hero-copy">
@@ -541,7 +542,7 @@ export default function EventDetailPage() {
               />
               <div className="rhq-gallery-grid">
                 <article className="rhq-gallery-feature">
-                  <img src={heroImage} alt="Юбилейный квест «Дом, где живёт Россия»" />
+                  <Image src={heroImage} alt="Юбилейный квест «Дом, где живёт Россия»" fill sizes="(max-width: 768px) 100vw, 600px" style={{ objectFit: 'cover' }} />
                   <div>
                     <h3>{QUEST_GALLERY_ITEMS[0].title}</h3>
                     <p>{QUEST_GALLERY_ITEMS[0].subtitle}</p>
@@ -588,7 +589,7 @@ export default function EventDetailPage() {
       <main className="public-main">
         <section className="event-v4-masthead motion-fade-up">
           <div className="event-v4-media-layer">
-            {event.coverImageUrl ? <img src={event.coverImageUrl} alt={event.title} /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
+            {event.coverImageUrl ? <Image src={event.coverImageUrl} alt={event.title} fill sizes="100vw" style={{ objectFit: 'cover' }} priority /> : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
             <div className="event-v4-media-overlay" />
           </div>
 

@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -396,7 +397,7 @@ export default function AdminUserFullProfilePage() {
           <div className="admin-profile-avatar">
             <span className="signal-avatar signal-avatar--lg">
               {p.avatarUrl
-                ? <img src={p.avatarUrl} alt="" />
+                ? <Image src={p.avatarUrl} alt="" width={64} height={64} />
                 : (getName() || '?').charAt(0).toUpperCase()}
             </span>
           </div>

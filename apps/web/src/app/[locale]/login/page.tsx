@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -62,7 +63,7 @@ function LoginPageContent() {
     <div className="auth-shell">
       <div className="auth-brand-panel">
           <Link href={`/${locale}`} className="public-logo">
-            <img src="/site-logo.png" alt="Русский Дом" className="public-logo-mark public-logo-mark-auth" />
+            <Image src="/site-logo.png" alt="Русский Дом" width={120} height={40} className="public-logo-mark public-logo-mark-auth" priority />
           </Link>
         <div className="auth-brand-content">
           <h1>{locale === 'ru' ? 'Вход в рабочее пространство' : 'Access your workspace'}</h1>
