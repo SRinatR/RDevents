@@ -13,7 +13,6 @@ import {
   CabinetTeamCard,
   CabinetMissingDataCard,
   CabinetDeadlinesCard,
-  CabinetQuickActions,
   CabinetInvitationsCard,
   CabinetOtherEventsList,
   type DashboardResponse,
@@ -191,32 +190,13 @@ export default function CabinetPage() {
 
       <div className="cabinet-workspace-grid">
         <div className="cabinet-workspace-main">
-          <CabinetTeamCard 
-            team={activeEvent.team} 
-            event={activeEvent} 
-            locale={locale} 
-          />
-          <CabinetMissingDataCard 
-            missingFields={activeEvent.missingProfileFields} 
-            event={activeEvent} 
-            locale={locale} 
-          />
-          <CabinetInvitationsCard 
-            invitations={activeEvent.invitations} 
-            locale={locale} 
-          />
+          <CabinetTeamCard team={activeEvent.team} event={activeEvent} locale={locale} />
+          <CabinetInvitationsCard invitations={activeEvent.invitations} locale={locale} />
         </div>
-        
+
         <div className="cabinet-workspace-sidebar">
-          <CabinetDeadlinesCard 
-            deadlines={activeEvent.deadlines} 
-            locale={locale} 
-          />
-          <CabinetQuickActions 
-            quickActions={activeEvent.quickActions} 
-            event={activeEvent} 
-            locale={locale} 
-          />
+          <CabinetMissingDataCard missingFields={activeEvent.missingProfileFields} event={activeEvent} locale={locale} />
+          <CabinetDeadlinesCard deadlines={activeEvent.deadlines} locale={locale} />
         </div>
       </div>
 

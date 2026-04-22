@@ -1,6 +1,7 @@
 import { prisma } from '../../db/prisma.js';
 import { getVisibleProfileFieldsForUser } from '../profile-config/profile-config.service.js';
 import { logger } from '../../common/logger.js';
+import { getTeamCabinetPermissions, getTeamSubmissionState } from '../events/teams.service.js';
 
 const PROFILE_FIELD_REGISTRY: Array<{
   key: string;
@@ -38,9 +39,15 @@ export interface DashboardEvent {
     status: string;
     isCaptain: boolean;
     membersCount: number;
+    minMembers?: number;
     maxMembers?: number;
     pendingInvites?: number;
     canEdit: boolean;
+    canManageMembers: boolean;
+    canSubmit: boolean;
+    requiresApprovalAfterEdit: boolean;
+    isPendingReview: boolean;
+    requiredActiveMembers?: number;
     members?: Array<{
       userId: string;
       name: string;
@@ -223,17 +230,39 @@ async function buildDashboardEvent(
 
       if (teamMembership) {
         const isCaptain = teamMembership.team.captainUserId === user.id;
-        const canEdit = ['DRAFT', 'ACTIVE'].includes(teamMembership.team.status);
+        const membersCount = teamMembership.team._count.members;
+        const pendingInvites = teamMembership.team.invitations.length;
+        const permissions = getTeamCabinetPermissions({
+          status: teamMembership.team.status,
+          isCaptain,
+          requireAdminApprovalForTeams: event.requireAdminApprovalForTeams === true,
+        });
+        const submission = getTeamSubmissionState({
+          status: teamMembership.team.status,
+          isCaptain,
+          requireAdminApprovalForTeams: event.requireAdminApprovalForTeams === true,
+          teamJoinMode: event.teamJoinMode,
+          minTeamSize: event.minTeamSize,
+          maxTeamSize: teamMembership.team.maxSize ?? event.maxTeamSize,
+          activeMembers: membersCount,
+          pendingInvites,
+        });
 
         team = {
           id: teamMembership.team.id,
           name: teamMembership.team.name,
           status: teamMembership.team.status,
           isCaptain,
-          membersCount: teamMembership.team._count.members,
+          membersCount,
+          minMembers: event.minTeamSize,
           maxMembers: teamMembership.team.maxSize,
-          pendingInvites: teamMembership.team.invitations.length,
-          canEdit,
+          pendingInvites,
+          canEdit: permissions.canOpenEditor,
+          canManageMembers: permissions.canManageMembers,
+          canSubmit: submission.canSubmit,
+          requiresApprovalAfterEdit: permissions.requiresApprovalAfterEdit,
+          isPendingReview: permissions.isPendingReview,
+          requiredActiveMembers: submission.requiredActiveMembers,
           members: teamMembership.team.members.map((member) => ({
             userId: member.userId,
             name: member.user.name || member.user.email,
@@ -477,6 +506,10 @@ export async function getUserDashboard(userId: string): Promise<DashboardData> {
             requiredProfileFields: true,
             requiredEventFields: true,
             isTeamBased: true,
+            requireAdminApprovalForTeams: true,
+            minTeamSize: true,
+            maxTeamSize: true,
+            teamJoinMode: true,
           },
         },
       },

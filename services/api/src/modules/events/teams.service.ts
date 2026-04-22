@@ -17,6 +17,94 @@ function isTeamFrozen(status: string): boolean {
   return (FROZEN_TEAM_STATUSES as readonly string[]).includes(status);
 }
 
+function isDraftTeamStatus(status: string): boolean {
+  return (EDITABLE_TEAM_STATUSES as readonly string[]).includes(status);
+}
+
+function isPendingReviewTeamStatus(status: string): boolean {
+  return ['PENDING', 'CHANGES_PENDING', 'SUBMITTED'].includes(status);
+}
+
+export interface TeamCabinetPermissions {
+  canOpenEditor: boolean;
+  canEditDetails: boolean;
+  canManageMembers: boolean;
+  canSubmitForApproval: boolean;
+  requiresApprovalAfterEdit: boolean;
+  isPendingReview: boolean;
+  isLocked: boolean;
+}
+
+export interface TeamSubmissionState {
+  canSubmit: boolean;
+  requiredActiveMembers: number;
+  blocksOnPendingInvites: boolean;
+}
+
+export function getTeamCabinetPermissions(input: {
+  status: string;
+  isCaptain: boolean;
+  requireAdminApprovalForTeams: boolean;
+}): TeamCabinetPermissions {
+  const { status, isCaptain, requireAdminApprovalForTeams } = input;
+  const isDraft = isDraftTeamStatus(status);
+  const isPendingReview = isPendingReviewTeamStatus(status);
+  const isActive = status === 'ACTIVE';
+  const isLocked = isPendingReview || status === 'APPROVED' || status === 'ARCHIVED';
+  const canEditDetails = isCaptain && (isDraft || isActive);
+  const canManageMembers = isCaptain && (isDraft || (!requireAdminApprovalForTeams && isActive));
+  const canSubmitForApproval = isCaptain && requireAdminApprovalForTeams && isDraft;
+
+  return {
+    canOpenEditor: canEditDetails || canManageMembers || canSubmitForApproval,
+    canEditDetails,
+    canManageMembers,
+    canSubmitForApproval,
+    requiresApprovalAfterEdit: canEditDetails && requireAdminApprovalForTeams && isActive,
+    isPendingReview,
+    isLocked,
+  };
+}
+
+export function getTeamSubmissionState(input: {
+  status: string;
+  isCaptain: boolean;
+  requireAdminApprovalForTeams: boolean;
+  teamJoinMode?: string | null;
+  minTeamSize?: number | null;
+  maxTeamSize?: number | null;
+  activeMembers: number;
+  pendingInvites: number;
+}): TeamSubmissionState {
+  const {
+    status,
+    isCaptain,
+    requireAdminApprovalForTeams,
+    teamJoinMode,
+    minTeamSize,
+    maxTeamSize,
+    activeMembers,
+    pendingInvites,
+  } = input;
+  const resolvedMinTeamSize = Math.max(minTeamSize ?? 1, 1);
+  const resolvedMaxTeamSize = Math.max(maxTeamSize ?? resolvedMinTeamSize, 1);
+  const blocksOnPendingInvites = teamJoinMode === 'EMAIL_INVITE';
+  const requiredActiveMembers = blocksOnPendingInvites ? resolvedMaxTeamSize : resolvedMinTeamSize;
+  const hasRequiredMembers = activeMembers >= requiredActiveMembers;
+  const hasBlockingInvites = blocksOnPendingInvites && pendingInvites > 0;
+
+  return {
+    canSubmit:
+      isCaptain &&
+      requireAdminApprovalForTeams &&
+      isDraftTeamStatus(status) &&
+      hasRequiredMembers &&
+      !hasBlockingInvites,
+    requiredActiveMembers,
+    blocksOnPendingInvites,
+  };
+}
+
 async function canManageTeamMembers(eventId: string, teamCaptainUserId: string, actorUserId: string) {
   if (teamCaptainUserId === actorUserId) return true;
 
