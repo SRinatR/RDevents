@@ -12,7 +12,6 @@ type AppImageProps =
       sizes?: string;
       priority?: boolean;
       unoptimized?: boolean;
-      fill?: never;
     }
   | {
       src: string;

@@ -1,5 +1,5 @@
 import * as React from "react";
-import Image from "next/image";
+import { AppImage } from "./AppImage";
 import { cn } from "@/lib/utils";
 
 const Avatar = React.forwardRef<
@@ -18,17 +18,12 @@ const Avatar = React.forwardRef<
 Avatar.displayName = "Avatar";
 
 const AvatarImage = React.forwardRef<
-  HTMLImageElement,
+  HTMLSpanElement,
   { src: string; alt?: string; className?: string }
 >(({ src, alt, className }, ref) => (
-  <Image
-    ref={ref as React.Ref<HTMLImageElement>}
-    src={src}
-    alt={alt || ""}
-    className={cn("aspect-square h-full w-full object-cover", className)}
-    width={40}
-    height={40}
-  />
+  <span ref={ref} className={className}>
+    <AppImage src={src} alt={alt || ""} width={40} height={40} />
+  </span>
 ));
 AvatarImage.displayName = "AvatarImage";
 

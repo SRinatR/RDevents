@@ -409,26 +409,18 @@ export const adminApi = {
     return request<{ data: any[]; meta: any }>(`/api/admin/participants${qs}`, { auth: true });
   },
 
-  removeParticipant: (eventId: string, memberId: string, notes?: string) =>
-    request<any>(`/api/admin/events/${eventId}/participants/${memberId}/remove`, {
-      method: 'POST',
-      auth: true,
-      body: { notes },
-    }),
-
-  rejectParticipant: (eventId: string, memberId: string, notes?: string) =>
-    request<any>(`/api/admin/events/${eventId}/participants/${memberId}/reject`, {
-      method: 'POST',
-      auth: true,
-      body: { notes },
-    }),
-
   updateParticipantStatus: (eventId: string, memberId: string, body: { status: 'ACTIVE' | 'RESERVE' | 'REJECTED' | 'REMOVED'; notes?: string }) =>
     request<{ membership: any }>(`/api/admin/events/${eventId}/participations/${memberId}`, {
       method: 'PATCH',
       auth: true,
       body,
     }),
+
+  rejectParticipant: (eventId: string, memberId: string, notes?: string) =>
+    adminApi.updateParticipantStatus(eventId, memberId, { status: 'REJECTED', notes }),
+
+  removeParticipant: (eventId: string, memberId: string, notes?: string) =>
+    adminApi.updateParticipantStatus(eventId, memberId, { status: 'REMOVED', notes }),
 
   listApplications: (params?: {
     search?: string;

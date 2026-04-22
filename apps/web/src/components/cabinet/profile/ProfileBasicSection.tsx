@@ -27,13 +27,13 @@ export function ProfileBasicSection({
   eventTitle,
   onSave,
 }: ProfileBasicSectionProps) {
-  const [lastNameCyrillic, setLastNameCyrillic] = useState('');
-  const [firstNameCyrillic, setFirstNameCyrillic] = useState('');
-  const [middleNameCyrillic, setMiddleNameCyrillic] = useState('');
-  const [lastNameLatin, setLastNameLatin] = useState('');
-  const [firstNameLatin, setFirstNameLatin] = useState('');
-  const [middleNameLatin, setMiddleNameLatin] = useState('');
-  const [birthDate, setBirthDate] = useState('');
+  const [lastNameCyrillic, setLastNameCyrillic] = useState(user.lastNameCyrillic ?? '');
+  const [firstNameCyrillic, setFirstNameCyrillic] = useState(user.firstNameCyrillic ?? '');
+  const [middleNameCyrillic, setMiddleNameCyrillic] = useState(user.middleNameCyrillic ?? '');
+  const [lastNameLatin, setLastNameLatin] = useState(() => transliterateCyrillic(user.lastNameCyrillic ?? '') || user.lastNameLatin || '');
+  const [firstNameLatin, setFirstNameLatin] = useState(() => transliterateCyrillic(user.firstNameCyrillic ?? '') || user.firstNameLatin || '');
+  const [middleNameLatin, setMiddleNameLatin] = useState(() => transliterateCyrillic(user.middleNameCyrillic ?? '') || user.middleNameLatin || '');
+  const [birthDate, setBirthDate] = useState(formatDateInput(user.birthDate));
 
   useEffect(() => {
     const nextLastNameCyrillic = user.lastNameCyrillic ?? '';
@@ -47,7 +47,7 @@ export function ProfileBasicSection({
     setFirstNameLatin(transliterateCyrillic(nextFirstNameCyrillic) || user.firstNameLatin || '');
     setMiddleNameLatin(transliterateCyrillic(nextMiddleNameCyrillic) || user.middleNameLatin || '');
     setBirthDate(formatDateInput(user.birthDate));
-  }, [user]);
+  }, [user.lastNameCyrillic, user.firstNameCyrillic, user.middleNameCyrillic, user.lastNameLatin, user.firstNameLatin, user.middleNameLatin, user.birthDate]);
 
   const isRequired = (field: string) => requiredFields.includes(field);
   const updateLastNameCyrillic = (value: string) => {
