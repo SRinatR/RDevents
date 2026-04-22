@@ -196,6 +196,29 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
     }
   }
 
+  async function handleCancelParticipation() {
+    const confirmed = window.confirm(
+      isRu
+        ? 'Отказаться от участия в мероприятии?'
+        : 'Cancel participation in this event?'
+    );
+    if (!confirmed) return;
+
+    setActionLoading('cancel-participation');
+    setError('');
+    setSuccess('');
+
+    try {
+      await eventsApi.unregister(event.id);
+      setSuccess(isRu ? 'Участие отменено.' : 'Participation cancelled.');
+      await loadWorkspace();
+    } catch (err: any) {
+      setError(err.message || (isRu ? 'Не удалось отменить участие' : 'Failed to cancel participation'));
+    } finally {
+      setActionLoading('');
+    }
+  }
+
   async function handleCreateTeam() {
     if (!teamName.trim()) return;
     setActionLoading('create-team');
@@ -518,8 +541,10 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
         <>
         <Panel variant="elevated" className="workspace-event-panel">
           <ToolbarRow>
-            <button onClick={handleUnregister} disabled={actionLoading === 'unregister'} className="btn btn-secondary btn-sm">
-              {actionLoading === 'unregister' ? (isRu ? 'Отменяем...' : 'Cancelling...') : (isRu ? 'Отказаться от участия' : 'Cancel participation')}
+            <button onClick={handleCancelParticipation} disabled={actionLoading === 'cancel-participation'} className="btn btn-danger btn-sm">
+              {actionLoading === 'cancel-participation'
+                ? (isRu ? 'Отменяем...' : 'Cancelling...')
+                : (isRu ? 'Отказаться от участия' : 'Cancel participation')}
             </button>
           </ToolbarRow>
         </Panel>

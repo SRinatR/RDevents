@@ -42,7 +42,9 @@ const USER_PROFILE_SELECT = {
   hasNoMiddleName: true,
   consentPersonalData: true,
   consentClientRules: true,
-  accounts: { select: { id: true, provider: true, linkedAt: true, lastUsedAt: true } },
+  consentPersonalDataAt: true,
+  consentClientRulesAt: true,
+  accounts: { select: { id: true, provider: true, providerEmail: true, linkedAt: true, lastUsedAt: true } },
 } as const;
 
 async function getManagedEventIds(user: User): Promise<string[] | null> {
@@ -423,158 +425,6 @@ adminUsersRouter.get('/admins', requireSuperAdmin, async (_req, res) => {
   ]);
 
   res.json({ admins, platformAdmins: admins, eventAdmins });
-});
-
-// Deprecated: use GET /:id/profile - оставлен для обратной совместимости
-// GET /api/admin/users/:userId - детальный профиль пользователя
-adminUsersRouter.get('/:userId', requirePlatformAdmin, async (req, res) => {
-  const { userId } = req.params;
-  const user = (req as any).user as User;
-
-  const existing = await prisma.user.findFirst({
-    where: { OR: [{ id: userId as string }, { email: userId as string }] },
-  });
-
-  if (!existing) {
-    res.status(404).json({ error: 'User not found' });
-    return;
-  }
-
-  const managedEventIds = await getManagedEventIds(user);
-  if (managedEventIds !== null) {
-    const userMemberships = await prisma.eventMember.findMany({
-      where: { userId: existing.id },
-      select: { eventId: true },
-    });
-    const userEventIds = new Set(userMemberships.map(m => m.eventId));
-    const hasAccess = [...userEventIds].some(id => managedEventIds.includes(id));
-    if (!hasAccess) {
-      res.status(403).json({ error: 'Access denied' });
-      return;
-    }
-  }
-
-  const [
-    profile,
-    extendedProfile,
-    identityDocument,
-    internationalPassport,
-    socialLinks,
-    activityDirections,
-    additionalLanguages,
-    emergencyContact,
-    eventMemberships,
-    teamMemberships,
-    submissions,
-  ] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: existing.id },
-      select: { ...USER_PROFILE_SELECT },
-    }),
-    prisma.userExtendedProfile.findUnique({
-      where: { userId: existing.id },
-      include: {
-        region: { select: { id: true, nameRu: true, nameEn: true } },
-        district: { select: { id: true, nameRu: true, nameEn: true } },
-        settlement: { select: { id: true, nameRu: true, nameEn: true } },
-      },
-    }),
-    prisma.userIdentityDocument.findUnique({
-      where: { userId: existing.id },
-      include: { scanAsset: { select: { id: true, publicUrl: true } } },
-    }),
-    prisma.userInternationalPassport.findUnique({
-      where: { userId: existing.id },
-      include: { scanAsset: { select: { id: true, publicUrl: true } } },
-    }),
-    prisma.userSocialLinks.findUnique({ where: { userId: existing.id } }),
-    prisma.userActivityDirection.findMany({
-      where: { userId: existing.id },
-      select: { direction: true, createdAt: true },
-    }),
-    prisma.userAdditionalLanguage.findMany({
-      where: { userId: existing.id },
-      select: { languageName: true, createdAt: true },
-    }),
-    prisma.userEmergencyContact.findUnique({ where: { userId: existing.id } }),
-    prisma.eventMember.findMany({
-      where: { userId: existing.id, status: { not: 'REMOVED' } },
-      include: {
-        event: { select: { id: true, title: true, slug: true, startsAt: true, endsAt: true, status: true } },
-        assignedByUser: { select: { id: true, name: true, email: true } },
-      },
-      orderBy: { assignedAt: 'desc' },
-    }),
-    prisma.eventTeamMember.findMany({
-      where: { userId: existing.id, status: { notIn: ['REMOVED', 'LEFT'] } },
-      include: {
-        team: {
-          include: {
-            event: { select: { id: true, title: true, slug: true } },
-          },
-        },
-      },
-      orderBy: { joinedAt: 'desc' },
-    }),
-    prisma.eventRegistrationFormSubmission.findMany({
-      where: { userId: existing.id },
-      select: {
-        id: true,
-        eventId: true,
-        answersJson: true,
-        isComplete: true,
-        createdAt: true,
-      },
-    }),
-  ]);
-
-  const submissionsWithEvents = await Promise.all(
-    submissions.map(async (sub) => {
-      const event = await prisma.event.findUnique({
-        where: { id: sub.eventId },
-        select: { id: true, title: true, slug: true },
-      });
-      return { ...sub, event };
-    })
-  );
-
-  res.json({
-    profile,
-    extendedProfile,
-    identityDocument,
-    internationalPassport,
-    socialLinks,
-    activityDirections: activityDirections.map(d => d.direction),
-    additionalLanguages: additionalLanguages.map(l => l.languageName),
-    emergencyContact,
-    eventMemberships: eventMemberships.map(m => ({
-      id: m.id,
-      eventId: m.eventId,
-      eventTitle: m.event?.title ?? '',
-      eventSlug: m.event?.slug ?? '',
-      eventStartsAt: m.event?.startsAt?.toISOString() ?? null,
-      eventEndsAt: m.event?.endsAt?.toISOString() ?? null,
-      eventStatus: m.event?.status ?? 'DRAFT',
-      role: m.role,
-      status: m.status,
-      assignedAt: m.assignedAt.toISOString(),
-      approvedAt: m.approvedAt?.toISOString() ?? null,
-      assignedBy: m.assignedByUser ? { id: m.assignedByUser.id, name: m.assignedByUser.name, email: m.assignedByUser.email } : null,
-      notes: m.notes,
-    })),
-    teamMemberships: teamMemberships.map(m => ({
-      id: m.id,
-      teamId: m.teamId,
-      teamName: m.team.name,
-      teamStatus: m.team.status,
-      eventId: m.team.eventId,
-      eventTitle: m.team.event?.title ?? '',
-      role: m.role,
-      status: m.status,
-      joinedAt: m.joinedAt.toISOString(),
-    })),
-    formSubmissions: submissionsWithEvents,
-  });
 });
 
 // GET /api/admin/users/:id/profile - полный профиль пользователя
@@ -984,7 +834,7 @@ adminUsersRouter.get('/export', requirePlatformAdmin, async (req, res) => {
   const exportRows = users.map(u => {
     const ep = extendedProfileMap.get(u.id);
     const ec = emergencyContactMap.get(u.id);
-    const mc = membershipCountMap[u.id] ?? { total: 0, participants: 0, volunteers: 0, admins: 0 };
+    const mc = membershipCountMap[u.id] ?? { total: 0, participants: 0, volunteers: 0, admins: 0, activeParticipants: 0 };
     const tc = teamCountMap[u.id] ?? 0;
     const ads = activityDirectionsMap.get(u.id) ?? [];
     const als = additionalLanguagesMap.get(u.id) ?? [];
@@ -1023,7 +873,7 @@ adminUsersRouter.get('/export', requirePlatformAdmin, async (req, res) => {
       lastLoginAt: u.lastLoginAt ? u.lastLoginAt.toISOString() : '',
       accountsProviders: u.accounts.map(a => a.provider).join('; '),
       eventMembershipsTotal: mc.total,
-      activeParticipantMembershipsTotal: mc.participants,
+      activeParticipantMembershipsTotal: mc.activeParticipants,
       volunteerMembershipsTotal: mc.volunteers,
       eventAdminMembershipsTotal: mc.admins,
       teamsTotal: tc,

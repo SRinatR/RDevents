@@ -302,7 +302,7 @@ export default function AdminUserFullProfilePage() {
     );
   }
 
-  const { profile: p, extendedProfile, identityDocument, internationalPassport, socialLinks, activityDirections, additionalLanguages, emergencyContact, eventMemberships, teamMemberships, selectedEventContext } = profile;
+  const { profile: p, extendedProfile, identityDocument, internationalPassport, socialLinks, activityDirections, additionalLanguages, additionalDocuments, emergencyContact, eventMemberships, teamMemberships, selectedEventContext } = profile;
 
   const getName = () => p.fullNameCyrillic || p.fullNameLatin || p.name || p.email;
 
@@ -658,10 +658,10 @@ export default function AdminUserFullProfilePage() {
             </>
           )}
 
-          {profile.additionalDocuments && profile.additionalDocuments.length > 0 && (
+          {additionalDocuments && additionalDocuments.length > 0 && (
             <>
               <SectionHeader title="Дополнительные документы" />
-              {profile.additionalDocuments.map((doc, idx) => (
+              {additionalDocuments.map((doc, idx) => (
                 <div key={idx} className="admin-profile-field">
                   <label>{doc.type || 'Документ'}</label>
                   <div>
@@ -800,7 +800,7 @@ export default function AdminUserFullProfilePage() {
                       <td>{formatDate(m.removedAt)}</td>
                       <td>{m.notes || '—'}</td>
                       <td>
-                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => router.push(`/${locale}/admin/events/${m.event.id}?userId=${userId}`)}>
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => router.push(`/${locale}/admin/users/${userId}?eventId=${m.event.id}`)}>
                           Открыть контекст
                         </button>
                       </td>
@@ -832,7 +832,7 @@ export default function AdminUserFullProfilePage() {
                 <tbody>
                   {teamMemberships.map((m) => (
                     <tr key={m.id}>
-                      <td>{m.team.eventId}</td>
+                      <td>{m.team.eventTitle}</td>
                       <td>{m.team.name}</td>
                       <td><StatusBadge tone={toneByStatus[m.team.status] ?? 'neutral'}>{m.team.status}</StatusBadge></td>
                       <td><StatusBadge tone={m.role === 'CAPTAIN' ? 'warning' : 'info'}>{m.role}</StatusBadge></td>

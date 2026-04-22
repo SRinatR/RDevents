@@ -86,6 +86,38 @@ async function requestForm<T>(path: string, formData: FormData, auth = false): P
   return res.json() as Promise<T>;
 }
 
+async function downloadWithAuth(path: string, filenameFallback: string) {
+  const headers: Record<string, string> = {};
+  if (_accessToken) {
+    headers['Authorization'] = `Bearer ${_accessToken}`;
+  }
+
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: 'GET',
+    headers,
+    credentials: 'include',
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({ error: 'Unknown error' }));
+    throw new ApiError(res.status, data.error ?? 'Download failed', data.details, data.code);
+  }
+
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename="?([^"]+)"?/i);
+  const filename = match?.[1] || filenameFallback;
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export const authApi = {
@@ -380,11 +412,19 @@ export const adminApi = {
     return request<{ data: any[]; meta: any }>(`/api/admin/participants${qs}`, { auth: true });
   },
 
-  removeParticipant: (eventId: string, memberId: string) =>
-    request<any>(`/api/admin/events/${eventId}/participants/${memberId}/remove`, { method: 'POST', auth: true }),
+  removeParticipant: (eventId: string, memberId: string, notes?: string) =>
+    request<any>(`/api/admin/events/${eventId}/participants/${memberId}/remove`, {
+      method: 'POST',
+      auth: true,
+      body: { notes },
+    }),
 
   rejectParticipant: (eventId: string, memberId: string, notes?: string) =>
-    request<any>(`/api/admin/events/${eventId}/participants/${memberId}/reject`, { method: 'POST', auth: true, body: { notes } }),
+    request<any>(`/api/admin/events/${eventId}/participants/${memberId}/reject`, {
+      method: 'POST',
+      auth: true,
+      body: { notes },
+    }),
 
   listApplications: (params?: {
     search?: string;
@@ -445,7 +485,7 @@ export const adminApi = {
     return request<any>(`/api/admin/users/${userId}/profile${qs}`, { auth: true });
   },
 
-  exportUsers: (params?: {
+  exportUsers: async (params?: {
     search?: string;
     role?: string;
     hasEventMembership?: string;
@@ -460,22 +500,8 @@ export const adminApi = {
     if (params?.eventId) qp.set('eventId', params.eventId);
     if (params?.includeInactive) qp.set('includeInactive', 'true');
     qp.set('format', params?.format ?? 'csv');
-    window.location.href = `${BASE_URL}/api/admin/users/export?${qp.toString()}`;
+    await downloadWithAuth(`/api/admin/users/export?${qp.toString()}`, 'users_export.csv');
   },
-
-  rejectParticipant: (eventId: string, memberId: string, notes?: string) =>
-    request<any>(`/api/admin/events/${eventId}/participants/${memberId}/reject`, {
-      method: 'POST',
-      auth: true,
-      body: { notes },
-    }),
-
-  removeParticipant: (eventId: string, memberId: string, notes?: string) =>
-    request<any>(`/api/admin/events/${eventId}/participants/${memberId}/remove`, {
-      method: 'POST',
-      auth: true,
-      body: { notes },
-    }),
 
   archiveTeam: (teamId: string) =>
     request<any>(`/api/admin/teams/${teamId}/archive`, {
@@ -634,14 +660,37 @@ export function buildExportUrl(eventId: string, scope: string, format = 'csv', f
 }
 
 export const adminExportsApi = {
-  downloadParticipants: (eventId: string, format = 'csv', filters?: ExportFilters) => {
-    window.location.href = buildExportUrl(eventId, 'participants', format, filters);
+  downloadParticipants: async (eventId: string, format = 'csv', filters?: ExportFilters) => {
+    const params = new URLSearchParams();
+    params.set('format', format);
+    if (filters) {
+      if (filters.status?.length) filters.status.forEach(s => params.append('status', s));
+      if (filters.includeArchived) params.set('includeArchived', 'true');
+      if (filters.includeRejected) params.set('includeRejected', 'true');
+      if (filters.includeCancelled) params.set('includeCancelled', 'true');
+      if (filters.includeRemoved) params.set('includeRemoved', 'true');
+    }
+    await downloadWithAuth(`/api/admin/exports/events/${eventId}/exports/participants?${params.toString()}`, `export_${eventId}_participants.csv`);
   },
-  downloadTeams: (eventId: string, format = 'csv', filters?: ExportFilters) => {
-    window.location.href = buildExportUrl(eventId, 'teams', format, filters);
+  downloadTeams: async (eventId: string, format = 'csv', filters?: ExportFilters) => {
+    const params = new URLSearchParams();
+    params.set('format', format);
+    if (filters) {
+      if (filters.status?.length) filters.status.forEach(s => params.append('status', s));
+      if (filters.includeArchived) params.set('includeArchived', 'true');
+      if (filters.includeRejected) params.set('includeRejected', 'true');
+    }
+    await downloadWithAuth(`/api/admin/exports/events/${eventId}/exports/teams?${params.toString()}`, `export_${eventId}_teams.csv`);
   },
-  downloadTeamMembers: (eventId: string, format = 'csv', filters?: ExportFilters) => {
-    window.location.href = buildExportUrl(eventId, 'team_members', format, filters);
+  downloadTeamMembers: async (eventId: string, format = 'csv', filters?: ExportFilters) => {
+    const params = new URLSearchParams();
+    params.set('format', format);
+    if (filters) {
+      if (filters.status?.length) filters.status.forEach(s => params.append('status', s));
+      if (filters.includeArchived) params.set('includeArchived', 'true');
+      if (filters.includeRejected) params.set('includeRejected', 'true');
+    }
+    await downloadWithAuth(`/api/admin/exports/events/${eventId}/exports/team_members?${params.toString()}`, `export_${eventId}_team_members.csv`);
   },
 };
 

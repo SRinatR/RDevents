@@ -22,7 +22,7 @@ function getFieldByKey(key: string) {
   return PROFILE_FIELD_REGISTRY.find((f) => f.key === key);
 }
 
-const ACTIVE_MEMBER_STATUSES = ['ACTIVE', 'APPROVED', 'PENDING', 'RESERVE'] as const;
+const DASHBOARD_VISIBLE_MEMBER_STATUSES = ['ACTIVE', 'PENDING', 'RESERVE'] as const;
 
 export interface DashboardEvent {
   eventId: string;
@@ -495,7 +495,7 @@ export async function getUserDashboard(userId: string): Promise<DashboardData> {
     prisma.eventMember.findMany({
       where: {
         userId,
-        status: { in: [...ACTIVE_MEMBER_STATUSES] },
+        status: { in: [...DASHBOARD_VISIBLE_MEMBER_STATUSES] },
       },
       include: {
         event: {
@@ -579,7 +579,7 @@ export async function setActiveEvent(
       where: {
         userId,
         eventId,
-        status: { in: [...ACTIVE_MEMBER_STATUSES] },
+        status: { in: [...DASHBOARD_VISIBLE_MEMBER_STATUSES] },
       },
     });
 
@@ -627,7 +627,7 @@ export async function getEventWorkspace(
     where: {
       userId,
       eventId,
-      status: { in: [...ACTIVE_MEMBER_STATUSES] },
+      status: { in: [...DASHBOARD_VISIBLE_MEMBER_STATUSES] },
     },
   });
 

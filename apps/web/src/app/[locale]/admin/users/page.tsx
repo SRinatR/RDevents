@@ -98,7 +98,7 @@ export default function AdminUsersPage() {
 
   const loadEvents = useCallback(async () => {
     try {
-      const response = await eventsApi.list({ limit: 100 });
+      const response = await adminApi.listEvents({ limit: 100 });
       setEvents(response.data.map((e: any) => ({ id: e.id, title: e.title })));
     } catch {
       setEvents([]);

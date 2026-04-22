@@ -4,7 +4,7 @@ import { buildPublicMediaUrl } from '../../common/storage.js';
 import type { EventTeamStatus } from '@prisma/client';
 
 export type ExportScope = 'participants' | 'volunteers' | 'teams' | 'team_members' | 'all';
-export type ExportFormat = 'csv' | 'xlsx' | 'json';
+export type ExportFormat = 'csv' | 'json';
 
 export interface ExportConfig {
   scope: ExportScope;
@@ -197,15 +197,15 @@ export async function exportParticipants(eventId: string, config: { filters?: Ex
 
   const statusFilter = config.filters?.status;
   const includeArchived = config.filters?.includeArchived ?? false;
-  const includeRejected = config.filters?.includeRejected ?? true;
-  const includeCancelled = config.filters?.includeCancelled ?? true;
+  const includeRejected = config.filters?.includeRejected ?? false;
+  const includeCancelled = config.filters?.includeCancelled ?? false;
   const includeRemoved = config.filters?.includeRemoved ?? false;
 
   const statusWhere: string[] = [];
   if (statusFilter && statusFilter.length > 0) {
     statusWhere.push(...statusFilter);
   } else {
-    if (!includeArchived) statusWhere.push('ACTIVE', 'PENDING', 'APPROVED');
+    if (!includeArchived) statusWhere.push('ACTIVE', 'PENDING', 'RESERVE');
     if (includeRejected) statusWhere.push('REJECTED');
     if (includeCancelled) statusWhere.push('CANCELLED');
     if (includeRemoved) statusWhere.push('REMOVED');
@@ -328,11 +328,15 @@ export async function exportTeams(eventId: string, config: { filters?: ExtendedE
   const includeRejected = config.filters?.includeRejected ?? false;
 
   const statusList: EventTeamStatus[] = [];
-  if (!includeArchived) statusList.push('ACTIVE', 'PENDING', 'SUBMITTED', 'DRAFT');
-  if (includeRejected) statusList.push('REJECTED', 'CHANGES_PENDING');
+  if (!includeArchived) statusList.push('ACTIVE', 'PENDING', 'SUBMITTED', 'DRAFT', 'CHANGES_PENDING');
+  if (includeRejected) statusList.push('REJECTED');
+  if (includeArchived) statusList.push('ARCHIVED');
 
   const teams = await prisma.eventTeam.findMany({
-    where: { eventId, ...(statusList.length > 0 ? { status: { in: statusList } } : {}) },
+    where: {
+      eventId,
+      ...(statusList.length > 0 ? { status: { in: statusList } } : {}),
+    },
     include: {
       captainUser: {
         select: { id: true, name: true, email: true },
