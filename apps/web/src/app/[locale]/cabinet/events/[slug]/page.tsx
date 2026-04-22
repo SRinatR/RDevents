@@ -403,7 +403,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
 
       <Panel variant="elevated" className="workspace-event-panel">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, alignItems: 'center' }}>
-          <div style={{ aspectRatio: '16 / 9', borderRadius: 8, overflow: 'hidden', background: 'var(--color-bg-subtle)' }}>
+          <div style={{ position: 'relative', aspectRatio: '16 / 9', borderRadius: 8, overflow: 'hidden', background: 'var(--color-bg-subtle)' }}>
             {event.coverImageUrl ? <Image src={event.coverImageUrl} alt="" fill sizes="(max-width: 768px) 100vw, 400px" style={{ objectFit: 'cover' }} /> : null}
           </div>
           <div className="signal-stack">

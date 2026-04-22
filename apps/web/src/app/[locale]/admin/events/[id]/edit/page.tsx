@@ -386,7 +386,7 @@ export default function EditEventPage() {
                   background: coverDragActive ? 'var(--color-primary-subtle)' : 'var(--color-bg-subtle)',
                 }}
               >
-                <div style={{ aspectRatio: '16 / 9', borderRadius: 8, overflow: 'hidden', background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+                <div style={{ position: 'relative', aspectRatio: '16 / 9', borderRadius: 8, overflow: 'hidden', background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
                   {form.coverImageUrl ? <Image src={form.coverImageUrl} alt="" fill sizes="(max-width: 768px) 100vw, 400px" style={{ objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--color-text-muted)', fontWeight: 800 }}>{isRu ? 'Превью' : 'Preview'}</div>}
                 </div>
                 <div style={{ display: 'grid', gap: 10 }}>
