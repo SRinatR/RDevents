@@ -5630,6 +5630,8 @@ body {
 }
 
 .catalog-v6-card-body {
+  position: relative;
+  z-index: 1;
   padding: 18px 20px 20px;
   display: grid;
   gap: 12px;
