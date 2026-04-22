@@ -4,6 +4,7 @@ import { sendEventNotificationEmailSafe } from '../../common/email.js';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 import { assertRegistrationRequirements, registerForEvent } from './registration.service.js';
 import { notifyTeamMemberChanged, notifyTeamUpdated } from './notifications.service.js';
+import { getTeamCabinetPermissions, getTeamSubmissionState } from './teams.service.js';
 
 const OPEN_INVITATION_STATUSES = ['PENDING_ACCOUNT', 'PENDING_RESPONSE'] as const;
 const OCCUPIED_INVITATION_STATUSES = ['PENDING_ACCOUNT', 'PENDING_RESPONSE', 'ACCEPTED'] as const;
@@ -401,7 +402,7 @@ export async function getTeamSlots(teamId: string) {
   const team = await prisma.eventTeam.findUnique({
     where: { id: teamId },
     include: {
-      event: { select: { id: true, minTeamSize: true, maxTeamSize: true, requireAdminApprovalForTeams: true } },
+      event: { select: { id: true, minTeamSize: true, maxTeamSize: true, requireAdminApprovalForTeams: true, teamJoinMode: true } },
       captainUser: { select: { id: true, name: true, email: true, avatarUrl: true } },
       members: {
         where: { status: { notIn: ['REMOVED', 'LEFT'] } },
@@ -498,18 +499,35 @@ export async function getTeamSlots(teamId: string) {
   );
   const activeCount = activeMembers.length;
   const pendingCount = slots.filter(slot => slot.kind === 'INVITATION').length;
+  const permissions = getTeamCabinetPermissions({
+    status: team.status,
+    isCaptain: true,
+    requireAdminApprovalForTeams: team.event.requireAdminApprovalForTeams,
+  });
+  const submission = getTeamSubmissionState({
+    status: team.status,
+    isCaptain: true,
+    requireAdminApprovalForTeams: team.event.requireAdminApprovalForTeams,
+    teamJoinMode: team.event.teamJoinMode,
+    minTeamSize: team.event.minTeamSize,
+    maxTeamSize: maxSize,
+    activeMembers: activeCount,
+    pendingInvites: pendingCount,
+  });
 
   return {
     team,
     slots,
     history,
+    permissions,
+    submission,
     progress: {
       active: activeCount,
       pending: pendingCount,
       max: maxSize,
       min: team.event.minTeamSize,
     },
-    canSubmit: activeCount >= maxSize && pendingCount === 0,
+    canSubmit: submission.canSubmit,
   };
 }
 

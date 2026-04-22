@@ -1,6 +1,17 @@
 export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'ARCHIVED';
 export type RegistrationStatus = 'DRAFT' | 'SUBMITTED' | 'UNDER_REVIEW' | 'CONFIRMED' | 'REJECTED' | 'RESERVE' | 'WITHDRAWN';
-export type TeamStatus = 'OPEN' | 'CLOSED' | 'FULL' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'DRAFT';
+export type TeamStatus =
+  | 'OPEN'
+  | 'CLOSED'
+  | 'FULL'
+  | 'SUBMITTED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'DRAFT'
+  | 'ACTIVE'
+  | 'PENDING'
+  | 'CHANGES_PENDING'
+  | 'ARCHIVED';
 export type ParticipantRole = 'PARTICIPANT' | 'VOLUNTEER' | 'ADMIN' | 'CAPTAIN' | 'EVENT_ADMIN' | 'ORGANIZER';
 export type TeamMemberRole = 'CAPTAIN' | 'MEMBER';
 export type DeadlineType = 'REGISTRATION_DEADLINE' | 'EVENT_START' | 'EVENT_END' | 'REGISTRATION_OPEN' | 'REGISTRATION_CLOSE' | 'TEAM_SUBMIT_DEADLINE' | 'DOCUMENT_UPLOAD_DEADLINE' | 'CHECK_IN' | 'CUSTOM';
@@ -30,10 +41,16 @@ export interface TeamData {
   status: TeamStatus | string;
   isCaptain: boolean;
   membersCount: number;
+  minMembers?: number;
   maxMembers?: number;
   members?: TeamMemberData[];
   pendingInvites?: number;
   canEdit: boolean;
+  canManageMembers?: boolean;
+  canSubmit?: boolean;
+  requiresApprovalAfterEdit?: boolean;
+  isPendingReview?: boolean;
+  requiredActiveMembers?: number;
 }
 
 export interface RoleData {

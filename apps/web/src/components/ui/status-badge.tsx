@@ -11,6 +11,10 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
   DRAFT: { label: 'Черновик', color: 'text-gray-700', bg: 'bg-gray-50', border: 'border-gray-200' },
   CANCELLED: { label: 'Отменена', color: 'text-red-800', bg: 'bg-red-50', border: 'border-red-200' },
   ARCHIVED: { label: 'Архив', color: 'text-gray-600', bg: 'bg-gray-100', border: 'border-gray-300' },
+  ACTIVE: { label: 'Активна', color: 'text-green-800', bg: 'bg-green-50', border: 'border-green-200' },
+  PENDING: { label: 'На проверке', color: 'text-amber-800', bg: 'bg-amber-50', border: 'border-amber-200' },
+  CHANGES_PENDING: { label: 'Изменения на проверке', color: 'text-amber-800', bg: 'bg-amber-50', border: 'border-amber-200' },
+  APPROVED: { label: 'Одобрена', color: 'text-green-800', bg: 'bg-green-50', border: 'border-green-200' },
   
   OPEN: { label: 'Открыта', color: 'text-green-800', bg: 'bg-green-50', border: 'border-green-200' },
   CLOSED: { label: 'Закрыта', color: 'text-gray-700', bg: 'bg-gray-100', border: 'border-gray-300' },

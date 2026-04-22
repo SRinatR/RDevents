@@ -27,6 +27,10 @@ const TEAM_STATUS_LABELS: Record<string, { ru: string; en: string }> = {
   APPROVED: { ru: 'Одобрена', en: 'Approved' },
   REJECTED: { ru: 'Отклонена', en: 'Rejected' },
   DRAFT: { ru: 'Черновик', en: 'Draft' },
+  ACTIVE: { ru: 'Активна', en: 'Active' },
+  PENDING: { ru: 'На проверке', en: 'Pending review' },
+  CHANGES_PENDING: { ru: 'Изменения на проверке', en: 'Changes pending' },
+  ARCHIVED: { ru: 'Архив', en: 'Archived' },
 };
 
 const ROLE_LABELS: Record<string, { ru: string; en: string }> = {

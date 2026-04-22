@@ -2,7 +2,7 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../../../hooks/useAuth';
 import { ApiError, eventsApi } from '../../../../../lib/api';
 import { useRouteLocale } from '../../../../../hooks/useRouteParams';
@@ -31,8 +31,10 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
   const { slug } = use(params);
   const { user, loading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const locale = useRouteLocale();
   const isRu = locale === 'ru';
+  const openTeamEditor = searchParams?.get('team') === 'edit';
 
   const [event, setEvent] = useState<any>(null);
   const [membership, setMembership] = useState<any>(null);
@@ -489,6 +491,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
           event={event}
           teamSlots={teamSlots}
           isCaptain={isCaptain}
+          focusTeamEditor={openTeamEditor}
           actionLoading={actionLoading}
           teamName={teamName}
           teamDescription={teamDescription}
@@ -541,6 +544,7 @@ function TeamSlotsWorkspace({
   event,
   teamSlots,
   isCaptain,
+  focusTeamEditor,
   actionLoading,
   teamName,
   teamDescription,
@@ -560,6 +564,7 @@ function TeamSlotsWorkspace({
   event: any;
   teamSlots: any;
   isCaptain: boolean;
+  focusTeamEditor: boolean;
   actionLoading: string;
   teamName: string;
   teamDescription: string;
@@ -578,9 +583,21 @@ function TeamSlotsWorkspace({
   const team = teamSlots?.team;
   const slots = teamSlots?.slots ?? [];
   const progress = teamSlots?.progress ?? { active: 0, max: event.maxTeamSize ?? 5 };
-  const editable = isCaptain && (['DRAFT', 'REJECTED'].includes(team?.status) || (!event.requireAdminApprovalForTeams && team?.status === 'ACTIVE'));
-  const canSubmit = isCaptain && ['DRAFT', 'REJECTED'].includes(team?.status) && Boolean(teamSlots?.canSubmit);
-  const canEditTeamDetails = isCaptain && ['DRAFT', 'REJECTED', 'ACTIVE'].includes(team?.status);
+  const permissions = teamSlots?.permissions ?? {
+    canManageMembers: isCaptain && (['DRAFT', 'REJECTED'].includes(team?.status) || (!event.requireAdminApprovalForTeams && team?.status === 'ACTIVE')),
+    canSubmitForApproval: isCaptain && event.requireAdminApprovalForTeams && ['DRAFT', 'REJECTED'].includes(team?.status),
+    canEditDetails: isCaptain && ['DRAFT', 'REJECTED', 'ACTIVE'].includes(team?.status),
+    requiresApprovalAfterEdit: isCaptain && team?.status === 'ACTIVE' && event.requireAdminApprovalForTeams,
+    isPendingReview: ['PENDING', 'CHANGES_PENDING', 'SUBMITTED'].includes(team?.status),
+  };
+  const submission = teamSlots?.submission ?? {
+    canSubmit: Boolean(teamSlots?.canSubmit),
+    requiredActiveMembers: progress.max,
+    blocksOnPendingInvites: event.teamJoinMode === 'EMAIL_INVITE',
+  };
+  const editable = Boolean(permissions.canManageMembers);
+  const canSubmit = Boolean(permissions.canSubmitForApproval) && Boolean(submission.canSubmit);
+  const canEditTeamDetails = Boolean(permissions.canEditDetails);
   const editButtonLabel = team?.status === 'ACTIVE' && event.requireAdminApprovalForTeams
     ? (isRu ? 'Отправить изменения' : 'Submit changes')
     : (isRu ? 'Сохранить изменения' : 'Save changes');
@@ -592,7 +609,14 @@ function TeamSlotsWorkspace({
         subtitle={`${isRu ? 'Статус' : 'Status'}: ${formatTeamStatus(team?.status, locale)} · ${progress.active}/${progress.max}`}
       />
       <div className="signal-stack">
-        {team?.changeRequests?.[0] ? (
+        {focusTeamEditor ? (
+          <Notice tone={canEditTeamDetails || editable ? 'info' : 'warning'}>
+            {canEditTeamDetails || editable
+              ? (isRu ? 'Вы открыли рабочую область сразу в режиме редактирования команды.' : 'You opened the workspace directly in team editing mode.')
+              : (isRu ? 'Сейчас команда недоступна для редактирования. Проверьте текущий статус команды.' : 'The team cannot be edited right now. Check the current team status.')}
+          </Notice>
+        ) : null}
+        {team?.changeRequests?.[0] || permissions.isPendingReview ? (
           <Notice tone="warning">{isRu ? 'Команда ждёт решения организатора.' : 'Team is waiting for organizer decision.'}</Notice>
         ) : null}
         {canEditTeamDetails ? (
@@ -600,7 +624,7 @@ function TeamSlotsWorkspace({
             <SectionHeader
               title={isRu ? 'Редактирование команды' : 'Edit team'}
               subtitle={
-                team?.status === 'ACTIVE' && event.requireAdminApprovalForTeams
+                permissions.requiresApprovalAfterEdit
                   ? (isRu ? 'После сохранения изменения уйдут организатору на согласование.' : 'After saving, changes will be sent to organizer approval.')
                   : (isRu ? 'Измените название и описание команды.' : 'Update team name and description.')
               }
@@ -643,10 +667,22 @@ function TeamSlotsWorkspace({
           ))}
         </div>
         <ToolbarRow>
-          <button onClick={onSubmitTeam} disabled={!canSubmit || actionLoading === 'submit-team'} className="btn btn-primary btn-sm">
-            {actionLoading === 'submit-team' ? (isRu ? 'Отправляем...' : 'Submitting...') : (isRu ? 'Подать заявку команды' : 'Submit team')}
-          </button>
-          {!teamSlots?.canSubmit ? <span className="signal-muted">{isRu ? 'Доступно при 5/5 активных участниках.' : 'Available at 5/5 active members.'}</span> : null}
+          {permissions.canSubmitForApproval ? (
+            <button onClick={onSubmitTeam} disabled={!canSubmit || actionLoading === 'submit-team'} className="btn btn-primary btn-sm">
+              {actionLoading === 'submit-team' ? (isRu ? 'Отправляем...' : 'Submitting...') : (isRu ? 'Подать состав на утверждение' : 'Submit roster for approval')}
+            </button>
+          ) : null}
+          {!submission.canSubmit && permissions.canSubmitForApproval ? (
+            <span className="signal-muted">
+              {submission.blocksOnPendingInvites
+                ? (isRu
+                  ? `Доступно при ${submission.requiredActiveMembers}/${submission.requiredActiveMembers} активных участниках и без ожидающих приглашений.`
+                  : `Available when ${submission.requiredActiveMembers}/${submission.requiredActiveMembers} members are active and no invitations are pending.`)
+                : (isRu
+                  ? `Доступно при минимум ${submission.requiredActiveMembers} активных участниках.`
+                  : `Available once at least ${submission.requiredActiveMembers} members are active.`)}
+            </span>
+          ) : null}
         </ToolbarRow>
         {teamSlots?.history?.length ? (
           <div className="signal-stack">
