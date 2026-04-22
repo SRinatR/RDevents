@@ -306,13 +306,11 @@ adminUsersRouter.get('/', requirePlatformAdmin, async (req, res) => {
 });
 
 // GET /api/admin/users/analytics - аналитика по пользователям
-adminUsersRouter.get('/analytics', requirePlatformAdmin, async (req, res) => {
+adminUsersRouter.get('/analytics', requirePlatformAdmin, async (_req, res) => {
   const [
     totalUsers,
     activeUsers,
     inactiveUsers,
-    usersWithEvents,
-    usersWithoutEvents,
     participationsActive,
     volunteersActive,
     teamsCount,
@@ -321,12 +319,6 @@ adminUsersRouter.get('/analytics', requirePlatformAdmin, async (req, res) => {
     prisma.user.count(),
     prisma.user.count({ where: { isActive: true } }),
     prisma.user.count({ where: { isActive: false } }),
-    prisma.eventMember.findMany({
-      where: { status: { not: 'REMOVED' } },
-      select: { userId: true },
-      distinct: ['userId'],
-    }).then(memberships => memberships.length),
-    prisma.user.count(),
     prisma.eventMember.count({ where: { role: 'PARTICIPANT', status: 'ACTIVE' } }),
     prisma.eventMember.count({ where: { role: 'VOLUNTEER', status: 'ACTIVE' } }),
     prisma.eventTeam.count(),
@@ -335,7 +327,6 @@ adminUsersRouter.get('/analytics', requirePlatformAdmin, async (req, res) => {
 
   const registrationsTotal = await prisma.user.count();
   const userIdsWithMemberships = await prisma.eventMember.findMany({
-    where: { status: { not: 'REMOVED' } },
     select: { userId: true },
     distinct: ['userId'],
   });
@@ -374,7 +365,6 @@ adminUsersRouter.get('/stats', requirePlatformAdmin, async (_req, res) => {
     prisma.user.count({ where: { isActive: true } }),
     prisma.user.count({ where: { isActive: false } }),
     prisma.eventMember.findMany({
-      where: { status: { not: 'REMOVED' } },
       select: { userId: true },
       distinct: ['userId'],
     }).then(memberships => memberships.length),

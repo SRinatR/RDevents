@@ -671,38 +671,30 @@ export function buildExportUrl(eventId: string, scope: string, format = 'csv', f
   return `${BASE_URL}/api/admin/exports/events/${eventId}/exports/${scope}?${params.toString()}`;
 }
 
+function buildExportPath(eventId: string, scope: string, format = 'csv', filters?: ExportFilters): string {
+  const params = new URLSearchParams();
+  params.set('format', format);
+  if (filters) {
+    if (filters.status?.length) filters.status.forEach(s => params.append('status', s));
+    if (filters.hasTeam !== undefined) params.set('hasTeam', String(filters.hasTeam));
+    if (filters.hasPhoto !== undefined) params.set('hasPhoto', String(filters.hasPhoto));
+    if (filters.includeArchived) params.set('includeArchived', 'true');
+    if (filters.includeRejected) params.set('includeRejected', 'true');
+    if (filters.includeCancelled) params.set('includeCancelled', 'true');
+    if (filters.includeRemoved) params.set('includeRemoved', 'true');
+  }
+  return `/api/admin/exports/events/${eventId}/exports/${scope}?${params.toString()}`;
+}
+
 export const adminExportsApi = {
   downloadParticipants: async (eventId: string, format = 'csv', filters?: ExportFilters) => {
-    const params = new URLSearchParams();
-    params.set('format', format);
-    if (filters) {
-      if (filters.status?.length) filters.status.forEach(s => params.append('status', s));
-      if (filters.includeArchived) params.set('includeArchived', 'true');
-      if (filters.includeRejected) params.set('includeRejected', 'true');
-      if (filters.includeCancelled) params.set('includeCancelled', 'true');
-      if (filters.includeRemoved) params.set('includeRemoved', 'true');
-    }
-    await downloadWithAuth(`/api/admin/exports/events/${eventId}/exports/participants?${params.toString()}`, `export_${eventId}_participants.csv`);
+    await downloadWithAuth(buildExportPath(eventId, 'participants', format, filters), `export_${eventId}_participants.csv`);
   },
   downloadTeams: async (eventId: string, format = 'csv', filters?: ExportFilters) => {
-    const params = new URLSearchParams();
-    params.set('format', format);
-    if (filters) {
-      if (filters.status?.length) filters.status.forEach(s => params.append('status', s));
-      if (filters.includeArchived) params.set('includeArchived', 'true');
-      if (filters.includeRejected) params.set('includeRejected', 'true');
-    }
-    await downloadWithAuth(`/api/admin/exports/events/${eventId}/exports/teams?${params.toString()}`, `export_${eventId}_teams.csv`);
+    await downloadWithAuth(buildExportPath(eventId, 'teams', format, filters), `export_${eventId}_teams.csv`);
   },
   downloadTeamMembers: async (eventId: string, format = 'csv', filters?: ExportFilters) => {
-    const params = new URLSearchParams();
-    params.set('format', format);
-    if (filters) {
-      if (filters.status?.length) filters.status.forEach(s => params.append('status', s));
-      if (filters.includeArchived) params.set('includeArchived', 'true');
-      if (filters.includeRejected) params.set('includeRejected', 'true');
-    }
-    await downloadWithAuth(`/api/admin/exports/events/${eventId}/exports/team_members?${params.toString()}`, `export_${eventId}_team_members.csv`);
+    await downloadWithAuth(buildExportPath(eventId, 'team_members', format, filters), `export_${eventId}_team_members.csv`);
   },
 };
 
