@@ -1,6 +1,7 @@
 import { prisma } from '../../db/prisma.js';
 import { logger } from '../../common/logger.js';
 import { buildPublicMediaUrl } from '../../common/storage.js';
+import type { EventTeamStatus } from '@prisma/client';
 
 export type ExportScope = 'participants' | 'volunteers' | 'teams' | 'team_members' | 'all';
 export type ExportFormat = 'csv' | 'xlsx' | 'json';
@@ -326,12 +327,9 @@ export async function exportTeams(eventId: string, config: { filters?: ExtendedE
   const includeArchived = config.filters?.includeArchived ?? false;
   const includeRejected = config.filters?.includeRejected ?? false;
 
-  const statusList: string[] = [];
+  const statusList: EventTeamStatus[] = [];
   if (!includeArchived) statusList.push('ACTIVE', 'PENDING', 'SUBMITTED', 'DRAFT');
   if (includeRejected) statusList.push('REJECTED', 'CHANGES_PENDING');
-  if (statusList.length > 0) {
-    statusWhere['status'] = { in: statusList };
-  }
 
   const teams = await prisma.eventTeam.findMany({
     where: { eventId, ...(statusList.length > 0 ? { status: { in: statusList } } : {}) },

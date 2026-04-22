@@ -61,7 +61,7 @@ function isPlatformScopeUser(user: User) {
 async function canAdminAccessUserProfile(actor: User, targetUserId: string, eventId?: string) {
   if (isPlatformScopeUser(actor)) return true;
 
-  if (actor.role !== 'EVENT_ADMIN') return false;
+  if (!actor.role || actor.role === 'USER') return false;
   if (!eventId) return false;
 
   const actorMembership = await prisma.eventMember.findFirst({
@@ -856,46 +856,47 @@ adminUsersRouter.get('/export', requirePlatformAdmin, async (req, res) => {
     };
   }
 
-  const [users, membershipCounts, teamCounts, extendedProfiles, emergencyContacts] = await Promise.all([
-    prisma.user.findMany({
-      where: where as any,
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        isActive: true,
-        name: true,
-        lastNameCyrillic: true,
-        firstNameCyrillic: true,
-        middleNameCyrillic: true,
-        lastNameLatin: true,
-        firstNameLatin: true,
-        middleNameLatin: true,
-        fullNameCyrillic: true,
-        fullNameLatin: true,
-        city: true,
-        factualAddress: true,
-        phone: true,
-        telegram: true,
-        birthDate: true,
-        bio: true,
-        nativeLanguage: true,
-        communicationLanguage: true,
-        emailVerifiedAt: true,
-        phoneVerifiedAt: true,
-        telegramVerifiedAt: true,
-        consentPersonalData: true,
-        consentPersonalDataAt: true,
-        consentClientRules: true,
-        consentClientRulesAt: true,
-        avatarUrl: true,
-        registeredAt: true,
-        lastLoginAt: true,
-        accounts: { select: { provider: true } },
-        gender: true,
-      },
-      orderBy: { registeredAt: 'desc' },
-    }),
+  const users = await prisma.user.findMany({
+    where: where as any,
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      isActive: true,
+      name: true,
+      lastNameCyrillic: true,
+      firstNameCyrillic: true,
+      middleNameCyrillic: true,
+      lastNameLatin: true,
+      firstNameLatin: true,
+      middleNameLatin: true,
+      fullNameCyrillic: true,
+      fullNameLatin: true,
+      city: true,
+      factualAddress: true,
+      phone: true,
+      telegram: true,
+      birthDate: true,
+      bio: true,
+      nativeLanguage: true,
+      communicationLanguage: true,
+      emailVerifiedAt: true,
+      phoneVerifiedAt: true,
+      telegramVerifiedAt: true,
+      consentPersonalData: true,
+      consentPersonalDataAt: true,
+      consentClientRules: true,
+      consentClientRulesAt: true,
+      avatarUrl: true,
+      registeredAt: true,
+      lastLoginAt: true,
+      accounts: { select: { provider: true } },
+      gender: true,
+    },
+    orderBy: { registeredAt: 'desc' },
+  });
+
+  const [membershipCounts, teamCounts, extendedProfiles, emergencyContacts] = await Promise.all([
     prisma.eventMember.groupBy({
       by: ['userId', 'role', 'status'],
       where: {
