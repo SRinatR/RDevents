@@ -63,16 +63,16 @@ interface RoleBadgeProps {
 }
 
 export function RoleBadge({ role, size = 'md' }: RoleBadgeProps) {
-  const ROLE_COLORS: Record<string, { color: string; bg: string; icon: string }> = {
-    CAPTAIN: { color: 'text-amber-800', bg: 'bg-amber-50', icon: '👑' },
-    MEMBER: { color: 'text-blue-800', bg: 'bg-blue-50', icon: '👤' },
-    PARTICIPANT: { color: 'text-blue-800', bg: 'bg-blue-50', icon: '👤' },
-    VOLUNTEER: { color: 'text-green-800', bg: 'bg-green-50', icon: '🌟' },
-    EVENT_ADMIN: { color: 'text-purple-800', bg: 'bg-purple-50', icon: '⚡' },
-    ORGANIZER: { color: 'text-purple-800', bg: 'bg-purple-50', icon: '⚡' },
+  const ROLE_COLORS: Record<string, { color: string; bg: string }> = {
+    CAPTAIN: { color: 'text-amber-800', bg: 'bg-amber-50' },
+    MEMBER: { color: 'text-blue-800', bg: 'bg-blue-50' },
+    PARTICIPANT: { color: 'text-blue-800', bg: 'bg-blue-50' },
+    VOLUNTEER: { color: 'text-green-800', bg: 'bg-green-50' },
+    EVENT_ADMIN: { color: 'text-purple-800', bg: 'bg-purple-50' },
+    ORGANIZER: { color: 'text-purple-800', bg: 'bg-purple-50' },
   };
 
-  const config = ROLE_COLORS[role] ?? { color: 'text-gray-700', bg: 'bg-gray-50', icon: '👤' };
+  const config = ROLE_COLORS[role] ?? { color: 'text-gray-700', bg: 'bg-gray-50' };
 
   const ROLE_LABELS: Record<string, string> = {
     CAPTAIN: 'Капитан',
@@ -87,7 +87,6 @@ export function RoleBadge({ role, size = 'md' }: RoleBadgeProps) {
     <span
       className={`inline-flex items-center gap-1 font-semibold rounded-full border ${config.color} ${config.bg} ${SIZE_CLASSES[size]}`}
     >
-      <span>{config.icon}</span>
       <span>{ROLE_LABELS[role] ?? role}</span>
     </span>
   );
