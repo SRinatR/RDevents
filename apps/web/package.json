@@ -13,7 +13,7 @@
     "clean": "node -e \"const fs=require('fs'); ['.next','node_modules'].forEach(p=>fs.rmSync(p,{recursive:true,force:true}))\""
   },
   "dependencies": {
-    "next": "16.2.3",
+    "next": "16.2.4",
     "next-intl": "4.9.1",
     "react": "19.2.0",
     "react-dom": "19.2.0",
