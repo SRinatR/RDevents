@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { Panel, SectionHeader, EmptyState, Notice } from '@/components/ui/signal-primitives';
+import { eventsApi } from '@/lib/api';
+import { Panel, SectionHeader, EmptyState, Notice, FieldInput, FieldTextarea } from '@/components/ui/signal-primitives';
 import { StatusBadge, RoleBadge } from '@/components/ui/status-badge';
 import { formatTeamStatus } from './dashboard.formatters';
 import type { DashboardEventData, TeamData } from './dashboard.types';
@@ -10,6 +12,7 @@ interface CabinetTeamCardProps {
   team: TeamData | null;
   event: DashboardEventData;
   locale: string;
+  onTeamChanged?: () => Promise<void> | void;
 }
 
 function getTeamEditHref(event: DashboardEventData, locale: string): string {
@@ -43,25 +46,78 @@ function TeamAvatar({ name, src }: { name: string; src?: string | null }) {
   );
 }
 
-function NoTeamState({ event, locale }: { event: DashboardEventData; locale: string }) {
+function NoTeamState({
+  event,
+  locale,
+  onTeamCreated,
+}: {
+  event: DashboardEventData;
+  locale: string;
+  onTeamCreated?: () => Promise<void> | void;
+}) {
+  const [teamName, setTeamName] = useState('');
+  const [teamDescription, setTeamDescription] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleCreateTeam() {
+    const nextName = teamName.trim();
+    if (!nextName) {
+      setError(locale === 'ru' ? 'Укажите название команды.' : 'Enter team name.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      await eventsApi.createTeam(event.eventId, {
+        name: nextName,
+        description: teamDescription.trim() || undefined,
+      });
+      setTeamName('');
+      setTeamDescription('');
+      await onTeamCreated?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : (locale === 'ru' ? 'Не удалось создать команду.' : 'Failed to create team.'));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <EmptyState
-      title={locale === 'ru' ? 'Вы не состоите в команде' : 'Not in a team'}
-      description={locale === 'ru' 
-        ? 'Создайте команду или вступите по приглашению' 
-        : 'Create a team or join via invitation'
-      }
-      actions={
+    <div className="signal-stack">
+      <EmptyState
+        title={locale === 'ru' ? 'Вы не состоите в команде' : 'Not in a team'}
+        description={locale === 'ru'
+          ? 'Команду можно создать прямо здесь или перейти в рабочую область события.'
+          : 'Create a team right here or open the event workspace.'}
+      />
+      <div className="signal-stack" style={{ maxWidth: 560 }}>
+        <FieldInput
+          value={teamName}
+          onChange={(event) => setTeamName(event.target.value)}
+          placeholder={locale === 'ru' ? 'Название команды' : 'Team name'}
+        />
+        <FieldTextarea
+          value={teamDescription}
+          onChange={(event) => setTeamDescription(event.target.value)}
+          placeholder={locale === 'ru' ? 'Короткое описание команды' : 'Short team description'}
+          rows={3}
+        />
+        {error ? <Notice tone="danger">{error}</Notice> : null}
         <div className="no-team-actions">
-          <Link href={`/${locale}/events/${event.slug}?action=create-team`} className="btn btn-primary btn-sm">
-            {locale === 'ru' ? 'Создать команду' : 'Create team'}
-          </Link>
-          <Link href={`/${locale}/events/${event.slug}?action=join-team`} className="btn btn-secondary btn-sm">
-            {locale === 'ru' ? 'Вступить' : 'Join'}
+          <button onClick={handleCreateTeam} disabled={loading || !teamName.trim()} className="btn btn-primary btn-sm">
+            {loading
+              ? (locale === 'ru' ? 'Создаём...' : 'Creating...')
+              : (locale === 'ru' ? 'Создать команду' : 'Create team')}
+          </button>
+          <Link href={`/${locale}/cabinet/events/${event.slug}`} className="btn btn-secondary btn-sm">
+            {locale === 'ru' ? 'Открыть рабочую область' : 'Open workspace'}
           </Link>
         </div>
-      }
-    />
+      </div>
+    </div>
   );
 }
 
@@ -134,7 +190,7 @@ function TeamActionNotice({ team, locale }: { team: TeamData; locale: string }) 
   return null;
 }
 
-export function CabinetTeamCard({ team, event, locale }: CabinetTeamCardProps) {
+export function CabinetTeamCard({ team, event, locale, onTeamChanged }: CabinetTeamCardProps) {
   const teamEditHref = getTeamEditHref(event, locale);
   const teamOpenHref = `/${locale}/cabinet/events/${event.slug}`;
   const memberTarget = team?.requiredActiveMembers ?? team?.maxMembers ?? team?.membersCount ?? 0;
@@ -170,7 +226,7 @@ export function CabinetTeamCard({ team, event, locale }: CabinetTeamCardProps) {
       />
       
       {!team ? (
-        <NoTeamState event={event} locale={locale} />
+        <NoTeamState event={event} locale={locale} onTeamCreated={onTeamChanged} />
       ) : (
         <>
           <div className="team-info">

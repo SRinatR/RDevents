@@ -1,0 +1,9 @@
+warning: in the working copy of 'apps/web/src/app/[locale]/cabinet/events/[slug]/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/web/src/app/[locale]/cabinet/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/web/src/components/cabinet/dashboard/CabinetTeamCard.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/web/src/components/cabinet/dashboard/dashboard.formatters.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/web/src/components/cabinet/dashboard/dashboard.types.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/web/src/components/ui/status-badge.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'services/api/src/modules/dashboard/dashboard.service.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'services/api/src/modules/events/team-invitations.service.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'services/api/src/modules/events/teams.service.ts', LF will be replaced by CRLF the next time Git touches it

@@ -190,7 +190,7 @@ export default function CabinetPage() {
 
       <div className="cabinet-workspace-grid">
         <div className="cabinet-workspace-main">
-          <CabinetTeamCard team={activeEvent.team} event={activeEvent} locale={locale} />
+          <CabinetTeamCard team={activeEvent.team} event={activeEvent} locale={locale} onTeamChanged={fetchDashboard} />
           <CabinetInvitationsCard invitations={activeEvent.invitations} locale={locale} />
         </div>
 
