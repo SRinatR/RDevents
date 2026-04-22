@@ -22,7 +22,7 @@ function getFieldByKey(key: string) {
   return PROFILE_FIELD_REGISTRY.find((f) => f.key === key);
 }
 
-const ACTIVE_MEMBER_STATUSES = ['ACTIVE', 'APPROVED'] as const;
+const ACTIVE_MEMBER_STATUSES = ['ACTIVE', 'APPROVED', 'PENDING', 'RESERVE'] as const;
 
 export interface DashboardEvent {
   eventId: string;
@@ -32,6 +32,7 @@ export interface DashboardEvent {
   endsAt: string;
   location: string;
   status: string;
+  isTeamBased: boolean;
   myRoles: Array<{ role: string; status: string }>;
   team: {
     id: string;
@@ -346,6 +347,7 @@ async function buildDashboardEvent(
         endsAt: event.endsAt.toISOString(),
         location: event.location,
         status: event.status,
+        isTeamBased: Boolean(event.isTeamBased),
         myRoles: [{ role: membership.role, status: membership.status }],
         team,
         missingProfileFields,
@@ -372,6 +374,7 @@ async function buildDashboardEvent(
     endsAt: event.endsAt.toISOString(),
     location: event.location,
     status: event.status,
+    isTeamBased: Boolean(event.isTeamBased),
     myRoles: [{ role: membership.role, status: membership.status }],
     team,
     missingProfileFields,
@@ -437,16 +440,18 @@ function calculateQuickActions(
     actions.push('COMPLETE_EVENT_FORM');
   }
 
-  if (!event.team) {
-    if (hasPendingInvitations) {
-      actions.push('ACCEPT_TEAM_INVITATION');
+  if (event.isTeamBased) {
+    if (!event.team) {
+      if (hasPendingInvitations) {
+        actions.push('ACCEPT_TEAM_INVITATION');
+      }
+      actions.push('CREATE_OR_JOIN_TEAM');
+    } else if (event.team.canEdit) {
+      actions.push('OPEN_TEAM');
+      actions.push('EDIT_TEAM');
+    } else {
+      actions.push('OPEN_TEAM');
     }
-    actions.push('CREATE_OR_JOIN_TEAM');
-  } else if (event.team.canEdit) {
-    actions.push('OPEN_TEAM');
-    actions.push('EDIT_TEAM');
-  } else {
-    actions.push('OPEN_TEAM');
   }
 
   actions.push('OPEN_CALENDAR');

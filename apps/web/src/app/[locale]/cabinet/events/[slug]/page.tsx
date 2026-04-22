@@ -417,7 +417,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       {!isActiveParticipant ? (
         <Panel variant="elevated" className="workspace-event-panel">
           <SectionHeader title={isRu ? 'Стать участником' : 'Join as participant'} />
-          {participantMembership?.status && participantMembership.status !== 'ACTIVE' ? (
+          {participantMembership?.status && ['PENDING', 'RESERVE'].includes(participantMembership.status) ? (
             <div className="signal-stack">
               {participantMembership.status === 'PENDING' ? (
                 <Notice tone="warning">{isRu ? 'Заявка участника ожидает решения организатора.' : 'Participant application is pending organizer review.'}</Notice>

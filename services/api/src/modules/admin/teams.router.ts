@@ -18,6 +18,57 @@ async function getManagedEventIds(user: User) {
   return memberships.map(m => m.eventId);
 }
 
+async function archiveTeam(teamId: string, actor: User) {
+  const team = await prisma.eventTeam.findUnique({
+    where: { id: teamId },
+  });
+
+  if (!team) {
+    throw new Error('TEAM_NOT_FOUND');
+  }
+
+  const managedEventIds = await getManagedEventIds(actor);
+  if (managedEventIds && !managedEventIds.includes(team.eventId)) {
+    throw new Error('ACCESS_DENIED');
+  }
+
+  await prisma.$transaction(async (tx: any) => {
+    await tx.eventTeamInvitation.updateMany({
+      where: {
+        teamId,
+        status: { in: ['PENDING_ACCOUNT', 'PENDING_RESPONSE'] },
+      },
+      data: {
+        status: 'CANCELLED',
+        cancelledAt: new Date(),
+      },
+    });
+
+    await tx.eventTeam.update({
+      where: { id: teamId },
+      data: {
+        status: 'ARCHIVED',
+      },
+    });
+  });
+
+  return prisma.eventTeam.findUnique({
+    where: { id: teamId },
+    include: {
+      event: { select: { id: true, title: true, slug: true } },
+      captainUser: { select: { id: true, name: true, email: true, avatarUrl: true } },
+      members: {
+        include: {
+          user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+        },
+        orderBy: { joinedAt: 'asc' },
+      },
+      invitations: true,
+      changeRequests: true,
+    },
+  });
+}
+
 // GET /admin/teams
 adminTeamsRouter.get('/', async (req, res) => {
   const user = (req as any).user as User;
@@ -97,7 +148,6 @@ adminTeamsRouter.get('/:teamId', async (req, res) => {
       event: { select: { id: true, title: true, slug: true } },
       captainUser: { select: { id: true, name: true, email: true, avatarUrl: true } },
       members: {
-        where: { status: { notIn: ['REMOVED', 'LEFT'] } },
         include: {
           user: { select: { id: true, name: true, email: true, avatarUrl: true } },
         },
@@ -149,7 +199,7 @@ adminTeamsRouter.patch('/:teamId/status', async (req, res) => {
     return;
   }
 
-  const allowedStatuses = ['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'ARCHIVED', 'CHANGES_PENDING'];
+  const allowedStatuses = ['DRAFT', 'SUBMITTED', 'REJECTED', 'ARCHIVED', 'CHANGES_PENDING', 'ACTIVE', 'PENDING'];
   if (!allowedStatuses.includes(status)) {
     res.status(400).json({ error: 'Invalid status' });
     return;
@@ -166,99 +216,39 @@ adminTeamsRouter.patch('/:teamId/status', async (req, res) => {
 // POST /admin/teams/:teamId/remove - мягкое удаление команды с мероприятия
 adminTeamsRouter.post('/:teamId/remove', async (req, res) => {
   const user = (req as any).user as User;
-  const { teamId } = req.params;
 
-  const team = await prisma.eventTeam.findUnique({
-    where: { id: teamId },
-  });
-
-  if (!team) {
-    res.status(404).json({ error: 'Team not found' });
-    return;
+  try {
+    const data = await archiveTeam(req.params.teamId!, user);
+    res.json({ data });
+  } catch (err: any) {
+    if (err.message === 'TEAM_NOT_FOUND') {
+      res.status(404).json({ error: 'Team not found' });
+      return;
+    }
+    if (err.message === 'ACCESS_DENIED') {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+    throw err;
   }
-
-  const managedEventIds = await getManagedEventIds(user);
-  if (managedEventIds && !managedEventIds.includes(team.eventId)) {
-    res.status(403).json({ error: 'Access denied' });
-    return;
-  }
-
-  await prisma.$transaction(async (tx: any) => {
-    await tx.eventTeamMember.updateMany({
-      where: { teamId, status: { notIn: ['REMOVED', 'LEFT'] } },
-      data: { status: 'REMOVED', removedAt: new Date() },
-    });
-
-    await tx.eventTeamInvitation.updateMany({
-      where: {
-        teamId,
-        status: { in: ['PENDING_ACCOUNT', 'PENDING_RESPONSE'] },
-      },
-      data: { status: 'CANCELLED', cancelledAt: new Date() },
-    });
-
-    await tx.eventTeam.update({
-      where: { id: teamId },
-      data: { status: 'ARCHIVED' },
-    });
-  });
-
-  res.json({ message: 'Team removed successfully', teamId });
 });
 
 // POST /admin/teams/:teamId/archive
 adminTeamsRouter.post('/:teamId/archive', async (req, res) => {
   const user = (req as any).user as User;
-  const { teamId } = req.params;
 
-  const team = await prisma.eventTeam.findUnique({
-    where: { id: teamId },
-  });
-
-  if (!team) {
-    res.status(404).json({ error: 'Team not found' });
-    return;
+  try {
+    const data = await archiveTeam(req.params.teamId!, user);
+    res.json({ data });
+  } catch (err: any) {
+    if (err.message === 'TEAM_NOT_FOUND') {
+      res.status(404).json({ error: 'Team not found' });
+      return;
+    }
+    if (err.message === 'ACCESS_DENIED') {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+    throw err;
   }
-
-  const managedEventIds = await getManagedEventIds(user);
-  if (managedEventIds && !managedEventIds.includes(team.eventId)) {
-    res.status(403).json({ error: 'Access denied' });
-    return;
-  }
-
-  await prisma.$transaction(async (tx: any) => {
-    await tx.eventTeamMember.updateMany({
-      where: { teamId, status: { notIn: ['REMOVED', 'LEFT'] } },
-      data: { status: 'REMOVED', removedAt: new Date() },
-    });
-
-    await tx.eventTeamInvitation.updateMany({
-      where: {
-        teamId,
-        status: { in: ['PENDING_ACCOUNT', 'PENDING_RESPONSE'] },
-      },
-      data: { status: 'CANCELLED', cancelledAt: new Date() },
-    });
-
-    await tx.eventTeam.update({
-      where: { id: teamId },
-      data: { status: 'ARCHIVED' },
-    });
-  });
-
-  const updatedTeam = await prisma.eventTeam.findUnique({
-    where: { id: teamId },
-    include: {
-      event: { select: { id: true, title: true, slug: true } },
-      captainUser: { select: { id: true, name: true, email: true, avatarUrl: true } },
-      members: {
-        where: { status: { notIn: ['REMOVED', 'LEFT'] } },
-        include: {
-          user: { select: { id: true, name: true, email: true, avatarUrl: true } },
-        },
-      },
-    },
-  });
-
-  res.json({ data: updatedTeam });
 });

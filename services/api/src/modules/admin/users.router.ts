@@ -54,6 +54,49 @@ async function getManagedEventIds(user: User): Promise<string[] | null> {
   return memberships.map(m => m.eventId);
 }
 
+function isPlatformScopeUser(user: User) {
+  return user.role === 'PLATFORM_ADMIN' || user.role === 'SUPER_ADMIN';
+}
+
+async function canAdminAccessUserProfile(actor: User, targetUserId: string, eventId?: string) {
+  if (isPlatformScopeUser(actor)) return true;
+
+  if (actor.role !== 'EVENT_ADMIN') return false;
+  if (!eventId) return false;
+
+  const actorMembership = await prisma.eventMember.findFirst({
+    where: {
+      userId: actor.id,
+      eventId,
+      role: 'EVENT_ADMIN',
+      status: 'ACTIVE',
+    },
+    select: { id: true },
+  });
+
+  if (!actorMembership) return false;
+
+  const [member, teamMember, submission] = await Promise.all([
+    prisma.eventMember.findFirst({
+      where: { userId: targetUserId, eventId },
+      select: { id: true },
+    }),
+    prisma.eventTeamMember.findFirst({
+      where: {
+        userId: targetUserId,
+        team: { eventId },
+      },
+      select: { id: true },
+    }),
+    prisma.eventRegistrationFormSubmission.findFirst({
+      where: { userId: targetUserId, eventId },
+      select: { id: true },
+    }),
+  ]);
+
+  return Boolean(member || teamMember || submission);
+}
+
 // GET /api/admin/users - список всех пользователей с расширенной информацией
 adminUsersRouter.get('/', requirePlatformAdmin, async (req, res) => {
   const page = Math.max(1, parseInt(String(req.query['page'] ?? '1')));
@@ -90,17 +133,16 @@ adminUsersRouter.get('/', requirePlatformAdmin, async (req, res) => {
     where['eventMemberships'] = {
       some: {
         eventId,
-        status: { not: 'REMOVED' },
       },
     };
   } else if (hasEventMembership === 'YES') {
     where['eventMemberships'] = {
-      some: { status: { not: 'REMOVED' } },
+      some: {},
     };
   } else if (hasEventMembership === 'NO') {
     where['NOT'] = {
       eventMemberships: {
-        some: { status: { not: 'REMOVED' } },
+        some: {},
       },
     };
   }
@@ -139,12 +181,12 @@ adminUsersRouter.get('/', requirePlatformAdmin, async (req, res) => {
 
   const [membershipCounts, latestMemberships] = await Promise.all([
     prisma.eventMember.groupBy({
-      by: ['userId', 'role'],
-      where: { userId: { in: userIds }, status: { not: 'REMOVED' } },
+      by: ['userId', 'role', 'status'],
+      where: { userId: { in: userIds } },
       _count: true,
     }),
     prisma.eventMember.findMany({
-      where: { userId: { in: userIds }, status: { not: 'REMOVED' } },
+      where: { userId: { in: userIds } },
       orderBy: { assignedAt: 'desc' },
       include: {
         event: { select: { id: true, title: true, slug: true } },
@@ -178,6 +220,9 @@ adminUsersRouter.get('/', requirePlatformAdmin, async (req, res) => {
     counts.eventMembershipsTotal += item._count;
     if (item.role === 'PARTICIPANT') {
       counts.participantMembershipsTotal += item._count;
+      if (item.status === 'ACTIVE') {
+        counts.activeParticipantMembershipsTotal += item._count;
+      }
     } else if (item.role === 'VOLUNTEER') {
       counts.volunteerMembershipsTotal += item._count;
     } else if (item.role === 'EVENT_ADMIN') {
@@ -380,6 +425,7 @@ adminUsersRouter.get('/admins', requireSuperAdmin, async (_req, res) => {
   res.json({ admins, platformAdmins: admins, eventAdmins });
 });
 
+// Deprecated: use GET /:id/profile - оставлен для обратной совместимости
 // GET /api/admin/users/:userId - детальный профиль пользователя
 adminUsersRouter.get('/:userId', requirePlatformAdmin, async (req, res) => {
   const { userId } = req.params;
@@ -532,7 +578,7 @@ adminUsersRouter.get('/:userId', requirePlatformAdmin, async (req, res) => {
 });
 
 // GET /api/admin/users/:id/profile - полный профиль пользователя
-adminUsersRouter.get('/:id/profile', requirePlatformAdmin, async (req, res) => {
+adminUsersRouter.get('/:id/profile', async (req, res) => {
   const { id } = req.params;
   const { eventId } = req.query as { eventId?: string };
   const adminUser = (req as any).user as User;
@@ -546,18 +592,10 @@ adminUsersRouter.get('/:id/profile', requirePlatformAdmin, async (req, res) => {
     return;
   }
 
-  const managedEventIds = await getManagedEventIds(adminUser);
-  if (managedEventIds !== null) {
-    const userMemberships = await prisma.eventMember.findMany({
-      where: { userId: existing.id },
-      select: { eventId: true },
-    });
-    const userEventIds = new Set(userMemberships.map(m => m.eventId));
-    const hasAccess = [...userEventIds].some(eid => managedEventIds.includes(eid));
-    if (!hasAccess) {
-      res.status(403).json({ error: 'Access denied' });
-      return;
-    }
+  const allowed = await canAdminAccessUserProfile(adminUser, existing.id, eventId);
+  if (!allowed) {
+    res.status(403).json({ error: 'Access denied' });
+    return;
   }
 
   const [
@@ -614,7 +652,7 @@ adminUsersRouter.get('/:id/profile', requirePlatformAdmin, async (req, res) => {
       select: { sectionKey: true, status: true, updatedAt: true },
     }),
     prisma.eventMember.findMany({
-      where: { userId: existing.id, status: { not: 'REMOVED' } },
+      where: { userId: existing.id },
       include: {
         event: { select: { id: true, title: true, slug: true, status: true, startsAt: true, endsAt: true } },
       },
@@ -625,7 +663,7 @@ adminUsersRouter.get('/:id/profile', requirePlatformAdmin, async (req, res) => {
       select: { id: true, eventId: true, answersJson: true, isComplete: true, createdAt: true },
     }),
     prisma.eventTeamMember.findMany({
-      where: { userId: existing.id, status: { notIn: ['REMOVED', 'LEFT'] } },
+      where: { userId: existing.id },
       include: {
         team: {
           include: {
@@ -637,9 +675,18 @@ adminUsersRouter.get('/:id/profile', requirePlatformAdmin, async (req, res) => {
     }),
   ]);
 
+  const normalizedExtendedProfile = extendedProfile
+    ? {
+        ...extendedProfile,
+        regionText: extendedProfile.region?.nameRu ?? extendedProfile.region?.nameEn ?? null,
+        districtText: extendedProfile.district?.nameRu ?? extendedProfile.district?.nameEn ?? null,
+        settlementText: extendedProfile.settlement?.nameRu ?? extendedProfile.settlement?.nameEn ?? null,
+      }
+    : null;
+
   const result: Record<string, unknown> = {
     profile,
-    extendedProfile,
+    extendedProfile: normalizedExtendedProfile,
     identityDocument,
     internationalPassport,
     socialLinks,
@@ -663,6 +710,9 @@ adminUsersRouter.get('/:id/profile', requirePlatformAdmin, async (req, res) => {
       status: m.status,
       assignedAt: m.assignedAt.toISOString(),
       approvedAt: m.approvedAt?.toISOString() ?? null,
+      rejectedAt: m.rejectedAt?.toISOString() ?? null,
+      removedAt: m.removedAt?.toISOString() ?? null,
+      notes: m.notes ?? null,
       event: m.event,
     })),
     eventRegistrationFormSubmissions: registrationsSubmissions,
@@ -672,12 +722,15 @@ adminUsersRouter.get('/:id/profile', requirePlatformAdmin, async (req, res) => {
       status: m.status,
       joinedAt: m.joinedAt.toISOString(),
       approvedAt: m.approvedAt?.toISOString() ?? null,
+      removedAt: m.removedAt?.toISOString() ?? null,
       team: {
         id: m.team.id,
         name: m.team.name,
         status: m.team.status,
         captainUserId: m.team.captainUserId,
         eventId: m.team.eventId,
+        eventTitle: m.team.event?.title ?? '',
+        eventSlug: m.team.event?.slug ?? '',
       },
     })),
   };
@@ -759,7 +812,7 @@ adminUsersRouter.get('/export', requirePlatformAdmin, async (req, res) => {
   const role = req.query['role'] as string | undefined;
   const hasEventMembership = req.query['hasEventMembership'] as string | undefined;
   const eventId = req.query['eventId'] as string | undefined;
-  const includeInactive = req.query['includeInactive'] !== 'false';
+  const includeInactive = req.query['includeInactive'] === 'true';
   const format = (req.query['format'] as string) || 'csv';
 
   const where: Record<string, unknown> = {};
@@ -844,10 +897,9 @@ adminUsersRouter.get('/export', requirePlatformAdmin, async (req, res) => {
       orderBy: { registeredAt: 'desc' },
     }),
     prisma.eventMember.groupBy({
-      by: ['userId', 'role'],
+      by: ['userId', 'role', 'status'],
       where: {
-        userId: { in: (where as any)?.id ? [(where as any).id] : undefined },
-        status: { not: 'REMOVED' },
+        userId: { in: users.map(u => u.id) },
       },
       _count: true,
     }),
@@ -886,14 +938,18 @@ adminUsersRouter.get('/export', requirePlatformAdmin, async (req, res) => {
   const extendedProfileMap = new Map(extendedProfiles.map(ep => [ep.userId, ep]));
   const emergencyContactMap = new Map(emergencyContacts.map(ec => [ec.userId, ec]));
 
-  const membershipCountMap: Record<string, { total: number; participants: number; volunteers: number; admins: number }> = {};
+  const membershipCountMap: Record<string, { total: number; participants: number; volunteers: number; admins: number; activeParticipants: number }> = {};
   for (const item of membershipCounts) {
     if (!membershipCountMap[item.userId]) {
-      membershipCountMap[item.userId] = { total: 0, participants: 0, volunteers: 0, admins: 0 };
+      membershipCountMap[item.userId] = { total: 0, participants: 0, volunteers: 0, admins: 0, activeParticipants: 0 };
     }
     membershipCountMap[item.userId].total += item._count;
-    if (item.role === 'PARTICIPANT') membershipCountMap[item.userId].participants += item._count;
-    else if (item.role === 'VOLUNTEER') membershipCountMap[item.userId].volunteers += item._count;
+    if (item.role === 'PARTICIPANT') {
+      membershipCountMap[item.userId].participants += item._count;
+      if (item.status === 'ACTIVE') {
+        membershipCountMap[item.userId].activeParticipants += item._count;
+      }
+    } else if (item.role === 'VOLUNTEER') membershipCountMap[item.userId].volunteers += item._count;
     else if (item.role === 'EVENT_ADMIN') membershipCountMap[item.userId].admins += item._count;
   }
 

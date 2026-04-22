@@ -190,8 +190,19 @@ export default function CabinetPage() {
 
       <div className="cabinet-workspace-grid">
         <div className="cabinet-workspace-main">
-          <CabinetTeamCard team={activeEvent.team} event={activeEvent} locale={locale} onTeamChanged={fetchDashboard} />
-          <CabinetInvitationsCard invitations={activeEvent.invitations} locale={locale} />
+          {activeEvent.isTeamBased && (
+            <CabinetTeamCard team={activeEvent.team} event={activeEvent} locale={locale} onTeamChanged={fetchDashboard} />
+          )}
+          {activeEvent.isTeamBased && activeEvent.invitations && activeEvent.invitations.length > 0 && (
+            <CabinetInvitationsCard invitations={activeEvent.invitations} locale={locale} />
+          )}
+          {!activeEvent.isTeamBased && (
+            <Notice tone="info">
+              {locale === 'ru'
+                ? 'Для этого мероприятия командный модуль не используется.'
+                : 'This event does not use the team module.'}
+            </Notice>
+          )}
         </div>
 
         <div className="cabinet-workspace-sidebar">

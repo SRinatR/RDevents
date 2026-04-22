@@ -194,6 +194,10 @@ function TeamActionNotice({ team, locale }: { team: TeamData; locale: string }) 
 }
 
 export function CabinetTeamCard({ team, event, locale, onTeamChanged }: CabinetTeamCardProps) {
+  if (!event.isTeamBased) {
+    return null;
+  }
+
   const teamEditHref = getTeamEditHref(event, locale);
   const teamOpenHref = `/${locale}/cabinet/events/${event.slug}`;
   const memberTarget = team?.requiredActiveMembers ?? team?.maxMembers ?? team?.membersCount ?? 0;

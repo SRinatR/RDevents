@@ -1,12 +1,11 @@
 'use client';
 
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../../hooks/useAuth';
-import { adminApi, adminUsersExportApi, eventsApi } from '../../../../lib/api';
+import { adminApi, eventsApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
-import { downloadCsv, formatCsvDate } from '@/lib/exportCsv';
 import { EmptyState, FieldInput, FieldSelect, LoadingLines, MetricCard, PageHeader, Panel, SectionHeader, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 
 interface UsersStats {
@@ -65,7 +64,6 @@ export default function AdminUsersPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [usersLoading, setUsersLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [exporting, setExporting] = useState(false);
 
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
@@ -89,7 +87,7 @@ export default function AdminUsersPage() {
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
     try {
-      const data = await adminApi.getUsersStats();
+      const data = await adminApi.getUserStats();
       setStats(data);
     } catch {
       setStats(null);
@@ -177,41 +175,6 @@ export default function AdminUsersPage() {
     yandex: 'Yandex',
     telegram: 'Telegram',
     email: 'Email',
-  };
-
-  const exportUserRows = (entries: UserListItem[]) => {
-    downloadCsv(`admin-users-${new Date().toISOString().slice(0, 10)}.csv`, entries.map((entry) => ({
-      id: entry.id,
-      name: entry.name || '',
-      email: entry.email || '',
-      role: entry.role || '',
-      isActive: entry.isActive ? (isRu ? 'Да' : 'Yes') : (isRu ? 'Нет' : 'No'),
-      city: entry.city || '',
-      registeredAt: formatCsvDate(entry.registeredAt, locale),
-      lastLoginAt: formatCsvDate(entry.lastLoginAt, locale),
-      eventsCount: entry.counts.eventMembershipsTotal,
-      teamsCount: entry.counts.teamsTotal,
-      accounts: entry.accounts?.map((account) => account.provider).join('; ') || '',
-    })));
-  };
-
-  const handleExportUsers = async () => {
-    setExporting(true);
-    try {
-      const response = await adminApi.listUsers({
-        limit: 2000,
-        search: debouncedSearch || undefined,
-        role: roleFilter || undefined,
-        hasEventMembership: hasEventMembershipFilter || undefined,
-        eventId: eventIdFilter || undefined,
-        includeInactive: includeInactiveFilter,
-      });
-      exportUserRows(response.data || []);
-    } catch {
-      exportUserRows(users);
-    } finally {
-      setExporting(false);
-    }
   };
 
   if (loading || !user || !isPlatformAdmin) return <div className="admin-loading-screen"><div className="spinner" /></div>;
@@ -315,16 +278,8 @@ export default function AdminUsersPage() {
           <button
             type="button"
             className="btn btn-secondary btn-sm"
-            onClick={() => void handleExportUsers()}
-            disabled={users.length === 0 || exporting}
-          >
-            {exporting ? (isRu ? 'Готовим...' : 'Preparing...') : (isRu ? 'Выгрузить CSV (базовый)' : 'Export CSV (basic)')}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
             onClick={() => {
-              adminUsersExportApi.downloadUsers({
+              adminApi.exportUsers({
                 search: debouncedSearch || undefined,
                 role: roleFilter || undefined,
                 hasEventMembership: hasEventMembershipFilter || undefined,
@@ -340,7 +295,7 @@ export default function AdminUsersPage() {
             type="button"
             className="btn btn-secondary btn-sm"
             onClick={() => {
-              adminUsersExportApi.downloadUsers({
+              adminApi.exportUsers({
                 search: debouncedSearch || undefined,
                 role: roleFilter || undefined,
                 hasEventMembership: hasEventMembershipFilter || undefined,

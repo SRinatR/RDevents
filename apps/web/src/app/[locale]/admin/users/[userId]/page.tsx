@@ -141,12 +141,15 @@ interface UserFullProfile {
     status: string;
     joinedAt: string;
     approvedAt: string | null;
+    removedAt: string | null;
     team: {
       id: string;
       name: string;
       status: string;
       captainUserId: string | null;
       eventId: string;
+      eventTitle: string;
+      eventSlug: string;
     };
   }>;
   selectedEventContext?: {
@@ -210,7 +213,7 @@ const toneByStatus: Record<string, 'success' | 'warning' | 'danger' | 'info' | '
 
 export default function AdminUserFullProfilePage() {
   const t = useTranslations();
-  const { user, loading, isPlatformAdmin } = useAuth();
+  const { user, loading, isAdmin } = useAuth();
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -223,16 +226,16 @@ export default function AdminUserFullProfilePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!loading && (!user || !isPlatformAdmin)) {
+    if (!loading && (!user || !isAdmin)) {
       router.push(`/${locale}`);
     }
-  }, [user, loading, isPlatformAdmin, router, locale]);
+  }, [user, loading, isAdmin, router, locale]);
 
   useEffect(() => {
     if (!userId) return;
 
     setLoadingData(true);
-    adminApi.getUserFullProfile(userId, eventIdParam ?? undefined)
+    adminApi.getUserProfile(userId, eventIdParam ?? undefined)
       .then((data) => {
         setProfile(data as UserFullProfile);
         setError(null);
@@ -269,7 +272,7 @@ export default function AdminUserFullProfilePage() {
     );
   };
 
-  if (loading || !user || !isPlatformAdmin) {
+  if (loading || !user || !isAdmin) {
     return <div className="admin-loading-screen"><div className="spinner" /></div>;
   }
 

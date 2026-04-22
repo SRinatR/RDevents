@@ -344,7 +344,7 @@ export const adminApi = {
     request<{ members: any[] }>(`/api/admin/events/${eventId}/members`, { auth: true }),
 
   updateParticipantStatus: (eventId: string, memberId: string, body: { status: string; notes?: string }) =>
-    request<{ membership: any }>(`/api/admin/participants/events/${eventId}/participants/${memberId}`, { method: 'PATCH', auth: true, body }),
+    request<{ membership: any }>(`/api/admin/events/${eventId}/participations/${memberId}`, { method: 'PATCH', auth: true, body }),
 
   listEventTeams: (eventId: string) =>
     request<{ teams: any[] }>(`/api/admin/events/${eventId}/teams`, { auth: true }),
@@ -415,6 +415,9 @@ export const adminApi = {
   getTeam: (teamId: string) =>
     request<{ data: any }>(`/api/admin/teams/${teamId}`, { auth: true }),
 
+  getUserStats: () =>
+    request<any>('/api/admin/users/stats', { auth: true }),
+
   listUsers: (params?: {
     search?: string;
     role?: string;
@@ -434,40 +437,13 @@ export const adminApi = {
     return request<{ data: any[]; meta: any }>(`/api/admin/users${qs}`, { auth: true });
   },
 
-  getUserProfile: (userId: string) =>
-    request<any>(`/api/admin/users/${userId}`, { auth: true }),
-
-  getUserFullProfile: (userId: string, eventId?: string) => {
-    const params = eventId ? `?eventId=${eventId}` : '';
-    return request<any>(`/api/admin/users/${userId}/profile${params}`, { auth: true });
-  },
-
-  getUsersAnalytics: () =>
-    request<any>('/api/admin/users/analytics', { auth: true }),
-
-  getUsersStats: () =>
-    request<any>('/api/admin/users/stats', { auth: true }),
-
   updateUserRole: (id: string, role: string) =>
     request<{ user: any }>(`/api/admin/users/${id}/role`, { method: 'PATCH', auth: true, body: { role } }),
 
-  listAdmins: () =>
-    request<{ admins: any[]; platformAdmins: any[]; eventAdmins: any[] }>('/api/admin/admins', { auth: true }),
-
-  listVolunteers: () =>
-    request<{ volunteers: any[] }>('/api/admin/analytics/volunteers', { auth: true }),
-
-  getAnalytics: () =>
-    request<any>('/api/admin/analytics', { auth: true }),
-
-  listProfileFields: () =>
-    request<{ data: any[] }>('/api/admin/profile-fields', { auth: true }),
-
-  updateProfileField: (key: string, body: { key: string; isVisibleInCabinet?: boolean }) =>
-    request<any>(`/api/admin/profile-fields/${key}`, { method: 'PATCH', auth: true, body }),
-
-  getUserStats: () =>
-    request<any>('/api/admin/users/stats', { auth: true }),
+  getUserProfile: (userId: string, eventId?: string) => {
+    const qs = eventId ? `?eventId=${encodeURIComponent(eventId)}` : '';
+    return request<any>(`/api/admin/users/${userId}/profile${qs}`, { auth: true });
+  },
 
   exportUsers: (params?: {
     search?: string;
@@ -475,20 +451,37 @@ export const adminApi = {
     hasEventMembership?: string;
     eventId?: string;
     includeInactive?: boolean;
-    format?: string;
+    format?: 'csv' | 'json';
   }) => {
-    const entries: [string, string][] = [];
-    if (params) {
-      for (const [k, v] of Object.entries(params)) {
-        if (v !== undefined) entries.push([k, String(v)]);
-      }
-    }
-    const qs = entries.length ? '?' + new URLSearchParams(entries).toString() : '';
-    window.location.href = `${BASE_URL}/api/admin/users/export${qs}`;
+    const qp = new URLSearchParams();
+    if (params?.search) qp.set('search', params.search);
+    if (params?.role) qp.set('role', params.role);
+    if (params?.hasEventMembership) qp.set('hasEventMembership', params.hasEventMembership);
+    if (params?.eventId) qp.set('eventId', params.eventId);
+    if (params?.includeInactive) qp.set('includeInactive', 'true');
+    qp.set('format', params?.format ?? 'csv');
+    window.location.href = `${BASE_URL}/api/admin/users/export?${qp.toString()}`;
   },
 
+  rejectParticipant: (eventId: string, memberId: string, notes?: string) =>
+    request<any>(`/api/admin/events/${eventId}/participants/${memberId}/reject`, {
+      method: 'POST',
+      auth: true,
+      body: { notes },
+    }),
+
+  removeParticipant: (eventId: string, memberId: string, notes?: string) =>
+    request<any>(`/api/admin/events/${eventId}/participants/${memberId}/remove`, {
+      method: 'POST',
+      auth: true,
+      body: { notes },
+    }),
+
   archiveTeam: (teamId: string) =>
-    request<any>(`/api/admin/teams/${teamId}/archive`, { method: 'POST', auth: true }),
+    request<any>(`/api/admin/teams/${teamId}/archive`, {
+      method: 'POST',
+      auth: true,
+    }),
 
   getEventOverview: (eventId: string) =>
     request<any>(`/api/admin/events/${eventId}/overview`, { auth: true }),
@@ -666,34 +659,3 @@ function parseFilters(query: Record<string, unknown>) {
   if (query['includeRemoved']) filters['includeRemoved'] = query['includeRemoved'] === 'true';
   return Object.keys(filters).length > 0 ? filters : undefined;
 }
-
-export function buildUserExportUrl(params: {
-  search?: string;
-  role?: string;
-  hasEventMembership?: string;
-  eventId?: string;
-  includeInactive?: boolean;
-  format?: string;
-}): string {
-  const qp = new URLSearchParams();
-  if (params.search) qp.set('search', params.search);
-  if (params.role) qp.set('role', params.role);
-  if (params.hasEventMembership) qp.set('hasEventMembership', params.hasEventMembership);
-  if (params.eventId) qp.set('eventId', params.eventId);
-  if (params.includeInactive) qp.set('includeInactive', 'true');
-  qp.set('format', params.format ?? 'csv');
-  return `${BASE_URL}/api/admin/users/export?${qp.toString()}`;
-}
-
-export const adminUsersExportApi = {
-  downloadUsers: (params: {
-    search?: string;
-    role?: string;
-    hasEventMembership?: string;
-    eventId?: string;
-    includeInactive?: boolean;
-    format?: string;
-  } = {}) => {
-    window.location.href = buildUserExportUrl(params);
-  },
-};

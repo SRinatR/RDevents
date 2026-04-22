@@ -1,16 +1,12 @@
 export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'ARCHIVED';
 export type RegistrationStatus = 'DRAFT' | 'SUBMITTED' | 'UNDER_REVIEW' | 'CONFIRMED' | 'REJECTED' | 'RESERVE' | 'WITHDRAWN';
 export type TeamStatus =
-  | 'OPEN'
-  | 'CLOSED'
-  | 'FULL'
-  | 'SUBMITTED'
-  | 'APPROVED'
-  | 'REJECTED'
   | 'DRAFT'
   | 'ACTIVE'
   | 'PENDING'
   | 'CHANGES_PENDING'
+  | 'SUBMITTED'
+  | 'REJECTED'
   | 'ARCHIVED';
 export type ParticipantRole = 'PARTICIPANT' | 'VOLUNTEER' | 'ADMIN' | 'CAPTAIN' | 'EVENT_ADMIN' | 'ORGANIZER';
 export type TeamMemberRole = 'CAPTAIN' | 'MEMBER';
@@ -80,6 +76,7 @@ export interface DashboardEventData {
   endsAt: string;
   location: string;
   status: EventStatus | string;
+  isTeamBased: boolean;
   myRoles: RoleData[];
   team: TeamData | null;
   missingProfileFields: string[];

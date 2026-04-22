@@ -119,9 +119,12 @@ export default function AdminParticipantsPage() {
       return;
     }
 
+    const notesRaw = locale === 'ru' ? prompt('Комментарий (необязательно)') : prompt('Comment (optional)');
+    const notes = notesRaw?.trim() || undefined;
+
     setActionLoadingId(memberId);
     try {
-      await adminApi.rejectParticipant(eventId, memberId);
+      await adminApi.rejectParticipant(eventId, memberId, notes);
       await fetchParticipants();
     } catch {
       alert(t('admin.participantActions.error'));
@@ -135,9 +138,12 @@ export default function AdminParticipantsPage() {
       return;
     }
 
+    const notesRaw = locale === 'ru' ? prompt('Причина удаления (необязательно)') : prompt('Removal reason (optional)');
+    const notes = notesRaw?.trim() || undefined;
+
     setActionLoadingId(memberId);
     try {
-      await adminApi.removeParticipant(eventId, memberId);
+      await adminApi.removeParticipant(eventId, memberId, notes);
       await fetchParticipants();
     } catch {
       alert(t('admin.participantActions.error'));

@@ -103,17 +103,20 @@ export default function AdminTeamsPage() {
     void fetchTeams();
   }, [fetchTeams]);
 
-  const handleRemoveTeam = async (teamId: string) => {
-    if (!confirm(locale === 'ru' ? 'Вы уверены, что хотите удалить команду?' : 'Are you sure you want to remove this team?')) {
+  const handleArchiveTeam = async (teamId: string) => {
+    if (!confirm(locale === 'ru'
+      ? 'Архивировать команду? Она исчезнет из списка по умолчанию, но история и профили участников сохранятся.'
+      : 'Archive this team? It will disappear from the default list, but team history and user profiles will remain.'
+    )) {
       return;
     }
 
     setRemovingId(teamId);
     try {
-      await adminApi.removeTeam(teamId);
-      setTeams(prev => prev.filter(t => t.id !== teamId));
+      await adminApi.archiveTeam(teamId);
+      await fetchTeams();
     } catch {
-      alert(locale === 'ru' ? 'Не удалось удалить команду' : 'Failed to remove team');
+      alert(locale === 'ru' ? 'Не удалось архивировать команду' : 'Failed to archive team');
     } finally {
       setRemovingId(null);
     }
@@ -246,10 +249,10 @@ export default function AdminTeamsPage() {
                           {team.status !== 'ARCHIVED' && (
                             <button
                               className="btn btn-danger btn-sm"
-                              onClick={() => void handleRemoveTeam(team.id)}
+                              onClick={() => void handleArchiveTeam(team.id)}
                               disabled={removingId === team.id}
                             >
-                              {removingId === team.id ? '...' : (locale === 'ru' ? 'Убрать' : 'Remove')}
+                              {removingId === team.id ? '...' : (locale === 'ru' ? 'Архивировать' : 'Archive')}
                             </button>
                           )}
                         </div>

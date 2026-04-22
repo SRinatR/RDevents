@@ -36,7 +36,7 @@ const createPresetSchema = z.object({
   eventId: z.string().nullable(),
   scope: z.enum(['participants', 'volunteers', 'teams', 'team_members', 'all']),
   name: z.string().min(1),
-  format: z.enum(['csv', 'xlsx', 'json']),
+  format: z.enum(['csv', 'json']),
   config: z.object({
     scope: z.string(),
     fields: z.array(z.string()),
@@ -51,7 +51,7 @@ const createPresetSchema = z.object({
 
 const runExportSchema = z.object({
   scope: z.enum(['participants', 'volunteers', 'teams', 'team_members', 'all']),
-  format: z.enum(['csv', 'xlsx', 'json']),
+  format: z.enum(['csv', 'json']),
   fields: z.array(z.string()).optional(),
   filters: z.object({
     status: z.array(z.string()).optional(),

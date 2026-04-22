@@ -324,20 +324,17 @@ export async function exportTeams(eventId: string, config: { filters?: ExtendedE
   }
 
   const includeArchived = config.filters?.includeArchived ?? false;
-  const includeRejected = config.filters?.includeRejected ?? true;
-  const includeCancelled = config.filters?.includeCancelled ?? true;
+  const includeRejected = config.filters?.includeRejected ?? false;
 
-  const statusWhere: Record<string, unknown> = {};
   const statusList: string[] = [];
   if (!includeArchived) statusList.push('ACTIVE', 'PENDING', 'SUBMITTED', 'DRAFT');
   if (includeRejected) statusList.push('REJECTED', 'CHANGES_PENDING');
-  if (includeCancelled) statusList.push('ARCHIVED');
   if (statusList.length > 0) {
     statusWhere['status'] = { in: statusList };
   }
 
   const teams = await prisma.eventTeam.findMany({
-    where: { eventId, ...statusWhere },
+    where: { eventId, ...(statusList.length > 0 ? { status: { in: statusList } } : {}) },
     include: {
       captainUser: {
         select: { id: true, name: true, email: true },
@@ -398,21 +395,21 @@ export async function exportTeamMembers(eventId: string, config: { filters?: Ext
   }
 
   const includeArchived = config.filters?.includeArchived ?? false;
-  const includeRejected = config.filters?.includeRejected ?? true;
-  const includeCancelled = config.filters?.includeCancelled ?? true;
+  const includeRejected = config.filters?.includeRejected ?? false;
 
   const teamStatusList: string[] = [];
   if (!includeArchived) teamStatusList.push('ACTIVE', 'PENDING', 'SUBMITTED', 'DRAFT');
   if (includeRejected) teamStatusList.push('REJECTED', 'CHANGES_PENDING');
-  if (includeCancelled) teamStatusList.push('ARCHIVED');
 
   const memberStatusList: string[] = [];
   if (!includeArchived) memberStatusList.push('ACTIVE', 'PENDING');
   if (includeRejected) memberStatusList.push('REJECTED');
 
   const whereCondition: Record<string, unknown> = {
-    team: { eventId },
-    ...(teamStatusList.length > 0 ? { team: { status: { in: teamStatusList } } } : {}),
+    team: {
+      eventId,
+      ...(teamStatusList.length > 0 ? { status: { in: teamStatusList } } : {}),
+    },
     ...(memberStatusList.length > 0 ? { status: { in: memberStatusList } } : {}),
   };
 

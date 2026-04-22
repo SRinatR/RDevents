@@ -114,16 +114,16 @@ export default function TeamDetailPage() {
   const handleArchive = async () => {
     if (!team) return;
     const message = locale === 'ru'
-      ? 'Удалить команду? Участники будут удалены из команды, открытые приглашения отменены.'
-      : 'Remove this team? Members will be removed from the team and open invitations cancelled.';
+      ? 'Архивировать команду? Она исчезнет из списка по умолчанию, но состав и история сохранятся.'
+      : 'Archive this team? It will disappear from the default list, but members and history will remain.';
     if (!confirm(message)) return;
 
     setRemoving(true);
     try {
-      await adminApi.removeTeam(team.id);
+      await adminApi.archiveTeam(team.id);
       router.push(`/${locale}/admin/teams`);
     } catch {
-      alert(locale === 'ru' ? 'Не удалось удалить команду' : 'Failed to remove team');
+      alert(locale === 'ru' ? 'Не удалось архивировать команду' : 'Failed to archive team');
     } finally {
       setRemoving(false);
     }
@@ -233,7 +233,7 @@ export default function TeamDetailPage() {
             >
               {removing
                 ? '...'
-                : (locale === 'ru' ? 'Убрать команду' : 'Remove team')}
+                : (locale === 'ru' ? 'Архивировать' : 'Archive')}
             </button>
           )
         }
