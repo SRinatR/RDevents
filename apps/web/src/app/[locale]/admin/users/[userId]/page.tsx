@@ -233,7 +233,7 @@ export default function AdminUserFullProfilePage() {
     if (!userId) return;
 
     setLoadingData(true);
-    adminApi.getUserProfile(userId, eventIdParam ?? undefined)
+    adminApi.getUserFullProfile(userId, eventIdParam ?? undefined)
       .then((data) => {
         setProfile(data as UserFullProfile);
         setError(null);

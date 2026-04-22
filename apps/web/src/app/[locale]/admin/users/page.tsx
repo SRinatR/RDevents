@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../../hooks/useAuth';
-import { adminApi, eventsApi } from '../../../../lib/api';
+import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
 import { EmptyState, FieldInput, FieldSelect, LoadingLines, MetricCard, PageHeader, Panel, SectionHeader, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 

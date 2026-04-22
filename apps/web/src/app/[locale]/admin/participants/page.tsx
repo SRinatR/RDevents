@@ -251,12 +251,6 @@ export default function AdminParticipantsPage() {
                             >
                               {t('admin.participantActions.view')}
                             </button>
-                            <button
-                              className="btn btn-ghost btn-sm"
-                              onClick={() => router.push(`/${locale}/admin/users/${p.userId}?eventId=${p.eventId}`)}
-                            >
-                              {t('admin.participantActions.profile')}
-                            </button>
                             {canPerformAction && (
                               <>
                                 <button

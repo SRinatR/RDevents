@@ -477,7 +477,7 @@ export const adminApi = {
   updateUserRole: (id: string, role: string) =>
     request<{ user: any }>(`/api/admin/users/${id}/role`, { method: 'PATCH', auth: true, body: { role } }),
 
-  getUserProfile: (userId: string, eventId?: string) => {
+  getUserFullProfile: (userId: string, eventId?: string) => {
     const qs = eventId ? `?eventId=${encodeURIComponent(eventId)}` : '';
     return request<any>(`/api/admin/users/${userId}/profile${qs}`, { auth: true });
   },

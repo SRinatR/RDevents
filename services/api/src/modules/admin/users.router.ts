@@ -183,11 +183,11 @@ adminUsersRouter.get('/', requirePlatformAdmin, async (req, res) => {
   const [membershipCounts, latestMemberships] = await Promise.all([
     prisma.eventMember.groupBy({
       by: ['userId', 'role', 'status'],
-      where: { userId: { in: userIds } },
+      where: { userId: { in: userIds }, status: { not: 'REMOVED' } },
       _count: true,
     }),
     prisma.eventMember.findMany({
-      where: { userId: { in: userIds } },
+      where: { userId: { in: userIds }, status: { not: 'REMOVED' } },
       orderBy: { assignedAt: 'desc' },
       include: {
         event: { select: { id: true, title: true, slug: true } },
@@ -741,6 +741,7 @@ adminUsersRouter.get('/export', requirePlatformAdmin, async (req, res) => {
       by: ['userId', 'role', 'status'],
       where: {
         userId: { in: userIds },
+        status: { not: 'REMOVED' },
       },
       _count: true,
     }),
