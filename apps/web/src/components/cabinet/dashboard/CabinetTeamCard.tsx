@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { eventsApi } from '@/lib/api';
 import { Panel, SectionHeader, EmptyState, Notice, FieldInput, FieldTextarea } from '@/components/ui/signal-primitives';
 import { StatusBadge, RoleBadge } from '@/components/ui/status-badge';
@@ -55,6 +56,7 @@ function NoTeamState({
   locale: string;
   onTeamCreated?: () => Promise<void> | void;
 }) {
+  const router = useRouter();
   const [teamName, setTeamName] = useState('');
   const [teamDescription, setTeamDescription] = useState('');
   const [loading, setLoading] = useState(false);
@@ -78,6 +80,7 @@ function NoTeamState({
       setTeamName('');
       setTeamDescription('');
       await onTeamCreated?.();
+      router.push(`/${locale}/cabinet/events/${event.slug}?team=edit`);
     } catch (err) {
       setError(err instanceof Error ? err.message : (locale === 'ru' ? 'Не удалось создать команду.' : 'Failed to create team.'));
     } finally {

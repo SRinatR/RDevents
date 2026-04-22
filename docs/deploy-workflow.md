@@ -96,6 +96,9 @@ Deploy job:
 - starts Postgres, waits for it to become healthy, and writes a non-empty pre-migration database backup
 - runs `pnpm prisma:deploy` only after the backup succeeds
 - recreates API and web with Docker Compose only after backup and migrations succeed
+- updates runtime fallback files in `/opt/rdevents/runtime/`
+- runs `nginx -t` and `systemctl reload nginx` after runtime files are updated
+- fails the deploy if any required release marker endpoint does not return the new SHA
 - runs smoke checks for API, web, `/health`, `/ready`, web `/ru`, release markers, and public HTTPS ingress
 
 ### Deploy sequence
@@ -110,7 +113,10 @@ The deploy step on the server follows this exact order to keep the database safe
 6. **Backup** — runs `pg_dump | gzip` inside the postgres container using the container's own `POSTGRES_USER` and `POSTGRES_DB`, then writes the compressed dump to `$DEPLOY_ROOT/backups/pre-migrate-<timestamp>.sql.gz`. The deploy aborts if the backup fails or the file is empty.
 7. **Migrate** — runs `pnpm prisma:deploy` inside a one-off API container (`docker compose run --rm --no-deps api`). The deploy aborts if any migration fails; the previously running api/web containers were not stopped by the deploy workflow. **Seed (`db:seed`) is never run here.**
 8. **Recreate api and web** — `docker compose up -d --no-build --force-recreate --remove-orphans api web` replaces the app containers using the images built in step 2. This step is only reached if backup and migration succeeded.
-9. **Prune** — removes dangling Docker images.
+9. **Update runtime fallbacks** — writes the deployed SHA into `/opt/rdevents/runtime/version.txt`, `/opt/rdevents/runtime/version`, and `/opt/rdevents/runtime/release.json`.
+10. **Validate and reload nginx** — runs `nginx -t` and then `systemctl reload nginx` so nginx fallback aliases pick up the fresh runtime files.
+11. **Verify release markers** — the deploy is considered failed unless all required SHA endpoints return the new release after reload.
+12. **Prune** — removes dangling Docker images.
 
 ### Smoke checks (after deploy step)
 
@@ -128,8 +134,12 @@ On failure each check prints `docker compose ps` and recent container logs befor
 | Public root | HTTPS 307 from `https://rdevents.uz/` | `curl -I` from the VPS, retry loop |
 | Public /ru | HTTPS 200 from `https://rdevents.uz/ru` | `curl -I` from the VPS, retry loop |
 | Public API health | HTTPS 200 from `https://api.rdevents.uz/health` | `curl -I` from the VPS, retry loop |
-| Web release marker | HTTP 200 from `https://rdevents.uz/version.txt` and `https://rdevents.uz/release.json`, body contains deployed commit SHA | `curl` from the VPS, retry loop |
-| API release marker | HTTP 200 from `https://api.rdevents.uz/version`, body contains deployed commit SHA. `https://api.rdevents.uz/api/version` is checked as a public compatibility marker and may warn while nginx does not route that path. | `curl` from the VPS, retry loop |
+| Required SHA check 1 | HTTP 200 from `http://127.0.0.1:3000/version.txt`, body equals the deployed commit SHA | `curl` from the VPS, retry loop, blocking |
+| Required SHA check 2 | HTTP 200 from `http://127.0.0.1:4000/version`, body equals the deployed commit SHA | `curl` from the VPS, retry loop, blocking |
+| Required SHA check 3 | HTTP 200 from `https://rdevents.uz/version.txt`, body equals the deployed commit SHA after nginx reload | `curl` from the VPS, retry loop, blocking |
+| Required SHA check 4 | HTTP 200 from `https://api.rdevents.uz/version`, body equals the deployed commit SHA after nginx reload | `curl` from the VPS, retry loop, blocking |
+| Web release marker | HTTP 200 from `https://rdevents.uz/release.json`, body contains deployed commit SHA in `releaseSha` | `curl` from the VPS, retry loop |
+| API compatibility marker | HTTP 200 from `https://api.rdevents.uz/api/version`, body contains deployed commit SHA. This remains a compatibility path and may warn while nginx does not route that path. | `curl` from the VPS, retry loop |
 
 If a public ingress check fails, the workflow prints the last public response headers, curl error, Docker Compose state, local upstream headers, readable nginx errors, and recent api/web logs.
 
@@ -141,7 +151,7 @@ The deploy workflow must not run from `main`, feature branches, or PRs.
 
 ### Release marker contract
 
-Every deployed image receives the same `RELEASE_SHA` build argument and runtime environment value. The web image writes it into static public files during Docker build; the API image writes it into `release.txt` and also exposes it through `RELEASE_SHA`. While the nginx static fallback aliases remain enabled, the deploy workflow also writes the same SHA to `$DEPLOY_ROOT/runtime/version.txt`, `$DEPLOY_ROOT/runtime/version`, and `$DEPLOY_ROOT/runtime/release.json` so the fallback cannot report a stale release.
+Every deployed image receives the same `RELEASE_SHA` build argument and runtime environment value. The web image writes it into static public files during Docker build; the API image writes it into `release.txt` and also exposes it through `RELEASE_SHA`. While the nginx static fallback aliases remain enabled, the deploy workflow also writes the same SHA to `$DEPLOY_ROOT/runtime/version.txt`, `$DEPLOY_ROOT/runtime/version`, and `$DEPLOY_ROOT/runtime/release.json`, then runs `nginx -t` and `systemctl reload nginx` so the fallback cannot keep serving a stale release.
 
 Required app-level endpoints:
 
@@ -150,7 +160,47 @@ Required app-level endpoints:
 - API: `GET /version` returns `200 text/plain` with the deployed commit SHA.
 - API: `GET /api/version` returns `200 text/plain` with the deployed commit SHA.
 
-These endpoints must not depend on request headers, cookies, or other request-bound dynamic logic. Nginx may keep a static fallback as a safety layer, but the application endpoints are the primary contract and the deploy smoke checks validate that contract. The deploy workflow requires the local upstream `http://127.0.0.1:4000/api/version` app-level check, while the public `https://api.rdevents.uz/api/version` check stays non-blocking until the host nginx config routes that compatibility path.
+These endpoints must not depend on request headers, cookies, or other request-bound dynamic logic. Nginx may keep a static fallback as a safety layer, but the application endpoints are the primary contract and the deploy smoke checks validate that contract. A production deploy is not successful unless these four required endpoints return the new SHA: `http://127.0.0.1:3000/version.txt`, `http://127.0.0.1:4000/version`, `https://rdevents.uz/version.txt`, and `https://api.rdevents.uz/version`. The deploy workflow also keeps the local upstream `http://127.0.0.1:4000/api/version` and public `https://api.rdevents.uz/api/version` compatibility checks available, but the four required endpoints above are the hard gate.
+
+## Manual Recovery Script
+
+File: `manual-deploy.sh`
+
+This script provides a single-command fallback deploy path for the VPS. It performs the same critical production order as the workflow:
+
+- clones the target ref into a temporary staging directory, defaulting to `production`
+- resolves the exact release SHA from the staged source
+- replaces `/opt/rdevents/app` with the staged release contents
+- builds production images
+- starts postgres and waits for health
+- creates a pre-migration database backup
+- runs `prisma migrate deploy`
+- recreates API and web containers
+- updates `/opt/rdevents/runtime/version.txt`, `/opt/rdevents/runtime/version`, and `/opt/rdevents/runtime/release.json`
+- runs `nginx -t`
+- runs `systemctl reload nginx`
+- verifies the four required SHA endpoints before reporting success
+
+Example:
+
+```bash
+cd /opt/rdevents/app
+bash ./manual-deploy.sh
+```
+
+Deploy a specific ref:
+
+```bash
+cd /opt/rdevents/app
+bash ./manual-deploy.sh production
+```
+
+Override the repository URL if the server should pull from a different remote:
+
+```bash
+cd /opt/rdevents/app
+REPO_URL=git@github.com:SRinatR/RDevents.git bash ./manual-deploy.sh production
+```
 
 ## GitHub Environment
 

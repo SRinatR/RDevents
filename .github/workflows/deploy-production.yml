@@ -321,6 +321,33 @@ jobs:
               return $ret
             }
 
+            verify_runtime_file() {
+              path="$1"
+              label="$2"
+
+              if [ ! -f "$path" ]; then
+                echo "FAIL: $label is missing: $path"
+                return 1
+              fi
+
+              actual=$(tr -d '\r\n' < "$path")
+              if [ "$actual" != "$RELEASE_SHA" ]; then
+                echo "FAIL: $label contains '$actual', expected '$RELEASE_SHA'."
+                return 1
+              fi
+
+              echo "OK: $label updated to $actual"
+              return 0
+            }
+
+            run_privileged() {
+              if [ "$(id -u)" -eq 0 ]; then
+                "$@"
+              else
+                sudo "$@"
+              fi
+            }
+
             FAILED=0
 
             API_CONTAINER_SHA=$(verify_container_sha api "/app/services/api/release.txt" "API") || FAILED=1
@@ -355,18 +382,32 @@ jobs:
             printf '%s\n' "$RELEASE_SHA" > "$RUNTIME_DIR/version"
             printf '{"service":"event-platform-web","releaseSha":"%s"}\n' "$RELEASE_SHA" > "$RUNTIME_DIR/release.json"
 
+            verify_runtime_file "$RUNTIME_DIR/version.txt" "Runtime version.txt" || FAILED=1
+            verify_runtime_file "$RUNTIME_DIR/version" "Runtime version" || FAILED=1
+            RELEASE_JSON_SHA=$(sed -n 's/.*"releaseSha":"\([^"]*\)".*/\1/p' "$RUNTIME_DIR/release.json" | tr -d '\r\n')
+            if [ "$RELEASE_JSON_SHA" != "$RELEASE_SHA" ]; then
+              echo "FAIL: Runtime release.json contains releaseSha='$RELEASE_JSON_SHA', expected '$RELEASE_SHA'."
+              FAILED=1
+            else
+              echo "OK: Runtime release.json updated to $RELEASE_JSON_SHA"
+            fi
+
+            run_privileged nginx -t || FAILED=1
+            run_privileged systemctl reload nginx || FAILED=1
+
             check_ingress_status "https://rdevents.uz/" "307" "Public root" || FAILED=1
             check_ingress_status "https://rdevents.uz/ru" "200" "Public /ru" || FAILED=1
             check_ingress_status "https://api.rdevents.uz/health" "200" "Public API /health" || FAILED=1
-
-            verify_http_sha_plain "https://api.rdevents.uz/version" "API public /version" || FAILED=1
-            verify_http_sha_plain "https://rdevents.uz/version.txt" "Web public /version.txt" || FAILED=1
             verify_http_sha_json "https://rdevents.uz/release.json" "Web public /release.json" || FAILED=1
+            verify_http_sha_plain "http://127.0.0.1:3000/version.txt" "Required check: Web local /version.txt" || FAILED=1
+            verify_http_sha_plain "http://127.0.0.1:4000/version" "Required check: API local /version" || FAILED=1
+            verify_http_sha_plain "https://rdevents.uz/version.txt" "Required check: Web public /version.txt" || FAILED=1
+            verify_http_sha_plain "https://api.rdevents.uz/version" "Required check: API public /version" || FAILED=1
 
             if [ $FAILED -ne 0 ]; then
               echo ""
               echo "=========================================="
-              echo "DEPLOYMENT FAILED: Public verification failed."
+              echo "DEPLOYMENT FAILED: Release marker verification failed."
               echo "Expected RELEASE_SHA: $RELEASE_SHA"
               echo "=========================================="
               docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
