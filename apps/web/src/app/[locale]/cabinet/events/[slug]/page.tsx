@@ -125,7 +125,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
 
     setTeamName(myTeam.name ?? '');
     setTeamDescription(myTeam.description ?? '');
-  }, [myTeam?.id, myTeam?.name, myTeam?.description]);
+  }, [myTeam]);
 
   if (loading || !user) return null;
   if (pageLoading) {

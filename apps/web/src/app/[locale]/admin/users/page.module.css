@@ -1,0 +1,61 @@
+.statsCardsPanel {
+  margin-bottom: 24px;
+}
+
+.statsCardsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.statsCardSkeleton {
+  height: 80px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.adminCheckboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--color-muted, #6b7280);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.adminCheckboxLabel input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.clickableRow {
+  cursor: pointer;
+}
+
+.clickableRow:hover {
+  background-color: var(--color-hover-bg, rgba(0,0,0,0.03));
+}
+
+.providerBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.providerBadge {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 11px;
+  background: var(--color-bg-secondary, #f3f4f6);
+  border-radius: 4px;
+  color: var(--color-text-secondary, #6b7280);
+}

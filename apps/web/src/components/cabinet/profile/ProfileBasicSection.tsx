@@ -171,7 +171,7 @@ function ProfileDatePicker({
 
   useEffect(() => {
     if (selectedDate) setViewDate(selectedDate);
-  }, [value]);
+  }, [selectedDate]);
 
   const days = useMemo(() => getCalendarDays(viewDate), [viewDate]);
 

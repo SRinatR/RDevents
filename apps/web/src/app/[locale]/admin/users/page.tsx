@@ -6,6 +6,7 @@ import { useAuth } from '../../../../hooks/useAuth';
 import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
 import { EmptyState, FieldInput, FieldSelect, LoadingLines, MetricCard, PageHeader, Panel, SectionHeader, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import styles from './page.module.css';
 
 interface UsersStats {
   totalUsers: number;
@@ -184,10 +185,10 @@ export default function AdminUsersPage() {
         subtitle={`${total} ${isRu ? 'всего' : 'total'}`}
       />
 
-      <Panel variant="elevated" className="stats-cards-panel">
-        <div className="stats-cards-grid">
+      <Panel variant="elevated" className={styles.statsCardsPanel}>
+        <div className={styles.statsCardsGrid}>
           {statsLoading ? (
-            <div className="stats-card-skeleton" />
+            <div className={styles.statsCardSkeleton} />
           ) : stats ? (
             <>
               <MetricCard
@@ -258,7 +259,7 @@ export default function AdminUsersPage() {
               ))}
             </FieldSelect>
           )}
-          <label className="admin-checkbox-label">
+          <label className={styles.adminCheckboxLabel}>
             <input
               type="checkbox"
               checked={includeInactiveFilter}
@@ -334,7 +335,7 @@ export default function AdminUsersPage() {
                 </thead>
                 <tbody>
                   {users.map((entry) => (
-                    <tr key={entry.id} onClick={() => handleRowClick(entry.id)} className="clickable-row">
+                    <tr key={entry.id} onClick={() => handleRowClick(entry.id)} className={styles.clickableRow}>
                       <td>
                         <div className="admin-user-cell">
                           <span className="signal-avatar">
@@ -355,9 +356,9 @@ export default function AdminUsersPage() {
                       <td>{entry.counts.eventMembershipsTotal}</td>
                       <td>{entry.counts.teamsTotal}</td>
                       <td>
-                        <div className="provider-badges">
+                        <div className={styles.providerBadges}>
                           {entry.accounts?.map((account) => (
-                            <span key={account.id} className="provider-badge">
+                            <span key={account.id} className={styles.providerBadge}>
                               {providerLabel[account.provider] ?? account.provider}
                             </span>
                           ))}
@@ -425,61 +426,6 @@ export default function AdminUsersPage() {
           ? 'Изменение роли применяется немедленно. SUPER_ADMIN может изменять любые роли. Нельзя понизить собственную роль.'
           : 'Role changes are applied immediately. SUPER_ADMIN can change any role. Cannot demote your own role.'}
       </div>
-
-      <style jsx>{`
-        .stats-cards-panel {
-          margin-bottom: 24px;
-        }
-        .stats-cards-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-          gap: 16px;
-        }
-        .stats-card-skeleton {
-          height: 80px;
-          background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-          background-size: 200% 100%;
-          animation: shimmer 1.5s infinite;
-          border-radius: 8px;
-        }
-        @keyframes shimmer {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-        .admin-checkbox-label {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 13px;
-          color: var(--color-muted, #6b7280);
-          cursor: pointer;
-          white-space: nowrap;
-        }
-        .admin-checkbox-label input[type="checkbox"] {
-          width: 16px;
-          height: 16px;
-          cursor: pointer;
-        }
-        .clickable-row {
-          cursor: pointer;
-        }
-        .clickable-row:hover {
-          background-color: var(--color-hover-bg, rgba(0,0,0,0.03));
-        }
-        .provider-badges {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 4px;
-        }
-        .provider-badge {
-          display: inline-block;
-          padding: 2px 6px;
-          font-size: 11px;
-          background: var(--color-bg-secondary, #f3f4f6);
-          border-radius: 4px;
-          color: var(--color-text-secondary, #6b7280);
-        }
-      `}</style>
     </div>
   );
 }

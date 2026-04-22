@@ -71,22 +71,24 @@ export default function EventRegistrationsPage() {
     });
   }, [members, statusFilter, search]);
 
-  const completeness = (member: any) => {
-    if (requiredEventFields.length === 0) return 100;
-    const answers = member.answers ?? {};
-    const filled = requiredEventFields.filter((field) => {
-      const value = answers[field];
-      return value !== undefined && value !== null && String(value).trim() !== '';
-    }).length;
-    return Math.round((filled / requiredEventFields.length) * 100);
-  };
+  const completenessMemo = useMemo(() => {
+    if (requiredEventFields.length === 0) return () => 100;
+    return (member: any) => {
+      const answers = member.answers ?? {};
+      const filled = requiredEventFields.filter((field) => {
+        const value = answers[field];
+        return value !== undefined && value !== null && String(value).trim() !== '';
+      }).length;
+      return Math.round((filled / requiredEventFields.length) * 100);
+    };
+  }, [requiredEventFields]);
 
   const stats = useMemo(() => ({
     total: members.length,
     pending: members.filter((member) => member.status === 'PENDING').length,
-    complete: members.filter((member) => completeness(member) === 100).length,
-    incomplete: members.filter((member) => completeness(member) < 100).length,
-  }), [members, requiredEventFields]);
+    complete: members.filter((member) => completenessMemo(member) === 100).length,
+    incomplete: members.filter((member) => completenessMemo(member) < 100).length,
+  }), [members, completenessMemo]);
 
   const updateStatus = async (memberId: string, nextStatus: 'ACTIVE' | 'RESERVE' | 'REJECTED' | 'REMOVED') => {
     if (!eventId) return;

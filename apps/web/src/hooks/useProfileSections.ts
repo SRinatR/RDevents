@@ -63,11 +63,7 @@ export function useProfileSections(locale = 'ru') {
     }
   }, [reloadDocuments, reloadSections, user]);
 
-  useEffect(() => {
-    void reloadAll();
-  }, [reloadAll]);
-
-  async function runSectionAction(sectionKey: ProfileSectionKey, action: () => Promise<void>, message: string) {
+  const runSectionAction = useCallback(async (sectionKey: ProfileSectionKey, action: () => Promise<void>, message: string) => {
     setSavingSection(sectionKey);
     setError('');
     setSuccess('');
@@ -81,42 +77,46 @@ export function useProfileSections(locale = 'ru') {
     } finally {
       setSavingSection(null);
     }
-  }
+  }, [reloadSections]);
 
   const saveSection = useCallback(async (sectionKey: ProfileSectionKey, payload: Record<string, unknown>) => {
     await runSectionAction(sectionKey, async () => {
       await authApi.updateProfileSection(sectionKey, payload);
       await refreshUser();
     }, localeKey === 'ru' ? 'Раздел сохранён.' : 'Section saved.');
-  }, [localeKey, refreshUser, reloadSections]);
+  }, [localeKey, refreshUser, runSectionAction]);
 
   const uploadAvatar = useCallback(async (file: File) => {
     await runSectionAction('registration_data', async () => {
       await authApi.uploadAvatar(file);
       await refreshUser();
     }, localeKey === 'ru' ? 'Фото обновлено.' : 'Photo updated.');
-  }, [localeKey, refreshUser, reloadSections]);
+  }, [localeKey, refreshUser, runSectionAction]);
 
   const deleteAvatar = useCallback(async () => {
     await runSectionAction('registration_data', async () => {
       await authApi.deleteAvatar();
       await refreshUser();
     }, localeKey === 'ru' ? 'Фото удалено.' : 'Photo deleted.');
-  }, [localeKey, refreshUser, reloadSections]);
+  }, [localeKey, refreshUser, runSectionAction]);
 
   const uploadDocument = useCallback(async (file: File) => {
     await runSectionAction('personal_documents', async () => {
       await authApi.uploadProfileDocument(file);
       await reloadDocuments();
     }, localeKey === 'ru' ? 'Документ загружен.' : 'Document uploaded.');
-  }, [localeKey, reloadDocuments, reloadSections]);
+  }, [localeKey, reloadDocuments, runSectionAction]);
 
   const deleteDocument = useCallback(async (assetId: string) => {
     await runSectionAction('personal_documents', async () => {
       await authApi.deleteProfileDocument(assetId);
       await reloadDocuments();
     }, localeKey === 'ru' ? 'Документ удалён.' : 'Document deleted.');
-  }, [localeKey, reloadDocuments, reloadSections]);
+  }, [localeKey, reloadDocuments, runSectionAction]);
+
+  useEffect(() => {
+    void reloadAll();
+  }, [reloadAll]);
 
   return {
     sections,
