@@ -19,12 +19,14 @@ export function SupportAttachmentList({ attachments }: { attachments: SupportAtt
         IMAGE_TYPES.has(att.mimeType) ? (
           <a key={att.id} href={att.publicUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block' }}>
             {att.publicUrl.startsWith('data:') ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={att.publicUrl}
                 alt={att.filename}
                 style={{ maxWidth: '220px', maxHeight: '180px', borderRadius: '8px', objectFit: 'cover', display: 'block', border: '1px solid var(--color-border-soft)' }}
               />
             ) : (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={att.publicUrl}
                 alt={att.filename}

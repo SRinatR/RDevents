@@ -170,7 +170,7 @@ export default function EventRegistrationsPage() {
                   </thead>
                   <tbody>
                     {filteredMembers.map((member) => {
-                      const percent = completeness(member);
+                      const percent = completenessMemo(member);
                       return (
                         <Fragment key={member.id}>
                           <tr>

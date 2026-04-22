@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../hooks/useAuth';
-import { authApi } from '../../../lib/api';
+import { authApi, ApiError } from '../../../lib/api';
 import { useRouteLocale } from '../../../hooks/useRouteParams';
 
 type Step = 1 | 2 | 3;
