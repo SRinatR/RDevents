@@ -1,5 +1,6 @@
 import { access } from 'node:fs/promises';
 import path from 'node:path';
+import Image from 'next/image';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { PublicFooter } from '../../components/layout/PublicFooter';
@@ -37,7 +38,7 @@ export default async function HomePage({ params }: HomePageProps) {
         <section className="home-landing-stage motion-fade-up">
           <div className="home-landing-backdrop">
             {heroImageSrc
-              ? <img src={heroImageSrc} alt={heroEvent?.title ?? t('home.heroTitle')} />
+              ? <Image src={heroImageSrc} alt={heroEvent?.title ?? t('home.heroTitle')} fill sizes="100vw" priority style={{ objectFit: 'cover' }} />
               : <div className="home-v3-hero-fallback-art" />}
           </div>
           <div className="home-landing-backdrop-noise" />
@@ -110,7 +111,7 @@ export default async function HomePage({ params }: HomePageProps) {
                   >
                     <div className="home-v3-stream-card-cover">
                       {streamSingleEvent.coverImageUrl
-                        ? <img src={streamSingleEvent.coverImageUrl} alt={streamSingleEvent.title} />
+                        ? <Image src={streamSingleEvent.coverImageUrl} alt={streamSingleEvent.title} fill sizes="(max-width: 768px) 100vw, 600px" style={{ objectFit: 'cover' }} />
                         : <CoverFallback title={streamSingleEvent.title} />}
                     </div>
                     <div className="home-v3-stream-card-body">
@@ -146,7 +147,7 @@ export default async function HomePage({ params }: HomePageProps) {
                     >
                       <div className="home-v3-stream-card-cover">
                         {event.coverImageUrl
-                          ? <img src={event.coverImageUrl} alt={event.title} />
+                          ? <Image src={event.coverImageUrl} alt={event.title} fill sizes="(max-width: 768px) 100vw, 400px" style={{ objectFit: 'cover' }} />
                           : <CoverFallback title={event.title} />}
                       </div>
                       <div className="home-v3-stream-card-body">

@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { referenceApi } from '@/lib/api';
@@ -106,7 +107,7 @@ export function ProfileRegistrationDataSection({ locale, user, status, saving, r
         <div className="profile-photo-grid">
           <div className={`profile-upload-zone ${isRequired('avatarUrl') || isRequired('avatarAssetId') || isRequired('photo') ? 'signal-field-required' : ''}`}>
             <div className="profile-photo-preview">
-              {user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : <span>{(user.name || user.email || '?').slice(0, 2).toUpperCase()}</span>}
+              {user.avatarUrl ? <Image src={user.avatarUrl} alt="" width={120} height={120} style={{ objectFit: 'cover' }} /> : <span>{(user.name || user.email || '?').slice(0, 2).toUpperCase()}</span>}
             </div>
             <div className="profile-upload-copy">
               <strong>{isRu ? 'Фото профиля' : 'Profile photo'}</strong>

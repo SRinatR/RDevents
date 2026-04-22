@@ -18,11 +18,23 @@ export function SupportAttachmentList({ attachments }: { attachments: SupportAtt
       {attachments.map((att) =>
         IMAGE_TYPES.has(att.mimeType) ? (
           <a key={att.id} href={att.publicUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block' }}>
-            <img
-              src={att.publicUrl}
-              alt={att.filename}
-              style={{ maxWidth: '220px', maxHeight: '180px', borderRadius: '8px', objectFit: 'cover', display: 'block', border: '1px solid var(--color-border-soft)' }}
-            />
+            {att.publicUrl.startsWith('data:') ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={att.publicUrl}
+                alt={att.filename}
+                style={{ maxWidth: '220px', maxHeight: '180px', borderRadius: '8px', objectFit: 'cover', display: 'block', border: '1px solid var(--color-border-soft)' }}
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={att.publicUrl}
+                alt={att.filename}
+                loading="lazy"
+                decoding="async"
+                style={{ maxWidth: '220px', maxHeight: '180px', borderRadius: '8px', objectFit: 'cover', display: 'block', border: '1px solid var(--color-border-soft)' }}
+              />
+            )}
           </a>
         ) : (
           <a
@@ -56,7 +68,7 @@ export function SupportAttachmentList({ attachments }: { attachments: SupportAtt
 
 function FileIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
       <polyline points="14 2 14 8 20 8" />
     </svg>

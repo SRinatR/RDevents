@@ -387,15 +387,42 @@ export async function unregisterFromEvent(eventId: string, userId: string) {
   const membership = await prisma.eventMember.findUnique({
     where: { eventId_userId_role: { eventId, userId, role: 'PARTICIPANT' } },
   });
-  if (!membership || membership.status === 'REMOVED') throw new Error('REGISTRATION_NOT_FOUND');
+  if (!membership || membership.status === 'CANCELLED' || membership.status === 'REMOVED') {
+    throw new Error('REGISTRATION_NOT_FOUND');
+  }
+
+  const teamMembership = await prisma.eventTeamMember.findFirst({
+    where: {
+      userId,
+      team: { eventId },
+      status: { notIn: ['REMOVED', 'LEFT'] },
+    },
+    include: { team: { select: { id: true, captainUserId: true } } },
+  });
+
+  if (teamMembership) {
+    if (teamMembership.team.captainUserId === userId) {
+      throw {
+        code: 'CAPTAIN_CANNOT_CANCEL_EVENT_PARTICIPATION',
+        message: 'сначала передайте капитанство или решите вопрос с командой',
+      };
+    }
+  }
 
   const shouldDecrement = ACTIVE_MEMBER_STATUSES.includes(membership.status as any);
 
   const updated = await prisma.$transaction(async (tx: any) => {
+    if (teamMembership) {
+      await tx.eventTeamMember.update({
+        where: { id: teamMembership.id },
+        data: { status: 'LEFT', removedAt: new Date() },
+      });
+    }
+
     const updated = await tx.eventMember.update({
       where: { id: membership.id },
       data: {
-        status: 'REMOVED',
+        status: 'CANCELLED',
         removedAt: new Date(),
       },
     });
@@ -410,7 +437,7 @@ export async function unregisterFromEvent(eventId: string, userId: string) {
     return updated;
   });
 
-  await notifyParticipantStatusChanged(eventId, userId, 'REMOVED');
+  await notifyParticipantStatusChanged(eventId, userId, 'CANCELLED');
   return updated;
 }
 

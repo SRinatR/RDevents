@@ -86,6 +86,38 @@ async function requestForm<T>(path: string, formData: FormData, auth = false): P
   return res.json() as Promise<T>;
 }
 
+async function downloadWithAuth(path: string, filenameFallback: string) {
+  const headers: Record<string, string> = {};
+  if (_accessToken) {
+    headers['Authorization'] = `Bearer ${_accessToken}`;
+  }
+
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: 'GET',
+    headers,
+    credentials: 'include',
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({ error: 'Unknown error' }));
+    throw new ApiError(res.status, data.error ?? 'Download failed', data.details, data.code);
+  }
+
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename="?([^"]+)"?/i);
+  const filename = match?.[1] || filenameFallback;
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export const authApi = {
@@ -343,9 +375,6 @@ export const adminApi = {
   listEventMembers: (eventId: string) =>
     request<{ members: any[] }>(`/api/admin/events/${eventId}/members`, { auth: true }),
 
-  updateParticipantStatus: (eventId: string, memberId: string, body: { status: string; notes?: string }) =>
-    request<{ membership: any }>(`/api/admin/participants/events/${eventId}/participants/${memberId}`, { method: 'PATCH', auth: true, body }),
-
   listEventTeams: (eventId: string) =>
     request<{ teams: any[] }>(`/api/admin/events/${eventId}/teams`, { auth: true }),
 
@@ -380,6 +409,19 @@ export const adminApi = {
     return request<{ data: any[]; meta: any }>(`/api/admin/participants${qs}`, { auth: true });
   },
 
+  updateParticipantStatus: (eventId: string, memberId: string, body: { status: 'ACTIVE' | 'RESERVE' | 'REJECTED' | 'REMOVED'; notes?: string }) =>
+    request<{ membership: any }>(`/api/admin/events/${eventId}/participations/${memberId}`, {
+      method: 'PATCH',
+      auth: true,
+      body,
+    }),
+
+  rejectParticipant: (eventId: string, memberId: string, notes?: string) =>
+    adminApi.updateParticipantStatus(eventId, memberId, { status: 'REJECTED', notes }),
+
+  removeParticipant: (eventId: string, memberId: string, notes?: string) =>
+    adminApi.updateParticipantStatus(eventId, memberId, { status: 'REMOVED', notes }),
+
   listApplications: (params?: {
     search?: string;
     eventId?: string;
@@ -403,19 +445,73 @@ export const adminApi = {
     return request<{ data: any[]; meta: any }>(`/api/admin/teams${qs}`, { auth: true });
   },
 
-  listUsers: (params?: Record<string, string | number>) => {
-    const qs = params ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+  getTeam: (teamId: string) =>
+    request<{ data: any }>(`/api/admin/teams/${teamId}`, { auth: true }),
+
+  getUserStats: () =>
+    request<any>('/api/admin/users/stats', { auth: true }),
+
+  listUsers: (params?: {
+    search?: string;
+    role?: string;
+    hasEventMembership?: string;
+    eventId?: string;
+    includeInactive?: boolean;
+    page?: number;
+    limit?: number;
+  }) => {
+    const entries: [string, string][] = [];
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        if (v !== undefined) entries.push([k, String(v)]);
+      }
+    }
+    const qs = entries.length ? '?' + new URLSearchParams(entries).toString() : '';
     return request<{ data: any[]; meta: any }>(`/api/admin/users${qs}`, { auth: true });
   },
 
   updateUserRole: (id: string, role: string) =>
     request<{ user: any }>(`/api/admin/users/${id}/role`, { method: 'PATCH', auth: true, body: { role } }),
 
-  listAdmins: () =>
-    request<{ admins: any[]; platformAdmins: any[]; eventAdmins: any[] }>('/api/admin/admins', { auth: true }),
+  getUserFullProfile: (userId: string, eventId?: string) => {
+    const qs = eventId ? `?eventId=${encodeURIComponent(eventId)}` : '';
+    return request<any>(`/api/admin/users/${userId}/profile${qs}`, { auth: true });
+  },
 
-  listVolunteers: () =>
-    request<{ volunteers: any[] }>('/api/admin/volunteers', { auth: true }),
+  exportUsers: async (params?: {
+    search?: string;
+    role?: string;
+    hasEventMembership?: string;
+    eventId?: string;
+    includeInactive?: boolean;
+    format?: 'csv' | 'json';
+  }) => {
+    const qp = new URLSearchParams();
+    if (params?.search) qp.set('search', params.search);
+    if (params?.role) qp.set('role', params.role);
+    if (params?.hasEventMembership) qp.set('hasEventMembership', params.hasEventMembership);
+    if (params?.eventId) qp.set('eventId', params.eventId);
+    if (params?.includeInactive) qp.set('includeInactive', 'true');
+    qp.set('format', params?.format ?? 'csv');
+
+    const fallback = params?.format === 'json' ? 'users_export.json' : 'users_export.csv';
+    await downloadWithAuth(`/api/admin/users/export?${qp.toString()}`, fallback);
+  },
+
+  archiveTeam: (teamId: string) =>
+    request<any>(`/api/admin/teams/${teamId}/archive`, {
+      method: 'POST',
+      auth: true,
+    }),
+
+  getEventOverview: (eventId: string) =>
+    request<any>(`/api/admin/events/${eventId}/overview`, { auth: true }),
+
+  listAdmins: () =>
+    request<any>('/api/admin/users/admins', { auth: true }),
+
+  getUsersAnalytics: () =>
+    request<any>('/api/admin/users/analytics', { auth: true }),
 
   getAnalytics: () =>
     request<any>('/api/admin/analytics', { auth: true }),
@@ -423,8 +519,8 @@ export const adminApi = {
   listProfileFields: () =>
     request<{ data: any[] }>('/api/admin/profile-fields', { auth: true }),
 
-  updateProfileField: (key: string, body: { key: string; isVisibleInCabinet?: boolean }) =>
-    request<any>(`/api/admin/profile-fields/${key}`, { method: 'PATCH', auth: true, body }),
+  updateProfileField: (fieldKey: string, body: Record<string, unknown>) =>
+    request<any>(`/api/admin/profile-fields/${fieldKey}`, { method: 'PATCH', auth: true, body }),
 };
 
 // ─── Admin Email ──────────────────────────────────────────────────────────────
@@ -545,3 +641,72 @@ export const adminSupportApi = {
     return requestForm<{ attachments: any[] }>(`/api/admin/support/threads/${threadId}/attachments`, formData, true);
   },
 };
+
+// ─── Admin Exports ─────────────────────────────────────────────────────────────
+
+export interface ExportFilters {
+  status?: string[];
+  hasTeam?: boolean;
+  hasPhoto?: boolean;
+  includeArchived?: boolean;
+  includeRejected?: boolean;
+  includeCancelled?: boolean;
+  includeRemoved?: boolean;
+}
+
+export function buildExportUrl(eventId: string, scope: string, format = 'csv', filters?: ExportFilters): string {
+  const params = new URLSearchParams();
+  params.set('format', format);
+  if (filters) {
+    if (filters.status?.length) filters.status.forEach(s => params.append('status', s));
+    if (filters.hasTeam !== undefined) params.set('hasTeam', String(filters.hasTeam));
+    if (filters.hasPhoto !== undefined) params.set('hasPhoto', String(filters.hasPhoto));
+    if (filters.includeArchived) params.set('includeArchived', 'true');
+    if (filters.includeRejected) params.set('includeRejected', 'true');
+    if (filters.includeCancelled) params.set('includeCancelled', 'true');
+    if (filters.includeRemoved) params.set('includeRemoved', 'true');
+  }
+  return `${BASE_URL}/api/admin/exports/events/${eventId}/exports/${scope}?${params.toString()}`;
+}
+
+function buildExportPath(eventId: string, scope: string, format = 'csv', filters?: ExportFilters): string {
+  const params = new URLSearchParams();
+  params.set('format', format);
+  if (filters) {
+    if (filters.status?.length) filters.status.forEach(s => params.append('status', s));
+    if (filters.hasTeam !== undefined) params.set('hasTeam', String(filters.hasTeam));
+    if (filters.hasPhoto !== undefined) params.set('hasPhoto', String(filters.hasPhoto));
+    if (filters.includeArchived) params.set('includeArchived', 'true');
+    if (filters.includeRejected) params.set('includeRejected', 'true');
+    if (filters.includeCancelled) params.set('includeCancelled', 'true');
+    if (filters.includeRemoved) params.set('includeRemoved', 'true');
+  }
+  return `/api/admin/exports/events/${eventId}/exports/${scope}?${params.toString()}`;
+}
+
+export const adminExportsApi = {
+  downloadParticipants: async (eventId: string, format = 'csv', filters?: ExportFilters) => {
+    await downloadWithAuth(buildExportPath(eventId, 'participants', format, filters), `export_${eventId}_participants.${format}`);
+  },
+  downloadTeams: async (eventId: string, format = 'csv', filters?: ExportFilters) => {
+    await downloadWithAuth(buildExportPath(eventId, 'teams', format, filters), `export_${eventId}_teams.${format}`);
+  },
+  downloadTeamMembers: async (eventId: string, format = 'csv', filters?: ExportFilters) => {
+    await downloadWithAuth(buildExportPath(eventId, 'team_members', format, filters), `export_${eventId}_team_members.${format}`);
+  },
+};
+
+function parseFilters(query: Record<string, unknown>) {
+  const filters: Record<string, unknown> = {};
+  if (query['status']) {
+    const s = query['status'];
+    filters['status'] = Array.isArray(s) ? s.map(String) : [String(s)];
+  }
+  if (query['hasTeam'] !== undefined) filters['hasTeam'] = query['hasTeam'] === 'true';
+  if (query['hasPhoto'] !== undefined) filters['hasPhoto'] = query['hasPhoto'] === 'true';
+  if (query['includeArchived']) filters['includeArchived'] = query['includeArchived'] === 'true';
+  if (query['includeRejected']) filters['includeRejected'] = query['includeRejected'] === 'true';
+  if (query['includeCancelled']) filters['includeCancelled'] = query['includeCancelled'] === 'true';
+  if (query['includeRemoved']) filters['includeRemoved'] = query['includeRemoved'] === 'true';
+  return Object.keys(filters).length > 0 ? filters : undefined;
+}

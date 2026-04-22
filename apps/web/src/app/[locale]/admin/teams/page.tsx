@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
-import { adminApi } from '@/lib/api';
+import { adminApi, adminExportsApi } from '@/lib/api';
 import { downloadCsv, formatCsvDate } from '@/lib/exportCsv';
 import { useRouteLocale } from '@/hooks/useRouteParams';
 import { EmptyState, FieldInput, FieldSelect, LoadingLines, PageHeader, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
@@ -33,27 +33,24 @@ export default function AdminTeamsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // URL-synced state
   const [teams, setTeams] = useState<Team[]>([]);
   const [events, setEvents] = useState<EventsOption[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [totalPages, setTotalPages] = useState(1);
   const [exporting, setExporting] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
-  // Filters from URL
   const search = searchParams.get('search') ?? '';
   const eventFilter = searchParams.get('eventId') ?? 'ALL';
   const statusFilter = searchParams.get('status') ?? 'ALL';
   const page = parseInt(searchParams.get('page') ?? '1', 10);
 
-  // Debounced search state
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Update URL with filter (use replace for search/filter to avoid history pollution)
   const updateFilter = useCallback((key: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString());
     if (value === 'ALL' || value === '') {
@@ -61,19 +58,16 @@ export default function AdminTeamsPage() {
     } else {
       params.set(key, value);
     }
-    // Always reset page on filter change
     params.delete('page');
     router.replace(`?${params.toString()}`, { scroll: false });
   }, [searchParams, router]);
 
-  // Navigate to page (use replace for pagination too since it's not explicit user navigation)
   const goToPage = useCallback((newPage: number) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('page', String(newPage));
     router.replace(`?${params.toString()}`, { scroll: false });
   }, [searchParams, router]);
 
-  // Load events for filter dropdown
   useEffect(() => {
     if (!user || !isAdmin) return;
     
@@ -84,7 +78,6 @@ export default function AdminTeamsPage() {
       .catch(() => setEvents([]));
   }, [user, isAdmin]);
 
-  // Load teams with unified endpoint (no N+1!)
   const fetchTeams = useCallback(async () => {
     if (!user || !isAdmin) return;
 
@@ -107,10 +100,28 @@ export default function AdminTeamsPage() {
   }, [user, isAdmin, debouncedSearch, eventFilter, statusFilter, page]);
 
   useEffect(() => {
-    fetchTeams();
+    void fetchTeams();
   }, [fetchTeams]);
 
-  // Status colors - fixed mapping
+  const handleArchiveTeam = async (teamId: string) => {
+    if (!confirm(locale === 'ru'
+      ? 'Архивировать команду? Она исчезнет из списка по умолчанию, но история и профили участников сохранятся.'
+      : 'Archive this team? It will disappear from the default list, but team history and user profiles will remain.'
+    )) {
+      return;
+    }
+
+    setRemovingId(teamId);
+    try {
+      await adminApi.archiveTeam(teamId);
+      await fetchTeams();
+    } catch {
+      alert(locale === 'ru' ? 'Не удалось архивировать команду' : 'Failed to archive team');
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
   const toneByStatus: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
     ACTIVE: 'success',
     PENDING: 'warning',
@@ -174,15 +185,44 @@ export default function AdminTeamsPage() {
             ))}
           </FieldSelect>
           <FieldSelect value={statusFilter} onChange={(e) => updateFilter('status', e.target.value)} className="admin-filter-select">
-            <option value="ALL">{locale === 'ru' ? 'Все статусы' : 'All statuses'}</option>
+            <option value="ALL">{locale === 'ru' ? 'Активные по умолчанию' : 'Active by default'}</option>
+            <option value="DRAFT">{locale === 'ru' ? 'Черновик' : 'Draft'}</option>
             <option value="ACTIVE">{locale === 'ru' ? 'Активные' : 'Active'}</option>
             <option value="PENDING">{locale === 'ru' ? 'На проверке' : 'Pending'}</option>
+            <option value="CHANGES_PENDING">{locale === 'ru' ? 'Изменения на проверке' : 'Changes pending'}</option>
+            <option value="SUBMITTED">{locale === 'ru' ? 'Отправлены' : 'Submitted'}</option>
             <option value="REJECTED">{locale === 'ru' ? 'Отклонённые' : 'Rejected'}</option>
             <option value="ARCHIVED">{locale === 'ru' ? 'Архивные' : 'Archived'}</option>
           </FieldSelect>
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => void handleExportTeams()} disabled={teams.length === 0 || exporting}>
             {exporting ? (locale === 'ru' ? 'Готовим...' : 'Preparing...') : (locale === 'ru' ? 'Выгрузить CSV' : 'Export CSV')}
           </button>
+          {eventFilter !== 'ALL' && (
+            <>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => void adminExportsApi.downloadTeams(eventFilter, 'csv', {
+                  ...(statusFilter !== 'ALL' ? { status: [statusFilter] } : {}),
+                  includeArchived: statusFilter === 'ARCHIVED',
+                  includeRejected: statusFilter === 'REJECTED',
+                })}
+              >
+                {locale === 'ru' ? 'Полная выгрузка команд CSV' : 'Full teams CSV'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => void adminExportsApi.downloadTeamMembers(eventFilter, 'csv', {
+                  ...(statusFilter !== 'ALL' ? { status: [statusFilter] } : {}),
+                  includeArchived: statusFilter === 'ARCHIVED',
+                  includeRejected: statusFilter === 'REJECTED',
+                })}
+              >
+                {locale === 'ru' ? 'Составы команд CSV' : 'Team members CSV'}
+              </button>
+            </>
+          )}
         </ToolbarRow>
 
         {loadingData ? (
@@ -218,7 +258,29 @@ export default function AdminTeamsPage() {
                       <td className="signal-muted">{new Date(team.createdAt).toLocaleDateString()}</td>
                       <td className="right">
                         <div className="signal-row-actions">
-                          <button className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Просмотр' : 'View'}</button>
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => router.push(`/${locale}/admin/teams/${team.id}`)}
+                          >
+                            {locale === 'ru' ? 'Просмотр' : 'View'}
+                          </button>
+                          {team.captainUserId && (
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => router.push(`/${locale}/admin/users/${team.captainUserId}?eventId=${team.eventId}`)}
+                            >
+                              {locale === 'ru' ? 'Профиль' : 'Profile'}
+                            </button>
+                          )}
+                          {team.status !== 'ARCHIVED' && (
+                            <button
+                              className="btn btn-danger btn-sm"
+                              onClick={() => void handleArchiveTeam(team.id)}
+                              disabled={removingId === team.id}
+                            >
+                              {removingId === team.id ? '...' : (locale === 'ru' ? 'Архивировать' : 'Archive')}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -125,7 +126,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
 
     setTeamName(myTeam.name ?? '');
     setTeamDescription(myTeam.description ?? '');
-  }, [myTeam?.id, myTeam?.name, myTeam?.description]);
+  }, [myTeam]);
 
   if (loading || !user) return null;
   if (pageLoading) {
@@ -170,6 +171,29 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       } else {
         setError(err.message || (isRu ? 'Не удалось стать участником' : 'Failed to join event'));
       }
+    } finally {
+      setActionLoading('');
+    }
+  }
+
+  async function handleCancelParticipation() {
+    const confirmed = window.confirm(
+      isRu
+        ? 'Отказаться от участия в мероприятии?'
+        : 'Cancel participation in this event?'
+    );
+    if (!confirmed) return;
+
+    setActionLoading('cancel-participation');
+    setError('');
+    setSuccess('');
+
+    try {
+      await eventsApi.unregister(event.id);
+      setSuccess(isRu ? 'Участие отменено.' : 'Participation cancelled.');
+      await loadWorkspace();
+    } catch (err: any) {
+      setError(err.message || (isRu ? 'Не удалось отменить участие' : 'Failed to cancel participation'));
     } finally {
       setActionLoading('');
     }
@@ -379,8 +403,8 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
 
       <Panel variant="elevated" className="workspace-event-panel">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, alignItems: 'center' }}>
-          <div style={{ aspectRatio: '16 / 9', borderRadius: 8, overflow: 'hidden', background: 'var(--color-bg-subtle)' }}>
-            {event.coverImageUrl ? <img src={event.coverImageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : null}
+          <div style={{ position: 'relative', aspectRatio: '16 / 9', borderRadius: 8, overflow: 'hidden', background: 'var(--color-bg-subtle)' }}>
+            {event.coverImageUrl ? <Image src={event.coverImageUrl} alt="" fill sizes="(max-width: 768px) 100vw, 400px" style={{ objectFit: 'cover' }} /> : null}
           </div>
           <div className="signal-stack">
             <SectionHeader title={isRu ? 'Статус участия' : 'Participation status'} subtitle={event.shortDescription} />
@@ -396,8 +420,17 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       {!isActiveParticipant ? (
         <Panel variant="elevated" className="workspace-event-panel">
           <SectionHeader title={isRu ? 'Стать участником' : 'Join as participant'} />
-          {participantMembership?.status === 'PENDING' ? (
-            <Notice tone="warning">{isRu ? 'Заявка участника ожидает решения организатора.' : 'Participant application is pending organizer review.'}</Notice>
+          {participantMembership?.status && ['PENDING', 'RESERVE'].includes(participantMembership.status) ? (
+            <div className="signal-stack">
+              {participantMembership.status === 'PENDING' ? (
+                <Notice tone="warning">{isRu ? 'Заявка участника ожидает решения организатора.' : 'Participant application is pending organizer review.'}</Notice>
+              ) : null}
+              <ToolbarRow>
+                <button onClick={handleCancelParticipation} disabled={actionLoading === 'cancel-participation'} className="btn btn-secondary btn-sm">
+                  {actionLoading === 'cancel-participation' ? (isRu ? 'Отменяем...' : 'Cancelling...') : (isRu ? 'Отказаться от участия' : 'Cancel participation')}
+                </button>
+              </ToolbarRow>
+            </div>
           ) : missingFields.length > 0 ? (
             <div className="signal-stack">
               <Notice tone="warning">
@@ -459,10 +492,40 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
             </ToolbarRow>
           )}
         </Panel>
+      ) : !event.isTeamBased ? (
+        <Panel variant="elevated" className="workspace-event-panel">
+          <SectionHeader
+            title={isRu ? 'Участие подтверждено' : 'Participation confirmed'}
+            subtitle={isRu ? 'Это индивидуальное мероприятие, команда не требуется.' : 'This is an individual event, no team is required.'}
+          />
+          <ToolbarRow>
+            <button
+              onClick={handleCancelParticipation}
+              disabled={actionLoading === 'cancel-participation'}
+              className="btn btn-danger btn-sm"
+            >
+              {actionLoading === 'cancel-participation'
+                ? (isRu ? 'Отменяем...' : 'Cancelling...')
+                : (isRu ? 'Отказаться от участия' : 'Cancel participation')}
+            </button>
+          </ToolbarRow>
+        </Panel>
       ) : !myTeam ? (
         <Panel variant="elevated" className="workspace-event-panel">
           <SectionHeader title={isRu ? 'Команда' : 'Team'} subtitle={isRu ? 'Создайте команду или ответьте на входящее приглашение.' : 'Create a team or respond to an incoming invitation.'} />
           <div className="signal-stack">
+            <ToolbarRow>
+              <button
+                onClick={handleCancelParticipation}
+                disabled={actionLoading === 'cancel-participation'}
+                className="btn btn-danger btn-sm"
+              >
+                {actionLoading === 'cancel-participation'
+                  ? (isRu ? 'Отменяем...' : 'Cancelling...')
+                  : (isRu ? 'Отказаться от участия' : 'Cancel participation')}
+              </button>
+            </ToolbarRow>
+
             {openInvitations.length > 0 ? (
               <IncomingInvitations
                 locale={locale}
@@ -472,6 +535,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
                 onDecline={handleDeclineInvitation}
               />
             ) : null}
+
             <div className="signal-stack">
               <FieldInput value={teamName} onChange={(event) => setTeamName(event.target.value)} placeholder={isRu ? 'Название команды' : 'Team name'} />
               <FieldInput value={teamDescription} onChange={(event) => setTeamDescription(event.target.value)} placeholder={isRu ? 'Комментарий' : 'Comment'} />
@@ -479,33 +543,51 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
                 <button onClick={handleCreateTeam} disabled={actionLoading === 'create-team' || !teamName.trim()} className="btn btn-primary btn-sm">
                   {actionLoading === 'create-team' ? (isRu ? 'Создаём...' : 'Creating...') : (isRu ? 'Создать команду' : 'Create team')}
                 </button>
-                <Link href={`/${locale}/cabinet/team-invitations`} className="btn btn-secondary btn-sm">{isRu ? 'Все приглашения' : 'All invitations'}</Link>
+                <Link href={`/${locale}/cabinet/team-invitations`} className="btn btn-secondary btn-sm">
+                  {isRu ? 'Все приглашения' : 'All invitations'}
+                </Link>
               </ToolbarRow>
             </div>
           </div>
         </Panel>
       ) : (
-        <TeamSlotsWorkspace
-          locale={locale}
-          userId={user.id}
-          event={event}
-          teamSlots={teamSlots}
-          isCaptain={isCaptain}
-          focusTeamEditor={openTeamEditor}
-          actionLoading={actionLoading}
-          teamName={teamName}
-          teamDescription={teamDescription}
-          slotEmails={slotEmails}
-          onTeamNameChange={setTeamName}
-          onTeamDescriptionChange={setTeamDescription}
-          onSlotEmailChange={(slotIndex, value) => setSlotEmails((previous) => ({ ...previous, [slotIndex]: value }))}
-          onInvite={handleInvite}
-          onCancelInvitation={handleCancelInvitation}
-          onRemoveMember={handleRemoveMember}
-          onTransferCaptain={handleTransferCaptain}
-          onUpdateTeam={handleUpdateTeam}
-          onSubmitTeam={handleSubmitTeam}
-        />
+        <>
+          <Panel variant="elevated" className="workspace-event-panel">
+            <ToolbarRow>
+              <button
+                onClick={handleCancelParticipation}
+                disabled={actionLoading === 'cancel-participation'}
+                className="btn btn-danger btn-sm"
+              >
+                {actionLoading === 'cancel-participation'
+                  ? (isRu ? 'Отменяем...' : 'Cancelling...')
+                  : (isRu ? 'Отказаться от участия' : 'Cancel participation')}
+              </button>
+            </ToolbarRow>
+          </Panel>
+
+          <TeamSlotsWorkspace
+            locale={locale}
+            userId={user.id}
+            event={event}
+            teamSlots={teamSlots}
+            isCaptain={isCaptain}
+            focusTeamEditor={openTeamEditor}
+            actionLoading={actionLoading}
+            teamName={teamName}
+            teamDescription={teamDescription}
+            slotEmails={slotEmails}
+            onTeamNameChange={setTeamName}
+            onTeamDescriptionChange={setTeamDescription}
+            onSlotEmailChange={(slotIndex, value) => setSlotEmails((previous) => ({ ...previous, [slotIndex]: value }))}
+            onInvite={handleInvite}
+            onCancelInvitation={handleCancelInvitation}
+            onRemoveMember={handleRemoveMember}
+            onTransferCaptain={handleTransferCaptain}
+            onUpdateTeam={handleUpdateTeam}
+            onSubmitTeam={handleSubmitTeam}
+          />
+        </>
       )}
     </div>
   );

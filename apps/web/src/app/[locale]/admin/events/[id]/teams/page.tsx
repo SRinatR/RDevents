@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
-import { adminApi } from '@/lib/api';
+import { adminApi, adminExportsApi } from '@/lib/api';
 import {
   EmptyState,
   FieldInput,
@@ -203,7 +203,28 @@ export default function EventTeamsPage() {
                   <option key={status} value={status}>{status === 'ALL' ? (locale === 'ru' ? 'Все статусы' : 'All statuses') : status}</option>
                 ))}
               </FieldSelect>
-              
+              <div className="export-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    if (!eventId) return;
+                    adminExportsApi.downloadTeams(eventId, 'csv');
+                  }}
+                >
+                  {locale === 'ru' ? 'Выгрузить CSV' : 'Export CSV'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    if (!eventId) return;
+                    adminExportsApi.downloadTeamMembers(eventId, 'csv');
+                  }}
+                >
+                  {locale === 'ru' ? 'Выгрузить участников CSV' : 'Export members CSV'}
+                </button>
+              </div>
             </ToolbarRow>
 
             {filteredTeams.length === 0 ? (

@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -53,7 +54,7 @@ function ResetPasswordPageContent() {
       <div className="auth-shell">
         <div className="auth-brand-panel">
           <Link href={`/${locale}`} className="public-logo">
-            <img src="/site-logo.png" alt="RDEvents" className="public-logo-mark public-logo-mark-auth" />
+            <Image src="/site-logo.png" alt="RDEvents" width={120} height={40} className="public-logo-mark public-logo-mark-auth" />
           </Link>
           <div className="auth-brand-content">
             <h1>{locale === 'ru' ? 'Восстановление пароля' : 'Password reset'}</h1>
@@ -89,7 +90,7 @@ function ResetPasswordPageContent() {
       <div className="auth-shell">
         <div className="auth-brand-panel">
           <Link href={`/${locale}`} className="public-logo">
-            <img src="/site-logo.png" alt="RDEvents" className="public-logo-mark public-logo-mark-auth" />
+            <Image src="/site-logo.png" alt="RDEvents" width={120} height={40} className="public-logo-mark public-logo-mark-auth" />
           </Link>
           <div className="auth-brand-content">
             <h1>{locale === 'ru' ? 'Пароль изменён' : 'Password changed'}</h1>
@@ -124,7 +125,7 @@ function ResetPasswordPageContent() {
     <div className="auth-shell">
       <div className="auth-brand-panel">
         <Link href={`/${locale}`} className="public-logo">
-          <img src="/site-logo.png" alt="RDEvents" className="public-logo-mark public-logo-mark-auth" />
+          <Image src="/site-logo.png" alt="RDEvents" width={120} height={40} className="public-logo-mark public-logo-mark-auth" />
         </Link>
         <div className="auth-brand-content">
           <h1>{locale === 'ru' ? 'Новый пароль' : 'New password'}</h1>

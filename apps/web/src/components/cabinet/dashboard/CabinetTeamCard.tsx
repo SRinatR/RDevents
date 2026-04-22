@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -32,9 +33,11 @@ function TeamAvatar({ name, src }: { name: string; src?: string | null }) {
 
   if (src) {
     return (
-      <img 
+      <Image 
         src={src} 
         alt={name} 
+        width={40}
+        height={40}
         className="team-member-avatar" 
       />
     );
@@ -194,6 +197,10 @@ function TeamActionNotice({ team, locale }: { team: TeamData; locale: string }) 
 }
 
 export function CabinetTeamCard({ team, event, locale, onTeamChanged }: CabinetTeamCardProps) {
+  if (!event.isTeamBased) {
+    return null;
+  }
+
   const teamEditHref = getTeamEditHref(event, locale);
   const teamOpenHref = `/${locale}/cabinet/events/${event.slug}`;
   const memberTarget = team?.requiredActiveMembers ?? team?.maxMembers ?? team?.membersCount ?? 0;

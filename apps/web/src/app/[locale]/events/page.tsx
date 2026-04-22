@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -180,7 +181,7 @@ export default function EventsPage() {
                       >
                         <div className="catalog-v6-card-cover">
                           {event.coverImageUrl
-                            ? <img src={event.coverImageUrl} alt={event.title} />
+                            ? <Image src={event.coverImageUrl} alt={event.title} fill sizes="(max-width: 768px) 100vw, 400px" style={{ objectFit: 'cover' }} />
                             : <div className="cover-fallback"><span>{event.title.slice(0, 2).toUpperCase()}</span></div>}
                         </div>
                         <div className="catalog-v6-card-body">

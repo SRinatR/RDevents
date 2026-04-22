@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -186,7 +187,7 @@ export default function CabinetAllEventsPage() {
             {leadEvent ? (
               <div id={`event-${leadEvent.slug}`} className="workspace-event-lead">
                 <div className="workspace-event-lead-cover">
-                  {leadEvent.coverImageUrl ? <img src={leadEvent.coverImageUrl} alt={leadEvent.title} /> : <div className="cover-fallback"><span>{leadEvent.title?.slice(0, 2).toUpperCase()}</span></div>}
+                  {leadEvent.coverImageUrl ? <Image src={leadEvent.coverImageUrl} alt={leadEvent.title} fill sizes="(max-width: 768px) 100vw, 500px" style={{ objectFit: 'cover' }} /> : <div className="cover-fallback"><span>{leadEvent.title?.slice(0, 2).toUpperCase()}</span></div>}
                 </div>
                 <div className="workspace-event-lead-body">
                   <h2>{leadEvent.title}</h2>
@@ -221,7 +222,7 @@ export default function CabinetAllEventsPage() {
                 return (
                   <div key={event.id} id={`event-${event.slug}`} className="signal-ranked-item cabinet-list-item workspace-event-list-item">
                     <div className="cabinet-list-item-main">
-                      <div className="signal-avatar cabinet-list-avatar">{event.coverImageUrl ? <img src={event.coverImageUrl} alt="" /> : event.title?.slice(0, 2).toUpperCase()}</div>
+                      <div className="signal-avatar cabinet-list-avatar">{event.coverImageUrl ? <Image src={event.coverImageUrl} alt="" width={48} height={48} style={{ objectFit: 'cover' }} /> : event.title?.slice(0, 2).toUpperCase()}</div>
                       <div>
                         <strong>{event.title}</strong>
                         <div className="signal-muted">{event.location} · {formatDate(event.startsAt)} — {formatDate(event.endsAt)}</div>

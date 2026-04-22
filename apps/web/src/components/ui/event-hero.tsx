@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { StatusBadge } from './status-badge';
 
@@ -46,7 +47,7 @@ export function EventHero({ event, locale }: EventHeroProps) {
     <div className="event-hero-card">
       {event.coverImage && (
         <div className="event-hero-cover">
-          <img src={event.coverImage} alt={event.title} />
+          <Image src={event.coverImage} alt={event.title} width={1200} height={400} style={{ width: '100%', height: 'auto' }} />
           <div className="event-hero-overlay" />
         </div>
       )}

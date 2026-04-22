@@ -1,9 +1,10 @@
 import { prisma } from '../../db/prisma.js';
 import { logger } from '../../common/logger.js';
 import { buildPublicMediaUrl } from '../../common/storage.js';
+import type { EventTeamStatus } from '@prisma/client';
 
 export type ExportScope = 'participants' | 'volunteers' | 'teams' | 'team_members' | 'all';
-export type ExportFormat = 'csv' | 'xlsx' | 'json';
+export type ExportFormat = 'csv' | 'json';
 
 export interface ExportConfig {
   scope: ExportScope;
@@ -106,29 +107,115 @@ export async function deleteExportPreset(presetId: string) {
 }
 
 export interface ParticipantExportRow {
-  id: string;
-  email: string;
+  eventId: string;
+  eventTitle: string;
+  memberId: string;
+  userId: string;
+  participantRole: string;
+  participantStatus: string;
+  assignedAt: string;
+  approvedAt: string;
+  rejectedAt: string;
+  removedAt: string;
+  notes: string;
+  registrationAnswersJson: string;
   lastNameCyrillic: string;
   firstNameCyrillic: string;
   middleNameCyrillic: string;
   lastNameLatin: string;
   firstNameLatin: string;
-  birthDate: string;
+  fullNameCyrillic: string;
+  fullNameLatin: string;
+  email: string;
   phone: string;
   telegram: string;
+  birthDate: string;
+  city: string;
+  gender: string;
+  nativeLanguage: string;
+  communicationLanguage: string;
+  bio: string;
+  avatarUrl: string;
+  teamId: string;
   teamName: string;
   teamStatus: string;
-  participantStatus: string;
-  registeredAt: string;
-  hasPhoto: boolean;
-  photoUrl: string;
+  teamRole: string;
+  teamMemberStatus: string;
 }
 
-export async function exportParticipants(eventId: string, config: ExportConfig) {
-  const participants = await prisma.eventMember.findMany({
+export interface TeamExportRow {
+  teamId: string;
+  teamName: string;
+  teamStatus: string;
+  description: string;
+  eventId: string;
+  eventTitle: string;
+  captainUserId: string;
+  captainName: string;
+  captainEmail: string;
+  membersCountAll: number;
+  membersCountActive: number;
+  memberUserIds: string;
+  memberNames: string;
+  memberEmails: string;
+  createdAt: string;
+}
+
+export interface TeamMemberExportRow {
+  eventId: string;
+  eventTitle: string;
+  teamId: string;
+  teamName: string;
+  teamStatus: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  teamRole: string;
+  teamMemberStatus: string;
+  joinedAt: string;
+}
+
+interface ExtendedExportFilters {
+  status?: string[];
+  hasTeam?: boolean;
+  hasPhoto?: boolean;
+  includeArchived?: boolean;
+  includeRejected?: boolean;
+  includeCancelled?: boolean;
+  includeRemoved?: boolean;
+}
+
+export async function exportParticipants(eventId: string, config: { filters?: ExtendedExportFilters }) {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, title: true },
+  });
+
+  if (!event) {
+    throw new Error('Event not found');
+  }
+
+  const statusFilter = config.filters?.status;
+  const includeArchived = config.filters?.includeArchived ?? false;
+  const includeRejected = config.filters?.includeRejected ?? false;
+  const includeCancelled = config.filters?.includeCancelled ?? false;
+  const includeRemoved = config.filters?.includeRemoved ?? false;
+
+  const statusWhere: string[] = [];
+  if (statusFilter && statusFilter.length > 0) {
+    statusWhere.push(...statusFilter);
+  } else {
+    if (!includeArchived) statusWhere.push('ACTIVE', 'PENDING', 'RESERVE');
+    if (includeRejected) statusWhere.push('REJECTED');
+    if (includeCancelled) statusWhere.push('CANCELLED');
+    if (includeRemoved) statusWhere.push('REMOVED');
+  }
+
+  const members = await prisma.eventMember.findMany({
     where: {
       eventId,
       role: 'PARTICIPANT',
+      ...(statusWhere.length > 0 ? { status: { in: statusWhere } } : {}),
     } as any,
     include: {
       user: {
@@ -140,116 +227,220 @@ export async function exportParticipants(eventId: string, config: ExportConfig) 
           middleNameCyrillic: true,
           lastNameLatin: true,
           firstNameLatin: true,
+          fullNameCyrillic: true,
+          fullNameLatin: true,
           birthDate: true,
           phone: true,
           telegram: true,
+          city: true,
+          nativeLanguage: true,
+          communicationLanguage: true,
+          bio: true,
           avatarUrl: true,
-          avatarAsset: true,
+          extendedProfile: {
+            select: {
+              gender: true,
+            },
+          },
         },
       },
+      event: { select: { id: true, title: true } },
     },
   });
 
   const teamMemberships = await prisma.eventTeamMember.findMany({
     where: {
       team: { eventId },
-      status: { notIn: ['REMOVED', 'LEFT'] },
+      ...(includeRemoved ? {} : { status: { notIn: ['REMOVED', 'LEFT'] } }),
     },
     include: {
-      team: {
-        select: {
-          id: true,
-          name: true,
-          status: true,
-        },
-      },
+      team: { select: { id: true, name: true, status: true } },
     },
   });
 
-  const membershipMap = new Map(
-    teamMemberships.map(m => [m.userId, m])
-  );
+  const membershipMap = new Map<string, typeof teamMemberships[0]>();
+  for (const m of teamMemberships) {
+    membershipMap.set(m.userId, m);
+  }
 
-  const rows = participants
+  const submissions = await prisma.eventRegistrationFormSubmission.findMany({
+    where: { eventId },
+    select: { userId: true, answersJson: true },
+  });
+  const submissionMap = new Map(submissions.map(s => [s.userId, s.answersJson]));
+
+  return members
     .filter(p => {
       if (config.filters?.hasTeam === true && !membershipMap.has(p.userId)) return false;
       if (config.filters?.hasTeam === false && membershipMap.has(p.userId)) return false;
-      const hasPhoto = !!(p.user.avatarUrl || p.user.avatarAsset);
-      if (config.filters?.hasPhoto === true && !hasPhoto) return false;
-      if (config.filters?.hasPhoto === false && hasPhoto) return false;
       return true;
     })
     .map(p => {
-      const teamMember = membershipMap.get(p.userId);
+      const tm = membershipMap.get(p.userId);
+      const registrationAnswers = submissionMap.get(p.userId) || '';
+
       return {
-        id: p.user.id,
-        email: p.user.email,
+        eventId: event.id,
+        eventTitle: event.title,
+        memberId: p.id,
+        userId: p.user.id,
+        participantRole: p.role,
+        participantStatus: p.status,
+        assignedAt: p.assignedAt?.toISOString() ?? '',
+        approvedAt: p.approvedAt?.toISOString() ?? '',
+        rejectedAt: p.rejectedAt?.toISOString() ?? '',
+        removedAt: p.removedAt?.toISOString() ?? '',
+        notes: p.notes ?? '',
+        registrationAnswersJson: typeof registrationAnswers === 'string' ? registrationAnswers : JSON.stringify(registrationAnswers),
         lastNameCyrillic: p.user.lastNameCyrillic ?? '',
         firstNameCyrillic: p.user.firstNameCyrillic ?? '',
         middleNameCyrillic: p.user.middleNameCyrillic ?? '',
         lastNameLatin: p.user.lastNameLatin ?? '',
         firstNameLatin: p.user.firstNameLatin ?? '',
-        birthDate: p.user.birthDate ? new Date(p.user.birthDate).toLocaleDateString() : '',
+        fullNameCyrillic: p.user.fullNameCyrillic ?? '',
+        fullNameLatin: p.user.fullNameLatin ?? '',
+        email: p.user.email,
         phone: p.user.phone ?? '',
         telegram: p.user.telegram ?? '',
-        teamName: teamMember?.team?.name ?? '',
-        teamStatus: teamMember?.team?.status ?? '',
-        participantStatus: p.status,
-        registeredAt: new Date(p.assignedAt).toLocaleDateString(),
-        hasPhoto: !!(p.user.avatarUrl || p.user.avatarAsset),
-        photoUrl: p.user.avatarUrl ?? (p.user.avatarAsset ? buildPublicMediaUrl((p.user.avatarAsset as any).storageKey) : ''),
+        birthDate: p.user.birthDate ? new Date(p.user.birthDate).toISOString().split('T')[0] : '',
+        city: p.user.city ?? '',
+        gender: p.user.extendedProfile?.gender ?? '',
+        nativeLanguage: p.user.nativeLanguage ?? '',
+        communicationLanguage: p.user.communicationLanguage ?? '',
+        bio: p.user.bio ?? '',
+        avatarUrl: p.user.avatarUrl ?? '',
+        teamId: tm?.team?.id ?? '',
+        teamName: tm?.team?.name ?? '',
+        teamStatus: tm?.team?.status ?? '',
+        teamRole: tm?.role ?? '',
+        teamMemberStatus: tm?.status ?? '',
       };
     });
-
-  return rows;
 }
 
-export interface TeamExportRow {
-  id: string;
-  name: string;
-  description: string;
-  captainName: string;
-  captainEmail: string;
-  membersCount: number;
-  status: string;
-  createdAt: string;
-}
+export async function exportTeams(eventId: string, config: { filters?: ExtendedExportFilters }) {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, title: true },
+  });
 
-export async function exportTeams(eventId: string, config: ExportConfig) {
+  if (!event) {
+    throw new Error('Event not found');
+  }
+
+  const includeArchived = config.filters?.includeArchived ?? false;
+  const includeRejected = config.filters?.includeRejected ?? false;
+
+  const statusList: EventTeamStatus[] = ['ACTIVE', 'PENDING', 'SUBMITTED', 'DRAFT', 'CHANGES_PENDING'];
+  if (includeRejected) statusList.push('REJECTED');
+  if (includeArchived) statusList.push('ARCHIVED');
+
   const teams = await prisma.eventTeam.findMany({
     where: {
       eventId,
+      ...(statusList.length > 0 ? { status: { in: statusList } } : {}),
     },
     include: {
       captainUser: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
+        select: { id: true, name: true, email: true },
       },
       members: {
         where: { status: { notIn: ['REMOVED', 'LEFT'] } },
-        select: { id: true },
+        select: {
+          id: true,
+          userId: true,
+          role: true,
+          status: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
       },
     },
   });
 
-  const rows = teams.map(t => ({
-    id: t.id,
-    name: t.name,
-    description: t.description ?? '',
-    captainName: t.captainUser?.name ?? '',
-    captainEmail: t.captainUser?.email ?? '',
-    membersCount: t.members.length,
-    status: t.status,
-    createdAt: new Date(t.createdAt).toLocaleDateString(),
-  }));
+  return teams.map(t => {
+    const memberIds = t.members.map(m => m.userId);
+    const memberNames = t.members.map(m => m.user?.name ?? '').filter(Boolean);
+    const memberEmails = t.members.map(m => m.user?.email ?? '').filter(Boolean);
+    const activeCount = t.members.filter(m => m.status === 'ACTIVE').length;
 
-  return rows;
+    return {
+      teamId: t.id,
+      teamName: t.name,
+      teamStatus: t.status,
+      description: t.description ?? '',
+      eventId: event.id,
+      eventTitle: event.title,
+      captainUserId: t.captainUserId ?? '',
+      captainName: t.captainUser?.name ?? '',
+      captainEmail: t.captainUser?.email ?? '',
+      membersCountAll: t.members.length,
+      membersCountActive: activeCount,
+      memberUserIds: memberIds.join('; '),
+      memberNames: memberNames.join('; '),
+      memberEmails: memberEmails.join('; '),
+      createdAt: t.createdAt.toISOString(),
+    };
+  });
 }
 
-export interface AvatarBundleResult {
+export async function exportTeamMembers(eventId: string, config: { filters?: ExtendedExportFilters }) {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, title: true },
+  });
+
+  if (!event) {
+    throw new Error('Event not found');
+  }
+
+  const includeArchived = config.filters?.includeArchived ?? false;
+  const includeRejected = config.filters?.includeRejected ?? false;
+
+  const teamStatusList: string[] = [];
+  if (!includeArchived) teamStatusList.push('ACTIVE', 'PENDING', 'SUBMITTED', 'DRAFT');
+  if (includeRejected) teamStatusList.push('REJECTED', 'CHANGES_PENDING');
+
+  const memberStatusList: string[] = [];
+  if (!includeArchived) memberStatusList.push('ACTIVE', 'PENDING');
+  if (includeRejected) memberStatusList.push('REJECTED');
+
+  const whereCondition: Record<string, unknown> = {
+    team: {
+      eventId,
+      ...(teamStatusList.length > 0 ? { status: { in: teamStatusList } } : {}),
+    },
+    ...(memberStatusList.length > 0 ? { status: { in: memberStatusList } } : {}),
+  };
+
+  const teamMembers = await prisma.eventTeamMember.findMany({
+    where: whereCondition as any,
+    include: {
+      team: { select: { id: true, name: true, status: true } },
+      user: { select: { id: true, name: true, email: true } },
+    },
+  });
+
+  return teamMembers.map(m => ({
+    eventId: event.id,
+    eventTitle: event.title,
+    teamId: m.team.id,
+    teamName: m.team.name,
+    teamStatus: m.team.status,
+    userId: m.user.id,
+    userName: m.user.name ?? '',
+    userEmail: m.user.email,
+    teamRole: m.role,
+    teamMemberStatus: m.status,
+    joinedAt: m.joinedAt.toISOString(),
+  }));
+}
+  export interface AvatarBundleResult {
   jobId: string;
   format: string;
   contains: string[];
@@ -371,7 +562,7 @@ export async function generateAvatarBundle(
   return {
     jobId,
     format: 'zip',
-    contains: ['avatars/', 'manifest.csv', 'manifest.xlsx'],
+    contains: ['avatars/', 'manifest.csv'],
     participants: manifest,
   };
 }

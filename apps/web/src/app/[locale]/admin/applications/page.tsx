@@ -158,8 +158,10 @@ export default function AdminApplicationsPage() {
         }
       } else if (row.applicationType === 'VOLUNTEER') {
         await adminApi.updateVolunteerStatus(row.eventId, row.id, { status: nextStatus });
-      } else {
+      } else if (row.applicationType === 'PARTICIPANT') {
         await adminApi.updateParticipantStatus(row.eventId, row.id, { status: nextStatus });
+      } else {
+        throw new Error(locale === 'ru' ? 'Неизвестный тип заявки' : 'Unknown application type');
       }
       setApplications((prev) => prev.map((item) => (item.id === row.id ? { ...item, status: nextStatus } : item)));
       setStickyIds((prev) => ({ ...prev, [row.id]: true }));

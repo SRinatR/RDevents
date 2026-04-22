@@ -146,7 +146,30 @@
     "createEvent": "Create event",
     "editEvent": "Edit event",
     "createAdmin": "Create admin",
-    "export": "Export"
+    "export": "Export",
+    "roles": {
+      "PARTICIPANT": "Participant",
+      "VOLUNTEER": "Volunteer"
+    },
+    "statuses": {
+      "ACTIVE": "Active",
+      "PENDING": "Pending",
+      "RESERVE": "Reserve",
+      "REJECTED": "Rejected",
+      "CANCELLED": "Cancelled",
+      "REMOVED": "Removed"
+    },
+    "participantActions": {
+      "view": "View",
+      "profile": "Profile",
+      "reject": "Reject",
+      "remove": "Remove",
+      "confirmReject": "Are you sure you want to reject this participant?",
+      "confirmRemove": "Are you sure you want to remove this participant from the event?",
+      "rejectSuccess": "Participant rejected",
+      "removeSuccess": "Participant removed from event",
+      "error": "Failed to perform action"
+    }
   },
   "analytics": {
     "title": "Analytics",

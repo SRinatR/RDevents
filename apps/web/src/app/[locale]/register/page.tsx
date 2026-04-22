@@ -1,11 +1,12 @@
 'use client';
 
+import Image from 'next/image';
 import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../hooks/useAuth';
-import { ApiError, authApi } from '../../../lib/api';
+import { authApi, ApiError } from '../../../lib/api';
 import { useRouteLocale } from '../../../hooks/useRouteParams';
 
 type Step = 1 | 2 | 3;
@@ -168,7 +169,7 @@ function RegisterPageContent() {
     <div className="auth-shell">
       <div className="auth-brand-panel">
           <Link href={`/${locale}`} className="public-logo">
-            <img src="/site-logo.png" alt="Русский Дом" className="public-logo-mark public-logo-mark-auth" />
+            <Image src="/site-logo.png" alt="Русский Дом" width={120} height={40} className="public-logo-mark public-logo-mark-auth" priority />
           </Link>
         <div className="auth-brand-content">
           <h1>{isRu ? 'Создайте аккаунт участника' : 'Create your participant account'}</h1>

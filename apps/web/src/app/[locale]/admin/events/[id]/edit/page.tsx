@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../../../../hooks/useAuth';
@@ -385,8 +386,8 @@ export default function EditEventPage() {
                   background: coverDragActive ? 'var(--color-primary-subtle)' : 'var(--color-bg-subtle)',
                 }}
               >
-                <div style={{ aspectRatio: '16 / 9', borderRadius: 8, overflow: 'hidden', background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-                  {form.coverImageUrl ? <img src={form.coverImageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--color-text-muted)', fontWeight: 800 }}>{isRu ? 'Превью' : 'Preview'}</div>}
+                <div style={{ position: 'relative', aspectRatio: '16 / 9', borderRadius: 8, overflow: 'hidden', background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+                  {form.coverImageUrl ? <Image src={form.coverImageUrl} alt="" fill sizes="(max-width: 768px) 100vw, 400px" style={{ objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--color-text-muted)', fontWeight: 800 }}>{isRu ? 'Превью' : 'Preview'}</div>}
                 </div>
                 <div style={{ display: 'grid', gap: 10 }}>
                   <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>

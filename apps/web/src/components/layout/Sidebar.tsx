@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -71,7 +72,7 @@ export default function Sidebar({ locale, userName, userEmail, userAvatar }: Sid
     <aside className="cabinet-rail">
       <div className="cabinet-user-block">
         <div className="signal-avatar cabinet-avatar">
-          {userAvatar ? <img src={userAvatar} alt="" /> : initials}
+          {userAvatar ? <Image src={userAvatar} alt="" width={40} height={40} /> : initials}
         </div>
         <div className="cabinet-user-content">
           <h2>{userName || displayName}</h2>

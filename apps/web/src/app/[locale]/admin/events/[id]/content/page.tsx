@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -67,7 +68,7 @@ export default function EventContentPage() {
           <Panel variant="elevated" className="admin-command-panel">
             <SectionHeader title={locale === 'ru' ? 'Публичная карточка' : 'Public card'} subtitle={event.slug ? `/${event.slug}` : undefined} />
             {(event as any).coverImageUrl ? (
-              <img className="admin-event-cover-preview" src={(event as any).coverImageUrl} alt="" />
+              <Image className="admin-event-cover-preview" src={(event as any).coverImageUrl} alt="" width={400} height={200} style={{ objectFit: 'cover' }} />
             ) : (
               <EmptyState title={locale === 'ru' ? 'Обложка не задана' : 'No cover image'} description={locale === 'ru' ? 'Добавьте изображение в настройках события.' : 'Add an image from event settings.'} />
             )}

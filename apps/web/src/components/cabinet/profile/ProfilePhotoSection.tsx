@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { Notice } from '@/components/ui/signal-primitives';
 import type { AuthUser } from '@/hooks/useAuth';
@@ -94,7 +95,7 @@ export function ProfilePhotoSection({
             onChange={(event) => void handleFile(event.target.files?.[0])}
           />
           <div className="profile-photo-preview">
-            {displayUrl ? <img src={displayUrl} alt="" /> : <span>{initials}</span>}
+            {displayUrl ? <Image src={displayUrl} alt="" width={120} height={120} style={{ objectFit: 'cover' }} /> : <span>{initials}</span>}
           </div>
           <div className="profile-upload-copy">
             <strong>{locale === 'ru' ? 'Загрузите новое фото' : 'Upload a new photo'}</strong>

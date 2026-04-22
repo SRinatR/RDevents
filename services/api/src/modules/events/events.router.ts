@@ -47,6 +47,7 @@ const registrationFlowErrors: Record<string, [number, string]> = {
   PARTICIPANT_APPROVAL_REQUIRED: [403, 'Approved participant status is required before team actions'],
   TEAM_APPROVAL_PENDING: [409, 'Team is waiting for admin approval'],
   TEAM_APPROVED_LOCKED: [409, 'Approved team is locked. Submit a change request to edit it'],
+  TEAM_SUBMITTED_LOCKED: [409, 'Team is submitted and locked for editing'],
   TEAM_EMPTY: [400, 'Team has no members'],
   TEAM_MIN_SIZE: [400, 'Team does not meet minimum size'],
   TEAM_NOT_FULL: [400, 'Team must be full before submission'],
@@ -167,6 +168,13 @@ eventsRouter.delete('/:id/register', authenticate, async (req, res) => {
     const membership = await unregisterFromEvent(String(req.params['id']), user.id);
     res.json({ membership });
   } catch (err: any) {
+    if (err.code === 'CAPTAIN_CANNOT_CANCEL_EVENT_PARTICIPATION') {
+      res.status(409).json({
+        error: 'сначала передайте капитанство или решите вопрос с командой',
+        code: err.code,
+      });
+      return;
+    }
     const map: Record<string, [number, string]> = {
       REGISTRATION_NOT_FOUND: [404, 'Registration not found'],
     };
@@ -337,6 +345,7 @@ eventsRouter.patch('/:id/teams/:teamId', authenticate, async (req, res) => {
       EVENT_NOT_FOUND: [404, 'Event not found'],
       TEAM_NOT_FOUND: [404, 'Team not found'],
       NOT_TEAM_CAPTAIN: [403, 'Only team captain can update team'],
+      TEAM_SUBMITTED_LOCKED: [409, 'Team is submitted and locked for editing'],
     });
   }
 });
@@ -376,6 +385,7 @@ eventsRouter.post('/:id/teams/:teamId/leave', authenticate, async (req, res) => 
       TEAM_NOT_FOUND: [404, 'Team not found'],
       NOT_IN_TEAM: [400, 'You are not in this team'],
       CAPTAIN_CANNOT_LEAVE: [400, 'Captain cannot leave team. Transfer captainship or delete team'],
+      TEAM_SUBMITTED_LOCKED: [409, 'Team is submitted and locked for editing'],
     });
   }
 });
@@ -444,6 +454,7 @@ eventsRouter.delete('/:id/teams/:teamId/members/:userId', authenticate, async (r
       MEMBER_NOT_FOUND: [404, 'Team member not found'],
       CANNOT_REMOVE_CAPTAIN: [400, 'Cannot remove team captain'],
       TEAM_APPROVED_LOCKED: [409, 'Approved team is locked. Submit a change request to edit it'],
+      TEAM_SUBMITTED_LOCKED: [409, 'Team is submitted and locked for editing'],
     });
   }
 });
@@ -468,6 +479,7 @@ eventsRouter.post('/:id/teams/:teamId/members/:userId/transfer-captain', authent
       TARGET_MEMBER_NOT_ACTIVE: [400, 'Captain role can only be transferred to active team member'],
       CANNOT_TRANSFER_TO_SELF: [400, 'Cannot transfer captain role to yourself'],
       TEAM_APPROVED_LOCKED: [409, 'Approved team is locked. Submit a change request to edit it'],
+      TEAM_SUBMITTED_LOCKED: [409, 'Team is submitted and locked for editing'],
     });
   }
 });
