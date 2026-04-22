@@ -423,6 +423,13 @@ export const adminApi = {
       body: { notes },
     }),
 
+  updateParticipantStatus: (eventId: string, memberId: string, body: { status: 'ACTIVE' | 'RESERVE' | 'REJECTED' | 'REMOVED'; notes?: string }) =>
+    request<{ membership: any }>(`/api/admin/events/${eventId}/participations/${memberId}`, {
+      method: 'PATCH',
+      auth: true,
+      body,
+    }),
+
   listApplications: (params?: {
     search?: string;
     eventId?: string;

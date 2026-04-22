@@ -950,3 +950,76 @@ adminEventsRouter.post('/:id/participants/:memberId/reject', async (req, res) =>
   await notifyParticipantStatusChanged(eventId, updated.userId, updated.status, updated.notes);
   res.json({ membership: updated });
 });
+
+// PATCH /admin/events/:id/participations/:memberId — unified participant status update
+adminEventsRouter.patch('/:id/participations/:memberId', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  const memberId = req.params['memberId']!;
+  if (!(await canManageEvent(user, eventId))) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  const status = req.body?.status as EventMemberStatus;
+  const VALID_PARTICIPANT_STATUSES: EventMemberStatus[] = ['ACTIVE', 'RESERVE', 'REJECTED', 'REMOVED'];
+  if (!status || !VALID_PARTICIPANT_STATUSES.includes(status)) {
+    res.status(400).json({ error: 'Invalid participant status. Must be one of: ACTIVE, RESERVE, REJECTED, REMOVED' });
+    return;
+  }
+
+  const membership = await prisma.eventMember.findUnique({
+    where: { id: memberId },
+    include: { user: { select: { id: true, name: true, email: true } } },
+  });
+
+  if (!membership || membership.eventId !== eventId || membership.role !== 'PARTICIPANT') {
+    res.status(404).json({ error: 'Participant not found' });
+    return;
+  }
+
+  const activeTeamStatuses: EventTeamStatus[] = ['ACTIVE', 'PENDING', 'SUBMITTED', 'CHANGES_PENDING'];
+  const isTeamCaptain = await prisma.eventTeam.findFirst({
+    where: {
+      eventId,
+      captainUserId: membership.userId,
+      status: { in: activeTeamStatuses },
+    },
+  });
+  if (isTeamCaptain) {
+    res.status(409).json({
+      error: 'PARTICIPANT_IS_TEAM_CAPTAIN',
+      message: 'Сначала передайте капитанство или архивируйте команду',
+    });
+    return;
+  }
+
+  const updateData: Record<string, unknown> = {
+    status,
+    notes: req.body?.notes ?? undefined,
+    approvedAt: status === 'ACTIVE' ? new Date() : null,
+    rejectedAt: status === 'REJECTED' ? new Date() : null,
+    removedAt: status === 'REMOVED' ? new Date() : null,
+  };
+
+  const updated = await prisma.$transaction(async (tx: any) => {
+    const result = await tx.eventMember.update({
+      where: { id: memberId },
+      data: updateData,
+      include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+    });
+
+    const wasActive = membership.status === 'ACTIVE';
+    const nowActive = status === 'ACTIVE';
+    if (wasActive && !nowActive) {
+      await tx.event.update({ where: { id: eventId }, data: { registrationsCount: { decrement: 1 } } });
+    } else if (!wasActive && nowActive) {
+      await tx.event.update({ where: { id: eventId }, data: { registrationsCount: { increment: 1 } } });
+    }
+
+    return result;
+  });
+
+  await notifyParticipantStatusChanged(eventId, updated.userId, updated.status, updated.notes);
+  res.json({ membership: updated });
+});

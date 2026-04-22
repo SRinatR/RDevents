@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
 import { adminApi } from '@/lib/api';
-import { EmptyState, FieldInput, FieldSelect, LoadingLines, MetricCard, Notice, Panel, SectionHeader, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, MetricCard, Notice, Panel, SectionHeader, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 import { EventNotFound, EventWorkspaceHeader, formatAdminDateTime, memberStatusTone, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
 
 const STATUS_FILTERS = ['ALL', 'PENDING', 'ACTIVE', 'RESERVE', 'REJECTED', 'CANCELLED', 'REMOVED'] as const;
@@ -88,20 +88,14 @@ export default function EventRegistrationsPage() {
     incomplete: members.filter((member) => completeness(member) < 100).length,
   }), [members, requiredEventFields]);
 
-  const updateStatus = async (memberId: string, nextStatus: 'ACTIVE' | 'RESERVE' | 'REJECTED' | 'CANCELLED') => {
+  const updateStatus = async (memberId: string, nextStatus: 'ACTIVE' | 'RESERVE' | 'REJECTED' | 'REMOVED') => {
     if (!eventId) return;
     setActionId(memberId);
     setError('');
     setSuccess('');
 
     try {
-      if (nextStatus === 'REJECTED') {
-        await adminApi.rejectParticipant(eventId, memberId);
-      } else if (nextStatus === 'CANCELLED') {
-        await adminApi.removeParticipant(eventId, memberId);
-      } else {
-        throw new Error(locale === 'ru' ? 'Обновление статуса участника недоступно' : 'Participant status update not available');
-      }
+      await adminApi.updateParticipantStatus(eventId, memberId, { status: nextStatus });
       setSuccess(locale === 'ru' ? 'Заявка обновлена.' : 'Registration updated.');
       await loadData();
     } catch (err: any) {
@@ -182,8 +176,16 @@ export default function EventRegistrationsPage() {
                               <strong>{member.user?.name ?? member.user?.email ?? '—'}</strong>
                               <div className="signal-muted">{member.user?.email}</div>
                             </td>
-                            <td></td>
-                            <td></td>
+                            <td>
+                              <StatusBadge tone={memberStatusTone(member.status)}>
+                                {member.status}
+                              </StatusBadge>
+                            </td>
+                            <td>
+                              <StatusBadge tone={percent === 100 ? 'success' : 'warning'}>
+                                {percent === 100 ? '100%' : `${percent}%`}
+                              </StatusBadge>
+                            </td>
                             <td className="signal-muted">{formatAdminDateTime(member.assignedAt, locale)}</td>
                             <td className="right">
                               <div className="signal-row-actions">
@@ -193,6 +195,8 @@ export default function EventRegistrationsPage() {
                                     <button type="button" className="btn btn-secondary btn-sm" disabled={actionId === member.id} onClick={() => updateStatus(member.id, 'RESERVE')}>{locale === 'ru' ? 'Резерв' : 'Reserve'}</button>
                                     <button type="button" className="btn btn-danger btn-sm" disabled={actionId === member.id} onClick={() => updateStatus(member.id, 'REJECTED')}>{locale === 'ru' ? 'Отклонить' : 'Reject'}</button>
                                   </>
+                                ) : member.status === 'ACTIVE' || member.status === 'RESERVE' || member.status === 'REJECTED' || member.status === 'PENDING' ? (
+                                  <button type="button" className="btn btn-ghost btn-sm" disabled={actionId === member.id} onClick={() => updateStatus(member.id, 'REMOVED')}>{locale === 'ru' ? 'Удалить' : 'Remove'}</button>
                                 ) : null}
                                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => setExpandedId(expandedId === member.id ? null : member.id)}>
                                   {expandedId === member.id ? (locale === 'ru' ? 'Скрыть' : 'Hide') : (locale === 'ru' ? 'Ответы' : 'Answers')}
