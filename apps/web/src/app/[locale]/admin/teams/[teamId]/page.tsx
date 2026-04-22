@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
@@ -73,7 +72,6 @@ const TEAM_STATUS_TONE: Record<string, 'success' | 'warning' | 'danger' | 'info'
 };
 
 export default function TeamDetailPage() {
-  const t = useTranslations();
   const { user, loading, isAdmin } = useAuth();
   const router = useRouter();
   const params = useParams();

@@ -193,7 +193,7 @@ adminTeamsRouter.get('/:teamId', async (req, res) => {
 adminTeamsRouter.patch('/:teamId/status', async (req, res) => {
   const user = (req as any).user as User;
   const { teamId } = req.params;
-  const { status, notes } = req.body;
+  const { status } = req.body;
 
   const team = await prisma.eventTeam.findUnique({
     where: { id: teamId },

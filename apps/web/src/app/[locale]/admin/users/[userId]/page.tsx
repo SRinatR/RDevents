@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
@@ -212,7 +211,6 @@ const toneByStatus: Record<string, 'success' | 'warning' | 'danger' | 'info' | '
 };
 
 export default function AdminUserFullProfilePage() {
-  const t = useTranslations();
   const { user, loading, isAdmin } = useAuth();
   const router = useRouter();
   const params = useParams();

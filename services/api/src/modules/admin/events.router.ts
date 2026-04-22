@@ -801,10 +801,10 @@ adminEventsRouter.get('/:id/overview', async (req, res) => {
     prisma.eventTeam.count({ where: { eventId } }),
     prisma.eventTeam.count({ where: { eventId, status: 'ACTIVE' } }),
     prisma.eventTeam.count({ where: { eventId, status: 'PENDING' } }),
-    prisma.eventTeamChangeRequest.count({ where: { eventTeam: { eventId }, status: 'PENDING' } }),
+    prisma.eventTeamChangeRequest.count({ where: { team: { eventId }, status: 'PENDING' } }),
     prisma.eventTeam.count({ where: { eventId, status: 'REJECTED' } }),
     prisma.eventTeam.count({ where: { eventId, status: 'ARCHIVED' } }),
-    prisma.eventTeamMember.count({ where: { eventTeam: { eventId }, status: 'ACTIVE' } }),
+    prisma.eventTeamMember.count({ where: { team: { eventId }, status: 'ACTIVE' } }),
   ]);
 
   res.json({

@@ -413,14 +413,14 @@ export const adminApi = {
   },
 
   removeParticipant: (eventId: string, memberId: string, notes?: string) =>
-    request<any>(`/api/admin/events/${eventId}/participants/${memberId}/remove`, {
+    request<any>(`/api/admin/participants/events/${eventId}/participants/${memberId}/remove`, {
       method: 'POST',
       auth: true,
       body: { notes },
     }),
 
   rejectParticipant: (eventId: string, memberId: string, notes?: string) =>
-    request<any>(`/api/admin/events/${eventId}/participants/${memberId}/reject`, {
+    request<any>(`/api/admin/participants/events/${eventId}/participants/${memberId}/reject`, {
       method: 'POST',
       auth: true,
       body: { notes },
@@ -508,6 +508,21 @@ export const adminApi = {
 
   getEventOverview: (eventId: string) =>
     request<any>(`/api/admin/events/${eventId}/overview`, { auth: true }),
+
+  listAdmins: () =>
+    request<any>('/api/admin/users/admins', { auth: true }),
+
+  getUsersAnalytics: () =>
+    request<any>('/api/admin/users/analytics', { auth: true }),
+
+  getAnalytics: () =>
+    request<any>('/api/admin/analytics', { auth: true }),
+
+  listProfileFields: () =>
+    request<{ data: any[] }>('/api/admin/profile-fields', { auth: true }),
+
+  updateProfileField: (fieldKey: string, body: Record<string, unknown>) =>
+    request<any>(`/api/admin/profile-fields/${fieldKey}`, { method: 'PATCH', auth: true, body }),
 };
 
 // ─── Admin Email ──────────────────────────────────────────────────────────────

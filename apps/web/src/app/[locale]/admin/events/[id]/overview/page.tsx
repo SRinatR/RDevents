@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
 import { adminApi } from '@/lib/api';
-import { EmptyState, LoadingLines, MetricCard, Notice, Panel, SectionHeader, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
-import { EventNotFound, EventWorkspaceHeader, formatAdminDate, formatAdminDateTime, memberStatusTone, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
+import { EmptyState, LoadingLines, MetricCard, Notice, Panel, SectionHeader, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EventNotFound, EventWorkspaceHeader, formatAdminDate, formatAdminDateTime, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
 
 export default function AdminEventOverviewPage() {
   const { user, loading, isAdmin } = useAuth();
@@ -182,7 +182,11 @@ export default function AdminEventOverviewPage() {
                             <strong>{member.user?.name ?? member.user?.email ?? '—'}</strong>
                             <div className="signal-muted">{member.user?.email}</div>
                           </td>
-                          <td></td>
+                          <td>
+                            <StatusBadge tone={member.status === 'ACTIVE' ? 'success' : member.status === 'PENDING' ? 'warning' : member.status === 'RESERVE' ? 'info' : ['REJECTED', 'CANCELLED'].includes(member.status) ? 'danger' : 'neutral'}>
+                              {member.status}
+                            </StatusBadge>
+                          </td>
                           <td className="signal-muted">{formatAdminDateTime(member.assignedAt, locale)}</td>
                         </tr>
                       ))}

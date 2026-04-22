@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../../hooks/useAuth';
 import { adminApi, eventsApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
@@ -49,7 +48,6 @@ interface EventOption {
 }
 
 export default function AdminUsersPage() {
-  const t = useTranslations();
   const { user, loading, isPlatformAdmin } = useAuth();
   const router = useRouter();
   const locale = useRouteLocale();
@@ -375,7 +373,7 @@ export default function AdminUsersPage() {
                           >
                             {isRu ? 'Профиль' : 'Profile'}
                           </button>
-                          {entry.role !== 'SUPER_ADMIN' && (
+                          {user.role === 'SUPER_ADMIN' && entry.role !== 'SUPER_ADMIN' && (
                             <FieldSelect
                               value={entry.role}
                               onChange={(e) => void handleRoleChange(entry.id, e.target.value)}
