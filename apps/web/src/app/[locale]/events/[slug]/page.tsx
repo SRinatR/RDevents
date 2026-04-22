@@ -5,12 +5,12 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { analyticsApi, eventsApi } from '../../../../lib/api';
-import { useAuth } from '../../../../hooks/useAuth';
-import { useRouteParams } from '../../../../hooks/useRouteParams';
+import { analyticsApi, eventsApi } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
+import { useRouteParams } from '@/hooks/useRouteParams';
 import { EmptyState, LoadingLines, Notice, Panel, SectionHeader } from '@/components/ui/signal-primitives';
-import { PublicFooter } from '../../../../components/layout/PublicFooter';
-import { RussiaHouseQuestPage } from '../../../../components/events/russia-house-quest/RussiaHouseQuestPage';
+import { PublicFooter } from '@/components/layout/PublicFooter';
+import { RussiaHouseQuestPage } from '@/components/events/russia-house-quest/RussiaHouseQuestPage';
 
 export default function EventDetailPage() {
   const t = useTranslations();
