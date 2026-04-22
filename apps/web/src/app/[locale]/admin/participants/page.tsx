@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, FieldInput, FieldSelect, LoadingLines, PageHeader, Panel, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, PageHeader, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 
 interface Participant {
   id: string;
@@ -25,6 +25,17 @@ interface EventsOption {
   title: string;
 }
 
+const toneByStatus: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
+  ACTIVE: 'success',
+  PENDING: 'warning',
+  RESERVE: 'info',
+  REJECTED: 'danger',
+  REMOVED: 'neutral',
+  CANCELLED: 'neutral',
+};
+
+const EXCLUDED_STATUSES = ['REJECTED', 'CANCELLED', 'REMOVED'];
+
 export default function AdminParticipantsPage() {
   const t = useTranslations();
   const { user, loading, isAdmin } = useAuth();
@@ -32,27 +43,24 @@ export default function AdminParticipantsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // URL-synced state
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [events, setEvents] = useState<EventsOption[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [totalPages, setTotalPages] = useState(1);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
-  // Filters from URL
   const search = searchParams.get('search') ?? '';
   const eventFilter = searchParams.get('eventId') ?? 'ALL';
-  const roleFilter = searchParams.get('role') ?? 'PARTICIPANT'; // Default to PARTICIPANT only
+  const roleFilter = searchParams.get('role') ?? 'ALL';
   const statusFilter = searchParams.get('status') ?? 'ALL';
   const page = parseInt(searchParams.get('page') ?? '1', 10);
 
-  // Debounced search state
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Update URL with filter (use replace for search/filter to avoid history pollution)
   const updateFilter = useCallback((key: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString());
     if (value === 'ALL' || value === 'PARTICIPANT' || value === '') {
@@ -60,19 +68,16 @@ export default function AdminParticipantsPage() {
     } else {
       params.set(key, value);
     }
-    // Always reset page on filter change
     params.delete('page');
     router.replace(`?${params.toString()}`, { scroll: false });
   }, [searchParams, router]);
 
-  // Navigate to page (use push for pagination)
   const goToPage = useCallback((newPage: number) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('page', String(newPage));
     router.replace(`?${params.toString()}`, { scroll: false });
   }, [searchParams, router]);
 
-  // Load events for filter dropdown
   useEffect(() => {
     if (!user || !isAdmin) return;
     
@@ -83,7 +88,6 @@ export default function AdminParticipantsPage() {
       .catch(() => setEvents([]));
   }, [user, isAdmin]);
 
-  // Load participants with unified endpoint (no N+1!)
   const fetchParticipants = useCallback(async () => {
     if (!user || !isAdmin) return;
 
@@ -107,14 +111,51 @@ export default function AdminParticipantsPage() {
   }, [user, isAdmin, debouncedSearch, eventFilter, roleFilter, statusFilter, page]);
 
   useEffect(() => {
-    fetchParticipants();
+    void fetchParticipants();
   }, [fetchParticipants]);
 
-  const toneByStatus: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
-    ACTIVE: 'success',
-    PENDING: 'warning',
-    REJECTED: 'danger',
-    REMOVED: 'neutral',
+  const handleRejectParticipant = async (eventId: string, memberId: string) => {
+    if (!confirm(t('admin.participantActions.confirmReject'))) {
+      return;
+    }
+
+    setActionLoadingId(memberId);
+    try {
+      await adminApi.rejectParticipant(eventId, memberId);
+      await fetchParticipants();
+    } catch {
+      alert(t('admin.participantActions.error'));
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleRemoveParticipant = async (eventId: string, memberId: string) => {
+    if (!confirm(t('admin.participantActions.confirmRemove'))) {
+      return;
+    }
+
+    setActionLoadingId(memberId);
+    try {
+      await adminApi.removeParticipant(eventId, memberId);
+      await fetchParticipants();
+    } catch {
+      alert(t('admin.participantActions.error'));
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const getRoleLabel = (role: string) => {
+    const key = `admin.roles.${role}` as const;
+    const translated = t(key as any);
+    return translated === key ? role : translated;
+  };
+
+  const getStatusLabel = (status: string) => {
+    const key = `admin.statuses.${status}` as const;
+    const translated = t(key as any);
+    return translated === key ? status : translated;
   };
 
   return (
@@ -144,11 +185,13 @@ export default function AdminParticipantsPage() {
             <option value="VOLUNTEER">{locale === 'ru' ? 'Волонтёр' : 'Volunteer'}</option>
           </FieldSelect>
           <FieldSelect value={statusFilter} onChange={(e) => updateFilter('status', e.target.value)} className="admin-filter-select">
-            <option value="ALL">{locale === 'ru' ? 'Все статусы' : 'All statuses'}</option>
+            <option value="ALL">{locale === 'ru' ? 'Активные по умолчанию' : 'Active by default'}</option>
             <option value="ACTIVE">{locale === 'ru' ? 'Активные' : 'Active'}</option>
             <option value="PENDING">{locale === 'ru' ? 'В ожидании' : 'Pending'}</option>
+            <option value="RESERVE">{locale === 'ru' ? 'В резерве' : 'Reserve'}</option>
             <option value="REJECTED">{locale === 'ru' ? 'Отклонённые' : 'Rejected'}</option>
-            <option value="REMOVED">{locale === 'ru' ? 'Удалённые' : 'Removed'}</option>
+            <option value="CANCELLED">{locale === 'ru' ? 'Отменённые' : 'Cancelled'}</option>
+            <option value="REMOVED">{locale === 'ru' ? 'Удалённые админом' : 'Removed by admin'}</option>
           </FieldSelect>
         </ToolbarRow>
 
@@ -174,23 +217,63 @@ export default function AdminParticipantsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {participants.map((p) => (
-                    <tr key={p.id}>
-                      <td>
-                        <strong>{p.userName ?? '—'}</strong>
-                        <div className="signal-muted">{p.userEmail}</div>
-                      </td>
-                      <td className="signal-overflow-ellipsis">{p.eventTitle}</td>
-                      <td></td>
-                      <td></td>
-                      <td className="signal-muted">{new Date(p.assignedAt).toLocaleDateString()}</td>
-                      <td className="right">
-                        <div className="signal-row-actions">
-                          <button className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Просмотр' : 'View'}</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {participants.map((p) => {
+                    const canPerformAction = !EXCLUDED_STATUSES.includes(p.status);
+                    return (
+                      <tr key={p.id}>
+                        <td>
+                          <strong>{p.userName ?? '—'}</strong>
+                          <div className="signal-muted">{p.userEmail}</div>
+                        </td>
+                        <td className="signal-overflow-ellipsis">{p.eventTitle}</td>
+                        <td>
+                          <StatusBadge tone={p.role === 'VOLUNTEER' ? 'info' : 'neutral'}>
+                            {getRoleLabel(p.role)}
+                          </StatusBadge>
+                        </td>
+                        <td>
+                          <StatusBadge tone={toneByStatus[p.status] ?? 'neutral'}>
+                            {getStatusLabel(p.status)}
+                          </StatusBadge>
+                        </td>
+                        <td className="signal-muted">{new Date(p.assignedAt).toLocaleDateString()}</td>
+                        <td className="right">
+                          <div className="signal-row-actions">
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => router.push(`/${locale}/admin/users/${p.userId}?eventId=${p.eventId}`)}
+                            >
+                              {t('admin.participantActions.view')}
+                            </button>
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => router.push(`/${locale}/admin/users/${p.userId}`)}
+                            >
+                              {t('admin.participantActions.profile')}
+                            </button>
+                            {canPerformAction && (
+                              <>
+                                <button
+                                  className="btn btn-warning btn-sm"
+                                  onClick={() => void handleRejectParticipant(p.eventId, p.id)}
+                                  disabled={actionLoadingId === p.id}
+                                >
+                                  {actionLoadingId === p.id ? '...' : t('admin.participantActions.reject')}
+                                </button>
+                                <button
+                                  className="btn btn-danger btn-sm"
+                                  onClick={() => void handleRemoveParticipant(p.eventId, p.id)}
+                                  disabled={actionLoadingId === p.id}
+                                >
+                                  {actionLoadingId === p.id ? '...' : t('admin.participantActions.remove')}
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </TableShell>

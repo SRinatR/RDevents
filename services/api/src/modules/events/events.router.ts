@@ -167,6 +167,13 @@ eventsRouter.delete('/:id/register', authenticate, async (req, res) => {
     const membership = await unregisterFromEvent(String(req.params['id']), user.id);
     res.json({ membership });
   } catch (err: any) {
+    if (err.code === 'CAPTAIN_CANNOT_CANCEL_EVENT_PARTICIPATION') {
+      res.status(409).json({
+        error: 'сначала передайте капитанство или решите вопрос с командой',
+        code: err.code,
+      });
+      return;
+    }
     const map: Record<string, [number, string]> = {
       REGISTRATION_NOT_FOUND: [404, 'Registration not found'],
     };

@@ -175,6 +175,27 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
     }
   }
 
+  async function handleUnregister() {
+    const confirmed = window.confirm(isRu ? 'Вы уверены, что хотите отказаться от участия в мероприятии?' : 'Are you sure you want to cancel your participation in this event?');
+    if (!confirmed) return;
+    setActionLoading('unregister');
+    setError('');
+    setSuccess('');
+    try {
+      await eventsApi.unregister(event.id);
+      setSuccess(isRu ? 'Вы отказались от участия.' : 'You have cancelled your participation.');
+      await loadWorkspace();
+    } catch (err: any) {
+      if (err.code === 'CAPTAIN_CANNOT_CANCEL_EVENT_PARTICIPATION') {
+        setError(isRu ? 'Сначала передайте капитанство или решите вопрос с командой.' : 'First transfer captain role or resolve team issues.');
+      } else {
+        setError(err.message || (isRu ? 'Не удалось отказаться от участия' : 'Failed to cancel participation'));
+      }
+    } finally {
+      setActionLoading('');
+    }
+  }
+
   async function handleCreateTeam() {
     if (!teamName.trim()) return;
     setActionLoading('create-team');
@@ -396,8 +417,17 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       {!isActiveParticipant ? (
         <Panel variant="elevated" className="workspace-event-panel">
           <SectionHeader title={isRu ? 'Стать участником' : 'Join as participant'} />
-          {participantMembership?.status === 'PENDING' ? (
-            <Notice tone="warning">{isRu ? 'Заявка участника ожидает решения организатора.' : 'Participant application is pending organizer review.'}</Notice>
+          {participantMembership?.status && participantMembership.status !== 'ACTIVE' ? (
+            <div className="signal-stack">
+              {participantMembership.status === 'PENDING' ? (
+                <Notice tone="warning">{isRu ? 'Заявка участника ожидает решения организатора.' : 'Participant application is pending organizer review.'}</Notice>
+              ) : null}
+              <ToolbarRow>
+                <button onClick={handleUnregister} disabled={actionLoading === 'unregister'} className="btn btn-secondary btn-sm">
+                  {actionLoading === 'unregister' ? (isRu ? 'Отменяем...' : 'Cancelling...') : (isRu ? 'Отказаться от участия' : 'Cancel participation')}
+                </button>
+              </ToolbarRow>
+            </div>
           ) : missingFields.length > 0 ? (
             <div className="signal-stack">
               <Notice tone="warning">
@@ -485,6 +515,14 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
           </div>
         </Panel>
       ) : (
+        <>
+        <Panel variant="elevated" className="workspace-event-panel">
+          <ToolbarRow>
+            <button onClick={handleUnregister} disabled={actionLoading === 'unregister'} className="btn btn-secondary btn-sm">
+              {actionLoading === 'unregister' ? (isRu ? 'Отменяем...' : 'Cancelling...') : (isRu ? 'Отказаться от участия' : 'Cancel participation')}
+            </button>
+          </ToolbarRow>
+        </Panel>
         <TeamSlotsWorkspace
           locale={locale}
           userId={user.id}
@@ -506,6 +544,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
           onUpdateTeam={handleUpdateTeam}
           onSubmitTeam={handleSubmitTeam}
         />
+        </>
       )}
     </div>
   );

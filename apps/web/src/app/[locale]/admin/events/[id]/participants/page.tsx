@@ -5,7 +5,7 @@ import { Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
-import { adminApi } from '@/lib/api';
+import { adminApi, adminExportsApi } from '@/lib/api';
 import { EmptyState, FieldInput, LoadingLines, MetricCard, Notice, Panel, SectionHeader, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 import { EventNotFound, EventWorkspaceHeader, formatAdminDateTime, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
 
@@ -37,6 +37,7 @@ export default function EventParticipantsPage() {
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [exportFilters, setExportFilters] = useState({ includeRejected: true, includeCancelled: true, includeRemoved: false });
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) router.push(`/${locale}`);
@@ -115,6 +116,28 @@ export default function EventParticipantsPage() {
                 placeholder={locale === 'ru' ? 'Поиск по имени, email или городу' : 'Search by name, email, or city'}
                 className="admin-filter-search"
               />
+              <div className="export-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    if (!eventId) return;
+                    adminExportsApi.downloadParticipants(eventId, 'csv', exportFilters);
+                  }}
+                >
+                  {locale === 'ru' ? 'Выгрузить CSV' : 'Export CSV'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    if (!eventId) return;
+                    adminExportsApi.downloadParticipants(eventId, 'json', exportFilters);
+                  }}
+                >
+                  {locale === 'ru' ? 'Выгрузить JSON' : 'Export JSON'}
+                </button>
+              </div>
             </ToolbarRow>
 
             {filteredParticipants.length === 0 ? (

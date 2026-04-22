@@ -9,6 +9,7 @@ import {
   deleteExportPreset,
   exportParticipants,
   exportTeams,
+  exportTeamMembers,
   generateAvatarBundle,
   generateCsvContent,
   generateJsonContent,
@@ -56,6 +57,10 @@ const runExportSchema = z.object({
     status: z.array(z.string()).optional(),
     hasTeam: z.boolean().optional(),
     hasPhoto: z.boolean().optional(),
+    includeArchived: z.boolean().optional(),
+    includeRejected: z.boolean().optional(),
+    includeCancelled: z.boolean().optional(),
+    includeRemoved: z.boolean().optional(),
   }).optional(),
 });
 
@@ -64,6 +69,33 @@ const avatarBundleSchema = z.object({
   includeTeamsOnly: z.boolean().optional().default(false),
   includeVolunteers: z.boolean().optional().default(false),
 });
+
+const exportQuerySchema = z.object({
+  scope: z.enum(['participants', 'volunteers', 'teams', 'team_members']).optional().default('participants'),
+  format: z.enum(['csv', 'json']).optional().default('csv'),
+  status: z.union([z.string(), z.array(z.string())]).optional(),
+  hasTeam: z.string().optional(),
+  hasPhoto: z.string().optional(),
+  includeArchived: z.string().optional(),
+  includeRejected: z.string().optional(),
+  includeCancelled: z.string().optional(),
+  includeRemoved: z.string().optional(),
+});
+
+function parseFilters(query: Record<string, unknown>) {
+  const filters: Record<string, unknown> = {};
+  if (query['status']) {
+    const s = query['status'];
+    filters['status'] = Array.isArray(s) ? s.map(String) : [String(s)];
+  }
+  if (query['hasTeam'] !== undefined) filters['hasTeam'] = query['hasTeam'] === 'true';
+  if (query['hasPhoto'] !== undefined) filters['hasPhoto'] = query['hasPhoto'] === 'true';
+  if (query['includeArchived']) filters['includeArchived'] = query['includeArchived'] === 'true';
+  if (query['includeRejected']) filters['includeRejected'] = query['includeRejected'] === 'true';
+  if (query['includeCancelled']) filters['includeCancelled'] = query['includeCancelled'] === 'true';
+  if (query['includeRemoved']) filters['includeRemoved'] = query['includeRemoved'] === 'true';
+  return Object.keys(filters).length > 0 ? filters : undefined;
+}
 
 // GET /api/admin/events/:eventId/exports/presets
 exportsRouter.get('/events/:eventId/exports/presets', async (req, res) => {
@@ -298,4 +330,55 @@ exportsRouter.post('/events/:eventId/exports/avatar-bundle', async (req, res) =>
     participantsCount: bundle.participants.length,
     missingAvatarsCount: bundle.participants.filter((p: any) => p.missingAvatar).length,
   });
+});
+
+exportsRouter.get('/events/:eventId/exports/:scope', async (req, res) => {
+  const user = (req as any).user as User;
+  const { eventId, scope } = req.params;
+
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, title: true },
+  });
+
+  if (!event) {
+    res.status(404).json({ error: 'Event not found' });
+    return;
+  }
+
+  const managedEventIds = await getManagedEventIds(user);
+  if (managedEventIds && !managedEventIds.includes(eventId)) {
+    res.status(403).json({ error: 'Access denied' });
+    return;
+  }
+
+  if (!['participants', 'teams', 'team_members'].includes(scope)) {
+    res.status(400).json({ error: 'Invalid scope. Must be one of: participants, teams, team_members' });
+    return;
+  }
+
+  const format = (req.query['format'] as string) || 'csv';
+  const filters = parseFilters(req.query as Record<string, unknown>);
+
+  let data: any[];
+  if (scope === 'participants') {
+    data = await exportParticipants(eventId, { filters });
+  } else if (scope === 'teams') {
+    data = await exportTeams(eventId, { filters });
+  } else {
+    data = await exportTeamMembers(eventId, { filters });
+  }
+
+  if (format === 'json') {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="export_${eventId}_${scope}.json"`);
+    res.send(JSON.stringify(data, null, 2));
+    return;
+  }
+
+  const columns = Object.keys(data[0] || {});
+  const csvContent = generateCsvContent(data, columns);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="export_${eventId}_${scope}.csv"`);
+  res.send(`\ufeff${csvContent}`);
 });

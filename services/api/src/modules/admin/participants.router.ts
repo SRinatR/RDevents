@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import type { EventMemberStatus, User } from '@prisma/client';
+import type { EventMemberStatus, EventTeamStatus, User } from '@prisma/client';
 import { canManageEvent } from '../../common/middleware.js';
 import { prisma } from '../../db/prisma.js';
 import { notifyParticipantStatusChanged } from '../events/notifications.service.js';
@@ -51,6 +51,8 @@ adminParticipantsRouter.get('/', async (req, res) => {
 
   if (status && status !== 'ALL') {
     where['status'] = status;
+  } else {
+    where['status'] = { notIn: ['REJECTED', 'CANCELLED', 'REMOVED'] };
   }
 
   if (search) {
@@ -275,6 +277,64 @@ adminParticipantsRouter.patch('/events/:id/participations/:memberId', async (req
   res.json({ membership: updated });
 });
 
+// POST /admin/events/:id/participants/:memberId/remove
+adminParticipantsRouter.post('/events/:id/participants/:memberId/remove', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  const memberId = req.params['memberId']!;
+  if (!(await canManageEvent(user, eventId))) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  const membership = await prisma.eventMember.findUnique({
+    where: { id: memberId },
+    include: { user: { select: { id: true, name: true, email: true } } },
+  });
+
+  if (!membership || membership.eventId !== eventId) {
+    res.status(404).json({ error: 'Membership not found' });
+    return;
+  }
+
+  const activeTeamStatuses: EventTeamStatus[] = ['ACTIVE', 'PENDING', 'SUBMITTED', 'CHANGES_PENDING'];
+  const isTeamCaptain = await prisma.eventTeam.findFirst({
+    where: {
+      eventId,
+      captainUserId: membership.userId,
+      status: { in: activeTeamStatuses },
+    },
+  });
+  if (isTeamCaptain) {
+    res.status(409).json({
+      error: 'PARTICIPANT_IS_TEAM_CAPTAIN',
+      message: 'Сначала передайте капитанство или архивируйте команду',
+    });
+    return;
+  }
+
+  const updated = await prisma.$transaction(async (tx: any) => {
+    const result = await tx.eventMember.update({
+      where: { id: memberId },
+      data: {
+        status: 'REMOVED',
+        notes: req.body?.notes ?? `Removed by admin: ${user.email}`,
+        removedAt: new Date(),
+      },
+      include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+    });
+
+    if (membership.status === 'ACTIVE') {
+      await tx.event.update({ where: { id: eventId }, data: { registrationsCount: { decrement: 1 } } });
+    }
+
+    return result;
+  });
+
+  await notifyParticipantStatusChanged(eventId, updated.userId, updated.status, updated.notes);
+  res.json({ membership: updated, message: 'Participant removed successfully' });
+});
+
 // POST /admin/events/:id/participations/:memberId/approve
 adminParticipantsRouter.post('/events/:id/participations/:memberId/approve', async (req, res) => {
   const user = (req as any).user as User;
@@ -338,8 +398,8 @@ adminParticipantsRouter.post('/events/:id/participations/:memberId/approve', asy
   res.json({ membership: updated });
 });
 
-// POST /admin/events/:id/participations/:memberId/reject
-adminParticipantsRouter.post('/events/:id/participations/:memberId/reject', async (req, res) => {
+// POST /admin/events/:id/participants/:memberId/reject
+adminParticipantsRouter.post('/events/:id/participants/:memberId/reject', async (req, res) => {
   const user = (req as any).user as User;
   const eventId = req.params['id']!;
   const memberId = req.params['memberId']!;
@@ -355,6 +415,22 @@ adminParticipantsRouter.post('/events/:id/participations/:memberId/reject', asyn
 
   if (!membership || membership.eventId !== eventId || membership.role !== 'PARTICIPANT') {
     res.status(404).json({ error: 'Participant not found' });
+    return;
+  }
+
+  const activeTeamStatuses: EventTeamStatus[] = ['ACTIVE', 'PENDING', 'SUBMITTED', 'CHANGES_PENDING'];
+  const isTeamCaptain = await prisma.eventTeam.findFirst({
+    where: {
+      eventId,
+      captainUserId: membership.userId,
+      status: { in: activeTeamStatuses },
+    },
+  });
+  if (isTeamCaptain) {
+    res.status(409).json({
+      error: 'PARTICIPANT_IS_TEAM_CAPTAIN',
+      message: 'Сначала передайте капитанство или архивируйте команду',
+    });
     return;
   }
 

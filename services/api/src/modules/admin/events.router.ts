@@ -749,3 +749,84 @@ adminEventsRouter.get('/:id/analytics', async (req, res) => {
 
   res.json({ event, participants, volunteersPending, volunteersApproved, views });
 });
+
+// GET /admin/events/:id/overview
+adminEventsRouter.get('/:id/overview', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await canManageEvent(user, eventId))) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, title: true, slug: true, status: true, startsAt: true, endsAt: true },
+  });
+
+  if (!event) {
+    res.status(404).json({ error: 'Event not found' });
+    return;
+  }
+
+  const [
+    participantsTotal,
+    participantsActive,
+    participantsPending,
+    participantsReserve,
+    participantsRejected,
+    participantsCancelled,
+    participantsRemoved,
+    volunteersTotal,
+    volunteersPending,
+    volunteersActive,
+    teamsTotal,
+    teamsActive,
+    teamsPending,
+    teamsChangesPending,
+    teamsRejected,
+    teamsArchived,
+    teamMembersActive,
+  ] = await Promise.all([
+    prisma.eventMember.count({ where: { eventId, role: 'PARTICIPANT' } }),
+    prisma.eventMember.count({ where: { eventId, role: 'PARTICIPANT', status: 'ACTIVE' } }),
+    prisma.eventMember.count({ where: { eventId, role: 'PARTICIPANT', status: 'PENDING' } }),
+    prisma.eventMember.count({ where: { eventId, role: 'PARTICIPANT', status: 'RESERVE' } }),
+    prisma.eventMember.count({ where: { eventId, role: 'PARTICIPANT', status: 'REJECTED' } }),
+    prisma.eventMember.count({ where: { eventId, role: 'PARTICIPANT', status: 'CANCELLED' } }),
+    prisma.eventMember.count({ where: { eventId, role: 'PARTICIPANT', status: 'REMOVED' } }),
+    prisma.eventMember.count({ where: { eventId, role: 'VOLUNTEER' } }),
+    prisma.eventMember.count({ where: { eventId, role: 'VOLUNTEER', status: 'PENDING' } }),
+    prisma.eventMember.count({ where: { eventId, role: 'VOLUNTEER', status: 'ACTIVE' } }),
+    prisma.eventTeam.count({ where: { eventId } }),
+    prisma.eventTeam.count({ where: { eventId, status: 'ACTIVE' } }),
+    prisma.eventTeam.count({ where: { eventId, status: 'PENDING' } }),
+    prisma.eventTeamChangeRequest.count({ where: { eventTeam: { eventId }, status: 'PENDING' } }),
+    prisma.eventTeam.count({ where: { eventId, status: 'REJECTED' } }),
+    prisma.eventTeam.count({ where: { eventId, status: 'ARCHIVED' } }),
+    prisma.eventTeamMember.count({ where: { eventTeam: { eventId }, status: 'ACTIVE' } }),
+  ]);
+
+  res.json({
+    event,
+    counts: {
+      participantsTotal,
+      participantsActive,
+      participantsPending,
+      participantsReserve,
+      participantsRejected,
+      participantsCancelled,
+      participantsRemoved,
+      volunteersTotal,
+      volunteersPending,
+      volunteersActive,
+      teamsTotal,
+      teamsActive,
+      teamsPending,
+      teamsChangesPending,
+      teamsRejected,
+      teamsArchived,
+      teamMembersActive,
+    },
+  });
+});

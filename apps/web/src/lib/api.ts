@@ -380,6 +380,12 @@ export const adminApi = {
     return request<{ data: any[]; meta: any }>(`/api/admin/participants${qs}`, { auth: true });
   },
 
+  removeParticipant: (eventId: string, memberId: string) =>
+    request<any>(`/api/admin/events/${eventId}/participants/${memberId}/remove`, { method: 'POST', auth: true }),
+
+  rejectParticipant: (eventId: string, memberId: string, notes?: string) =>
+    request<any>(`/api/admin/events/${eventId}/participants/${memberId}/reject`, { method: 'POST', auth: true, body: { notes } }),
+
   listApplications: (params?: {
     search?: string;
     eventId?: string;
@@ -403,10 +409,44 @@ export const adminApi = {
     return request<{ data: any[]; meta: any }>(`/api/admin/teams${qs}`, { auth: true });
   },
 
-  listUsers: (params?: Record<string, string | number>) => {
-    const qs = params ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+  removeTeam: (teamId: string) =>
+    request<any>(`/api/admin/teams/${teamId}/remove`, { method: 'POST', auth: true }),
+
+  getTeam: (teamId: string) =>
+    request<{ data: any }>(`/api/admin/teams/${teamId}`, { auth: true }),
+
+  listUsers: (params?: {
+    search?: string;
+    role?: string;
+    hasEventMembership?: string;
+    eventId?: string;
+    includeInactive?: boolean;
+    page?: number;
+    limit?: number;
+  }) => {
+    const entries: [string, string][] = [];
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        if (v !== undefined) entries.push([k, String(v)]);
+      }
+    }
+    const qs = entries.length ? '?' + new URLSearchParams(entries).toString() : '';
     return request<{ data: any[]; meta: any }>(`/api/admin/users${qs}`, { auth: true });
   },
+
+  getUserProfile: (userId: string) =>
+    request<any>(`/api/admin/users/${userId}`, { auth: true }),
+
+  getUserFullProfile: (userId: string, eventId?: string) => {
+    const params = eventId ? `?eventId=${eventId}` : '';
+    return request<any>(`/api/admin/users/${userId}/profile${params}`, { auth: true });
+  },
+
+  getUsersAnalytics: () =>
+    request<any>('/api/admin/users/analytics', { auth: true }),
+
+  getUsersStats: () =>
+    request<any>('/api/admin/users/stats', { auth: true }),
 
   updateUserRole: (id: string, role: string) =>
     request<{ user: any }>(`/api/admin/users/${id}/role`, { method: 'PATCH', auth: true, body: { role } }),
@@ -415,7 +455,7 @@ export const adminApi = {
     request<{ admins: any[]; platformAdmins: any[]; eventAdmins: any[] }>('/api/admin/admins', { auth: true }),
 
   listVolunteers: () =>
-    request<{ volunteers: any[] }>('/api/admin/volunteers', { auth: true }),
+    request<{ volunteers: any[] }>('/api/admin/analytics/volunteers', { auth: true }),
 
   getAnalytics: () =>
     request<any>('/api/admin/analytics', { auth: true }),
@@ -425,6 +465,33 @@ export const adminApi = {
 
   updateProfileField: (key: string, body: { key: string; isVisibleInCabinet?: boolean }) =>
     request<any>(`/api/admin/profile-fields/${key}`, { method: 'PATCH', auth: true, body }),
+
+  getUserStats: () =>
+    request<any>('/api/admin/users/stats', { auth: true }),
+
+  exportUsers: (params?: {
+    search?: string;
+    role?: string;
+    hasEventMembership?: string;
+    eventId?: string;
+    includeInactive?: boolean;
+    format?: string;
+  }) => {
+    const entries: [string, string][] = [];
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        if (v !== undefined) entries.push([k, String(v)]);
+      }
+    }
+    const qs = entries.length ? '?' + new URLSearchParams(entries).toString() : '';
+    window.location.href = `${BASE_URL}/api/admin/users/export${qs}`;
+  },
+
+  archiveTeam: (teamId: string) =>
+    request<any>(`/api/admin/teams/${teamId}/archive`, { method: 'POST', auth: true }),
+
+  getEventOverview: (eventId: string) =>
+    request<any>(`/api/admin/events/${eventId}/overview`, { auth: true }),
 };
 
 // ─── Admin Email ──────────────────────────────────────────────────────────────
@@ -543,5 +610,90 @@ export const adminSupportApi = {
     const formData = new FormData();
     for (const file of files) formData.append('files', file);
     return requestForm<{ attachments: any[] }>(`/api/admin/support/threads/${threadId}/attachments`, formData, true);
+  },
+};
+
+// ─── Admin Exports ─────────────────────────────────────────────────────────────
+
+export interface ExportFilters {
+  status?: string[];
+  hasTeam?: boolean;
+  hasPhoto?: boolean;
+  includeArchived?: boolean;
+  includeRejected?: boolean;
+  includeCancelled?: boolean;
+  includeRemoved?: boolean;
+}
+
+export function buildExportUrl(eventId: string, scope: string, format = 'csv', filters?: ExportFilters): string {
+  const params = new URLSearchParams();
+  params.set('format', format);
+  if (filters) {
+    if (filters.status?.length) filters.status.forEach(s => params.append('status', s));
+    if (filters.hasTeam !== undefined) params.set('hasTeam', String(filters.hasTeam));
+    if (filters.hasPhoto !== undefined) params.set('hasPhoto', String(filters.hasPhoto));
+    if (filters.includeArchived) params.set('includeArchived', 'true');
+    if (filters.includeRejected) params.set('includeRejected', 'true');
+    if (filters.includeCancelled) params.set('includeCancelled', 'true');
+    if (filters.includeRemoved) params.set('includeRemoved', 'true');
+  }
+  return `${BASE_URL}/api/admin/exports/events/${eventId}/exports/${scope}?${params.toString()}`;
+}
+
+export const adminExportsApi = {
+  downloadParticipants: (eventId: string, format = 'csv', filters?: ExportFilters) => {
+    window.location.href = buildExportUrl(eventId, 'participants', format, filters);
+  },
+  downloadTeams: (eventId: string, format = 'csv', filters?: ExportFilters) => {
+    window.location.href = buildExportUrl(eventId, 'teams', format, filters);
+  },
+  downloadTeamMembers: (eventId: string, format = 'csv', filters?: ExportFilters) => {
+    window.location.href = buildExportUrl(eventId, 'team_members', format, filters);
+  },
+};
+
+function parseFilters(query: Record<string, unknown>) {
+  const filters: Record<string, unknown> = {};
+  if (query['status']) {
+    const s = query['status'];
+    filters['status'] = Array.isArray(s) ? s.map(String) : [String(s)];
+  }
+  if (query['hasTeam'] !== undefined) filters['hasTeam'] = query['hasTeam'] === 'true';
+  if (query['hasPhoto'] !== undefined) filters['hasPhoto'] = query['hasPhoto'] === 'true';
+  if (query['includeArchived']) filters['includeArchived'] = query['includeArchived'] === 'true';
+  if (query['includeRejected']) filters['includeRejected'] = query['includeRejected'] === 'true';
+  if (query['includeCancelled']) filters['includeCancelled'] = query['includeCancelled'] === 'true';
+  if (query['includeRemoved']) filters['includeRemoved'] = query['includeRemoved'] === 'true';
+  return Object.keys(filters).length > 0 ? filters : undefined;
+}
+
+export function buildUserExportUrl(params: {
+  search?: string;
+  role?: string;
+  hasEventMembership?: string;
+  eventId?: string;
+  includeInactive?: boolean;
+  format?: string;
+}): string {
+  const qp = new URLSearchParams();
+  if (params.search) qp.set('search', params.search);
+  if (params.role) qp.set('role', params.role);
+  if (params.hasEventMembership) qp.set('hasEventMembership', params.hasEventMembership);
+  if (params.eventId) qp.set('eventId', params.eventId);
+  if (params.includeInactive) qp.set('includeInactive', 'true');
+  qp.set('format', params.format ?? 'csv');
+  return `${BASE_URL}/api/admin/users/export?${qp.toString()}`;
+}
+
+export const adminUsersExportApi = {
+  downloadUsers: (params: {
+    search?: string;
+    role?: string;
+    hasEventMembership?: string;
+    eventId?: string;
+    includeInactive?: boolean;
+    format?: string;
+  } = {}) => {
+    window.location.href = buildUserExportUrl(params);
   },
 };

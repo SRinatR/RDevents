@@ -6,7 +6,32 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../../hooks/useAuth';
 import { adminApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
-import { EmptyState, LoadingLines, MetricCard, Notice, PageHeader, Panel, SectionHeader } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, MetricCard, Notice, PageHeader, Panel, SectionHeader, TableShell, StatusBadge } from '@/components/ui/signal-primitives';
+
+interface UsersAnalytics {
+  totalUsers: number;
+  activeUsers: number;
+  inactiveUsers: number;
+  usersWithEvents: number;
+  usersWithoutEvents: number;
+  participationsActive: number;
+  volunteersActive: number;
+  teamsCount: number;
+  teamsActive: number;
+}
+
+interface PlatformAnalytics {
+  totalUsers: number;
+  totalEvents: number;
+  totalRegistrations: number;
+  volunteersPending: number;
+  totalEventViews: number;
+  conversionViewToRegistration: number;
+  registrationsByProvider: Record<string, number>;
+  loginsByProvider: Record<string, number>;
+  topViewedEvents: Array<{ eventId: string; slug: string; title: string; category: string; registrationsCount: number; viewCount: number }>;
+  topRegisteredEvents: Array<{ eventId: string; slug: string; title: string; category: string; registrationCount: number }>;
+}
 
 export default function AdminAnalyticsPage() {
   const t = useTranslations();
@@ -14,7 +39,8 @@ export default function AdminAnalyticsPage() {
   const router = useRouter();
   const locale = useRouteLocale();
 
-  const [stats, setStats] = useState<any>(null);
+  const [usersAnalytics, setUsersAnalytics] = useState<UsersAnalytics | null>(null);
+  const [platformAnalytics, setPlatformAnalytics] = useState<PlatformAnalytics | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
 
   useEffect(() => {
@@ -28,33 +54,19 @@ export default function AdminAnalyticsPage() {
     async function loadStats() {
       setStatsLoading(true);
       try {
-        if (isPlatformAdmin) {
-          const platformStats = await adminApi.getAnalytics();
-          if (active) setStats(platformStats);
-          return;
-        }
-
-        const eventsResult = await adminApi.listEvents({ limit: 1 });
-        const firstEvent = eventsResult.data[0];
-        if (!firstEvent) {
-          if (active) setStats(null);
-          return;
-        }
-
-        const eventStats = await adminApi.getEventAnalytics(firstEvent.id);
+        const [usersData, platformData] = await Promise.all([
+          adminApi.getUsersAnalytics(),
+          adminApi.getAnalytics(),
+        ]);
         if (active) {
-          setStats({
-            ...eventStats,
-            eventScope: true,
-            totalEvents: 1,
-            totalRegistrations: eventStats.participants,
-            totalEventViews: eventStats.views,
-            topViewedEvents: [{ eventId: firstEvent.id, title: firstEvent.title, category: firstEvent.category, viewCount: eventStats.views }],
-            topRegisteredEvents: [{ eventId: firstEvent.id, title: firstEvent.title, category: firstEvent.category, registrationCount: eventStats.participants }],
-          });
+          setUsersAnalytics(usersData as UsersAnalytics);
+          setPlatformAnalytics(platformData as PlatformAnalytics);
         }
       } catch {
-        if (active) setStats(null);
+        if (active) {
+          setUsersAnalytics(null);
+          setPlatformAnalytics(null);
+        }
       } finally {
         if (active) setStatsLoading(false);
       }
@@ -64,107 +76,133 @@ export default function AdminAnalyticsPage() {
     return () => {
       active = false;
     };
-  }, [user, isAdmin, isPlatformAdmin]);
+  }, [user, isAdmin]);
 
   if (loading || !user || !isAdmin) return <div className="admin-loading-screen"><div className="spinner" /></div>;
-
-  const conversion = stats?.totalEventViews > 0
-    ? ((stats.totalRegistrations / stats.totalEventViews) * 100)
-    : null;
 
   return (
     <div className="signal-page-shell admin-control-page">
       <PageHeader
         title={t('admin.analytics')}
-        subtitle={isPlatformAdmin ? 'Platform performance overview' : 'Event performance overview'}
-       
+        subtitle={locale === 'ru' ? 'Обзор производительности платформы' : 'Platform performance overview'}
       />
 
-      <div className="admin-control-strip">
-        <div className="admin-control-card"><small>{locale === 'ru' ? 'Аналитика' : 'Analytics'}</small><strong>{stats?.eventScope ? (locale === 'ru' ? 'Контур события' : 'Event scope') : (locale === 'ru' ? 'Контур платформы' : 'Platform scope')}</strong></div>
-        <div className="admin-control-card"><small>{locale === 'ru' ? 'Конверсия' : 'Conversion'}</small><strong>{conversion !== null ? `${conversion.toFixed(2)}%` : '—'}</strong></div>
-      </div>
+      {isPlatformAdmin && usersAnalytics && (
+        <>
+          <Panel variant="elevated" className="admin-command-panel admin-data-panel">
+            <SectionHeader
+              title={locale === 'ru' ? 'Аналитика по пользователям' : 'Users Analytics'}
+              subtitle={locale === 'ru' ? 'Сводка по пользователям, участиям и командам' : 'Summary of users, participations and teams'}
+            />
+            <div className="signal-kpi-grid">
+              <MetricCard tone="info" label={locale === 'ru' ? 'Всего пользователей' : 'Total users'} value={usersAnalytics.totalUsers} />
+              <MetricCard tone="success" label={locale === 'ru' ? 'Активных' : 'Active'} value={usersAnalytics.activeUsers} />
+              <MetricCard tone="neutral" label={locale === 'ru' ? 'Отключённых' : 'Disabled'} value={usersAnalytics.inactiveUsers} />
+              <MetricCard tone="warning" label={locale === 'ru' ? 'Участвовали' : 'With events'} value={usersAnalytics.usersWithEvents} />
+              <MetricCard tone="neutral" label={locale === 'ru' ? 'Не участвовали' : 'No events'} value={usersAnalytics.usersWithoutEvents} />
+            </div>
+          </Panel>
 
-      <Panel variant="elevated" className="admin-command-panel admin-data-panel">
-        <SectionHeader title={locale === 'ru' ? 'Сводные метрики' : 'Core metrics'} subtitle={locale === 'ru' ? 'Ключевые показатели конверсии и трафика' : 'Key conversion and traffic indicators'} />
-        {statsLoading ? <LoadingLines rows={5} /> : !stats ? (
-          <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Данные аналитики появятся после накопления активности.' : 'Analytics widgets appear after activity is accumulated.'} />
-        ) : (
-          <div className="signal-kpi-grid">
-            <MetricCard tone="info" label={t('analytics.totalUsers')} value={stats.totalUsers ?? 0} />
-            <MetricCard tone="neutral" label={t('analytics.totalEvents')} value={stats.totalEvents ?? 0} />
-            <MetricCard tone="success" label={t('analytics.totalRegistrations')} value={stats.totalRegistrations ?? 0} />
-            <MetricCard tone="warning" label={t('analytics.totalEventViews')} value={stats.totalEventViews ?? 0} />
-            <MetricCard tone="danger" label={locale === 'ru' ? 'Волонтёры в очереди' : 'Volunteer queue'} value={stats.volunteersPending ?? 0} />
-            <MetricCard tone="info" label={locale === 'ru' ? 'Конверсия' : 'Conversion'} value={conversion !== null ? `${conversion.toFixed(2)}%` : '—'} />
+          <Panel variant="elevated" className="admin-command-panel admin-data-panel">
+            <SectionHeader
+              title={locale === 'ru' ? 'Аналитика по событиям и командам' : 'Events & Teams Analytics'}
+              subtitle={locale === 'ru' ? 'Сводка по участиям, волонтёрам и командам' : 'Summary of participations, volunteers and teams'}
+            />
+            <div className="signal-kpi-grid">
+              <MetricCard tone="success" label={locale === 'ru' ? 'Активных участников' : 'Active participants'} value={usersAnalytics.participationsActive} />
+              <MetricCard tone="info" label={locale === 'ru' ? 'Активных волонтёров' : 'Active volunteers'} value={usersAnalytics.volunteersActive} />
+              <MetricCard tone="neutral" label={locale === 'ru' ? 'Всего команд' : 'Total teams'} value={usersAnalytics.teamsCount} />
+              <MetricCard tone="success" label={locale === 'ru' ? 'Активных команд' : 'Active teams'} value={usersAnalytics.teamsActive} />
+            </div>
+          </Panel>
+
+          <div className="signal-two-col admin-dashboard-grid">
+            <Panel variant="elevated" className="admin-command-panel admin-data-panel">
+              <SectionHeader title={locale === 'ru' ? 'Статусы пользователей' : 'User Status Breakdown'} subtitle={locale === 'ru' ? 'Распределение по статусам' : 'Status distribution'} />
+              <TableShell>
+                <table className="signal-table">
+                  <thead>
+                    <tr>
+                      <th>{locale === 'ru' ? 'Метрика' : 'Metric'}</th>
+                      <th>{locale === 'ru' ? 'Значение' : 'Value'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>{locale === 'ru' ? 'Активные пользователи' : 'Active users'}</td>
+                      <td><StatusBadge tone="success">{usersAnalytics.activeUsers}</StatusBadge></td>
+                    </tr>
+                    <tr>
+                      <td>{locale === 'ru' ? 'Неактивные пользователи' : 'Inactive users'}</td>
+                      <td><StatusBadge tone="neutral">{usersAnalytics.inactiveUsers}</StatusBadge></td>
+                    </tr>
+                    <tr>
+                      <td>{locale === 'ru' ? 'Пользователи с событиями' : 'Users with events'}</td>
+                      <td><StatusBadge tone="info">{usersAnalytics.usersWithEvents}</StatusBadge></td>
+                    </tr>
+                    <tr>
+                      <td>{locale === 'ru' ? 'Пользователи без событий' : 'Users without events'}</td>
+                      <td><StatusBadge tone="warning">{usersAnalytics.usersWithoutEvents}</StatusBadge></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </TableShell>
+            </Panel>
+
+            <Panel variant="elevated" className="admin-command-panel admin-data-panel">
+              <SectionHeader title={locale === 'ru' ? 'События и команды' : 'Events & Teams Breakdown'} subtitle={locale === 'ru' ? 'Операционная сводка' : 'Operational summary'} />
+              <TableShell>
+                <table className="signal-table">
+                  <thead>
+                    <tr>
+                      <th>{locale === 'ru' ? 'Метрика' : 'Metric'}</th>
+                      <th>{locale === 'ru' ? 'Значение' : 'Value'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>{locale === 'ru' ? 'Активные участия' : 'Active participations'}</td>
+                      <td><StatusBadge tone="success">{usersAnalytics.participationsActive}</StatusBadge></td>
+                    </tr>
+                    <tr>
+                      <td>{locale === 'ru' ? 'Активные волонтёры' : 'Active volunteers'}</td>
+                      <td><StatusBadge tone="info">{usersAnalytics.volunteersActive}</StatusBadge></td>
+                    </tr>
+                    <tr>
+                      <td>{locale === 'ru' ? 'Всего команд' : 'Total teams'}</td>
+                      <td><StatusBadge tone="neutral">{usersAnalytics.teamsCount}</StatusBadge></td>
+                    </tr>
+                    <tr>
+                      <td>{locale === 'ru' ? 'Активных команд' : 'Active teams'}</td>
+                      <td><StatusBadge tone="success">{usersAnalytics.teamsActive}</StatusBadge></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </TableShell>
+            </Panel>
           </div>
-        )}
-      </Panel>
+        </>
+      )}
 
-      <div className="signal-two-col admin-dashboard-grid">
+      {statsLoading ? (
+        <LoadingLines rows={5} />
+      ) : platformAnalytics ? (
         <Panel variant="elevated" className="admin-command-panel admin-data-panel">
-          <SectionHeader title={t('analytics.registrationsByProvider')} subtitle={locale === 'ru' ? 'Каналы регистраций' : 'Registration channels'} />
-          {statsLoading ? <LoadingLines rows={4} /> : stats?.registrationsByProvider && Object.keys(stats.registrationsByProvider).length > 0 ? (
-            <div className="signal-stack">
-              {Object.entries(stats.registrationsByProvider).map(([provider, count]) => (
-                <div key={provider} className="signal-ranked-item">
-                  <span>{provider}</span>
-                  
-                </div>
-              ))}
-            </div>
-          ) : <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Нет данных по каналам регистрации.' : 'No provider registration breakdown yet.'} />}
+          <SectionHeader title={locale === 'ru' ? 'Общая аналитика платформы' : 'Platform-wide Analytics'} subtitle={locale === 'ru' ? 'Ключевые показатели' : 'Key indicators'} />
+          <div className="signal-kpi-grid">
+            <MetricCard tone="info" label={locale === 'ru' ? 'Всего событий' : 'Total events'} value={platformAnalytics.totalEvents ?? 0} />
+            <MetricCard tone="success" label={locale === 'ru' ? 'Всего регистраций' : 'Total registrations'} value={platformAnalytics.totalRegistrations ?? 0} />
+            <MetricCard tone="warning" label={locale === 'ru' ? 'Волонтёры ждут' : 'Volunteers pending'} value={platformAnalytics.volunteersPending ?? 0} />
+            <MetricCard tone="neutral" label={locale === 'ru' ? 'Просмотры событий' : 'Event views'} value={platformAnalytics.totalEventViews ?? 0} />
+            <MetricCard tone="info" label={locale === 'ru' ? 'Конверсия' : 'Conversion'} value={platformAnalytics.conversionViewToRegistration ? `${(platformAnalytics.conversionViewToRegistration * 100).toFixed(2)}%` : '—'} />
+          </div>
         </Panel>
+      ) : (
+        <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Данные аналитики появятся после накопления активности.' : 'Analytics widgets appear after activity is accumulated.'} />
+      )}
 
-        <Panel variant="elevated" className="admin-command-panel admin-data-panel">
-          <SectionHeader title={t('analytics.loginsByProvider')} subtitle={locale === 'ru' ? 'Каналы входа' : 'Login channels'} />
-          {statsLoading ? <LoadingLines rows={4} /> : stats?.loginsByProvider && Object.keys(stats.loginsByProvider).length > 0 ? (
-            <div className="signal-stack">
-              {Object.entries(stats.loginsByProvider).map(([provider, count]) => (
-                <div key={provider} className="signal-ranked-item">
-                  <span>{provider}</span>
-                  
-                </div>
-              ))}
-            </div>
-          ) : <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Нет данных по каналам входа.' : 'No provider login breakdown yet.'} />}
-        </Panel>
-      </div>
-
-      <div className="signal-two-col admin-dashboard-grid">
-        <Panel variant="elevated" className="admin-command-panel admin-data-panel">
-          <SectionHeader title={t('analytics.topViewedEvents')} subtitle={locale === 'ru' ? 'Лидеры по просмотрам' : 'Most viewed events'} />
-          {statsLoading ? <LoadingLines rows={5} /> : stats?.topViewedEvents?.length ? (
-            <div className="signal-ranked-list">
-              {stats.topViewedEvents.map((event: any, index: number) => (
-                <div className="signal-ranked-item" key={event.eventId ?? `${event.title}-${index}`}>
-                  <span className="signal-rank">{index + 1}</span>
-                  <span>{event.title}</span>
-                  
-                </div>
-              ))}
-            </div>
-          ) : <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Нет лидеров по просмотрам.' : 'No top viewed events available.'} />}
-        </Panel>
-
-        <Panel variant="elevated" className="admin-command-panel admin-data-panel">
-          <SectionHeader title={t('analytics.topRegisteredEvents')} subtitle={locale === 'ru' ? 'Лидеры по регистрациям' : 'Most registered events'} />
-          {statsLoading ? <LoadingLines rows={5} /> : stats?.topRegisteredEvents?.length ? (
-            <div className="signal-ranked-list">
-              {stats.topRegisteredEvents.map((event: any, index: number) => (
-                <div className="signal-ranked-item" key={event.eventId ?? `${event.title}-${index}`}>
-                  <span className="signal-rank">{index + 1}</span>
-                  <span>{event.title}</span>
-                  
-                </div>
-              ))}
-            </div>
-          ) : <EmptyState title={t('common.noData')} description={locale === 'ru' ? 'Нет лидеров по регистрациям.' : 'No top registered events available.'} />}
-        </Panel>
-      </div>
-
-      <Notice tone="warning">
-        {locale === 'ru' ? 'Визуальная аналитическая структура готова к подключению расширенных метрик и графиков при появлении backend-возможностей.' : 'Analytics workspace structure is ready for expanded metrics and charts as backend capabilities grow.'}
+      <Notice tone="info">
+        {locale === 'ru' ? 'Аналитика обновляется в реальном времени.' : 'Analytics are updated in real-time.'}
       </Notice>
     </div>
   );

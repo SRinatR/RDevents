@@ -146,7 +146,30 @@
     "createEvent": "Создать мероприятие",
     "editEvent": "Редактировать мероприятие",
     "createAdmin": "Создать админа",
-    "export": "Экспорт"
+    "export": "Экспорт",
+    "roles": {
+      "PARTICIPANT": "Участник",
+      "VOLUNTEER": "Волонтёр"
+    },
+    "statuses": {
+      "ACTIVE": "Активный",
+      "PENDING": "В ожидании",
+      "RESERVE": "В резерве",
+      "REJECTED": "Отклонён",
+      "CANCELLED": "Отменён",
+      "REMOVED": "Удалён"
+    },
+    "participantActions": {
+      "view": "Просмотр",
+      "profile": "Профиль",
+      "reject": "Отклонить",
+      "remove": "Убрать",
+      "confirmReject": "Вы уверены, что хотите отклонить участника?",
+      "confirmRemove": "Вы уверены, что хотите убрать участника с мероприятия?",
+      "rejectSuccess": "Участник отклонён",
+      "removeSuccess": "Участник убран с мероприятия",
+      "error": "Не удалось выполнить действие"
+    }
   },
   "analytics": {
     "title": "Аналитика",

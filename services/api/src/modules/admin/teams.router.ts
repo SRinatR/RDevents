@@ -46,6 +46,8 @@ adminTeamsRouter.get('/', async (req, res) => {
 
   if (status && status !== 'ALL') {
     where['status'] = status;
+  } else {
+    where['status'] = { notIn: ['REJECTED', 'ARCHIVED'] };
   }
 
   if (search) {
@@ -159,4 +161,104 @@ adminTeamsRouter.patch('/:teamId/status', async (req, res) => {
   });
 
   res.json({ data: updated });
+});
+
+// POST /admin/teams/:teamId/remove - мягкое удаление команды с мероприятия
+adminTeamsRouter.post('/:teamId/remove', async (req, res) => {
+  const user = (req as any).user as User;
+  const { teamId } = req.params;
+
+  const team = await prisma.eventTeam.findUnique({
+    where: { id: teamId },
+  });
+
+  if (!team) {
+    res.status(404).json({ error: 'Team not found' });
+    return;
+  }
+
+  const managedEventIds = await getManagedEventIds(user);
+  if (managedEventIds && !managedEventIds.includes(team.eventId)) {
+    res.status(403).json({ error: 'Access denied' });
+    return;
+  }
+
+  await prisma.$transaction(async (tx: any) => {
+    await tx.eventTeamMember.updateMany({
+      where: { teamId, status: { notIn: ['REMOVED', 'LEFT'] } },
+      data: { status: 'REMOVED', removedAt: new Date() },
+    });
+
+    await tx.eventTeamInvitation.updateMany({
+      where: {
+        teamId,
+        status: { in: ['PENDING_ACCOUNT', 'PENDING_RESPONSE'] },
+      },
+      data: { status: 'CANCELLED', cancelledAt: new Date() },
+    });
+
+    await tx.eventTeam.update({
+      where: { id: teamId },
+      data: { status: 'ARCHIVED' },
+    });
+  });
+
+  res.json({ message: 'Team removed successfully', teamId });
+});
+
+// POST /admin/teams/:teamId/archive
+adminTeamsRouter.post('/:teamId/archive', async (req, res) => {
+  const user = (req as any).user as User;
+  const { teamId } = req.params;
+
+  const team = await prisma.eventTeam.findUnique({
+    where: { id: teamId },
+  });
+
+  if (!team) {
+    res.status(404).json({ error: 'Team not found' });
+    return;
+  }
+
+  const managedEventIds = await getManagedEventIds(user);
+  if (managedEventIds && !managedEventIds.includes(team.eventId)) {
+    res.status(403).json({ error: 'Access denied' });
+    return;
+  }
+
+  await prisma.$transaction(async (tx: any) => {
+    await tx.eventTeamMember.updateMany({
+      where: { teamId, status: { notIn: ['REMOVED', 'LEFT'] } },
+      data: { status: 'REMOVED', removedAt: new Date() },
+    });
+
+    await tx.eventTeamInvitation.updateMany({
+      where: {
+        teamId,
+        status: { in: ['PENDING_ACCOUNT', 'PENDING_RESPONSE'] },
+      },
+      data: { status: 'CANCELLED', cancelledAt: new Date() },
+    });
+
+    await tx.eventTeam.update({
+      where: { id: teamId },
+      data: { status: 'ARCHIVED' },
+    });
+  });
+
+  const updatedTeam = await prisma.eventTeam.findUnique({
+    where: { id: teamId },
+    include: {
+      event: { select: { id: true, title: true, slug: true } },
+      captainUser: { select: { id: true, name: true, email: true, avatarUrl: true } },
+      members: {
+        where: { status: { notIn: ['REMOVED', 'LEFT'] } },
+        include: {
+          user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+        },
+      },
+    },
+  });
+
+  res.json({ data: updatedTeam });
 });
