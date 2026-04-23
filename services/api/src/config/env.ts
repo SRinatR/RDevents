@@ -24,6 +24,16 @@ function getAppUrl(): string {
   return value.replace(/\/$/, '');
 }
 
+if (process.env['NODE_ENV'] === 'production') {
+  const dbUrl = process.env['DATABASE_URL'] ?? '';
+  if (dbUrl.includes('@127.0.0.1:') || dbUrl.includes('@localhost:')) {
+    throw new Error(
+      'Invalid production DATABASE_URL: docker-compose network uses postgres service hostname, not 127.0.0.1 or localhost. ' +
+      'Set DATABASE_URL to: postgresql://user:password@postgres:5432/db?schema=public',
+    );
+  }
+}
+
 export const env = {
   NODE_ENV: optional_env('NODE_ENV', 'development'),
   PORT: parseInt(optional_env('PORT', '4000'), 10),

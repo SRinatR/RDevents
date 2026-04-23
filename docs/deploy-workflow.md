@@ -94,7 +94,8 @@ Deploy job:
 - deploys with Docker Compose on the server (see sequence below)
 - writes `.release-commit` with the deployed commit SHA
 - starts Postgres, waits for it to become healthy, and writes a non-empty pre-migration database backup
-- runs `pnpm prisma:deploy` only after the backup succeeds
+- validates that production `DATABASE_URL` uses `postgres:5432` as the host (inside docker-compose network, not `127.0.0.1` or `localhost`); the deploy aborts before migration if the host is wrong
+- runs `pnpm prisma:deploy` only after the backup succeeds and DATABASE_URL validation passes
 - recreates API and web with Docker Compose only after backup and migrations succeed
 - updates runtime fallback files in `/opt/rdevents/runtime/`
 - runs `nginx -t` and `systemctl reload nginx` after runtime files are updated
@@ -111,12 +112,13 @@ The deploy step on the server follows this exact order to keep the database safe
 4. **Start postgres** — `docker compose up -d postgres` ensures postgres is up without touching api/web.
 5. **Wait for postgres healthy** — polls the postgres container health status with `docker inspect` for up to 60 seconds; aborts the deploy if postgres does not become healthy. This checks the Docker health check (`pg_isready -U <user> -d <db>`) rather than a bare TCP probe, confirming the correct user and database are accepting connections.
 6. **Backup** — runs `pg_dump | gzip` inside the postgres container using the container's own `POSTGRES_USER` and `POSTGRES_DB`, then writes the compressed dump to `$DEPLOY_ROOT/backups/pre-migrate-<timestamp>.sql.gz`. The deploy aborts if the backup fails or the file is empty.
-7. **Migrate** — runs `pnpm prisma:deploy` inside a one-off API container (`docker compose run --rm --no-deps api`). The deploy aborts if any migration fails; the previously running api/web containers were not stopped by the deploy workflow. **Seed (`db:seed`) is never run here.**
-8. **Recreate api and web** — `docker compose up -d --no-build --force-recreate --remove-orphans api web` replaces the app containers using the images built in step 2. This step is only reached if backup and migration succeeded.
-9. **Update runtime fallbacks** — writes the deployed SHA into `/opt/rdevents/runtime/version.txt`, `/opt/rdevents/runtime/version`, and `/opt/rdevents/runtime/release.json`.
-10. **Validate and reload nginx** — runs `nginx -t` and then `systemctl reload nginx` so nginx fallback aliases pick up the fresh runtime files.
-11. **Verify release markers** — the deploy is considered failed unless all required SHA endpoints return the new release after reload.
-12. **Prune** — removes dangling Docker images.
+7. **Validate DATABASE_URL** — before running migrations, the deploy validates that `$DEPLOY_ROOT/.env` contains `DATABASE_URL` with host `postgres:5432` (not `127.0.0.1`, not `localhost`). Prisma connects from inside the `api` container, where `postgres` resolves to the database service in the Docker Compose network. The deploy aborts immediately if the host is wrong.
+8. **Migrate** — runs `pnpm prisma:deploy` inside a one-off API container (`docker compose run --rm --no-deps api`). The deploy aborts if any migration fails; the previously running api/web containers were not stopped by the deploy workflow. **Seed (`db:seed`) is never run here.**
+9. **Recreate api and web** — `docker compose up -d --no-build --force-recreate --remove-orphans api web` replaces the app containers using the images built in step 2. This step is only reached if backup and migration succeeded.
+10. **Update runtime fallbacks** — writes the deployed SHA into `/opt/rdevents/runtime/version.txt`, `/opt/rdevents/runtime/version`, and `/opt/rdevents/runtime/release.json`.
+11. **Validate and reload nginx** — runs `nginx -t` and then `systemctl reload nginx` so nginx fallback aliases pick up the fresh runtime files.
+12. **Verify release markers** — the deploy is considered failed unless all required SHA endpoints return the new release after reload.
+13. **Prune** — removes dangling Docker images.
 
 ### Smoke checks (after deploy step)
 
@@ -296,7 +298,13 @@ Required environment secrets:
 - `PROD_SSH_KEY`
 - `PROD_ENV_FILE`
 
-Production secrets must not be stored as broadly available repository secrets unless there is a specific operational reason. CI must not reference them.
+`PROD_ENV_FILE` must contain a `DATABASE_URL` with the Docker Compose service name as host, not `127.0.0.1` or `localhost`. Prisma connects from inside the `api` container, so it must resolve `postgres` via the compose network:
+
+```
+DATABASE_URL=postgresql://event_platform_user:event_platform_password@postgres:5432/event_platform?schema=public
+```
+
+The deploy workflow validates this before running migrations and aborts if the host is not `postgres:5432`.
 
 ## Branch Protection
 
@@ -386,6 +394,7 @@ Deploy errors are in workflow `Deploy production`.
 - `Deploy on server` means the server-side deploy script failed. The failure message indicates the exact stage:
   - *Postgres did not become healthy* — postgres container failed to start or pass its health check; existing api/web containers were not stopped by the deploy workflow.
   - *pg_dump* error or empty backup file — backup failed; existing api/web containers were not stopped by the deploy workflow.
+  - *production DATABASE_URL must use host 'postgres:5432'* — `DATABASE_URL` in `$DEPLOY_ROOT/.env` contains `127.0.0.1`, `localhost`, or any host other than `postgres:5432`. Fix the `PROD_ENV_FILE` secret in the GitHub `production` environment and re-run the deploy.
   - *prisma migrate deploy* error — migration failed; existing api/web containers were not stopped by the deploy workflow; restore from `$DEPLOY_ROOT/backups/` if needed.
   - Any other error after migration — api/web start failed but migration may have already been applied; check `docker compose ps` and logs on the server.
 - `Smoke test - API container is running` / `Smoke test - Web container is running` — container did not reach running state within 60 s after `docker compose up`; check `docker compose ps` and logs on the server.
@@ -420,6 +429,35 @@ docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml up -d a
 ```
 
 If `DEPLOY_ROOT` is unset, that expands to `--env-file /.env` and can turn a recovery command into another outage. Use `/opt/rdevents/.env`.
+
+### Docker Compose networking rule
+
+Inside the API container, `127.0.0.1` and `localhost` do not reach the database. Postgres is available at the service name `postgres` from any container in the compose network.
+
+Production `DATABASE_URL` must use `@postgres:5432`:
+```
+DATABASE_URL=postgresql://event_platform_user:event_platform_password@postgres:5432/event_platform?schema=public
+```
+
+Using `127.0.0.1` or `localhost` in production causes Prisma to fail with `P1001: Can't reach database server at 127.0.0.1:5432`.
+
+### Standard production compose commands
+
+Always use explicit absolute paths and the correct compose file:
+
+```bash
+cd /opt/rdevents/app
+
+# Start postgres (from compose network)
+docker compose --env-file /opt/rdevents/.env -f docker-compose.prod.yml up -d postgres
+
+# Run migrations (from compose network)
+docker compose --env-file /opt/rdevents/.env -f docker-compose.prod.yml \
+  run --rm --no-deps --entrypoint sh api -lc 'cd /app/services/api && pnpm exec prisma migrate deploy'
+
+# Start app containers
+docker compose --env-file /opt/rdevents/.env -f docker-compose.prod.yml up -d api web
+```
 
 ### Diagnose a 502
 

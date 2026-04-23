@@ -232,10 +232,18 @@ log "6) Start postgres again from deployed source and wait"
 compose up -d postgres
 wait_for_service postgres 120
 
-log "7) Run migrations"
+log "7) Validate DATABASE_URL"
+if ! grep -Eq '^DATABASE_URL=.*@postgres:5432/' "${ENV_FILE}" 2>/dev/null; then
+  fail "Invalid production DATABASE_URL: must use host 'postgres:5432' inside docker-compose network. "\
+"Current value: $(grep '^DATABASE_URL=' "${ENV_FILE}" || echo 'not found'). "\
+"Fix ${ENV_FILE} and retry."
+fi
+log "DATABASE_URL validated: uses postgres:5432 host."
+
+log "8) Run migrations"
 compose run --rm --no-deps --entrypoint sh api -lc 'cd /app/services/api && pnpm exec prisma migrate deploy'
 
-log "8) Recreate api and web"
+log "9) Recreate api and web"
 compose up -d --force-recreate --remove-orphans api web
 
 wait_for_service api 180
