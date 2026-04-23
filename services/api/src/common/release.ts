@@ -29,3 +29,11 @@ function resolveReleaseSha() {
 }
 
 export const releaseSha = resolveReleaseSha();
+
+export function buildReleasePayload(service: string) {
+  return {
+    service,
+    releaseSha,
+    environment: process.env['NODE_ENV'] ?? 'unknown',
+  };
+}

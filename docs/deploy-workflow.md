@@ -151,16 +151,90 @@ The deploy workflow must not run from `main`, feature branches, or PRs.
 
 ### Release marker contract
 
-Every deployed image receives the same `RELEASE_SHA` build argument and runtime environment value. The web image writes it into static public files during Docker build; the API image writes it into `release.txt` and also exposes it through `RELEASE_SHA`. While the nginx static fallback aliases remain enabled, the deploy workflow also writes the same SHA to `$DEPLOY_ROOT/runtime/version.txt`, `$DEPLOY_ROOT/runtime/version`, and `$DEPLOY_ROOT/runtime/release.json`, then runs `nginx -t` and `systemctl reload nginx` so the fallback cannot keep serving a stale release.
+The primary release contract is the application-level endpoints, not the nginx static aliases. Runtime fallback files are a safety net, not a source of truth.
 
-Required app-level endpoints:
+**Primary release contract:**
 
-- Web: `GET /version.txt` returns `200 text/plain` with the deployed commit SHA.
-- Web: `GET /release.json` returns `200 application/json` with the deployed commit SHA in `releaseSha`.
-- API: `GET /version` returns `200 text/plain` with the deployed commit SHA.
-- API: `GET /api/version` returns `200 text/plain` with the deployed commit SHA.
+| Endpoint | Service | Format | Purpose |
+|----------|---------|--------|---------|
+| `GET /release.json` | API | JSON | Primary release marker for API service |
+| `GET /api/release.json` | API | JSON | API release marker under /api prefix |
+| `GET /release.json` | Web | JSON | Primary release marker for Web service |
+| `GET <locale>/` HTML | Web | `<meta name="app-release-sha">` | Release marker embedded in HTML |
 
-These endpoints must not depend on request headers, cookies, or other request-bound dynamic logic. Nginx may keep a static fallback as a safety layer, but the application endpoints are the primary contract and the deploy smoke checks validate that contract. A production deploy is not successful unless these four required endpoints return the new SHA: `http://127.0.0.1:3000/version.txt`, `http://127.0.0.1:4000/version`, `https://rdevents.uz/version.txt`, and `https://api.rdevents.uz/version`. The deploy workflow also keeps the local upstream `http://127.0.0.1:4000/api/version` and public `https://api.rdevents.uz/api/version` compatibility checks available, but the four required endpoints above are the hard gate.
+**JSON response shape:**
+```json
+{
+  "service": "event-platform-api",
+  "releaseSha": "<sha>",
+  "environment": "<NODE_ENV>"
+}
+```
+
+**HTML meta marker:**
+```html
+<meta name="app-release-sha" content="<sha>" />
+```
+
+**Legacy compatibility (temporary, not source of truth):**
+
+| Endpoint | Service | Format | Notes |
+|----------|---------|--------|-------|
+| `GET /version.txt` | Web | Plain text | Static file, nginx alias fallback |
+| `GET /version` | API | Plain text | Static file, nginx alias fallback |
+| `GET /api/version` | API | Plain text | Compatibility path |
+
+**Runtime fallback files** (`/opt/rdevents/runtime/`):
+
+- `version.txt`, `version`, `release.json`
+- These are nginx static aliases used as a safety net
+- They are updated after application verification passes
+- They are **not** the source of truth for deploy success
+
+**Deploy success criteria:**
+
+A deploy is successful only when:
+
+1. `GET /release.json` on API (local and public) returns the new SHA
+2. `GET /release.json` on Web (local and public) returns the new SHA
+3. HTML at `/ru` contains `app-release-sha` meta with the new SHA
+
+Version.txt and version files remain as legacy compatibility, but they are no longer the primary gate for deploy success.
+
+### CI container-smoke job
+
+The CI workflow includes a `container-smoke` job that runs after `docker-build`:
+
+- Starts postgres via Docker Compose
+- Runs database migrations
+- Starts API and Web containers
+- Verifies runtime contract:
+  - API `/release.json` SHA matches `RELEASE_SHA`
+  - Web `/release.json` SHA matches `RELEASE_SHA`
+  - HTML meta `app-release-sha` matches `RELEASE_SHA`
+  - `/health` and `/ready` endpoints respond correctly
+  - `/ru` and `/ru/events` pages respond correctly
+
+The `container-smoke` job is a required check in `required-checks`. This ensures the containerized application passes runtime verification before any production deploy.
+
+**Required status checks for branch protection:**
+
+- `Type check`
+- `Lint`
+- `Test`
+- `Build`
+- `Docker Build`
+- `Container Smoke`
+
+### Legacy compatibility markers
+
+The following endpoints remain enabled as legacy compatibility:
+
+- `GET /version.txt` — Web static file (nginx alias to `/opt/rdevents/runtime/version.txt`)
+- `GET /version` — API static file (nginx alias to `/opt/rdevents/runtime/version`)
+- `GET /api/version` — API compatibility path
+
+These are **not** the source of truth and are no longer the primary release gate. They may return stale values briefly during deploy if nginx reload timing is unfavorable. Always use the primary release contract endpoints above for release verification.
 
 ## Manual Recovery Script
 
