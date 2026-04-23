@@ -306,6 +306,30 @@ DATABASE_URL=postgresql://event_platform_user:event_platform_password@postgres:5
 
 The deploy workflow validates this before running migrations and aborts if the host is not `postgres:5432`.
 
+### Production .env Contract
+
+The production `.env` (`PROD_ENV_FILE`) must contain the following variables. This contract is enforced by the deploy workflow preflight check, the manual deploy script, and the API runtime startup guard.
+
+**Database (compose network only):**
+
+```bash
+# These three must be consistent — docker-compose.prod.yml uses them for the postgres service.
+POSTGRES_DB=event_platform
+POSTGRES_USER=event_platform_user
+POSTGRES_PASSWORD=<secure-password>
+
+# DATABASE_URL uses @postgres:5432 — the compose service name, not 127.0.0.1 or localhost.
+# This URL is consumed by the api container inside the compose network; it must resolve
+# `postgres` via Docker's internal DNS. External access to postgres does not affect this URL.
+DATABASE_URL=postgresql://event_platform_user:<password>@postgres:5432/event_platform?schema=public
+```
+
+**Why `postgres:5432` and not `127.0.0.1` or `localhost`:**
+
+From inside any container in `docker-compose.prod.yml`, the service name `postgres` resolves to the database container via Docker's internal DNS. `127.0.0.1` and `localhost` inside a container refer to the container itself, not the database — Prisma will fail with `P1001: Can't reach database server at 127.0.0.1:5432`.
+
+The `DATABASE_URL` in production is exclusively an intra-compose-network address. External postgres access (e.g. `psql` from the host or a remote client) uses a different connection path and does not affect the runtime `DATABASE_URL`.
+
 ## Branch Protection
 
 These settings are configured in GitHub repository settings, not in workflow YAML.

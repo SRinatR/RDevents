@@ -67,6 +67,9 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://event_platform_user:event_platform_password@localhost:5432/event_platform?schema=public
+      # NOTE: typecheck/build jobs run Node.js directly on the runner, not inside containers.
+      # localhost here is only for local Prisma tooling context (prisma generate / typecheck).
+      # container-smoke job uses @postgres:5432 to mirror production compose topology.
       JWT_ACCESS_SECRET: ci-access-secret
       JWT_REFRESH_SECRET: ci-refresh-secret
       CORS_ORIGIN: http://localhost:3000
@@ -234,7 +237,7 @@ jobs:
     env:
       RELEASE_SHA: ${{ github.sha }}
       NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:4000
-      DATABASE_URL: postgresql://event_platform_user:event_platform_password@127.0.0.1:5432/event_platform?schema=public
+      DATABASE_URL: postgresql://event_platform_user:event_platform_password@postgres:5432/event_platform?schema=public
       JWT_ACCESS_SECRET: ci-access-secret
       JWT_REFRESH_SECRET: ci-refresh-secret
       CORS_ORIGIN: http://localhost:3000
@@ -267,8 +270,9 @@ jobs:
 
       - name: Run migrations
         run: |
+          echo "DATABASE_URL inside api container: $DATABASE_URL"
           docker compose -f docker-compose.prod.yml run --rm --no-deps --entrypoint sh api -lc \
-            'cd /app/services/api && pnpm exec prisma migrate deploy'
+            'echo "Effective DATABASE_URL: $DATABASE_URL" && cd /app/services/api && pnpm exec prisma migrate deploy'
 
       - name: Start api and web
         run: docker compose -f docker-compose.prod.yml up -d api web
