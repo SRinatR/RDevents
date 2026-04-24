@@ -2,9 +2,9 @@ import { BaseReportProvider, ProviderContext, SectionResult } from './base.provi
 
 export class DatabaseProvider extends BaseReportProvider {
   readonly key = 'database';
-  readonly label: 'Database' = 'Database';
-  readonly description: 'Database connectivity and status' = 'Database connectivity and status';
-  readonly category: 'application' = 'application';
+  readonly label = 'Database' as const;
+  readonly description = 'Database connectivity and status' as const;
+  readonly category = 'application' as const;
 
   async collect(context: ProviderContext): Promise<SectionResult> {
     const lines: string[] = [];

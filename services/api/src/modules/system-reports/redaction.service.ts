@@ -2,7 +2,7 @@ export type RedactionLevel = 'strict' | 'standard' | 'off';
 
 const SENSITIVE_PATTERNS: Record<string, RegExp[]> = {
   tokens: [
-    /(api[_-]?key|apikey|api[_-]?secret|auth[_-]?token|access[_-]?token|refresh[_-]?token|bearer|jwt)[=:]\s*["']?([a-zA-Z0-9_\-\.]{8,})["']?/gi,
+    /(api[_-]?key|apikey|api[_-]?secret|auth[_-]?token|access[_-]?token|refresh[_-]?token|bearer|jwt)[=:]\s*["']?([a-zA-Z0-9_.-]{8,})["']?/gi,
   ],
   passwords: [
     /(password|passwd|pwd|secret)[=:]\s*["']?([^\s&"']{4,})["']?/gi,
@@ -12,7 +12,7 @@ const SENSITIVE_PATTERNS: Record<string, RegExp[]> = {
     /(database[_-]?url|db[_-]?url|connection[_-]?string)[=:]\s*["']?[^\s"']+["']?/gi,
   ],
   cookies: [
-    /(cookie|session)[=:]\s*["']?([a-zA-Z0-9_\-]{16,})["']?/gi,
+    /(cookie|session)[=:]\s*["']?([a-zA-Z0-9_-]{16,})["']?/gi,
   ],
   authorization: [
     /(authorization|auth[_-]?header)[=:]\s*["']?([^"'\s]+)["']?/gi,

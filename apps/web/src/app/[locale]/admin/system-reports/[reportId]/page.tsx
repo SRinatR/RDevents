@@ -39,11 +39,9 @@ export default function ReportDetailPage() {
 
   useEffect(() => {
     fetchRun();
-    if (!run || (run.status !== 'queued' && run.status !== 'running')) return;
-
     const interval = setInterval(fetchRun, 2000);
     return () => clearInterval(interval);
-  }, [fetchRun, run?.status]);
+  }, [fetchRun]);
 
   const handleDownload = async (artifactId: string, fileName: string) => {
     setDownloading(artifactId);

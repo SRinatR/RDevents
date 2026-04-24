@@ -5,9 +5,9 @@ const prisma = new PrismaClient();
 
 export class AuditProvider extends BaseReportProvider {
   readonly key = 'audit';
-  readonly label = 'Audit / Activity';
-  readonly description = 'Recent admin actions, report runs, changes';
-  readonly category: 'system' = 'system';
+  readonly label = 'Audit / Activity' as const;
+  readonly description = 'Recent admin actions, report runs, changes' as const;
+  readonly category = 'system' as const;
 
   async collect(context: ProviderContext): Promise<SectionResult> {
     const lines: string[] = [];

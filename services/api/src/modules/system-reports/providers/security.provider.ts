@@ -2,9 +2,9 @@ import { BaseReportProvider, ProviderContext, SectionResult } from './base.provi
 
 export class SecurityProvider extends BaseReportProvider {
   readonly key = 'security';
-  readonly label = 'Security / Config';
-  readonly description = 'Environment validation and security status';
-  readonly category: 'security' = 'security';
+  readonly label = 'Security / Config' as const;
+  readonly description = 'Environment validation and security status' as const;
+  readonly category = 'security' as const;
 
   async collect(context: ProviderContext): Promise<SectionResult> {
     const lines: string[] = [];

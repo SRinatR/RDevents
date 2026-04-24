@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { createHash } from 'node:crypto';
 import { getProviders, getProvider } from './providers/index.js';
 import { addEvent, updateRunProgress, completeRun } from './system-reports.service.js';
 
@@ -236,8 +237,7 @@ function prepareArtifacts(content: string, run: any): Array<{
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const baseName = `report-${run.id}-${timestamp}`;
 
-  const checksum = require('crypto')
-    .createHash('sha256')
+  const checksum = createHash('sha256')
     .update(content)
     .digest('hex');
 
@@ -268,8 +268,7 @@ function prepareArtifacts(content: string, run: any): Array<{
         mimeType: 'application/json',
         storagePath: `${storageDir}/${baseName}.json`,
         sizeBytes: Buffer.byteLength(jsonContent, 'utf-8'),
-        checksum: require('crypto')
-          .createHash('sha256')
+        checksum: createHash('sha256')
           .update(jsonContent)
           .digest('hex'),
       });
@@ -296,8 +295,7 @@ function prepareArtifacts(content: string, run: any): Array<{
         mimeType: 'application/json',
         storagePath: `${storageDir}/${baseName}-meta.json`,
         sizeBytes: Buffer.byteLength(JSON.stringify(metadata), 'utf-8'),
-        checksum: require('crypto')
-          .createHash('sha256')
+        checksum: createHash('sha256')
           .update(JSON.stringify(metadata))
           .digest('hex'),
       });
