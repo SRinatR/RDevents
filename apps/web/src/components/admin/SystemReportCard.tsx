@@ -79,11 +79,11 @@ export function SystemReportCard({ locale }: { locale: string }) {
         setError(null);
       }
     } catch {
-      if (mountedRef.current) setError('Failed to load status');
+      if (mountedRef.current) setError(t('loadFailed'));
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
@@ -117,6 +117,14 @@ export function SystemReportCard({ locale }: { locale: string }) {
     };
   }, [fetchStatus, stopPolling]);
 
+  useEffect(() => {
+    if (status?.state === 'queued' || status?.state === 'running') {
+      startPolling();
+    } else {
+      stopPolling();
+    }
+  }, [status?.state, startPolling, stopPolling]);
+
   const handleRefresh = async () => {
     if (refreshing) return;
     setRefreshing(true);
@@ -125,27 +133,33 @@ export function SystemReportCard({ locale }: { locale: string }) {
       await systemReportApi.refresh();
       await fetchStatus();
       startPolling();
-    } catch {
-      if (mountedRef.current) setError('Failed to request refresh');
+    } catch (err) {
+      if (err instanceof Error && 'status' in err && (err as any).status === 409) {
+        await fetchStatus();
+        startPolling();
+        if (mountedRef.current) setError(t('alreadyRunning'));
+      } else if (mountedRef.current) {
+        setError(t('refreshFailed'));
+      }
     } finally {
       if (mountedRef.current) setRefreshing(false);
     }
   };
 
   const handleDownload = async () => {
-    if (downloading || !status?.fileName) return;
+    if (downloading || !status?.downloadAvailable) return;
     setDownloading(true);
     try {
       await systemReportApi.downloadReport();
-    } catch (err) {
-      if (mountedRef.current) setError(err instanceof Error ? err.message : 'Download failed');
+    } catch {
+      if (mountedRef.current) setError(t('downloadFailed'));
     } finally {
       if (mountedRef.current) setDownloading(false);
     }
   };
 
   const isGenerating = status?.state === 'queued' || status?.state === 'running';
-  const hasFile = status?.fileName !== null;
+  const canDownload = status?.downloadAvailable ?? false;
   const currentState: ReportState = status?.state ?? 'idle';
 
   return (
@@ -174,7 +188,7 @@ export function SystemReportCard({ locale }: { locale: string }) {
             </button>
             <button
               className="sr-btn sr-btn-secondary"
-              disabled={!hasFile || downloading}
+              disabled={!canDownload || downloading}
               onClick={handleDownload}
             >
               {downloading ? t('downloading') : t('download')}

@@ -177,6 +177,10 @@
       "refreshing": "Refreshing…",
       "download": "Download Report",
       "downloading": "Downloading…",
+      "loadFailed": "Failed to load status",
+      "refreshFailed": "Failed to request refresh",
+      "downloadFailed": "Download failed",
+      "alreadyRunning": "Report is already being generated",
       "states": {
         "idle": "Never run",
         "queued": "Queued",

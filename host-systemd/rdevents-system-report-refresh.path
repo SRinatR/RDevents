@@ -1,6 +1,5 @@
 [Unit]
 Description=RDEvents System Report Refresh Watcher
-Documentation=
 After=network.target
 
 [Path]

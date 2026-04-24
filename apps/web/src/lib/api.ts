@@ -656,6 +656,7 @@ export interface SystemReportStatus {
   generatedAt: string | null;
   fileSizeBytes: number | null;
   sha256: string | null;
+  downloadAvailable: boolean;
 }
 
 export const systemReportApi = {

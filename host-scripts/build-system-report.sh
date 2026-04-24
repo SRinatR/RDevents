@@ -108,6 +108,37 @@ REPORT_GENERATED="no"
 
 mkdir -p "$ADMIN_DIR" "$CONTROL_DIR" "$LOG_DIR" "$(dirname "$LOCK_FILE")"
 
+require_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "$(date -Iseconds) [ERROR] Missing required command: $1" >> "$LOG_DIR/system-report.log"
+    exit 1
+  fi
+}
+
+require_cmd jq
+require_cmd docker
+require_cmd curl
+require_cmd sha256sum
+require_cmd flock
+
+if ! docker compose version >/dev/null 2>&1; then
+  echo "$(date -Iseconds) [ERROR] docker compose plugin is not available" >> "$LOG_DIR/system-report.log"
+  exit 1
+fi
+
+redact_secrets() {
+  sed -E \
+    -e 's#(DATABASE_URL=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(JWT_[A-Z_]*=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(RESEND_API_KEY=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(TOKEN=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(SECRET=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(PASSWORD=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(POSTGRES_PASSWORD=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(POSTGRES_USER=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(# vault:)[^|]*#\1[REDACTED]#g'
+}
+
 if [ ! -f "$REQUEST_FILE" ]; then
   echo "$(date -Iseconds) [INFO] No request file found. Exiting." >> "$LOG_DIR/system-report.log"
   exit 0
@@ -210,10 +241,10 @@ generate_report() {
 
   content+=$'\n'"[runtime_version]"$'\n'
   content+=$(capture "version_txt" "cat '$RUNTIME_DIR/version.txt' 2>/dev/null || echo '# not found'")$'\n'
-  content+=$(capture "release_json" "cat '$RUNTIME_DIR/release.json' 2>/dev/null || echo '# not found'")$'\n'
+  content+=$(capture "release_json" "cat '$RUNTIME_DIR/release.json' 2>/dev/null || echo '# not found'" | redact_secrets)$'\n'
 
   content+=$'\n'"[compose_ps]"$'\n'
-  content+=$(capture "compose" "docker compose --env-file '$APP_DIR/.env' -f '$APP_DIR/app/docker-compose.prod.yml' ps -a 2>&1 | head -50 || echo '# docker compose not available'")$'\n'
+  content+=$(capture "compose" "docker compose --env-file '$APP_DIR/.env' -f '$APP_DIR/app/docker-compose.prod.yml' ps -a 2>&1 | head -50 || echo '# docker compose not available'" | redact_secrets)$'\n'
 
   content+=$'\n'"[local_endpoint_checks]"$'\n'
   for url in \

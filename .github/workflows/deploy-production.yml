@@ -519,6 +519,25 @@ jobs:
               fi
             }
 
+            CURRENT_STAGE="host-install"
+            set_stage "$CURRENT_STAGE"
+
+            run_privileged mkdir -p /opt/rdevents/bin
+            run_privileged mkdir -p /opt/rdevents/runtime
+            run_privileged mkdir -p /opt/rdevents/runtime/admin
+            run_privileged mkdir -p /opt/rdevents/runtime/control
+            run_privileged mkdir -p /var/log/rdevents
+            run_privileged mkdir -p /var/lock/rdevents
+
+            run_privileged install -m 0750 "$APP_DIR/host-scripts/build-system-report.sh" /opt/rdevents/bin/build-system-report.sh
+            run_privileged install -m 0644 "$APP_DIR/host-systemd/rdevents-system-report-refresh.service" /etc/systemd/system/rdevents-system-report-refresh.service
+            run_privileged install -m 0644 "$APP_DIR/host-systemd/rdevents-system-report-refresh.path" /etc/systemd/system/rdevents-system-report-refresh.path
+
+            run_privileged systemctl daemon-reload
+            run_privileged systemctl enable --now rdevents-system-report-refresh.path || true
+            echo "systemd path unit enabled: $(run_privileged systemctl is-enabled rdevents-system-report-refresh.path 2>/dev/null || echo 'disabled')"
+            echo "systemd path unit active: $(run_privileged systemctl is-active rdevents-system-report-refresh.path 2>/dev/null || echo 'inactive')"
+
             CURRENT_STAGE="local-verification"
             set_stage "$CURRENT_STAGE"
 

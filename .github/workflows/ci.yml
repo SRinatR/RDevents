@@ -60,6 +60,18 @@ jobs:
       - name: Run lint
         run: pnpm lint
 
+  shellcheck:
+    name: Shell validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate host script syntax
+        run: bash -n host-scripts/build-system-report.sh
+
   typecheck:
     name: Typecheck
     runs-on: ubuntu-latest
