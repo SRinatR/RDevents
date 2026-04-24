@@ -254,30 +254,38 @@ jobs:
 
             if [ "$SKIP_BUILD" = "true" ]; then
               echo "Skipping docker compose build (recovery mode)"
+              EXPECTED_API_IMAGE_ID=$(sed -n 's/.*"api":"\([^"]*\)".*/\1/p' "$RUNTIME_DIR/images-built-$RELEASE_SHA.json" | head -1)
+              EXPECTED_WEB_IMAGE_ID=$(sed -n 's/.*"web":"\([^"]*\)".*/\1/p' "$RUNTIME_DIR/images-built-$RELEASE_SHA.json" | head -1)
+              echo "Recovered EXPECTED_API_IMAGE_ID=$EXPECTED_API_IMAGE_ID"
+              echo "Recovered EXPECTED_WEB_IMAGE_ID=$EXPECTED_WEB_IMAGE_ID"
+              if [ -z "$EXPECTED_API_IMAGE_ID" ] || [ -z "$EXPECTED_WEB_IMAGE_ID" ]; then
+                echo "ERROR: cannot recover image IDs from $RUNTIME_DIR/images-built-$RELEASE_SHA.json"
+                exit 1
+              fi
             else
               docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml build api web
+
+              CURRENT_STAGE="capture-built-image-ids"
+              set_stage "$CURRENT_STAGE"
+
+              EXPECTED_API_IMAGE_ID="$(docker image inspect app-api:latest --format '{{.Id}}')"
+              EXPECTED_WEB_IMAGE_ID="$(docker image inspect app-web:latest --format '{{.Id}}')"
+
+              echo "EXPECTED_API_IMAGE_ID=$EXPECTED_API_IMAGE_ID"
+              echo "EXPECTED_WEB_IMAGE_ID=$EXPECTED_WEB_IMAGE_ID"
+
+              test -n "$EXPECTED_API_IMAGE_ID"
+              test -n "$EXPECTED_WEB_IMAGE_ID"
+
+              # Write marker for recovery: this release's images have been built
+              printf '{"releaseSha":"%s","imagesBuilt":true,"imageIds":{"api":"%s","web":"%s"},"builtAt":"%s"}\n' \
+                "$RELEASE_SHA" \
+                "$EXPECTED_API_IMAGE_ID" \
+                "$EXPECTED_WEB_IMAGE_ID" \
+                "$(date -u +%FT%TZ)" > "$RUNTIME_DIR/images-built-$RELEASE_SHA.json"
+
+              echo "Image build marker written for recovery"
             fi
-
-            CURRENT_STAGE="capture-built-image-ids"
-            set_stage "$CURRENT_STAGE"
-
-            EXPECTED_API_IMAGE_ID="$(docker image inspect app-api:latest --format '{{.Id}}')"
-            EXPECTED_WEB_IMAGE_ID="$(docker image inspect app-web:latest --format '{{.Id}}')"
-
-            echo "EXPECTED_API_IMAGE_ID=$EXPECTED_API_IMAGE_ID"
-            echo "EXPECTED_WEB_IMAGE_ID=$EXPECTED_WEB_IMAGE_ID"
-
-            test -n "$EXPECTED_API_IMAGE_ID"
-            test -n "$EXPECTED_WEB_IMAGE_ID"
-
-            # Write marker for recovery: this release's images have been built
-            printf '{"releaseSha":"%s","imagesBuilt":true,"imageIds":{"api":"%s","web":"%s"},"builtAt":"%s"}\n' \
-              "$RELEASE_SHA" \
-              "$EXPECTED_API_IMAGE_ID" \
-              "$EXPECTED_WEB_IMAGE_ID" \
-              "$(date -u +%FT%TZ)" > "$RUNTIME_DIR/images-built-$RELEASE_SHA.json"
-
-            echo "Image build marker written for recovery"
 
             echo "Images built for release SHA=$RELEASE_SHA"
 
@@ -734,6 +742,10 @@ jobs:
             printf '{"releaseSha":"%s","imagesBuilt":true,"deployedAt":"%s"}\n' \
               "$RELEASE_SHA" \
               "$(date -u +%FT%TZ)" > "$RUNTIME_DIR/release-$RELEASE_SHA.json"
+
+            printf '{"releaseSha":"%s","completedAt":"%s"}\n' \
+              "$RELEASE_SHA" \
+              "$(date -u +%FT%TZ)" > "$APP_DIR/.release-completed"
 
             set_stage "success" "success"
 
