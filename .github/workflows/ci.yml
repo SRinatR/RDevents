@@ -72,6 +72,11 @@ jobs:
       - name: Validate host script syntax
         run: bash -n host-scripts/build-system-report.sh
 
+      - name: Runtime redaction smoke test
+        run: |
+          bash host-scripts/build-system-report.sh --self-test-redaction | grep -q REDACTED
+          echo "Redaction test passed"
+
   typecheck:
     name: Typecheck
     runs-on: ubuntu-latest

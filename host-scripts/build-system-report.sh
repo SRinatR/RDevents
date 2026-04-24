@@ -158,8 +158,13 @@ redact_secrets() {
     -e 's#(PASSWORD=)[^&]*#\1[REDACTED]#g' \
     -e 's#(POSTGRES_PASSWORD=)[^&]*#\1[REDACTED]#g' \
     -e 's#(POSTGRES_USER=)[^&]*#\1[REDACTED]#g' \
-    -e 's#(# vault:)[^|]*#\1[REDACTED]#g'
+    -e 's|(# vault:)[^|]*|\1[REDACTED]|g'
 }
+
+if [ "${1:-}" = "--self-test-redaction" ]; then
+  printf '%s\n' 'DATABASE_URL=postgres://secret' '# vault:secret|ok' 'JWT_TOKEN=abc123' | redact_secrets
+  exit 0
+fi
 
 if [ ! -f "$REQUEST_FILE" ]; then
   echo "$(date -Iseconds) [INFO] No request file found. Exiting." >> "$LOG_DIR/system-report.log"
