@@ -12,8 +12,6 @@ This repository separates code verification from production deployment.
 | `main` | Integration branch | Forbidden by branch protection | PR only |
 | `production` | Release and production branch | Forbidden by branch protection | PR from `main` only |
 
-`develop` is still covered by CI while the branch exists, but the production release flow is `dev branch -> main -> production -> deploy`.
-
 ## Workflow Summary
 
 ```text
@@ -37,19 +35,20 @@ CI is verification only. It must not deploy, connect to production, or read prod
 Triggers:
 
 - `pull_request` to `main`
-- `pull_request` to `develop`
 - `push` to `main`
-- `push` to `develop`
 - `push` to `feature/**`
 - `push` to `fix/**`
 - `push` to `hotfix/**`
+- `workflow_dispatch`
 
 Jobs:
 
-- `Type check`: installs dependencies, generates Prisma client, and runs `pnpm typecheck` on the GitHub runner
 - `Lint`: installs dependencies and runs `pnpm lint`
+- `Shell validation`: validates host script syntax and runtime redaction smoke test
+- `Typecheck`: installs dependencies, generates Prisma client, and runs `pnpm typecheck` on the GitHub runner
 - `Test`: starts PostgreSQL as a GitHub Actions service on the runner, generates Prisma client, and runs `pnpm test`
 - `Build`: installs dependencies, generates Prisma client, and runs `pnpm build` on the GitHub runner
+- `Docker Build`: builds API and Web Docker images using Docker Compose
 - `Container Smoke`: starts postgres/api/web via Docker Compose and validates the production-like runtime contract inside compose topology
 
 Runtime policy:
@@ -65,12 +64,16 @@ Concurrency:
 
 Required status checks for branch protection:
 
-- `Type check`
 - `Lint`
+- `Shell validation`
+- `Typecheck`
 - `Test`
 - `Build`
+- `Docker Build`
+- `Container Smoke`
+- `Required Checks`
 
-Use the exact check-run names reported by GitHub API. In the PR UI these checks are shown under the workflow as `CI / Type check`, `CI / Lint`, `CI / Test`, and `CI / Build`; branch protection stores the check names as `Type check`, `Lint`, `Test`, and `Build`. If GitHub UI shows old entries such as `CI/Build` or `CI/Type check`, remove them and select the current checks above.
+Use the exact check-run names reported by GitHub API. In the PR UI these checks are shown under the workflow as `CI / Lint`, `CI / Shell validation`, `CI / Typecheck`, `CI / Test`, `CI / Build`, `CI / Docker Build`, `CI / Container Smoke`, and `CI / Required Checks`; branch protection stores the check names as `Lint`, `Shell validation`, `Typecheck`, `Test`, `Build`, `Docker Build`, `Container Smoke`, and `Required Checks`. The `Required Checks` aggregator job confirms all upstream jobs passed; individual job results are `Lint`, `Shell validation`, `Typecheck`, `Test`, `Build`, `Docker Build`, and `Container Smoke`.
 
 ## Production Deploy Workflow
 
@@ -261,12 +264,14 @@ The `container-smoke` job is a required check in `required-checks`. This ensures
 
 **Required status checks for branch protection:**
 
-- `Type check`
 - `Lint`
+- `Shell validation`
+- `Typecheck`
 - `Test`
 - `Build`
 - `Docker Build`
 - `Container Smoke`
+- `Required Checks`
 
 ### Legacy compatibility markers
 
@@ -382,10 +387,14 @@ Required:
 - Require at least 1 approval for the normal contributor flow
 - Require status checks to pass before merging
 - Required checks:
-  - `Type check`
   - `Lint`
+  - `Shell validation`
+  - `Typecheck`
   - `Test`
   - `Build`
+  - `Docker Build`
+  - `Container Smoke`
+  - `Required Checks`
 - Block direct push
 - Do not allow force pushes
 - Do not allow branch deletion
@@ -408,10 +417,14 @@ Required:
 - Require at least 2 approvals or approval from the release owner group
 - Require status checks to pass before merging
 - Required checks:
-  - `Type check`
   - `Lint`
+  - `Shell validation`
+  - `Typecheck`
   - `Test`
   - `Build`
+  - `Docker Build`
+  - `Container Smoke`
+  - `Required Checks`
 - Restrict who can push to matching branches when the repository is in an organization
 - Restrict who can dismiss reviews
 - Block direct push
