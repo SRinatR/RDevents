@@ -438,12 +438,38 @@ feature/* → PR → main → PR → production → deploy
 
 ### CI/CD Workflows
 
-- **CI** (`.github/workflows/ci.yml`): только `typecheck` + `build`, запускается на PR в `main`/`develop` и push в `main`/`develop`/`feature/**`/`fix/**`/`hotfix/**`
-- **Deploy** (`.github/workflows/deploy-production.yml`): только production deploy, запускается на push в `production` или вручную с ref `production`
-- Required checks для protected branches: `Type check`, `Build` (в PR UI они отображаются внутри workflow `CI`)
-- `main`: обычный поток через PR + review/checks, owner/admin bypass включён
-- `production`: строгий поток через PR + 2 approvals/checks/environment approval, owner/admin bypass включён для emergency release
-- Production deploy использует GitHub Environment `production`; production secrets не используются в CI
+CI workflow (`.github/workflows/ci.yml`) включает следующие jobs:
+
+| Job | Назначение |
+|-----|------------|
+| `Lint` | ESLint проверка кода |
+| `Shell validation` | Валидация синтаксиса shell-скриптов (`bash -n`) |
+| `Typecheck` | TypeScript проверка типов |
+| `Test` | Unit тесты с PostgreSQL сервисом |
+| `Build` | Сборка всех проектов (API + Web) |
+| `Docker Build` | Сборка production Docker образов (api, web) |
+| `Container Smoke` | Запуск контейнеров и проверка runtime contract внутри compose-сети |
+
+**Required checks** для protected branches:
+
+- `Lint`
+- `Shell validation`
+- `Typecheck`
+- `Test`
+- `Build`
+- `Docker Build`
+- `Container Smoke`
+
+**Запуск CI:** PR в `main`/`production`, push в `main`/`feature/**`/`fix/**`/`hotfix/**`, `workflow_dispatch`
+
+Deploy workflow (`.github/workflows/deploy-production.yml`): только production deploy, триггер — push в `production` или `workflow_dispatch` с ref `production`. Production secrets не используются в CI.
+
+### Branch Protection
+
+| Branch | Merge | Required checks | Bypass |
+|--------|-------|-----------------|--------|
+| `main` | PR only | `Lint`, `Shell validation`, `Typecheck`, `Test`, `Build`, `Docker Build`, `Container Smoke` | owner/admin bypass для emergency |
+| `production` | PR из `main` | `Lint`, `Shell validation`, `Typecheck`, `Test`, `Build`, `Docker Build`, `Container Smoke` + environment approval | owner/admin bypass для emergency release |
 
 ### Secrets для production
 

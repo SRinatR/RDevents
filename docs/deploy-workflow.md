@@ -328,7 +328,7 @@ Recommended settings:
 - Deployment branch policy: only `production`
 - Environment secrets stored only in this environment
 
-Current repository setting: `production` has custom deployment branch policy `production` and required reviewer `SRinatR`.
+Repository settings must be configured so that `production` has custom deployment branch policy `production` and required reviewer `SRinatR`.
 
 Required environment secrets:
 
@@ -424,7 +424,7 @@ Recommended:
 - Require conversation resolution before merging
 - Require signed commits if the team uses signed commits consistently
 
-Current repository setting: owner/admin bypass is enabled for `production`. Regular contributors still go through PR, 2 approvals, required checks, and the `production` environment reviewer; the owner can bypass branch protection for emergency release operations.
+Repository settings must be configured so that owner/admin bypass is enabled for `production`. Regular contributors still go through PR, 2 approvals, required checks, and the `production` environment reviewer; the owner can bypass branch protection for emergency release operations.
 
 Note for `SRinatR/RDevents`: this is a personal repository. GitHub rejects user/team push restrictions for personal repositories with `Only organization repositories can have users and team restrictions`. The active stricter controls for `production` are 2 required approvals, required checks, blocked force push/delete for non-admin contributors, owner/admin bypass, and the `production` environment required reviewer. If the repository moves to an organization, enable push restrictions for the release owner group.
 

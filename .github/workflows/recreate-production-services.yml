@@ -72,6 +72,9 @@ jobs:
             echo "=== Starting recovery for $RELEASE_SHA ==="
             echo ""
 
+            mkdir -p "$DEPLOY_ROOT/runtime"
+            mkdir -p "$DEPLOY_ROOT/deploy-logs"
+
             LOG_DIR="$DEPLOY_ROOT/deploy-logs"
             mkdir -p "$LOG_DIR"
             LOG_FILE="$LOG_DIR/recover-$RELEASE_SHA-$(date +%Y%m%d-%H%M%S).log"
@@ -79,9 +82,30 @@ jobs:
 
             STATE_FILE="$DEPLOY_ROOT/runtime/deploy-state.json"
 
+            dump_diagnostics() {
+              echo
+              echo "========== RECOVERY DIAGNOSTICS =========="
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps || true
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=120 postgres || true
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=120 api || true
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=120 web || true
+              tail -120 /var/log/nginx/error.log 2>/dev/null || true
+              echo "=========================================="
+            }
+
+            on_error() {
+              rc=$?
+              set_stage "${CURRENT_STAGE:-recovery-unknown}" "failed"
+              dump_diagnostics
+              exit "$rc"
+            }
+
+            trap on_error ERR
+
             set_stage() {
               stage="$1"
               status="${2:-running}"
+              CURRENT_STAGE="$stage"
               printf '{"releaseSha":"%s","status":"%s","stage":"%s","ts":"%s"}\n' \
                 "$RELEASE_SHA" \
                 "$status" \
@@ -116,7 +140,8 @@ jobs:
               return 1
             }
 
-            set_stage "recovery-init"
+            set_stage "recovery-migrate"
+            CURRENT_STAGE="recovery-migrate"
 
             cd "$APP_DIR"
 
@@ -124,14 +149,41 @@ jobs:
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
               run --rm --no-deps --entrypoint sh api -lc 'cd /app/services/api && pnpm exec prisma migrate deploy'
 
+            set_stage "recovery-image-precheck"
+            CURRENT_STAGE="recovery-image-precheck"
+
+            EXPECTED_API_SHA="$(docker run --rm --entrypoint cat app-api:latest /app/services/api/release.txt | tr -d '\r\n' || true)"
+            EXPECTED_WEB_SHA="$(docker run --rm --entrypoint cat app-web:latest /app/apps/web/public/version.txt | tr -d '\r\n' || true)"
+
+            echo "EXPECTED_API_SHA=$EXPECTED_API_SHA"
+            echo "EXPECTED_WEB_SHA=$EXPECTED_WEB_SHA"
+            echo "REQUESTED_RELEASE_SHA=$RELEASE_SHA"
+
+            if [ "$EXPECTED_API_SHA" != "$RELEASE_SHA" ]; then
+              echo "FAIL: app-api:latest is not built for requested release_sha"
+              echo "      Expected: $RELEASE_SHA, Got: $EXPECTED_API_SHA"
+              exit 1
+            fi
+
+            if [ "$EXPECTED_WEB_SHA" != "$RELEASE_SHA" ]; then
+              echo "FAIL: app-web:latest is not built for requested release_sha"
+              echo "      Expected: $RELEASE_SHA, Got: $EXPECTED_WEB_SHA"
+              exit 1
+            fi
+
+            echo "Image precheck passed: latest images match requested release_sha"
+
             set_stage "recovery-recreate"
+            CURRENT_STAGE="recovery-recreate"
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
               up -d --force-recreate --remove-orphans api web
 
             set_stage "recovery-wait-api"
+            CURRENT_STAGE="recovery-wait-api"
             wait_for_service_healthy api 180
 
             set_stage "recovery-wait-web"
+            CURRENT_STAGE="recovery-wait-web"
             wait_for_service_healthy web 240
 
             set_stage "recovery-verify"
@@ -172,6 +224,7 @@ jobs:
             fi
 
             set_stage "recovery-success" "success"
+            CURRENT_STAGE="recovery-success"
 
             echo ""
             echo "=== Recovery complete ==="
