@@ -566,6 +566,160 @@ https://api.rdevents.uz/webhooks/resend
 
 Set `RESEND_WEBHOOK_SECRET` in the production environment file using the signing secret from the Resend webhook settings. Requests without a valid Svix signature are rejected. If Resend webhooks are not used, disable the webhook in Resend so production logs do not receive useless delivery attempts.
 
+## Operator Scripts
+
+Canonical operator scripts are in `scripts/ops/`. These scripts provide repeatable, tested recovery paths.
+
+### `scripts/ops/prod-smoke.sh`
+
+Smoke test after deploy or as a periodic health check.
+
+```bash
+cd /opt/rdevents/app
+bash ./scripts/ops/prod-smoke.sh [sha]
+```
+
+- Without arguments: checks `/health`, `/ready`, and prints current release SHAs
+- With SHA argument: additionally verifies web and API return the expected SHA
+
+### `scripts/ops/prod-force-switch-latest.sh`
+
+Force recreate containers when images are already built but containers are stale.
+
+```bash
+cd /opt/rdevents/app
+bash ./scripts/ops/prod-force-switch-latest.sh <sha>
+```
+
+This script:
+1. Runs `prisma migrate deploy` (one-off container)
+2. Runs `docker compose up -d --force-recreate --remove-orphans api web`
+3. Verifies `/release.json` on both local endpoints
+
+**Use this only when images are already built and you need to switch containers without a full re-deploy.**
+
+## Deploy State and Artifact Reference
+
+### `deploy-state.json`
+
+Location: `/opt/rdevents/runtime/deploy-state.json`
+
+Written by the deploy workflow after each stage transition. Format:
+
+```json
+{
+  "releaseSha": "ad2459585ab33709e7b66d0bc036e2010dd4cd52",
+  "status": "success",
+  "stage": "success",
+  "ts": "2026-04-24T11:30:00.000Z"
+}
+```
+
+**Stage values in order of execution:**
+
+| Stage | Meaning |
+|-------|---------|
+| `init` | Deploy started, archive unpacked |
+| `build-images` | `docker compose build` in progress |
+| `capture-built-image-ids` | Built image IDs captured for verification |
+| `migrate` | `prisma migrate deploy` running |
+| `recreate-api-web` | `docker compose up -d --force-recreate` executed |
+| `wait-api-healthy` | Polling api container health |
+| `wait-web-healthy` | Polling web container health |
+| `verify-running-image-ids` | Verifying running containers use built images |
+| `local-verification` | Local SHA endpoint verification |
+| `sync-runtime-fallback` | Writing `/opt/rdevents/runtime/` fallback files |
+| `reload-nginx` | `systemctl reload nginx` executed |
+| `public-verification` | Public HTTPS endpoint verification |
+| `finalize-success` | Writing `.release-commit` |
+| `success` | All checks passed |
+| `<stage_name>` + `failed` | Stage failed (status = `failed`) |
+
+### Server artifacts
+
+| Path | Contents |
+|------|----------|
+| `/opt/rdevents/runtime/deploy-state.json` | Current deploy state |
+| `/opt/rdevents/app/.release-commit` | Deployed commit SHA |
+| `/opt/rdevents/deploy-logs/` | Per-deploy log files |
+| `/opt/rdevents/backups/` | Pre-migration DB backups |
+
+### GitHub Actions post-deploy summary
+
+After a successful deploy, the `Deploy production` workflow includes a `Read deploy result from server` step that shows:
+
+- `deploy-state.json` (final state)
+- `.release-commit` (deployed SHA)
+- Running Docker image IDs for `app-api-1` and `app-web-1`
+- Public release JSON from `https://rdevents.uz/release.json` and `https://api.rdevents.uz/release.json`
+
+## Troubleshooting Scenarios
+
+### New images built, running containers are old
+
+Symptoms: Docker images were rebuilt successfully, but public endpoints return old SHA.
+
+Cause: Containers were not restarted after image build, or `docker compose up -d` was not executed.
+
+Resolution:
+
+```bash
+cd /opt/rdevents/app
+bash ./scripts/ops/prod-force-switch-latest.sh <expected_sha>
+```
+
+### `.release-commit` is missing
+
+Symptoms: File `/opt/rdevents/app/.release-commit` does not exist after deploy.
+
+Cause: Deploy failed at `finalize-success` stage or was interrupted.
+
+Resolution:
+1. Check `deploy-state.json` for the failed stage
+2. Check deploy logs in `/opt/rdevents/deploy-logs/`
+3. If migration and images are fine, write the file manually:
+
+   ```bash
+   cd /opt/rdevents/app
+   printf '%s\n' "<sha>" > .release-commit
+   ```
+
+4. Then run smoke test:
+
+   ```bash
+   bash ./scripts/ops/prod-smoke.sh <sha>
+   ```
+
+### Public release endpoint returns old SHA
+
+Symptoms: `curl https://rdevents.uz/release.json` or `https://api.rdevents.uz/release.json` returns stale SHA.
+
+Cause: Nginx is serving cached or old runtime fallback files, or containers are running old images.
+
+Resolution:
+1. Verify containers are running correct images:
+
+   ```bash
+   docker inspect app-api-1 --format 'api={{.Image}}'
+   docker inspect app-web-1 --format 'web={{.Image}}'
+   ```
+
+2. Check `.release-commit` matches expected SHA
+
+3. Reload nginx:
+
+   ```bash
+   sudo systemctl reload nginx
+   ```
+
+4. Wait 10 seconds and retry public endpoints
+
+5. If still stale, check `/opt/rdevents/runtime/release.json` on server:
+
+   ```bash
+   cat /opt/rdevents/runtime/release.json
+   ```
+
 ## Local Checks
 
 ```bash

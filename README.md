@@ -459,6 +459,72 @@ pnpm build
 pnpm db:migrate deploy
 ```
 
+## 🏭 Production Release Operations
+
+### Расположение артефактов на сервере
+
+| Файл | Путь | Описание |
+|------|------|----------|
+| `deploy-state.json` | `/opt/rdevents/runtime/deploy-state.json` | Текущий stage/state развертывания |
+| `.release-commit` | `/opt/rdevents/app/.release-commit` | Задеплоенный commit SHA |
+| Deploy logs | `/opt/rdevents/deploy-logs/` | Логи каждого deploy |
+| Backup DB | `/opt/rdevents/backups/` | Резервные копии БД (pre-migrate) |
+
+### Статусы в `deploy-state.json`
+
+```json
+{
+  "releaseSha": "ad2459585ab33709e7b66d0bc036e2010dd4cd52",
+  "status": "success",
+  "stage": "success",
+  "ts": "2026-04-24T11:30:00.000Z"
+}
+```
+
+Возможные значения `stage`:
+- `init`, `build-images`, `capture-built-image-ids`
+- `migrate`, `recreate-api-web`, `wait-api-healthy`, `wait-web-healthy`
+- `verify-running-image-ids`, `local-verification`, `sync-runtime-fallback`
+- `reload-nginx`, `public-verification`, `finalize-success`
+- `success` или `failed`
+
+### Проверка проде после merge
+
+Canonical smoke test:
+
+```bash
+ssh <user>@<host> "bash" < scripts/ops/prod-smoke.sh <sha>
+```
+
+Или без проверки SHA (только connectivity):
+
+```bash
+ssh <user>@<host> "bash" < scripts/ops/prod-smoke.sh
+```
+
+### Ручной force switch (аварийный recovery)
+
+Если images уже собраны, но контейнеры старые:
+
+```bash
+ssh <user>@<host>
+cd /opt/rdevents/app
+bash ./scripts/ops/prod-force-switch-latest.sh <sha>
+```
+
+Это выполнит:
+1. `prisma migrate deploy`
+2. `docker compose up -d --force-recreate --remove-orphans api web`
+3. Финальную проверку `/release.json`
+
+### GitHub Actions post-deploy summary
+
+После успешного deploy в GitHub Actions run видно:
+- `deploy-state.json` (final stage/state)
+- `.release-commit` (задеплоенный SHA)
+- Running image IDs контейнеров
+- Public release JSON с обоих endpoints
+
 
 ## 📝 Лицензия
 

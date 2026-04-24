@@ -1,0 +1,221 @@
+name: Recreate production services
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: "Release SHA to deploy (required)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-recovery
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  DEPLOY_ROOT: /opt/rdevents
+  APP_DIR: /opt/rdevents/app
+
+jobs:
+  recover:
+    name: Recover production services
+    runs-on: ubuntu-latest
+    environment: production
+
+    env:
+      RELEASE_SHA: ${{ inputs.release_sha }}
+
+    steps:
+      - name: Validate release SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "$RELEASE_SHA" ]; then
+            echo "Error: release_sha is required"
+            exit 1
+          fi
+
+          echo "Release SHA: $RELEASE_SHA"
+          echo "This will force recreate api and web containers with the existing built images."
+
+      - name: Prepare SSH
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s' "$PROD_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "$PROD_PORT" -H "$PROD_HOST" >> ~/.ssh/known_hosts
+
+      - name: Run recovery on server
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          set -euo pipefail
+
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
+            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' RELEASE_SHA='$RELEASE_SHA' bash -se" << 'EOF'
+            set -euo pipefail
+
+            echo "=== Starting recovery for $RELEASE_SHA ==="
+            echo ""
+
+            LOG_DIR="$DEPLOY_ROOT/deploy-logs"
+            mkdir -p "$LOG_DIR"
+            LOG_FILE="$LOG_DIR/recover-$RELEASE_SHA-$(date +%Y%m%d-%H%M%S).log"
+            exec > >(tee -a "$LOG_FILE") 2>&1
+
+            STATE_FILE="$DEPLOY_ROOT/runtime/deploy-state.json"
+
+            set_stage() {
+              stage="$1"
+              status="${2:-running}"
+              printf '{"releaseSha":"%s","status":"%s","stage":"%s","ts":"%s"}\n' \
+                "$RELEASE_SHA" \
+                "$status" \
+                "$stage" \
+                "$(date -u +%FT%TZ)" > "$STATE_FILE"
+            }
+
+            wait_for_service_healthy() {
+              service="$1"
+              timeout="${2:-180}"
+
+              cid="$(docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps -q "$service" 2>/dev/null || true)"
+              if [ -z "$cid" ]; then
+                echo "Could not find container ID for service '$service'"
+                return 1
+              fi
+
+              elapsed=0
+              while [ "$elapsed" -lt "$timeout" ]; do
+                status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' "$cid" 2>/dev/null || echo unknown)"
+                if [ "$status" = "healthy" ]; then
+                  echo "Service '$service' is healthy"
+                  return 0
+                fi
+
+                echo "Waiting for '$service' to become healthy... elapsed=${elapsed}s status=$status"
+                sleep 3
+                elapsed=$((elapsed + 3))
+              done
+
+              echo "Service '$service' did not become healthy in ${timeout}s"
+              return 1
+            }
+
+            set_stage "recovery-init"
+
+            cd "$APP_DIR"
+
+            set_stage "recovery-migrate"
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
+              run --rm --no-deps --entrypoint sh api -lc 'cd /app/services/api && pnpm exec prisma migrate deploy'
+
+            set_stage "recovery-recreate"
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
+              up -d --force-recreate --remove-orphans api web
+
+            set_stage "recovery-wait-api"
+            wait_for_service_healthy api 180
+
+            set_stage "recovery-wait-web"
+            wait_for_service_healthy web 240
+
+            set_stage "recovery-verify"
+
+            API_JSON="$(curl -fsS "http://127.0.0.1:4000/release.json?ts=$(date +%s)")"
+            WEB_JSON="$(curl -fsS "http://127.0.0.1:3000/release.json?ts=$(date +%s)")"
+
+            API_SHA="$(printf '%s' "$API_JSON" | sed -n 's/.*"releaseSha":"\([^"]*\)".*/\1/p' | tr -d '\r\n')"
+            WEB_SHA="$(printf '%s' "$WEB_JSON" | sed -n 's/.*"releaseSha":"\([^"]*\)".*/\1/p' | tr -d '\r\n')"
+
+            echo "API release.json SHA: $API_SHA"
+            echo "Web release.json SHA: $WEB_SHA"
+
+            if [ "$API_SHA" != "$RELEASE_SHA" ]; then
+              echo "FAIL: API SHA mismatch. Expected: $RELEASE_SHA, Got: $API_SHA"
+              exit 1
+            fi
+
+            if [ "$WEB_SHA" != "$RELEASE_SHA" ]; then
+              echo "FAIL: Web SHA mismatch. Expected: $RELEASE_SHA, Got: $WEB_SHA"
+              exit 1
+            fi
+
+            printf '%s\n' "$RELEASE_SHA" > "$APP_DIR/.release-commit"
+
+            RUNTIME_DIR="$DEPLOY_ROOT/runtime"
+            mkdir -p "$RUNTIME_DIR"
+            printf '%s\n' "$RELEASE_SHA" > "$RUNTIME_DIR/version.txt"
+            printf '%s\n' "$RELEASE_SHA" > "$RUNTIME_DIR/version"
+            printf '{"service":"event-platform-web","releaseSha":"%s"}\n' "$RELEASE_SHA" > "$RUNTIME_DIR/release.json"
+
+            if command -v sudo >/dev/null 2>&1; then
+              sudo nginx -t || true
+              sudo systemctl reload nginx || true
+            else
+              nginx -t || true
+              systemctl reload nginx || true
+            fi
+
+            set_stage "recovery-success" "success"
+
+            echo ""
+            echo "=== Recovery complete ==="
+            echo "Release SHA: $RELEASE_SHA"
+            echo ""
+
+            echo "=== Current container status ==="
+            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
+          EOF
+
+      - name: Read recovery result from server
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          set -euo pipefail
+
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" << 'EOF'
+            set -euo pipefail
+
+            echo "=== deploy-state.json ==="
+            cat /opt/rdevents/runtime/deploy-state.json
+            echo
+
+            echo "=== .release-commit ==="
+            cat /opt/rdevents/app/.release-commit
+            echo
+
+            echo "=== running image ids ==="
+            docker inspect app-api-1 --format 'api={{.Image}}' || echo "api container not running"
+            docker inspect app-web-1 --format 'web={{.Image}}' || echo "web container not running"
+            echo
+
+            echo "=== public releases ==="
+            curl -fsS "https://rdevents.uz/release.json?ts=$(date +%s)"
+            echo
+            curl -fsS "https://api.rdevents.uz/release.json?ts=$(date +%s)"
+            echo
+          EOF
+
+      - name: Recovery complete
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Recovery completed successfully for SHA ${RELEASE_SHA}"
