@@ -5,7 +5,7 @@
 ## 🏗 Архитектура
 
 Проект построен как monorepo с использованием:
-- **Frontend**: Next.js 16.2.3 + React 19 + next-intl (i18n)
+- **Frontend**: Next.js 16.2.4 + React 19 + next-intl (i18n)
 - **Backend**: Express + TypeScript + Prisma ORM
 - **Database**: PostgreSQL 17
 - **Runtime**: Node.js 25.6+
