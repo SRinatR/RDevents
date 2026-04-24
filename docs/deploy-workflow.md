@@ -46,10 +46,11 @@ Triggers:
 
 Jobs:
 
-- `Type check`: installs dependencies and runs `pnpm typecheck`
+- `Type check`: installs dependencies, generates Prisma client, and runs `pnpm typecheck` on the GitHub runner
 - `Lint`: installs dependencies and runs `pnpm lint`
-- `Test`: starts a Postgres service, generates the Prisma client, and runs `pnpm test`
-- `Build`: waits for typecheck, lint, and test to pass, then installs dependencies and runs `pnpm build`
+- `Test`: starts PostgreSQL as a GitHub Actions service on the runner, generates Prisma client, and runs `pnpm test`
+- `Build`: installs dependencies, generates Prisma client, and runs `pnpm build` on the GitHub runner
+- `Container Smoke`: starts postgres/api/web via Docker Compose and validates the production-like runtime contract inside compose topology
 
 Runtime policy:
 
@@ -154,7 +155,10 @@ In Docker Compose, each service is reachable by its service name from within the
 
 The deploy workflow and the API startup guard (in `services/api/src/config/env.ts`) both validate that `DATABASE_URL` does not contain `@127.0.0.1:` or `@localhost:` when `NODE_ENV=production`. If the wrong host is detected, the deploy aborts before migrations and the API throws a startup error.
 
-**CI topology mirrors production.** CI jobs use the same `DATABASE_URL` pattern (`@postgres:5432/`) as production, running postgres inside the compose network rather than on the runner's localhost. This ensures CI and production are configured identically.
+**Only the `container-smoke` job mirrors production topology.**
+It runs postgres, migrations, api, and web inside the docker-compose network and therefore uses `DATABASE_URL` with `@postgres:5432/`.
+
+Runner-based CI jobs (`typecheck`, `test`, `build`) are not proof of compose-network reachability and must not be described as identical to production topology.
 
 ### Smoke checks (after deploy step)
 

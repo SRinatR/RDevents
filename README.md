@@ -110,7 +110,7 @@ cp .env.example services/api/.env
 
 #### DATABASE_URL contract
 
-Внутри Docker Compose сети (и production, и CI) PostgreSQL доступен по hostname `postgres`, а не `127.0.0.1` или `localhost`. Это потому что Prisma подключается из контейнера `api`, где `postgres` резолвится в сервис БД через Docker DNS.
+Внутри Docker Compose сети production и container-smoke PostgreSQL доступен по hostname `postgres`, а не `127.0.0.1` или `localhost`. Runner-based CI jobs не используют compose-network hostname как доказательство production topology.
 
 **Development / local:**
 ```env
@@ -132,6 +132,10 @@ DATABASE_URL=postgresql://event_platform_user:event_platform_password@postgres:5
 | `DATABASE_URL` | `postgresql://event_platform_user:<password>@postgres:5432/event_platform?schema=public` |
 
 `DATABASE_URL` используется **только** внутри compose-сети. Внешний доступ к БД не влияет на runtime URL.
+
+**CI note:**
+- `container-smoke` intentionally mirrors production docker-compose topology and uses `@postgres:5432`
+- runner-based jobs (`typecheck`, `test`, `build`) do not prove compose-network reachability and may use runner-local DB wiring / placeholder DATABASE_URL values
 
 ### 3. Настройка базы данных
 
