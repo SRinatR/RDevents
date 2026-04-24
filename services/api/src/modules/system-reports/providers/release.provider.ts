@@ -23,7 +23,7 @@ export class ReleaseProvider extends BaseReportProvider {
 
       const deployStatePath = `${ADMIN_DIR}/deploy-state.json`;
       const deployState = existsSync(deployStatePath)
-        ? JSON.parse(readFileSync(deployStatePath, 'utf-8')
+        ? JSON.parse(readFileSync(deployStatePath, 'utf-8'))
         : null;
 
       lines.push(`**Commit:** ${releaseCommit || 'unknown'}`);
@@ -68,7 +68,7 @@ export class ReleaseProvider extends BaseReportProvider {
     } catch (error) {
       return {
         success: false,
-        error: `Failed to collect release info: ${error instanceof Error ? error.message : 'Unknown error',
+        error: `Failed to collect release info: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   }

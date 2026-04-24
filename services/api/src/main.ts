@@ -2,6 +2,7 @@ import { env } from './config/env.js';
 import { createApp } from './app.js';
 import { prisma } from './db/prisma.js';
 import { logger } from './common/logger.js';
+import { startWorker } from './modules/system-reports/report-processor.worker.js';
 
 async function main() {
   logger.info('Starting Event Platform API', {
@@ -32,6 +33,10 @@ async function main() {
     });
   }
 
+  // Start report worker for async generation
+  const stopWorker = await startWorker(5000);
+  logger.info('Report worker started', { action: 'worker_started' });
+
   const app = createApp();
 
   app.listen(env.PORT, () => {
@@ -46,6 +51,21 @@ async function main() {
     console.log(`  ENV: ${env.NODE_ENV}`);
     console.log(`  Health: http://localhost:${env.PORT}/health`);
     console.log(`  Ready: http://localhost:${env.PORT}/ready`);
+  });
+
+  // Graceful shutdown
+  process.on('SIGINT', async () => {
+    logger.info('SIGINT received, shutting down gracefully...', { action: 'shutdown' });
+    await stopWorker();
+    await prisma.$disconnect();
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', async () => {
+    logger.info('SIGTERM received, shutting down gracefully...', { action: 'shutdown' });
+    await stopWorker();
+    await prisma.$disconnect();
+    process.exit(0);
   });
 }
 

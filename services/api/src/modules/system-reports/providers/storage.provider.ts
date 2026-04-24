@@ -1,16 +1,16 @@
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
-import { BaseProvider, Context } from './base.provider';
+import { BaseReportProvider, ProviderContext, SectionResult } from './base.provider';
 
 const RUNTIME_DIR = '/opt/rdevents/runtime';
 
-export class StorageProvider extends BaseProvider {
+export class StorageProvider extends BaseReportProvider {
   readonly key = 'storage';
   readonly label = 'Storage / Runtime';
   readonly description = 'Disk usage and runtime directories';
   readonly category = 'infrastructure' as const;
 
-  async collect(context: Context) {
+  async collect(context: ProviderContext): Promise<SectionResult> {
     const lines: string[] = [];
     lines.push('## Storage / Runtime');
     lines.push('');
@@ -47,7 +47,7 @@ export class StorageProvider extends BaseProvider {
     } catch (error) {
       return {
         success: false,
-        error: `Storage check failed: ${error instanceof Error ? error.message : 'Unknown error`,
+        error: `Storage check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   }

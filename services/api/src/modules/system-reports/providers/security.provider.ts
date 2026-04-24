@@ -1,12 +1,12 @@
-import { BaseProvider, Context } from './base.provider';
+import { BaseReportProvider, ProviderContext, SectionResult } from './base.provider';
 
-export class SecurityProvider extends BaseProvider {
+export class SecurityProvider extends BaseReportProvider {
   readonly key = 'security';
   readonly label = 'Security / Config';
   readonly description = 'Environment validation and security status';
-  readonly category = 'security' as const;
+  readonly category: 'security' = 'security';
 
-  async collect(context: Context) {
+  async collect(context: ProviderContext): Promise<SectionResult> {
     const lines: string[] = [];
     lines.push('## Security Configuration');
     lines.push('');

@@ -1,7 +1,7 @@
 import { execSync } from 'child_process';
-import { BaseReportProvider, Context, SectionResult } from './base.provider';
+import { BaseReportProvider, ProviderContext, SectionResult } from './base.provider';
 
-export class DockerProvider extends BaseProvider {
+export class DockerProvider extends BaseReportProvider {
   readonly key = 'docker';
   readonly label = 'Docker Containers';
   readonly description = 'Container status and logs';
@@ -75,7 +75,7 @@ export class DockerProvider extends BaseProvider {
     } catch (error) {
       return {
         success: false,
-        error: `Docker check failed: ${error instanceof Error ? error.message : 'Unknown error`,
+        error: `Docker check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   }

@@ -1,12 +1,12 @@
-import { BaseProvider, Context, SectionResult } from './base.provider';
+import { BaseReportProvider, ProviderContext, SectionResult } from './base.provider';
 
-export class DatabaseProvider extends BaseProvider {
+export class DatabaseProvider extends BaseReportProvider {
   readonly key = 'database';
-  readonly label = 'Database';
-  readonly description = 'Database connectivity and status';
-  readonly category = 'application' as const;
+  readonly label: 'Database' = 'Database';
+  readonly description: 'Database connectivity and status' = 'Database connectivity and status';
+  readonly category: 'application' = 'application';
 
-  async collect(context: Context): Promise<SectionResult> {
+  async collect(context: ProviderContext): Promise<SectionResult> {
     const lines: string[] = [];
     lines.push('## Database');
 
@@ -33,7 +33,7 @@ export class DatabaseProvider extends BaseProvider {
     } catch (error) {
       return {
         success: false,
-        error: `Database check failed: ${error instanceof Error ? error.message : 'Unknown error',
+        error: `Database check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   }

@@ -667,16 +667,20 @@ export async function updateRunProgress(
 
 export async function completeRun(
   runId: string,
-  status: 'success' | 'failed' | 'partial_success',
-  errorText?: string
+  options: {
+    status: 'success' | 'failed' | 'partial_success';
+    errorText?: string;
+    summary?: Record<string, unknown>;
+  }
 ): Promise<void> {
   await prisma.systemReportRun.update({
     where: { id: runId },
     data: {
-      status,
+      status: options.status,
       stage: null,
-      progressPercent: status === 'failed' ? 0 : 100,
-      errorText,
+      progressPercent: options.status === 'failed' ? 0 : 100,
+      errorText: options.errorText,
+      summaryJson: options.summary as unknown as any,
       finishedAt: new Date(),
     },
   });

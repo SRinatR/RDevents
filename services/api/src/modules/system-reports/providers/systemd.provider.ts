@@ -1,13 +1,13 @@
 import { execSync } from 'child_process';
-import { BaseProvider } from './base.provider';
+import { BaseReportProvider, ProviderContext, SectionResult } from './base.provider';
 
-export class SystemdProvider extends BaseProvider {
+export class SystemdProvider extends BaseReportProvider {
   readonly key = 'systemd';
   readonly label = 'Systemd Services';
   readonly description = 'Host services and systemd units';
   readonly category = 'infrastructure' as const;
 
-  async collect(context: Context): Promise<SectionResult> {
+  async collect(context: ProviderContext): Promise<SectionResult> {
     try {
       const lines: string[] = [];
       lines.push('## Systemd Services');
@@ -45,7 +45,7 @@ export class SystemdProvider extends BaseProvider {
           
           if (failed.trim()) {
             lines.push('```');
-            lines.push(failed.substring(0, 500));
+            lines.push(this.redact(failed.substring(0, 500), context.redactionLevel));
             lines.push('```');
           } else {
             lines.push('No failed units');
@@ -62,7 +62,7 @@ export class SystemdProvider extends BaseProvider {
     } catch (error) {
       return {
         success: false,
-        error: `Systemd check failed: ${error instanceof Error ? error.message : 'Unknown error',
+        error: `Systemd check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   }

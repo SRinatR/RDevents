@@ -1,4 +1,4 @@
-import { BaseProvider } from './base.provider';
+import { BaseReportProvider } from './base.provider';
 import { ReleaseProvider } from './release.provider';
 import { HealthProvider } from './health.provider';
 import { DockerProvider } from './docker.provider';
@@ -7,7 +7,7 @@ import { DatabaseProvider } from './database.provider';
 import { StorageProvider } from './storage.provider';
 import { SecurityProvider } from './security.provider';
 
-export { BaseProvider } from './base.provider';
+export { BaseReportProvider } from './base.provider';
 export { ReleaseProvider } from './release.provider';
 export { HealthProvider } from './health.provider';
 export { DockerProvider } from './docker.provider';
@@ -16,9 +16,9 @@ export { DatabaseProvider } from './database.provider';
 export { StorageProvider } from './storage.provider';
 export { SecurityProvider } from './security.provider';
 
-const providers: Record<string, BaseProvider> = {};
+const providers: Record<string, BaseReportProvider> = {};
 
-export function getProviders(): Record<string, BaseProvider> {
+export function getProviders(): Record<string, BaseReportProvider> {
   if (Object.keys(providers).length === 0) {
     providers.release = new ReleaseProvider();
     providers.health = new HealthProvider();
@@ -31,7 +31,7 @@ export function getProviders(): Record<string, BaseProvider> {
   return providers;
 }
 
-export function getProvider(key: string): BaseProvider | undefined {
+export function getProvider(key: string): BaseReportProvider | undefined {
   return getProviders()[key];
 }
 

@@ -14,7 +14,7 @@ export class HealthProvider extends BaseReportProvider {
       lines.push('');
 
       const releaseInfo = existsSync('/app/apps/web/public/release.json')
-        ? JSON.parse(readFileSync('/app/apps/web/public/release.json', 'utf-8')
+        ? JSON.parse(readFileSync('/app/apps/web/public/release.json', 'utf-8'))
         : null;
 
       if (releaseInfo) {
@@ -43,7 +43,7 @@ export class HealthProvider extends BaseReportProvider {
     } catch (error) {
       return {
         success: false,
-        error: `Health check failed: ${error instanceof Error ? error.message : 'Unknown error',
+        error: `Health check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   }

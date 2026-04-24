@@ -10,6 +10,7 @@ import { adminUsersRouter } from './users.router.js';
 import { adminAnalyticsRouter } from './analytics.router.js';
 import { adminSupportRouter } from './support.router.js';
 import { systemReportRouter } from './system-report.router.js';
+import { systemReportsRouter } from '../system-reports/system-reports.router.js';
 import { profileConfigRouter } from '../profile-config/profile-config.router.js';
 import { exportsRouter } from '../exports/exports.router.js';
 
@@ -27,6 +28,7 @@ adminRouter.use('/participants', adminParticipantsRouter);
 adminRouter.use('/teams', adminTeamsRouter);
 adminRouter.use('/support', adminSupportRouter);
 adminRouter.use('/system-report', systemReportRouter);
+adminRouter.use('/system-reports', systemReportsRouter);
 adminRouter.use('/profile-fields', profileConfigRouter);
 adminRouter.use('/exports', exportsRouter);
 
@@ -59,4 +61,4 @@ adminRouter.get('/admins', requireSuperAdmin, async (_req, res) => {
 });
 
 // Re-export for convenience
-export { adminEventsRouter, adminApplicationsRouter, adminParticipantsRouter, adminTeamsRouter, adminUsersRouter, adminAnalyticsRouter, adminSupportRouter, profileConfigRouter, exportsRouter };
+export { adminEventsRouter, adminApplicationsRouter, adminParticipantsRouter, adminTeamsRouter, adminUsersRouter, adminAnalyticsRouter, adminSupportRouter, profileConfigRouter, exportsRouter, systemReportsRouter };
