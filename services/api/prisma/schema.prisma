@@ -291,7 +291,7 @@ model User {
   updatedProfileFieldVisibility ProfileFieldVisibilitySetting[] @relation("ProfileFieldVisibilityUpdatedBy")
   createdExportPresets ExportPreset[] @relation("ExportPresetCreatedBy")
   createdReportTemplates SystemReportTemplate[] @relation("SystemReportTemplateCreatedBy")
-  createdReportGenerations SystemReportGeneration[] @relation("SystemReportGenerationCreatedBy")
+  requestedReportRuns SystemReportRun[] @relation("SystemReportRunRequestedBy")
 
   @@map("users")
 }
@@ -1027,78 +1027,82 @@ model ExportPreset {
 model SystemReportTemplate {
   id          String   @id @default(cuid())
   name        String
+  slug        String   @unique
   description String?
   isDefault   Boolean  @default(false)
   configJson  Json     // Full report configuration
   createdById String
+  updatedById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   createdBy   User     @relation("SystemReportTemplateCreatedBy", fields: [createdById], references: [id])
-  generations SystemReportGeneration[]
+  runs        SystemReportRun[]
 
   @@index([createdById])
+  @@index([slug])
   @@map("system_report_templates")
 }
 
-model SystemReportGeneration {
-  id           String    @id @default(cuid())
-  requestId    String    @unique
-  templateId   String?
-  status       String    @default("idle") // idle, queued, running, success, failed, partial_success, canceled, stale
-  stage        String?   // queued, collecting, assembling, writing_artifacts, finalizing
-  progress     Int       @default(0) // 0-100
-  format       String    @default("txt") // txt, json, md, zip
-  outputPath   String?
-  errorMessage String?
-  startedAt    DateTime?
-  completedAt  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  createdById  String
-  initiatedByEmail String?
+model SystemReportRun {
+  id              String    @id @default(cuid())
+  templateId      String?
+  title           String?
+  status          String    @default("queued") // queued, running, success, failed, partial_success, canceled, stale
+  stage           String?   // queued, collecting, assembling, writing_artifacts, finalizing
+  progressPercent Int       @default(0) // 0-100
+  configJson      Json      // Report configuration used
+  summaryJson     Json?     // Computed summary
+  errorText       String?
+  requestedByUserId String
+  requestedByEmail String
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  template     SystemReportTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  createdBy    User                   @relation("SystemReportGenerationCreatedBy", fields: [createdById], references: [id])
-  sections     SystemReportSectionLog[]
-  attachments  SystemReportAttachment[]
+  template        SystemReportTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  requestedBy     User                  @relation("SystemReportRunRequestedBy", fields: [requestedByUserId], references: [id])
+  artifacts      SystemReportArtifact[]
+  events         SystemReportEvent[]
 
   @@index([templateId])
-  @@index([createdById])
+  @@index([requestedByUserId])
   @@index([status])
-  @@index([requestId])
-  @@map("system_report_generations")
+  @@index([createdAt])
+  @@map("system_report_runs")
 }
 
-model SystemReportSectionLog {
-  id             String   @id @default(cuid())
-  generationId   String
-  sectionKey     String   // e.g., "release", "docker", "database"
-  sectionLabel   String
-  status         String   // pending, running, completed, failed
-  message        String?
-  startedAt      DateTime?
-  completedAt    DateTime?
-  createdAt      DateTime @default(now())
-
-  generation     SystemReportGeneration @relation(fields: [generationId], references: [id], onDelete: Cascade)
-
-  @@index([generationId])
-  @@map("system_report_section_logs")
-}
-
-model SystemReportAttachment {
+model SystemReportArtifact {
   id           String   @id @default(cuid())
-  generationId String
+  runId        String
+  kind         String   // report, attachment, log, metadata
   fileName     String
-  fileSize     Int
-  contentType  String
-  filePath     String
-  sectionKey   String?
+  mimeType     String
+  storagePath  String
+  sizeBytes    Int
+  checksum     String?
   createdAt    DateTime @default(now())
 
-  generation   SystemReportGeneration @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  run          SystemReportRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 
-  @@index([generationId])
-  @@map("system_report_attachments")
+  @@index([runId])
+  @@map("system_report_artifacts")
+}
+
+model SystemReportEvent {
+  id          String   @id @default(cuid())
+  runId       String
+  level       String   // info, warning, error
+  code        String
+  message     String
+  payloadJson Json?
+  createdAt   DateTime @default(now())
+
+  run         SystemReportRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([level])
+  @@index([createdAt])
+  @@map("system_report_events")
 }
