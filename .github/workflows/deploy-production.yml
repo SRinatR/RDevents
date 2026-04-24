@@ -136,6 +136,51 @@ jobs:
             "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' ARCHIVE_NAME='$ARCHIVE_NAME' RELEASE_SHA='$RELEASE_SHA' bash -se" << 'EOF'
             set -euo pipefail
 
+            LOG_DIR="$DEPLOY_ROOT/deploy-logs"
+            mkdir -p "$LOG_DIR"
+            LOG_FILE="$LOG_DIR/deploy-$RELEASE_SHA-$(date +%Y%m%d-%H%M%S).log"
+            exec > >(tee -a "$LOG_FILE") 2>&1
+
+            RUNTIME_DIR="$DEPLOY_ROOT/runtime"
+            mkdir -p "$RUNTIME_DIR"
+
+            STATE_FILE="$RUNTIME_DIR/deploy-state.json"
+            CURRENT_STAGE="init"
+
+            set_stage() {
+              stage="$1"
+              status="${2:-running}"
+              printf '{"releaseSha":"%s","status":"%s","stage":"%s","ts":"%s"}\n' \
+                "$RELEASE_SHA" \
+                "$status" \
+                "$stage" \
+                "$(date -u +%FT%TZ)" > "$STATE_FILE"
+            }
+
+            dump_diagnostics() {
+              echo
+              echo "========== DEPLOY DIAGNOSTICS =========="
+              echo "CURRENT_STAGE=$CURRENT_STAGE"
+              echo "RELEASE_SHA=$RELEASE_SHA"
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps || true
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=120 postgres || true
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=120 api || true
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=120 web || true
+              tail -120 /var/log/nginx/error.log 2>/dev/null || true
+              echo "========================================"
+            }
+
+            on_error() {
+              rc=$?
+              set_stage "$CURRENT_STAGE" "failed"
+              dump_diagnostics
+              exit "$rc"
+            }
+
+            trap on_error ERR
+
+            set_stage "$CURRENT_STAGE"
+
             mkdir -p "$APP_DIR"
             find "$APP_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 
@@ -147,8 +192,22 @@ jobs:
             echo "Release SHA: $RELEASE_SHA"
             export RELEASE_SHA
 
-            # Build new images before touching running app containers.
+            CURRENT_STAGE="build-images"
+            set_stage "$CURRENT_STAGE"
+
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml build api web
+
+            CURRENT_STAGE="capture-built-image-ids"
+            set_stage "$CURRENT_STAGE"
+
+            EXPECTED_API_IMAGE_ID="$(docker image inspect app-api:latest --format '{{.Id}}')"
+            EXPECTED_WEB_IMAGE_ID="$(docker image inspect app-web:latest --format '{{.Id}}')"
+
+            echo "EXPECTED_API_IMAGE_ID=$EXPECTED_API_IMAGE_ID"
+            echo "EXPECTED_WEB_IMAGE_ID=$EXPECTED_WEB_IMAGE_ID"
+
+            test -n "$EXPECTED_API_IMAGE_ID"
+            test -n "$EXPECTED_WEB_IMAGE_ID"
 
             # Ensure postgres is up, without touching running api/web yet.
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml up -d postgres
@@ -177,6 +236,33 @@ jobs:
               sleep 2
             done
 
+            wait_for_service_healthy() {
+              service="$1"
+              timeout="${2:-180}"
+
+              cid="$(docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps -q "$service" 2>/dev/null || true)"
+              if [ -z "$cid" ]; then
+                echo "Could not find container ID for service '$service'"
+                return 1
+              fi
+
+              elapsed=0
+              while [ "$elapsed" -lt "$timeout" ]; do
+                status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' "$cid" 2>/dev/null || echo unknown)"
+                if [ "$status" = "healthy" ]; then
+                  echo "Service '$service' is healthy"
+                  return 0
+                fi
+
+                echo "Waiting for '$service' to become healthy... elapsed=${elapsed}s status=$status"
+                sleep 3
+                elapsed=$((elapsed + 3))
+              done
+
+              echo "Service '$service' did not become healthy in ${timeout}s"
+              return 1
+            }
+
             BACKUP_DIR="$DEPLOY_ROOT/backups"
             mkdir -p "$BACKUP_DIR"
             BACKUP_FILE="$BACKUP_DIR/pre-migrate-$(date +%Y%m%d-%H%M%S).sql.gz"
@@ -199,11 +285,49 @@ jobs:
               exit 1
             fi
 
+            CURRENT_STAGE="migrate"
+            set_stage "$CURRENT_STAGE"
+
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
               run --rm --no-deps --entrypoint sh api -lc 'cd /app/services/api && pnpm exec prisma migrate deploy'
 
+            CURRENT_STAGE="recreate-api-web"
+            set_stage "$CURRENT_STAGE"
+
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
               up -d --force-recreate --remove-orphans api web
+
+            CURRENT_STAGE="wait-api-healthy"
+            set_stage "$CURRENT_STAGE"
+            wait_for_service_healthy api 180
+
+            CURRENT_STAGE="wait-web-healthy"
+            set_stage "$CURRENT_STAGE"
+            wait_for_service_healthy web 240
+
+            CURRENT_STAGE="verify-running-image-ids"
+            set_stage "$CURRENT_STAGE"
+
+            RUNNING_API_CID="$(docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps -q api)"
+            RUNNING_WEB_CID="$(docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps -q web)"
+
+            RUNNING_API_IMAGE_ID="$(docker inspect "$RUNNING_API_CID" --format '{{.Image}}')"
+            RUNNING_WEB_IMAGE_ID="$(docker inspect "$RUNNING_WEB_CID" --format '{{.Image}}')"
+
+            echo "RUNNING_API_IMAGE_ID=$RUNNING_API_IMAGE_ID"
+            echo "RUNNING_WEB_IMAGE_ID=$RUNNING_WEB_IMAGE_ID"
+
+            if [ "$RUNNING_API_IMAGE_ID" != "$EXPECTED_API_IMAGE_ID" ]; then
+              echo "FAIL: api container is not running the freshly built image"
+              echo "expected=$EXPECTED_API_IMAGE_ID actual=$RUNNING_API_IMAGE_ID"
+              exit 1
+            fi
+
+            if [ "$RUNNING_WEB_IMAGE_ID" != "$EXPECTED_WEB_IMAGE_ID" ]; then
+              echo "FAIL: web container is not running the freshly built image"
+              echo "expected=$EXPECTED_WEB_IMAGE_ID actual=$RUNNING_WEB_IMAGE_ID"
+              exit 1
+            fi
 
             verify_container_sha() {
               service="$1"
@@ -235,8 +359,8 @@ jobs:
               err_file=$(mktemp)
               ret=1
 
-              for attempt in $(seq 1 15); do
-                code=$(curl -sS -o "$body_file" -w "%{http_code}" "$url" 2>"$err_file" || true)
+              for attempt in $(seq 1 30); do
+                code=$(curl -sS -o "$body_file" -w "%{http_code}" "$url?ts=$(date +%s)" 2>"$err_file" || true)
                 body=$(cat "$body_file" 2>/dev/null | tr -d '\r\n' || true)
 
                 if [ "$code" = "200" ] && [ "$body" = "$RELEASE_SHA" ]; then
@@ -245,9 +369,9 @@ jobs:
                   break
                 fi
 
-                echo "Attempt $attempt/15: $label returned code=$code body='$body'"
-                if [ "$attempt" -lt 15 ]; then
-                  sleep 3
+                echo "Attempt $attempt/30: $label returned code=$code body='$body'"
+                if [ "$attempt" -lt 30 ]; then
+                  sleep 2
                 fi
               done
 
@@ -269,8 +393,8 @@ jobs:
               err_file=$(mktemp)
               ret=1
 
-              for attempt in $(seq 1 15); do
-                code=$(curl -sS -o "$body_file" -w "%{http_code}" "$url" 2>"$err_file" || true)
+              for attempt in $(seq 1 30); do
+                code=$(curl -sS -o "$body_file" -w "%{http_code}" "$url?ts=$(date +%s)" 2>"$err_file" || true)
                 body=$(cat "$body_file" 2>/dev/null || true)
                 extracted=$(printf '%s' "$body" | sed -n 's/.*"releaseSha":"\([^"]*\)".*/\1/p' | tr -d '\r\n')
 
@@ -280,9 +404,9 @@ jobs:
                   break
                 fi
 
-                echo "Attempt $attempt/15: $label returned code=$code releaseSha='$extracted'"
-                if [ "$attempt" -lt 15 ]; then
-                  sleep 3
+                echo "Attempt $attempt/30: $label returned code=$code releaseSha='$extracted'"
+                if [ "$attempt" -lt 30 ]; then
+                  sleep 2
                 fi
               done
 
@@ -304,8 +428,8 @@ jobs:
               err_file=$(mktemp)
               ret=1
 
-              for attempt in $(seq 1 15); do
-                code=$(curl -sS -o "$body_file" -w "%{http_code}" "$url" 2>"$err_file" || true)
+              for attempt in $(seq 1 30); do
+                code=$(curl -sS -o "$body_file" -w "%{http_code}" "$url?ts=$(date +%s)" 2>"$err_file" || true)
                 extracted=$(sed -n 's/.*app-release-sha" content="\([^"]*\)".*/\1/p' "$body_file" | tr -d '\r\n')
 
                 if [ "$code" = "200" ] && [ "$extracted" = "$RELEASE_SHA" ]; then
@@ -314,9 +438,9 @@ jobs:
                   break
                 fi
 
-                echo "Attempt $attempt/15: $label code=$code htmlRelease='$extracted'"
-                if [ "$attempt" -lt 15 ]; then
-                  sleep 3
+                echo "Attempt $attempt/30: $label code=$code htmlRelease='$extracted'"
+                if [ "$attempt" -lt 30 ]; then
+                  sleep 2
                 fi
               done
 
@@ -341,8 +465,8 @@ jobs:
               err_file=$(mktemp)
               ret=1
 
-              for attempt in $(seq 1 15); do
-                code=$(curl -sS -I -o "$body_file" -w "%{http_code}" "$url" 2>"$err_file" || true)
+              for attempt in $(seq 1 30); do
+                code=$(curl -sS -I -o "$body_file" -w "%{http_code}" "$url?ts=$(date +%s)" 2>"$err_file" || true)
 
                 if [ "$code" = "$expected" ]; then
                   echo "OK: $label returned expected status $code"
@@ -350,9 +474,9 @@ jobs:
                   break
                 fi
 
-                echo "Attempt $attempt/15: $label returned code=$code, expected=$expected"
-                if [ "$attempt" -lt 15 ]; then
-                  sleep 3
+                echo "Attempt $attempt/30: $label returned code=$code, expected=$expected"
+                if [ "$attempt" -lt 30 ]; then
+                  sleep 2
                 fi
               done
 
@@ -395,6 +519,9 @@ jobs:
               fi
             }
 
+            CURRENT_STAGE="local-verification"
+            set_stage "$CURRENT_STAGE"
+
             FAILED=0
 
             API_CONTAINER_SHA=$(verify_container_sha api "/app/services/api/release.txt" "API") || FAILED=1
@@ -424,6 +551,9 @@ jobs:
               exit 1
             fi
 
+            CURRENT_STAGE="sync-runtime-fallback"
+            set_stage "$CURRENT_STAGE"
+
             # Sync nginx runtime fallback only after local app verification passed.
             RUNTIME_DIR="$DEPLOY_ROOT/runtime"
             mkdir -p "$RUNTIME_DIR"
@@ -441,8 +571,14 @@ jobs:
               echo "OK: Runtime release.json updated to $RELEASE_JSON_SHA"
             fi
 
+            CURRENT_STAGE="reload-nginx"
+            set_stage "$CURRENT_STAGE"
+
             run_privileged nginx -t || FAILED=1
             run_privileged systemctl reload nginx || FAILED=1
+
+            CURRENT_STAGE="public-verification"
+            set_stage "$CURRENT_STAGE"
 
             check_ingress_status "https://rdevents.uz/" "307" "Public root" || FAILED=1
             check_ingress_status "https://rdevents.uz/ru" "200" "Public /ru" || FAILED=1
@@ -469,8 +605,13 @@ jobs:
               exit 1
             fi
 
+            CURRENT_STAGE="finalize-success"
+            set_stage "$CURRENT_STAGE"
+
             # Mark release as successful only after all checks passed.
             printf '%s\n' "$RELEASE_SHA" > "$APP_DIR/.release-commit"
+
+            set_stage "success" "success"
 
             echo ""
             echo "=========================================="
