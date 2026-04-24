@@ -108,6 +108,31 @@ cp .env.example services/api/.env
 
 Для production переменные нужно обновлять в GitHub secret `PROD_ENV_FILE`, потому что деплой перезаписывает `/opt/rdevents/.env`.
 
+#### DATABASE_URL contract
+
+Внутри Docker Compose сети (и production, и CI) PostgreSQL доступен по hostname `postgres`, а не `127.0.0.1` или `localhost`. Это потому что Prisma подключается из контейнера `api`, где `postgres` резолвится в сервис БД через Docker DNS.
+
+**Development / local:**
+```env
+DATABASE_URL=postgresql://event_platform_user:event_platform_password@localhost:5432/event_platform?schema=public
+```
+
+**Production / Docker Compose:**
+```env
+DATABASE_URL=postgresql://event_platform_user:event_platform_password@postgres:5432/event_platform?schema=public
+```
+
+**Production .env contract:**
+
+| Переменная | Значение |
+|------------|----------|
+| `POSTGRES_DB` | `event_platform` |
+| `POSTGRES_USER` | `event_platform_user` |
+| `POSTGRES_PASSWORD` | `<secret>` |
+| `DATABASE_URL` | `postgresql://event_platform_user:<password>@postgres:5432/event_platform?schema=public` |
+
+`DATABASE_URL` используется **только** внутри compose-сети. Внешний доступ к БД не влияет на runtime URL.
+
 ### 3. Настройка базы данных
 
 #### Вариант A: PostgreSQL через Docker Compose

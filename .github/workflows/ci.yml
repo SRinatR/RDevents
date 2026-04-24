@@ -66,10 +66,10 @@ jobs:
     timeout-minutes: 25
 
     env:
-      DATABASE_URL: postgresql://event_platform_user:event_platform_password@localhost:5432/event_platform?schema=public
-      # NOTE: typecheck/build jobs run Node.js directly on the runner, not inside containers.
-      # localhost here is only for local Prisma tooling context (prisma generate / typecheck).
-      # container-smoke job uses @postgres:5432 to mirror production compose topology.
+      DATABASE_URL: postgresql://event_platform_user:event_platform_password@postgres:5432/event_platform?schema=public
+      # NOTE: All CI jobs use postgres:5432 to mirror production docker-compose network topology.
+      # The api container connects from inside the compose network where "postgres" resolves to the DB service.
+      # This is intentional — CI and production deploy must use identical DATABASE_URL patterns.
       JWT_ACCESS_SECRET: ci-access-secret
       JWT_REFRESH_SECRET: ci-refresh-secret
       CORS_ORIGIN: http://localhost:3000
@@ -109,31 +109,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_DB: event_platform
-          POSTGRES_USER: event_platform_user
-          POSTGRES_PASSWORD: event_platform_password
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U event_platform_user -d event_platform"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-
-    env:
-      DATABASE_URL: postgresql://event_platform_user:event_platform_password@127.0.0.1:5432/event_platform?schema=public
-      JWT_ACCESS_SECRET: ci-access-secret
-      JWT_REFRESH_SECRET: ci-refresh-secret
-      CORS_ORIGIN: http://localhost:3000
-      APP_URL: http://localhost:3000
-      DEFAULT_LOCALE: ru
-      NODE_ENV: test
-      PORT: 4000
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -154,11 +129,39 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Generate Prisma client
-        run: pnpm --filter @event-platform/api prisma:generate
+      - name: Start postgres
+        run: docker compose -f docker-compose.prod.yml up -d postgres
+
+      - name: Wait for postgres
+        run: |
+          set -euo pipefail
+          CID=$(docker compose -f docker-compose.prod.yml ps -q postgres)
+          for i in $(seq 1 30); do
+            HEALTH=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' "$CID")
+            if [ "$HEALTH" = "healthy" ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f docker-compose.prod.yml ps
+          docker compose -f docker-compose.prod.yml logs --tail=100 postgres
+          exit 1
 
       - name: Run tests
-        run: pnpm test
+        env:
+          DATABASE_URL: postgresql://event_platform_user:event_platform_password@postgres:5432/event_platform?schema=public
+          # NOTE: Uses postgres:5432 — docker-compose network hostname for DB service.
+          # This mirrors production topology: CI and production share the same DATABASE_URL pattern.
+          JWT_ACCESS_SECRET: ci-access-secret
+          JWT_REFRESH_SECRET: ci-refresh-secret
+          CORS_ORIGIN: http://localhost:3000
+          APP_URL: http://localhost:3000
+          DEFAULT_LOCALE: ru
+          NODE_ENV: test
+          PORT: 4000
+        run: |
+          pnpm --filter @event-platform/api prisma:generate
+          pnpm test
 
   build:
     name: Build
@@ -166,7 +169,10 @@ jobs:
     timeout-minutes: 35
 
     env:
-      DATABASE_URL: postgresql://event_platform_user:event_platform_password@localhost:5432/event_platform?schema=public
+      DATABASE_URL: postgresql://event_platform_user:event_platform_password@postgres:5432/event_platform?schema=public
+      # NOTE: All CI jobs use postgres:5432 to mirror production docker-compose network topology.
+      # The api service connects from inside the compose network where "postgres" resolves to the DB.
+      # This is intentional — CI and production deploy must use identical DATABASE_URL patterns.
       JWT_ACCESS_SECRET: ci-access-secret
       JWT_REFRESH_SECRET: ci-refresh-secret
       CORS_ORIGIN: http://localhost:3000

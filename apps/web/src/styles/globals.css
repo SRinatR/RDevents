@@ -9716,3 +9716,129 @@ body {
     gap: 8px;
   }
 }
+
+/* ── System Report Card ─────────────────────────────────────────────────────── */
+.sr-card {
+  max-width: 520px;
+}
+
+.sr-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.sr-header h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.sr-subtitle {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  margin: 2px 0 0;
+}
+
+.sr-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.sr-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1.5px solid transparent;
+}
+
+.sr-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.sr-btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.sr-btn-primary:hover:not(:disabled) {
+  background: #1947b3;
+}
+
+.sr-btn-secondary {
+  background: transparent;
+  color: var(--color-text-primary);
+  border-color: var(--color-border-soft);
+}
+
+.sr-btn-secondary:hover:not(:disabled) {
+  background: var(--color-surface-elevated);
+}
+
+.sr-error {
+  font-size: 0.8rem;
+  color: var(--color-destructive);
+  margin-bottom: 12px;
+}
+
+.sr-error-details {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(176, 51, 51, 0.06);
+  border: 1px solid rgba(176, 51, 51, 0.15);
+}
+
+.sr-error-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-destructive);
+  margin-right: 4px;
+}
+
+.sr-error-details code {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  word-break: break-all;
+}
+
+.sr-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+}
+
+.sr-info-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sr-info-label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sr-info-value {
+  font-size: 0.82rem;
+  color: var(--color-text-primary);
+  word-break: break-all;
+}

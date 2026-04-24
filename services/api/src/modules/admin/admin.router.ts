@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { requireAuth, requireSuperAdmin } from '../../common/middleware.js';
 import { prisma } from '../../db/prisma.js';
 
-// Re-export all admin routers
 import { adminEventsRouter } from './events.router.js';
 import { adminParticipantsRouter } from './participants.router.js';
 import { adminTeamsRouter } from './teams.router.js';
@@ -10,6 +9,7 @@ import { adminApplicationsRouter } from './applications.router.js';
 import { adminUsersRouter } from './users.router.js';
 import { adminAnalyticsRouter } from './analytics.router.js';
 import { adminSupportRouter } from './support.router.js';
+import { systemReportRouter } from './system-report.router.js';
 import { profileConfigRouter } from '../profile-config/profile-config.router.js';
 import { exportsRouter } from '../exports/exports.router.js';
 
@@ -26,6 +26,7 @@ adminRouter.use('/applications', adminApplicationsRouter);
 adminRouter.use('/participants', adminParticipantsRouter);
 adminRouter.use('/teams', adminTeamsRouter);
 adminRouter.use('/support', adminSupportRouter);
+adminRouter.use('/system-report', systemReportRouter);
 adminRouter.use('/profile-fields', profileConfigRouter);
 adminRouter.use('/exports', exportsRouter);
 

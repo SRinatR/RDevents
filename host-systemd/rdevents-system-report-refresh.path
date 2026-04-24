@@ -1,0 +1,11 @@
+[Unit]
+Description=RDEvents System Report Refresh Watcher
+Documentation=
+After=network.target
+
+[Path]
+DirectoryNotEmpty=/opt/rdevents/runtime/control
+Unit=rdevents-system-report-refresh.service
+
+[Install]
+WantedBy=multi-user.target

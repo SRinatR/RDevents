@@ -169,6 +169,30 @@
       "rejectSuccess": "Participant rejected",
       "removeSuccess": "Participant removed from event",
       "error": "Failed to perform action"
+    },
+    "systemReport": {
+      "title": "System Report",
+      "subtitle": "Diagnostic report on current production environment status",
+      "refresh": "Refresh Report",
+      "refreshing": "Refreshing…",
+      "download": "Download Report",
+      "downloading": "Downloading…",
+      "states": {
+        "idle": "Never run",
+        "queued": "Queued",
+        "running": "Updating",
+        "success": "Ready",
+        "failed": "Error"
+      },
+      "fields": {
+        "lastSuccess": "Last success",
+        "lastRequest": "Last request",
+        "requestedBy": "Requested by",
+        "fileSize": "File size",
+        "generatedAt": "Generated at",
+        "sha256": "SHA-256",
+        "error": "Error"
+      }
     }
   },
   "analytics": {

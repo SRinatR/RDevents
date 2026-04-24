@@ -120,6 +120,42 @@ The deploy step on the server follows this exact order to keep the database safe
 12. **Verify release markers** — the deploy is considered failed unless all required SHA endpoints return the new release after reload.
 13. **Prune** — removes dangling Docker images.
 
+### Production .env contract
+
+The production `.env` file at `/opt/rdevents/.env` must define these variables:
+
+```env
+# PostgreSQL container credentials
+POSTGRES_DB=event_platform
+POSTGRES_USER=event_platform_user
+POSTGRES_PASSWORD=<strong-random-secret>
+
+# Database URL — CRITICAL: host must be "postgres", not "127.0.0.1" or "localhost"
+# Prisma connects from inside the api container where "postgres" resolves via Docker DNS.
+DATABASE_URL=postgresql://event_platform_user:<password>@postgres:5432/event_platform?schema=public
+
+# JWT secrets (min 32 chars each)
+JWT_ACCESS_SECRET=<strong-random-secret>
+JWT_REFRESH_SECRET=<strong-random-secret>
+
+# App URL for production
+APP_URL=https://rdevents.uz
+CORS_ORIGIN=https://rdevents.uz
+NEXT_PUBLIC_API_BASE_URL=https://api.rdevents.uz
+
+# Other required vars (defaults are set in docker-compose.prod.yml if missing)
+DEFAULT_LOCALE=ru
+PORT=4000
+```
+
+**Why `postgres` and not `127.0.0.1`/`localhost`?**
+
+In Docker Compose, each service is reachable by its service name from within the default network. The `api` container runs `node dist/main.js`, which uses Prisma to connect to the database. Prisma makes a TCP connection from inside the `api` container — it does not resolve `127.0.0.1` or `localhost` to the postgres container. Those addresses refer to the `api` container itself.
+
+The deploy workflow and the API startup guard (in `services/api/src/config/env.ts`) both validate that `DATABASE_URL` does not contain `@127.0.0.1:` or `@localhost:` when `NODE_ENV=production`. If the wrong host is detected, the deploy aborts before migrations and the API throws a startup error.
+
+**CI topology mirrors production.** CI jobs use the same `DATABASE_URL` pattern (`@postgres:5432/`) as production, running postgres inside the compose network rather than on the runner's localhost. This ensures CI and production are configured identically.
+
 ### Smoke checks (after deploy step)
 
 Each check uses a retry loop (30 attempts × 2 s = up to 60 s) so that timing/race

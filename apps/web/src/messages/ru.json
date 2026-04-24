@@ -169,6 +169,30 @@
       "rejectSuccess": "Участник отклонён",
       "removeSuccess": "Участник убран с мероприятия",
       "error": "Не удалось выполнить действие"
+    },
+    "systemReport": {
+      "title": "Системный отчет",
+      "subtitle": "Диагностический отчет по текущему состоянию production-окружения",
+      "refresh": "Обновить отчет",
+      "refreshing": "Обновление…",
+      "download": "Скачать отчет",
+      "downloading": "Загрузка…",
+      "states": {
+        "idle": "Не запускался",
+        "queued": "В очереди",
+        "running": "Обновляется",
+        "success": "Готов",
+        "failed": "Ошибка"
+      },
+      "fields": {
+        "lastSuccess": "Последнее успешное",
+        "lastRequest": "Последний запрос",
+        "requestedBy": "Инициатор",
+        "fileSize": "Размер файла",
+        "generatedAt": "Дата генерации",
+        "sha256": "SHA-256",
+        "error": "Ошибка"
+      }
     }
   },
   "analytics": {
