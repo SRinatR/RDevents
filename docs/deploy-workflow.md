@@ -395,7 +395,7 @@ Recommended:
 - Dismiss stale approvals when new commits are pushed
 - Do not allow bypassing for regular contributors
 
-Current repository setting: owner/admin bypass is enabled for `main`. Regular contributors still go through PR, checks, and review; the owner can bypass branch protection when needed.
+Repository settings must be configured so that owner/admin bypass is enabled for `main`. Regular contributors still go through PR, checks, and review; the owner can bypass branch protection when needed.
 
 ### `production`
 

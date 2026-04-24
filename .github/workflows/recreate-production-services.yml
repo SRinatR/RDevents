@@ -82,9 +82,23 @@ jobs:
 
             STATE_FILE="$DEPLOY_ROOT/runtime/deploy-state.json"
 
+            CURRENT_STAGE="recovery-init"
+
+            set_stage() {
+              stage="$1"
+              status="${2:-running}"
+              CURRENT_STAGE="$stage"
+              printf '{"releaseSha":"%s","status":"%s","stage":"%s","ts":"%s"}\n' \
+                "$RELEASE_SHA" \
+                "$status" \
+                "$stage" \
+                "$(date -u +%FT%TZ)" > "$STATE_FILE"
+            }
+
             dump_diagnostics() {
               echo
               echo "========== RECOVERY DIAGNOSTICS =========="
+              echo "CURRENT_STAGE=${CURRENT_STAGE:-recovery-unknown}"
               docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps || true
               docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=120 postgres || true
               docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=120 api || true
@@ -102,16 +116,9 @@ jobs:
 
             trap on_error ERR
 
-            set_stage() {
-              stage="$1"
-              status="${2:-running}"
-              CURRENT_STAGE="$stage"
-              printf '{"releaseSha":"%s","status":"%s","stage":"%s","ts":"%s"}\n' \
-                "$RELEASE_SHA" \
-                "$status" \
-                "$stage" \
-                "$(date -u +%FT%TZ)" > "$STATE_FILE"
-            }
+            set_stage "recovery-init"
+
+            cd "$APP_DIR"
 
             wait_for_service_healthy() {
               service="$1"
@@ -139,11 +146,6 @@ jobs:
               echo "Service '$service' did not become healthy in ${timeout}s"
               return 1
             }
-
-            set_stage "recovery-migrate"
-            CURRENT_STAGE="recovery-migrate"
-
-            cd "$APP_DIR"
 
             set_stage "recovery-migrate"
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
