@@ -197,6 +197,27 @@
         "sha256": "SHA-256",
         "error": "Ошибка"
       }
+    },
+    "systemReports": {
+      "title": "Системные отчёты 2.0",
+      "subtitle": "Гибкий конструктор отчётов с шаблонами и несколькими форматами",
+      "constructor": "Конструктор",
+      "history": "История",
+      "templates": "Шаблоны",
+      "configuration": "Конфигурация",
+      "sections": "Секции отчёта",
+      "outputFormat": "Формат вывода",
+      "security": "Параметры безопасности",
+      "maskSensitiveData": "Маскировать чувствительные данные",
+      "generate": "Сгенерировать отчёт",
+      "generating": "Генерация...",
+      "saveAsTemplate": "Сохранить как шаблон",
+      "preview": "Предпросмотр отчёта",
+      "status": "Статус",
+      "progress": "Прогресс",
+      "generationHistory": "История генераций",
+      "includedSections": "Включённые секции",
+      "estimatedSize": "Ожидаемый размер"
     }
   },
   "analytics": {

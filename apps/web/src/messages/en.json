@@ -197,6 +197,27 @@
         "sha256": "SHA-256",
         "error": "Error"
       }
+    },
+    "systemReports": {
+      "title": "System Reports 2.0",
+      "subtitle": "Flexible report constructor with templates and multiple formats",
+      "constructor": "Constructor",
+      "history": "History",
+      "templates": "Templates",
+      "configuration": "Configuration",
+      "sections": "Report Sections",
+      "outputFormat": "Output Format",
+      "security": "Security Options",
+      "maskSensitiveData": "Mask sensitive data",
+      "generate": "Generate Report",
+      "generating": "Generating...",
+      "saveAsTemplate": "Save as Template",
+      "preview": "Report Preview",
+      "status": "Status",
+      "progress": "Progress",
+      "generationHistory": "Generation History",
+      "includedSections": "Included Sections",
+      "estimatedSize": "Estimated Size"
     }
   },
   "analytics": {

@@ -659,6 +659,67 @@ export interface SystemReportStatus {
   downloadAvailable: boolean;
 }
 
+export interface ReportSectionConfig {
+  key: string;
+  enabled: boolean | null;
+  params: Record<string, unknown>;
+}
+
+export interface ReportConfig {
+  sections: ReportSectionConfig[];
+  format: 'txt' | 'json' | 'md' | 'zip';
+  dateRange?: {
+    start?: string;
+    end?: string;
+  };
+  detailLevel?: 'basic' | 'detailed';
+  maskSensitiveData: boolean | null;
+}
+
+export interface ReportSection {
+  key: string;
+  label: string;
+  description: string;
+  defaultParams: Record<string, unknown>;
+}
+
+export interface SystemReportTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  isDefault: boolean;
+  config: ReportConfig;
+  createdAt: string;
+}
+
+export interface SystemReportGeneration {
+  id: string;
+  templateId?: string;
+  templateName?: string;
+  status: 'queued' | 'running' | 'success' | 'failed';
+  progress: number;
+  format: string;
+  outputPath?: string;
+  errorMessage?: string;
+  startedAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  sections?: Array<{
+    key: string;
+    label: string;
+    status: string;
+    message?: string;
+    startedAt?: string;
+    completedAt?: string;
+  }>;
+  attachments?: Array<{
+    id: string;
+    fileName: string;
+    fileSize: number;
+    contentType: string;
+  }>;
+}
+
 export const systemReportApi = {
   getStatus: () =>
     request<SystemReportStatus>('/api/admin/system-report/status', { auth: true }),
@@ -670,6 +731,75 @@ export const systemReportApi = {
     const token = getAccessToken();
     if (!token) throw new Error('No auth token');
     const response = await fetch(`${BASE_URL}/api/admin/system-report/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Download failed' }));
+      throw new Error(err.error ?? 'Download failed');
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'system-report.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
+  getV2Templates: () =>
+    request<SystemReportTemplate[]>('/api/admin/system-report/v2/templates', { auth: true }),
+
+  createV2Template: (data: { name: string; description?: string; config: ReportConfig; isDefault?: boolean }) =>
+    request<SystemReportTemplate>('/api/admin/system-report/v2/templates', { method: 'POST', body: data, auth: true }),
+
+  updateV2Template: (templateId: string, data: Partial<{ name: string; description?: string; config: ReportConfig; isDefault?: boolean }>) =>
+    request<SystemReportTemplate>(`/api/admin/system-report/v2/templates/${templateId}`, { method: 'PUT', body: data, auth: true }),
+
+  deleteV2Template: (templateId: string) =>
+    request<void>(`/api/admin/system-report/v2/templates/${templateId}`, { method: 'DELETE', auth: true }),
+
+  getSections: () =>
+    request<ReportSection[]>('/api/admin/system-report/v2/sections', { auth: true }),
+
+  getGenerations: (limit = 20) =>
+    request<SystemReportGeneration[]>(`/api/admin/system-report/v2/generations?limit=${limit}`, { auth: true }),
+
+  getGeneration: (generationId: string) =>
+    request<SystemReportGeneration>(`/api/admin/system-report/v2/generations/${generationId}`, { auth: true }),
+
+  startGeneration: (config: ReportConfig, templateId?: string) =>
+    request<{ id: string; status: string; progress: number; createdAt: string }>('/api/admin/system-report/v2/generations', { method: 'POST', body: { config, templateId }, auth: true }),
+
+  downloadGeneration: async (generationId: string, fileName: string) => {
+    const token = getAccessToken();
+    if (!token) throw new Error('No auth token');
+    const response = await fetch(`${BASE_URL}/api/admin/system-report/v2/generations/${generationId}/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Download failed' }));
+      throw new Error(err.error ?? 'Download failed');
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
+  getLegacyStatus: () =>
+    request<SystemReportStatus>('/api/admin/system-report/v2/legacy-status', { auth: true }),
+
+  downloadLegacy: async () => {
+    const token = getAccessToken();
+    if (!token) throw new Error('No auth token');
+    const response = await fetch(`${BASE_URL}/api/admin/system-report/v2/legacy-download`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok) {

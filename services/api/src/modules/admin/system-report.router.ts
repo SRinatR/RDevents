@@ -3,6 +3,20 @@ import { requireSuperAdmin } from '../../common/middleware.js';
 import type { AuthenticatedRequest } from '../../common/middleware.js';
 import { readFileSync, existsSync, statSync, writeFileSync, renameSync, unlinkSync, openSync, closeSync } from 'fs';
 import { join } from 'path';
+import {
+  getTemplates,
+  createTemplate,
+  updateTemplate,
+  deleteTemplate,
+  getGenerationHistory,
+  getGenerationStatus,
+  startGeneration,
+  downloadReport,
+  getAvailableSections,
+  getLegacyStatus,
+  downloadLegacyReport,
+  initializeDefaultTemplates,
+} from '../system-report/system-report.service.js';
 
 const RUNTIME_ADMIN = '/opt/rdevents/runtime/admin';
 const RUNTIME_CONTROL = '/opt/rdevents/runtime/control';
@@ -282,4 +296,189 @@ systemReportRouter.get('/download', async (_req, res) => {
   res.setHeader('Content-Length', stat.size);
 
   res.send(readFileSync(reportPath));
+});
+
+systemReportRouter.get('/v2/templates', async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    await initializeDefaultTemplates(user.id);
+    const templates = await getTemplates(user.id);
+    res.json(templates);
+  } catch (error) {
+    console.error('Error getting templates:', error);
+    res.status(500).json({ error: 'Failed to get templates' });
+  }
+});
+
+systemReportRouter.post('/v2/templates', async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    const { name, description, config, isDefault } = req.body;
+
+    if (!name || !config) {
+      res.status(400).json({ error: 'Name and config are required' });
+      return;
+    }
+
+    const template = await createTemplate(user.id, { name, description, config, isDefault });
+    res.status(201).json(template);
+  } catch (error) {
+    console.error('Error creating template:', error);
+    res.status(500).json({ error: 'Failed to create template' });
+  }
+});
+
+systemReportRouter.put('/v2/templates/:templateId', async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    const { templateId } = req.params;
+    const { name, description, config, isDefault } = req.body;
+
+    const template = await updateTemplate(user.id, templateId, { name, description, config, isDefault });
+    res.json(template);
+  } catch (error) {
+    console.error('Error updating template:', error);
+    if (error instanceof Error && error.message === 'Template not found') {
+      res.status(404).json({ error: 'Template not found' });
+    } else {
+      res.status(500).json({ error: 'Failed to update template' });
+    }
+  }
+});
+
+systemReportRouter.delete('/v2/templates/:templateId', async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    const { templateId } = req.params;
+
+    await deleteTemplate(user.id, templateId);
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting template:', error);
+    if (error instanceof Error && error.message === 'Template not found') {
+      res.status(404).json({ error: 'Template not found' });
+    } else {
+      res.status(500).json({ error: 'Failed to delete template' });
+    }
+  }
+});
+
+systemReportRouter.get('/v2/sections', async (_req, res) => {
+  try {
+    const sections = await getAvailableSections();
+    res.json(sections);
+  } catch (error) {
+    console.error('Error getting sections:', error);
+    res.status(500).json({ error: 'Failed to get sections' });
+  }
+});
+
+systemReportRouter.get('/v2/generations', async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const generations = await getGenerationHistory(user.id, limit);
+    res.json(generations);
+  } catch (error) {
+    console.error('Error getting generation history:', error);
+    res.status(500).json({ error: 'Failed to get generation history' });
+  }
+});
+
+systemReportRouter.get('/v2/generations/:generationId', async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    const { generationId } = req.params;
+
+    const generation = await getGenerationStatus(generationId, user.id);
+    res.json(generation);
+  } catch (error) {
+    console.error('Error getting generation status:', error);
+    if (error instanceof Error && error.message === 'Generation not found') {
+      res.status(404).json({ error: 'Generation not found' });
+    } else {
+      res.status(500).json({ error: 'Failed to get generation status' });
+    }
+  }
+});
+
+systemReportRouter.post('/v2/generations', async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    const { config, templateId } = req.body;
+
+    if (!config) {
+      res.status(400).json({ error: 'Config is required' });
+      return;
+    }
+
+    const generation = await startGeneration(user.id, user.email, config, templateId);
+    res.status(202).json(generation);
+  } catch (error) {
+    console.error('Error starting generation:', error);
+    if (error instanceof Error && error.message === 'Generation already in progress') {
+      res.status(409).json({ error: 'Generation already in progress', code: 'GENERATION_IN_PROGRESS' });
+    } else {
+      res.status(500).json({ error: 'Failed to start generation' });
+    }
+  }
+});
+
+systemReportRouter.get('/v2/generations/:generationId/download', async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    const { generationId } = req.params;
+
+    const report = await downloadReport(generationId, user.id);
+
+    res.setHeader('Content-Type', report.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${report.fileName}"`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Length', report.fileSize);
+    res.setHeader('X-Content-SHA256', report.sha256);
+
+    res.send(report.content);
+  } catch (error) {
+    console.error('Error downloading report:', error);
+    if (error instanceof Error && error.message === 'Generation not found') {
+      res.status(404).json({ error: 'Generation not found' });
+    } else if (error instanceof Error && error.message === 'Report not ready') {
+      res.status(400).json({ error: 'Report not ready', code: 'REPORT_NOT_READY' });
+    } else if (error instanceof Error && error.message === 'Report file not found') {
+      res.status(404).json({ error: 'Report file not found', code: 'REPORT_FILE_NOT_FOUND' });
+    } else {
+      res.status(500).json({ error: 'Failed to download report' });
+    }
+  }
+});
+
+systemReportRouter.get('/v2/legacy-status', async (_req, res) => {
+  try {
+    const status = await getLegacyStatus();
+    res.json(status);
+  } catch (error) {
+    console.error('Error getting legacy status:', error);
+    res.status(500).json({ error: 'Failed to get legacy status' });
+  }
+});
+
+systemReportRouter.get('/v2/legacy-download', async (_req, res) => {
+  try {
+    const report = await downloadLegacyReport();
+
+    res.setHeader('Content-Type', report.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${report.fileName}"`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Length', report.fileSize);
+    res.setHeader('X-Content-SHA256', report.sha256);
+
+    res.send(report.content);
+  } catch (error) {
+    console.error('Error downloading legacy report:', error);
+    if (error instanceof Error && error.message === 'Report file not found') {
+      res.status(404).json({ error: 'Report file not found', code: 'REPORT_NOT_FOUND' });
+    } else {
+      res.status(500).json({ error: 'Failed to download report' });
+    }
+  }
 });

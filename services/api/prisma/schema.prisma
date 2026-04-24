@@ -290,6 +290,8 @@ model User {
   preferences          UserPreference[]
   updatedProfileFieldVisibility ProfileFieldVisibilitySetting[] @relation("ProfileFieldVisibilityUpdatedBy")
   createdExportPresets ExportPreset[] @relation("ExportPresetCreatedBy")
+  createdReportTemplates SystemReportTemplate[] @relation("SystemReportTemplateCreatedBy")
+  createdReportGenerations SystemReportGeneration[] @relation("SystemReportGenerationCreatedBy")
 
   @@map("users")
 }
@@ -1018,4 +1020,81 @@ model ExportPreset {
 
   @@index([eventId])
   @@map("export_presets")
+}
+
+// ─── System Report Module ────────────────────────────────────────────────────
+
+model SystemReportTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  configJson  Json     // Full report configuration
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy   User     @relation("SystemReportTemplateCreatedBy", fields: [createdById], references: [id])
+  generations SystemReportGeneration[]
+
+  @@index([createdById])
+  @@map("system_report_templates")
+}
+
+model SystemReportGeneration {
+  id           String    @id @default(cuid())
+  templateId   String?
+  status       String    // queued, running, success, failed
+  progress     Int       @default(0) // 0-100
+  format       String    @default("txt") // txt, json, md, zip
+  outputPath   String?
+  errorMessage String?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  createdById  String
+
+  template     SystemReportTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  createdBy    User                   @relation("SystemReportGenerationCreatedBy", fields: [createdById], references: [id])
+  sections     SystemReportSectionLog[]
+  attachments  SystemReportAttachment[]
+
+  @@index([templateId])
+  @@index([createdById])
+  @@index([status])
+  @@map("system_report_generations")
+}
+
+model SystemReportSectionLog {
+  id             String   @id @default(cuid())
+  generationId   String
+  sectionKey     String   // e.g., "release", "docker", "database"
+  sectionLabel   String
+  status         String   // pending, running, completed, failed
+  message        String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime @default(now())
+
+  generation     SystemReportGeneration @relation(fields: [generationId], references: [id], onDelete: Cascade)
+
+  @@index([generationId])
+  @@map("system_report_section_logs")
+}
+
+model SystemReportAttachment {
+  id           String   @id @default(cuid())
+  generationId String
+  fileName     String
+  fileSize     Int
+  contentType  String
+  filePath     String
+  sectionKey   String?
+  createdAt    DateTime @default(now())
+
+  generation   SystemReportGeneration @relation(fields: [generationId], references: [id], onDelete: Cascade)
+
+  @@index([generationId])
+  @@map("system_report_attachments")
 }
