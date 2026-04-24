@@ -1,6 +1,6 @@
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
-import { BaseReportProvider, ProviderContext, SectionResult } from './base.provider';
+import { BaseReportProvider, ProviderContext, SectionResult } from './base.provider.js';
 
 const RUNTIME_DIR = '/opt/rdevents/runtime';
 

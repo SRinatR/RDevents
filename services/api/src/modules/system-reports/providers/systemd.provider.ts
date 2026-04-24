@@ -1,5 +1,5 @@
 import { execSync } from 'child_process';
-import { BaseReportProvider, ProviderContext, SectionResult } from './base.provider';
+import { BaseReportProvider, ProviderContext, SectionResult } from './base.provider.js';
 
 export class SystemdProvider extends BaseReportProvider {
   readonly key = 'systemd';

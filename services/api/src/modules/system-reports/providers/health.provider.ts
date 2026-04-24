@@ -1,5 +1,5 @@
 import { readFileSync, existsSync } from 'fs';
-import { BaseReportProvider, ProviderContext, SectionResult } from './base.provider';
+import { BaseReportProvider, ProviderContext, SectionResult } from './base.provider.js';
 
 export class HealthProvider extends BaseReportProvider {
   readonly key = 'health';

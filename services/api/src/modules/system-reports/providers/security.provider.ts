@@ -1,4 +1,4 @@
-import { BaseReportProvider, ProviderContext, SectionResult } from './base.provider';
+import { BaseReportProvider, ProviderContext, SectionResult } from './base.provider.js';
 
 export class SecurityProvider extends BaseReportProvider {
   readonly key = 'security';
