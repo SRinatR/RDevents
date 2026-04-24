@@ -438,12 +438,43 @@ feature/* → PR → main → PR → production → deploy
 
 ### CI/CD Workflows
 
-- **CI** (`.github/workflows/ci.yml`): только `typecheck` + `build`, запускается на PR в `main`/`develop` и push в `main`/`develop`/`feature/**`/`fix/**`/`hotfix/**`
-- **Deploy** (`.github/workflows/deploy-production.yml`): только production deploy, запускается на push в `production` или вручную с ref `production`
-- Required checks для protected branches: `Type check`, `Build` (в PR UI они отображаются внутри workflow `CI`)
-- `main`: обычный поток через PR + review/checks, owner/admin bypass включён
-- `production`: строгий поток через PR + 2 approvals/checks/environment approval, owner/admin bypass включён для emergency release
-- Production deploy использует GitHub Environment `production`; production secrets не используются в CI
+CI workflow (`.github/workflows/ci.yml`) включает следующие jobs:
+
+| Job | Назначение |
+|-----|------------|
+| `Lint` | ESLint проверка кода |
+| `Shell validation` | Валидация синтаксиса shell-скриптов (`bash -n`) |
+| `Typecheck` | TypeScript проверка типов |
+| `Test` | Unit тесты с PostgreSQL сервисом |
+| `Build` | Сборка всех проектов (API + Web) |
+| `Docker Build` | Сборка production Docker образов (api, web) |
+| `Container Smoke` | Запуск контейнеров и проверка runtime contract внутри compose-сети |
+
+**Required checks** для protected branches:
+
+- `Lint`
+- `Shell validation`
+- `Typecheck`
+- `Test`
+- `Build`
+- `Docker Build`
+- `Container Smoke`
+- `Required Checks` (aggregator, подтверждает успех всех перечисленных выше)
+
+**Запуск CI:** PR в `main`/`production`, push в `main`/`feature/**`/`fix/**`/`hotfix/**`, `workflow_dispatch`
+
+Deploy workflow (`.github/workflows/deploy-production.yml`): только production deploy, триггер — push в `production` или `workflow_dispatch` с ref `production`. Production secrets не используются в CI.
+
+### Branch Protection
+
+Recommended configuration — repository settings must be configured so that:
+
+| Branch | Merge | Required checks | Bypass |
+|--------|-------|-----------------|--------|
+| `main` | PR only | `Lint`, `Shell validation`, `Typecheck`, `Test`, `Build`, `Docker Build`, `Container Smoke`, `Required Checks` | owner/admin bypass for emergency |
+| `production` | PR from `main` | `Lint`, `Shell validation`, `Typecheck`, `Test`, `Build`, `Docker Build`, `Container Smoke`, `Required Checks` + environment approval | owner/admin bypass for emergency release |
+
+The `Required Checks` aggregator job is included in required checks and confirms all individual jobs passed.
 
 ### Secrets для production
 
@@ -458,6 +489,72 @@ pnpm install --prod=false
 pnpm build
 pnpm db:migrate deploy
 ```
+
+## 🏭 Production Release Operations
+
+### Расположение артефактов на сервере
+
+| Файл | Путь | Описание |
+|------|------|----------|
+| `deploy-state.json` | `/opt/rdevents/runtime/deploy-state.json` | Текущий stage/state развертывания |
+| `.release-commit` | `/opt/rdevents/app/.release-commit` | Задеплоенный commit SHA |
+| Deploy logs | `/opt/rdevents/deploy-logs/` | Логи каждого deploy |
+| Backup DB | `/opt/rdevents/backups/` | Резервные копии БД (pre-migrate) |
+
+### Статусы в `deploy-state.json`
+
+```json
+{
+  "releaseSha": "ad2459585ab33709e7b66d0bc036e2010dd4cd52",
+  "status": "success",
+  "stage": "success",
+  "ts": "2026-04-24T11:30:00.000Z"
+}
+```
+
+Возможные значения `stage`:
+- `init`, `build-images`, `capture-built-image-ids`
+- `migrate`, `recreate-api-web`, `wait-api-healthy`, `wait-web-healthy`
+- `verify-running-image-ids`, `local-verification`, `sync-runtime-fallback`
+- `reload-nginx`, `public-verification`, `finalize-success`
+- `success` или `failed`
+
+### Проверка проде после merge
+
+Canonical smoke test:
+
+```bash
+ssh <user>@<host> "bash" < scripts/ops/prod-smoke.sh <sha>
+```
+
+Или без проверки SHA (только connectivity):
+
+```bash
+ssh <user>@<host> "bash" < scripts/ops/prod-smoke.sh
+```
+
+### Ручной force switch (аварийный recovery)
+
+Если images уже собраны, но контейнеры старые:
+
+```bash
+ssh <user>@<host>
+cd /opt/rdevents/app
+bash ./scripts/ops/prod-force-switch-latest.sh <sha>
+```
+
+Это выполнит:
+1. `prisma migrate deploy`
+2. `docker compose up -d --force-recreate --remove-orphans api web`
+3. Финальную проверку `/release.json`
+
+### GitHub Actions post-deploy summary
+
+После успешного deploy в GitHub Actions run видно:
+- `deploy-state.json` (final stage/state)
+- `.release-commit` (задеплоенный SHA)
+- Running image IDs контейнеров
+- Public release JSON с обоих endpoints
 
 
 ## 📝 Лицензия

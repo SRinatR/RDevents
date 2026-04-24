@@ -60,6 +60,38 @@ jobs:
       - name: Run lint
         run: pnpm lint
 
+  shellcheck:
+    name: Shell validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate host script syntax
+        run: bash -n host-scripts/build-system-report.sh
+
+      - name: Runtime redaction smoke test
+        run: |
+          set -euo pipefail
+
+          out="$(bash host-scripts/build-system-report.sh --self-test-redaction)"
+
+          printf '%s\n' "$out" | grep -q 'DATABASE_URL=\[REDACTED\]'
+          printf '%s\n' "$out" | grep -q '# vault:\[REDACTED\]|ok'
+          printf '%s\n' "$out" | grep -q 'JWT_TOKEN=\[REDACTED\]'
+          printf '%s\n' "$out" | grep -q 'RESEND_API_KEY=\[REDACTED\]'
+          printf '%s\n' "$out" | grep -q 'POSTGRES_PASSWORD=\[REDACTED\]'
+
+          ! printf '%s\n' "$out" | grep -q 'postgres://secret'
+          ! printf '%s\n' "$out" | grep -q 'vault:secret'
+          ! printf '%s\n' "$out" | grep -q 'abc123'
+          ! printf '%s\n' "$out" | grep -q 're_123'
+          ! printf '%s\n' "$out" | grep -q 'supersecret'
+
+          echo "Redaction test passed"
+
   typecheck:
     name: Typecheck
     runs-on: ubuntu-latest
@@ -210,6 +242,7 @@ jobs:
     timeout-minutes: 45
     needs:
       - lint
+      - shellcheck
       - typecheck
       - test
       - build
@@ -316,6 +349,7 @@ jobs:
     if: always()
     needs:
       - lint
+      - shellcheck
       - typecheck
       - test
       - build
@@ -328,6 +362,7 @@ jobs:
           set -euo pipefail
 
           echo "lint=${{ needs.lint.result }}"
+          echo "shellcheck=${{ needs.shellcheck.result }}"
           echo "typecheck=${{ needs.typecheck.result }}"
           echo "test=${{ needs.test.result }}"
           echo "build=${{ needs.build.result }}"
@@ -335,6 +370,7 @@ jobs:
           echo "container-smoke=${{ needs.container-smoke.result }}"
 
           [ "${{ needs.lint.result }}" = "success" ] || exit 1
+          [ "${{ needs.shellcheck.result }}" = "success" ] || exit 1
           [ "${{ needs.typecheck.result }}" = "success" ] || exit 1
           [ "${{ needs.test.result }}" = "success" ] || exit 1
           [ "${{ needs.build.result }}" = "success" ] || exit 1

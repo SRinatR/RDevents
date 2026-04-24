@@ -12,8 +12,6 @@ This repository separates code verification from production deployment.
 | `main` | Integration branch | Forbidden by branch protection | PR only |
 | `production` | Release and production branch | Forbidden by branch protection | PR from `main` only |
 
-`develop` is still covered by CI while the branch exists, but the production release flow is `dev branch -> main -> production -> deploy`.
-
 ## Workflow Summary
 
 ```text
@@ -37,19 +35,21 @@ CI is verification only. It must not deploy, connect to production, or read prod
 Triggers:
 
 - `pull_request` to `main`
-- `pull_request` to `develop`
+- `pull_request` to `production`
 - `push` to `main`
-- `push` to `develop`
 - `push` to `feature/**`
 - `push` to `fix/**`
 - `push` to `hotfix/**`
+- `workflow_dispatch`
 
 Jobs:
 
-- `Type check`: installs dependencies, generates Prisma client, and runs `pnpm typecheck` on the GitHub runner
 - `Lint`: installs dependencies and runs `pnpm lint`
+- `Shell validation`: validates host script syntax and runtime redaction smoke test
+- `Typecheck`: installs dependencies, generates Prisma client, and runs `pnpm typecheck` on the GitHub runner
 - `Test`: starts PostgreSQL as a GitHub Actions service on the runner, generates Prisma client, and runs `pnpm test`
 - `Build`: installs dependencies, generates Prisma client, and runs `pnpm build` on the GitHub runner
+- `Docker Build`: builds API and Web Docker images using Docker Compose
 - `Container Smoke`: starts postgres/api/web via Docker Compose and validates the production-like runtime contract inside compose topology
 
 Runtime policy:
@@ -65,12 +65,16 @@ Concurrency:
 
 Required status checks for branch protection:
 
-- `Type check`
 - `Lint`
+- `Shell validation`
+- `Typecheck`
 - `Test`
 - `Build`
+- `Docker Build`
+- `Container Smoke`
+- `Required Checks`
 
-Use the exact check-run names reported by GitHub API. In the PR UI these checks are shown under the workflow as `CI / Type check`, `CI / Lint`, `CI / Test`, and `CI / Build`; branch protection stores the check names as `Type check`, `Lint`, `Test`, and `Build`. If GitHub UI shows old entries such as `CI/Build` or `CI/Type check`, remove them and select the current checks above.
+Use the exact check-run names reported by GitHub API. In the PR UI these checks are shown under the workflow as `CI / Lint`, `CI / Shell validation`, `CI / Typecheck`, `CI / Test`, `CI / Build`, `CI / Docker Build`, `CI / Container Smoke`, and `CI / Required Checks`; branch protection stores the check names as `Lint`, `Shell validation`, `Typecheck`, `Test`, `Build`, `Docker Build`, `Container Smoke`, and `Required Checks`. The `Required Checks` aggregator job confirms all upstream jobs passed; individual job results are `Lint`, `Shell validation`, `Typecheck`, `Test`, `Build`, `Docker Build`, and `Container Smoke`.
 
 ## Production Deploy Workflow
 
@@ -261,12 +265,14 @@ The `container-smoke` job is a required check in `required-checks`. This ensures
 
 **Required status checks for branch protection:**
 
-- `Type check`
 - `Lint`
+- `Shell validation`
+- `Typecheck`
 - `Test`
 - `Build`
 - `Docker Build`
 - `Container Smoke`
+- `Required Checks`
 
 ### Legacy compatibility markers
 
@@ -328,7 +334,7 @@ Recommended settings:
 - Deployment branch policy: only `production`
 - Environment secrets stored only in this environment
 
-Current repository setting: `production` has custom deployment branch policy `production` and required reviewer `SRinatR`.
+Repository settings must be configured so that `production` has custom deployment branch policy `production` and required reviewer `SRinatR`.
 
 Required environment secrets:
 
@@ -372,68 +378,65 @@ The `DATABASE_URL` in production is exclusively an intra-compose-network address
 
 ## Branch Protection
 
-These settings are configured in GitHub repository settings, not in workflow YAML.
+Repository settings must be configured so that:
 
 ### `main`
-
-Required:
 
 - Require a pull request before merging
 - Require at least 1 approval for the normal contributor flow
 - Require status checks to pass before merging
 - Required checks:
-  - `Type check`
   - `Lint`
+  - `Shell validation`
+  - `Typecheck`
   - `Test`
   - `Build`
+  - `Docker Build`
+  - `Container Smoke`
+  - `Required Checks`
 - Block direct push
 - Do not allow force pushes
 - Do not allow branch deletion
-
-Recommended:
-
 - Dismiss stale approvals when new commits are pushed
 - Do not allow bypassing for regular contributors
-
-Current repository setting: owner/admin bypass is enabled for `main`. Regular contributors still go through PR, checks, and review; the owner can bypass branch protection when needed.
+- Owner/admin bypass is enabled for emergency operations
 
 ### `production`
 
 `production` must be stricter than `main`.
 
-Required:
+Recommended configuration:
 
 - Require a pull request before merging
 - Only accept release PRs from `main`
 - Require at least 2 approvals or approval from the release owner group
 - Require status checks to pass before merging
 - Required checks:
-  - `Type check`
   - `Lint`
+  - `Shell validation`
+  - `Typecheck`
   - `Test`
   - `Build`
+  - `Docker Build`
+  - `Container Smoke`
+  - `Required Checks`
 - Restrict who can push to matching branches when the repository is in an organization
 - Restrict who can dismiss reviews
 - Block direct push
 - Do not allow force pushes
 - Do not allow branch deletion
-
-Recommended:
-
-- Allow manual bypass only for repository owners or admins
 - Require conversation resolution before merging
 - Require signed commits if the team uses signed commits consistently
+- Owner/admin bypass is enabled for emergency release operations
 
-Current repository setting: owner/admin bypass is enabled for `production`. Regular contributors still go through PR, 2 approvals, required checks, and the `production` environment reviewer; the owner can bypass branch protection for emergency release operations.
-
-Note for `SRinatR/RDevents`: this is a personal repository. GitHub rejects user/team push restrictions for personal repositories with `Only organization repositories can have users and team restrictions`. The active stricter controls for `production` are 2 required approvals, required checks, blocked force push/delete for non-admin contributors, owner/admin bypass, and the `production` environment required reviewer. If the repository moves to an organization, enable push restrictions for the release owner group.
+The `Required Checks` aggregator job is included in required checks and confirms all individual jobs passed.
 
 ## Release Process
 
 1. Developer creates `feature/*`, `fix/*`, or `hotfix/*`.
 2. Developer opens a PR to `main`.
 3. CI runs on the PR.
-4. PR is reviewed and merged to `main` only after `Type check`, `Lint`, `Test`, and `Build` are green.
+4. PR is reviewed and merged to `main` only after `Lint`, `Shell validation`, `Typecheck`, `Test`, `Build`, `Docker Build`, `Container Smoke`, and `Required Checks` are green.
 5. When a release is approved, open PR `main -> production`.
 6. `production` PR goes through stricter review and required checks.
 7. Merge to `production`.
@@ -445,10 +448,14 @@ Note for `SRinatR/RDevents`: this is a personal repository. GitHub rejects user/
 
 CI errors are in workflow `CI`.
 
-- `Type check` failures are TypeScript or dependency install failures.
 - `Lint` failures are ESLint violations or dependency install failures.
+- `Shell validation` failures are host script syntax errors or redaction smoke test failures.
+- `Typecheck` failures are TypeScript or dependency install failures.
 - `Test` failures are Vitest failures, test database startup failures, Prisma client generation failures, or dependency install failures.
 - `Build` failures are production build failures.
+- `Docker Build` failures are Docker image build failures.
+- `Container Smoke` failures are runtime contract failures inside the Docker Compose topology.
+- `Required Checks` failures mean at least one upstream job did not pass.
 - CI never means production deployment failed.
 
 Deploy errors are in workflow `Deploy production`.
@@ -565,6 +572,160 @@ https://api.rdevents.uz/webhooks/resend
 ```
 
 Set `RESEND_WEBHOOK_SECRET` in the production environment file using the signing secret from the Resend webhook settings. Requests without a valid Svix signature are rejected. If Resend webhooks are not used, disable the webhook in Resend so production logs do not receive useless delivery attempts.
+
+## Operator Scripts
+
+Canonical operator scripts are in `scripts/ops/`. These scripts provide repeatable, tested recovery paths.
+
+### `scripts/ops/prod-smoke.sh`
+
+Smoke test after deploy or as a periodic health check.
+
+```bash
+cd /opt/rdevents/app
+bash ./scripts/ops/prod-smoke.sh [sha]
+```
+
+- Without arguments: checks `/health`, `/ready`, and prints current release SHAs
+- With SHA argument: additionally verifies web and API return the expected SHA
+
+### `scripts/ops/prod-force-switch-latest.sh`
+
+Force recreate containers when images are already built but containers are stale.
+
+```bash
+cd /opt/rdevents/app
+bash ./scripts/ops/prod-force-switch-latest.sh <sha>
+```
+
+This script:
+1. Runs `prisma migrate deploy` (one-off container)
+2. Runs `docker compose up -d --force-recreate --remove-orphans api web`
+3. Verifies `/release.json` on both local endpoints
+
+**Use this only when images are already built and you need to switch containers without a full re-deploy.**
+
+## Deploy State and Artifact Reference
+
+### `deploy-state.json`
+
+Location: `/opt/rdevents/runtime/deploy-state.json`
+
+Written by the deploy workflow after each stage transition. Format:
+
+```json
+{
+  "releaseSha": "ad2459585ab33709e7b66d0bc036e2010dd4cd52",
+  "status": "success",
+  "stage": "success",
+  "ts": "2026-04-24T11:30:00.000Z"
+}
+```
+
+**Stage values in order of execution:**
+
+| Stage | Meaning |
+|-------|---------|
+| `init` | Deploy started, archive unpacked |
+| `build-images` | `docker compose build` in progress |
+| `capture-built-image-ids` | Built image IDs captured for verification |
+| `migrate` | `prisma migrate deploy` running |
+| `recreate-api-web` | `docker compose up -d --force-recreate` executed |
+| `wait-api-healthy` | Polling api container health |
+| `wait-web-healthy` | Polling web container health |
+| `verify-running-image-ids` | Verifying running containers use built images |
+| `local-verification` | Local SHA endpoint verification |
+| `sync-runtime-fallback` | Writing `/opt/rdevents/runtime/` fallback files |
+| `reload-nginx` | `systemctl reload nginx` executed |
+| `public-verification` | Public HTTPS endpoint verification |
+| `finalize-success` | Writing `.release-commit` |
+| `success` | All checks passed |
+| `<stage_name>` + `failed` | Stage failed (status = `failed`) |
+
+### Server artifacts
+
+| Path | Contents |
+|------|----------|
+| `/opt/rdevents/runtime/deploy-state.json` | Current deploy state |
+| `/opt/rdevents/app/.release-commit` | Deployed commit SHA |
+| `/opt/rdevents/deploy-logs/` | Per-deploy log files |
+| `/opt/rdevents/backups/` | Pre-migration DB backups |
+
+### GitHub Actions post-deploy summary
+
+After a successful deploy, the `Deploy production` workflow includes a `Read deploy result from server` step that shows:
+
+- `deploy-state.json` (final state)
+- `.release-commit` (deployed SHA)
+- Running Docker image IDs for `app-api-1` and `app-web-1`
+- Public release JSON from `https://rdevents.uz/release.json` and `https://api.rdevents.uz/release.json`
+
+## Troubleshooting Scenarios
+
+### New images built, running containers are old
+
+Symptoms: Docker images were rebuilt successfully, but public endpoints return old SHA.
+
+Cause: Containers were not restarted after image build, or `docker compose up -d` was not executed.
+
+Resolution:
+
+```bash
+cd /opt/rdevents/app
+bash ./scripts/ops/prod-force-switch-latest.sh <expected_sha>
+```
+
+### `.release-commit` is missing
+
+Symptoms: File `/opt/rdevents/app/.release-commit` does not exist after deploy.
+
+Cause: Deploy failed at `finalize-success` stage or was interrupted.
+
+Resolution:
+1. Check `deploy-state.json` for the failed stage
+2. Check deploy logs in `/opt/rdevents/deploy-logs/`
+3. If migration and images are fine, write the file manually:
+
+   ```bash
+   cd /opt/rdevents/app
+   printf '%s\n' "<sha>" > .release-commit
+   ```
+
+4. Then run smoke test:
+
+   ```bash
+   bash ./scripts/ops/prod-smoke.sh <sha>
+   ```
+
+### Public release endpoint returns old SHA
+
+Symptoms: `curl https://rdevents.uz/release.json` or `https://api.rdevents.uz/release.json` returns stale SHA.
+
+Cause: Nginx is serving cached or old runtime fallback files, or containers are running old images.
+
+Resolution:
+1. Verify containers are running correct images:
+
+   ```bash
+   docker inspect app-api-1 --format 'api={{.Image}}'
+   docker inspect app-web-1 --format 'web={{.Image}}'
+   ```
+
+2. Check `.release-commit` matches expected SHA
+
+3. Reload nginx:
+
+   ```bash
+   sudo systemctl reload nginx
+   ```
+
+4. Wait 10 seconds and retry public endpoints
+
+5. If still stale, check `/opt/rdevents/runtime/release.json` on server:
+
+   ```bash
+   cat /opt/rdevents/runtime/release.json
+   ```
 
 ## Local Checks
 

@@ -104,9 +104,76 @@ STARTED_AT=""
 LAST_SUCCESS=""
 REPORT_GENERATED="no"
 
+# ─── Redaction helper ──────────────────────────────────────────────────────
+# Must be available before init so CI self-test does not touch /opt or /var.
+
+redact_secrets() {
+  sed -E \
+    -e 's#(DATABASE_URL=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(JWT_[A-Z_]*=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(RESEND_API_KEY=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(TOKEN=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(SECRET=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(PASSWORD=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(POSTGRES_PASSWORD=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(POSTGRES_USER=)[^&]*#\1[REDACTED]#g' \
+    -e 's|(# vault:)[^|]*|\1[REDACTED]|g'
+}
+
+if [ "${1:-}" = "--self-test-redaction" ]; then
+  printf '%s\n' \
+    'DATABASE_URL=postgres://secret' \
+    '# vault:secret|ok' \
+    'JWT_TOKEN=abc123' \
+    'RESEND_API_KEY=re_123' \
+    'POSTGRES_PASSWORD=supersecret' \
+    | redact_secrets
+  exit 0
+fi
+
 # ─── Init ─────────────────────────────────────────────────────────────────
 
 mkdir -p "$ADMIN_DIR" "$CONTROL_DIR" "$LOG_DIR" "$(dirname "$LOCK_FILE")"
+
+require_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "$(date -Iseconds) [ERROR] Missing required command: $1" >> "$LOG_DIR/system-report.log"
+    return 1
+  fi
+}
+
+# ─── Core dependency preflight (jq/flock required for control flow) ────────
+# Must check these BEFORE using jq or flock anywhere in the script.
+
+missing_core=""
+command -v jq >/dev/null 2>&1 || missing_core="${missing_core}${missing_core:+, }jq"
+command -v flock >/dev/null 2>&1 || missing_core="${missing_core}${missing_core:+, }flock"
+
+if [ -n "$missing_core" ]; then
+  echo "$(date -Iseconds) [ERROR] Missing core dependencies: $missing_core" >> "$LOG_DIR/system-report.log"
+
+  if [ -f "$REQUEST_FILE" ]; then
+    finished="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    tmp_status="$ADMIN_DIR/.preflight_failed.tmp.$$"
+
+    printf '{\n' > "$tmp_status"
+    printf '  "state": "failed",\n' >> "$tmp_status"
+    printf '  "requestId": null,\n' >> "$tmp_status"
+    printf '  "requestedAt": null,\n' >> "$tmp_status"
+    printf '  "requestedByUserId": null,\n' >> "$tmp_status"
+    printf '  "requestedByEmail": null,\n' >> "$tmp_status"
+    printf '  "startedAt": null,\n' >> "$tmp_status"
+    printf '  "finishedAt": "%s",\n' "$finished" >> "$tmp_status"
+    printf '  "lastSuccessAt": null,\n' >> "$tmp_status"
+    printf '  "lastError": "Missing core dependencies: %s"\n' "$missing_core" >> "$tmp_status"
+    printf '}\n' >> "$tmp_status"
+
+    mv -f "$tmp_status" "$STATUS_FILE" 2>/dev/null || true
+    rm -f "$REQUEST_FILE" 2>/dev/null || true
+  fi
+
+  exit 1
+fi
 
 if [ ! -f "$REQUEST_FILE" ]; then
   echo "$(date -Iseconds) [INFO] No request file found. Exiting." >> "$LOG_DIR/system-report.log"
@@ -164,6 +231,35 @@ write_status() {
 
 write_status "running"
 
+# ─── Dependency checks (after lock acquired, so ERR trap works) ────────────
+
+check_deps() {
+  local missing=""
+  for cmd in docker curl sha256sum; do
+    if ! require_cmd "$cmd"; then
+      missing="${missing}${missing:+, }$cmd"
+    fi
+  done
+
+  if ! docker compose version >/dev/null 2>&1; then
+    missing="${missing}${missing:+, }docker compose"
+  fi
+
+  if [ -n "$missing" ]; then
+    echo "$(date -Iseconds) [ERROR] Missing dependencies: $missing" >> "$LOG_DIR/system-report.log"
+    return 1
+  fi
+  return 0
+}
+
+if ! check_deps; then
+  FINAL_STATUS="failed"
+  FINAL_FINISHED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  FINAL_ERROR="Missing required dependencies"
+  FINAL_LAST_SUCCESS="$LAST_SUCCESS"
+  exit 1
+fi
+
 # ─── Generate report (best-effort) ─────────────────────────────────────────
 
 report_content=""
@@ -210,10 +306,10 @@ generate_report() {
 
   content+=$'\n'"[runtime_version]"$'\n'
   content+=$(capture "version_txt" "cat '$RUNTIME_DIR/version.txt' 2>/dev/null || echo '# not found'")$'\n'
-  content+=$(capture "release_json" "cat '$RUNTIME_DIR/release.json' 2>/dev/null || echo '# not found'")$'\n'
+  content+=$(capture "release_json" "cat '$RUNTIME_DIR/release.json' 2>/dev/null || echo '# not found'" | redact_secrets)$'\n'
 
   content+=$'\n'"[compose_ps]"$'\n'
-  content+=$(capture "compose" "docker compose --env-file '$APP_DIR/.env' -f '$APP_DIR/app/docker-compose.prod.yml' ps -a 2>&1 | head -50 || echo '# docker compose not available'")$'\n'
+  content+=$(capture "compose" "docker compose --env-file '$APP_DIR/.env' -f '$APP_DIR/app/docker-compose.prod.yml' ps -a 2>&1 | head -50 || echo '# docker compose not available'" | redact_secrets)$'\n'
 
   content+=$'\n'"[local_endpoint_checks]"$'\n'
   for url in \

@@ -177,6 +177,10 @@
       "refreshing": "Обновление…",
       "download": "Скачать отчет",
       "downloading": "Загрузка…",
+      "loadFailed": "Не удалось загрузить статус",
+      "refreshFailed": "Не удалось запросить обновление",
+      "downloadFailed": "Ошибка загрузки",
+      "alreadyRunning": "Отчёт уже формируется",
       "states": {
         "idle": "Не запускался",
         "queued": "В очереди",

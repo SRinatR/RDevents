@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { requirePlatformAdmin } from '../../common/middleware.js';
+import { requireSuperAdmin } from '../../common/middleware.js';
 import type { AuthenticatedRequest } from '../../common/middleware.js';
-import { readFileSync, existsSync, statSync, writeFileSync, renameSync, unlinkSync, openSync } from 'fs';
+import { readFileSync, existsSync, statSync, writeFileSync, renameSync, unlinkSync, openSync, closeSync } from 'fs';
 import { join } from 'path';
 
 const RUNTIME_ADMIN = '/opt/rdevents/runtime/admin';
@@ -11,16 +11,16 @@ const META_FILE = 'system-report-meta.json';
 const REPORT_FILE = 'system-report.txt';
 const REQUEST_FILE = 'system-report-refresh-request.json';
 
-type ReportState = 'idle' | 'queued' | 'running' | 'success' | 'failed';
+export type ReportState = 'idle' | 'queued' | 'running' | 'success' | 'failed';
 
-interface RequestData {
+export interface RequestData {
   requestId: string;
   requestedAt: string;
   requestedByUserId: string;
   requestedByEmail: string;
 }
 
-interface StatusData {
+export interface StatusData {
   state: ReportState;
   requestId: string | null;
   requestedAt: string | null;
@@ -33,6 +33,7 @@ interface StatusData {
 }
 
 const REQUEST_TTL_MS = 5 * 60 * 1000;
+const STATUS_RUNNING_TTL_MS = 10 * 60 * 1000;
 
 function isRequestStale(requestPath: string): boolean {
   try {
@@ -42,6 +43,14 @@ function isRequestStale(requestPath: string): boolean {
   } catch {
     return false;
   }
+}
+
+function isStatusStale(status: StatusData): boolean {
+  if (status.state !== 'queued' && status.state !== 'running') return false;
+  const timestamp = status.startedAt ?? status.requestedAt;
+  if (!timestamp) return false;
+  const ageMs = Date.now() - new Date(timestamp).getTime();
+  return ageMs > STATUS_RUNNING_TTL_MS;
 }
 
 function readRequest(requestPath: string): RequestData | null {
@@ -89,7 +98,7 @@ function atomicWriteFile(filePath: string, content: string): void {
 
 export const systemReportRouter = Router();
 
-systemReportRouter.use(requirePlatformAdmin);
+systemReportRouter.use(requireSuperAdmin);
 
 systemReportRouter.post('/refresh', async (req, res) => {
   const user = (req as AuthenticatedRequest).user!;
@@ -116,12 +125,16 @@ systemReportRouter.post('/refresh', async (req, res) => {
 
   const currentStatus = readStatus();
   if (currentStatus && (currentStatus.state === 'queued' || currentStatus.state === 'running')) {
-    res.status(409).json({
-      error: 'Report generation already in progress',
-      state: currentStatus.state,
-      requestId: currentStatus.requestId,
-    });
-    return;
+    if (isStatusStale(currentStatus)) {
+      // Stale status detected - allow new request and clean up
+    } else {
+      res.status(409).json({
+        error: 'Report generation already in progress',
+        state: currentStatus.state,
+        requestId: currentStatus.requestId,
+      });
+      return;
+    }
   }
 
   const requestId = crypto.randomUUID();
@@ -134,20 +147,24 @@ systemReportRouter.post('/refresh', async (req, res) => {
     requestedByEmail: user.email,
   };
 
+  let fd: number | null = null;
   try {
-    const fd = openSync(requestPath, 'wx');
+    fd = openSync(requestPath, 'wx');
     writeFileSync(fd, JSON.stringify(requestPayload, null, 2), 'utf-8');
-  } catch (err: any) {
-    if (err.code === 'EEXIST') {
-      const requestData = readRequest(requestPath);
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'EEXIST') {
+      const existingRequestData = readRequest(requestPath);
       res.status(409).json({
         error: 'Report generation already in progress',
+        code: 'REPORT_GENERATION_IN_PROGRESS',
         state: 'queued',
-        requestId: requestData?.requestId ?? null,
+        requestId: existingRequestData?.requestId ?? null,
       });
       return;
     }
     throw err;
+  } finally {
+    if (fd !== null) closeSync(fd);
   }
 
   res.status(202).json({
@@ -160,8 +177,44 @@ systemReportRouter.post('/refresh', async (req, res) => {
 });
 
 systemReportRouter.get('/status', async (_req, res) => {
+  const requestPath = join(RUNTIME_CONTROL, REQUEST_FILE);
+  const reportPath = join(RUNTIME_ADMIN, REPORT_FILE);
   const status = readStatus();
   const meta = readMeta();
+  const reportExists = existsSync(reportPath);
+  const downloadAvailable = reportExists && meta !== null;
+
+  const requestData = existsSync(requestPath) ? readRequest(requestPath) : null;
+  const requestStale = requestData ? isRequestStale(requestPath) : false;
+
+  if (requestStale) {
+    try {
+      unlinkSync(requestPath);
+    } catch {
+      // ignore cleanup errors
+    }
+  }
+
+  if (requestData && !requestStale) {
+    res.json({
+      state: status?.state === 'running' ? 'running' : 'queued',
+      requestId: requestData.requestId,
+      requestedAt: requestData.requestedAt,
+      requestedByUserId: requestData.requestedByUserId,
+      requestedByEmail: requestData.requestedByEmail,
+      startedAt: status?.startedAt ?? null,
+      finishedAt: status?.finishedAt ?? null,
+      lastSuccessAt: status?.lastSuccessAt ?? null,
+      lastError: status?.lastError ?? null,
+      fileName: meta?.fileName ?? null,
+      generatedAt: meta?.generatedAt ?? null,
+      fileSizeBytes: meta?.fileSizeBytes ?? null,
+      sha256: meta?.sha256 ?? null,
+      reportExists,
+      downloadAvailable,
+    });
+    return;
+  }
 
   if (!status) {
     res.json({
@@ -178,12 +231,22 @@ systemReportRouter.get('/status', async (_req, res) => {
       generatedAt: null,
       fileSizeBytes: null,
       sha256: null,
+      reportExists,
+      downloadAvailable,
     });
     return;
   }
 
+  let effectiveState = status.state;
+  let effectiveLastError = status.lastError;
+
+  if (isStatusStale(status)) {
+    effectiveState = status.state === 'running' ? 'failed' : 'idle';
+    effectiveLastError = 'Previous report generation timed out/stale';
+  }
+
   res.json({
-    state: status.state,
+    state: effectiveState,
     requestId: status.requestId,
     requestedAt: status.requestedAt,
     requestedByUserId: status.requestedByUserId,
@@ -191,11 +254,13 @@ systemReportRouter.get('/status', async (_req, res) => {
     startedAt: status.startedAt,
     finishedAt: status.finishedAt,
     lastSuccessAt: status.lastSuccessAt,
-    lastError: status.lastError,
+    lastError: effectiveLastError,
     fileName: meta?.fileName ?? null,
     generatedAt: meta?.generatedAt ?? null,
     fileSizeBytes: meta?.fileSizeBytes ?? null,
     sha256: meta?.sha256 ?? null,
+    reportExists,
+    downloadAvailable,
   });
 });
 
