@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requirePlatformAdmin } from '../../common/middleware.js';
 import type { AuthenticatedRequest } from '../../common/middleware.js';
-import { readFileSync, existsSync, statSync } from 'fs';
+import { readFileSync, existsSync, statSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
 const RUNTIME_ADMIN = '/opt/rdevents/runtime/admin';
@@ -11,8 +11,10 @@ const META_FILE = 'system-report-meta.json';
 const REPORT_FILE = 'system-report.txt';
 const REQUEST_FILE = 'system-report-refresh-request.json';
 
+type ReportState = 'idle' | 'queued' | 'running' | 'success' | 'failed';
+
 interface StatusData {
-  state: 'idle' | 'queued' | 'running' | 'success' | 'failed';
+  state: ReportState;
   requestId: string | null;
   requestedAt: string | null;
   requestedByUserId: string | null;
@@ -52,6 +54,11 @@ function readMeta(): MetaData | null {
   }
 }
 
+function writeStatus(status: StatusData): void {
+  const path = join(RUNTIME_ADMIN, STATUS_FILE);
+  writeFileSync(path, JSON.stringify(status, null, 2), 'utf-8');
+}
+
 export const systemReportRouter = Router();
 
 systemReportRouter.use(requirePlatformAdmin);
@@ -72,6 +79,20 @@ systemReportRouter.post('/refresh', async (req, res) => {
   const requestId = crypto.randomUUID();
   const requestedAt = new Date().toISOString();
 
+  const queuedStatus: StatusData = {
+    state: 'queued',
+    requestId,
+    requestedAt,
+    requestedByUserId: user.id,
+    requestedByEmail: user.email,
+    startedAt: null,
+    finishedAt: null,
+    lastSuccessAt: currentStatus?.lastSuccessAt ?? null,
+    lastError: null,
+  };
+
+  writeStatus(queuedStatus);
+
   const requestPayload = {
     requestId,
     requestedAt,
@@ -80,7 +101,6 @@ systemReportRouter.post('/refresh', async (req, res) => {
   };
 
   const requestPath = join(RUNTIME_CONTROL, REQUEST_FILE);
-  const { writeFileSync } = await import('fs');
   writeFileSync(requestPath, JSON.stringify(requestPayload, null, 2), 'utf-8');
 
   res.status(202).json({
@@ -147,7 +167,6 @@ systemReportRouter.get('/download', async (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Content-Length', stat.size);
 
-  const { createReadStream } = await import('fs');
-  const stream = createReadStream(reportPath);
-  stream.pipe(res);
+  const stream = readFileSync(reportPath);
+  res.send(stream);
 });
