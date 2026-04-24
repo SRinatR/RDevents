@@ -115,6 +115,39 @@ require_cmd() {
   fi
 }
 
+# ─── Core dependency preflight (jq/flock required for control flow) ────────
+# Must check these BEFORE using jq or flock anywhere in the script.
+
+missing_core=""
+command -v jq >/dev/null 2>&1 || missing_core="${missing_core}${missing_core:+, }jq"
+command -v flock >/dev/null 2>&1 || missing_core="${missing_core}${missing_core:+, }flock"
+
+if [ -n "$missing_core" ]; then
+  echo "$(date -Iseconds) [ERROR] Missing core dependencies: $missing_core" >> "$LOG_DIR/system-report.log"
+
+  if [ -f "$REQUEST_FILE" ]; then
+    finished="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    tmp_status="$ADMIN_DIR/.preflight_failed.tmp.$$"
+
+    printf '{\n' > "$tmp_status"
+    printf '  "state": "failed",\n' >> "$tmp_status"
+    printf '  "requestId": null,\n' >> "$tmp_status"
+    printf '  "requestedAt": null,\n' >> "$tmp_status"
+    printf '  "requestedByUserId": null,\n' >> "$tmp_status"
+    printf '  "requestedByEmail": null,\n' >> "$tmp_status"
+    printf '  "startedAt": null,\n' >> "$tmp_status"
+    printf '  "finishedAt": "%s",\n' "$finished" >> "$tmp_status"
+    printf '  "lastSuccessAt": null,\n' >> "$tmp_status"
+    printf '  "lastError": "Missing core dependencies: %s"\n' "$missing_core" >> "$tmp_status"
+    printf '}\n' >> "$tmp_status"
+
+    mv -f "$tmp_status" "$STATUS_FILE" 2>/dev/null || true
+    rm -f "$REQUEST_FILE" 2>/dev/null || true
+  fi
+
+  exit 1
+fi
+
 redact_secrets() {
   sed -E \
     -e 's#(DATABASE_URL=)[^&]*#\1[REDACTED]#g' \
@@ -188,14 +221,14 @@ write_status "running"
 
 check_deps() {
   local missing=""
-  for cmd in jq docker curl sha256sum flock; do
+  for cmd in docker curl sha256sum; do
     if ! require_cmd "$cmd"; then
-      missing="${missing}${missing:+, }'$cmd'"
+      missing="${missing}${missing:+, }$cmd"
     fi
   done
 
   if ! docker compose version >/dev/null 2>&1; then
-    missing="${missing}${missing:+, }'docker compose'"
+    missing="${missing}${missing:+, }docker compose"
   fi
 
   if [ -n "$missing" ]; then
