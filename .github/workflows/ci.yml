@@ -222,6 +222,7 @@ jobs:
     timeout-minutes: 45
     needs:
       - lint
+      - shellcheck
       - typecheck
       - test
       - build
@@ -328,6 +329,7 @@ jobs:
     if: always()
     needs:
       - lint
+      - shellcheck
       - typecheck
       - test
       - build
@@ -340,6 +342,7 @@ jobs:
           set -euo pipefail
 
           echo "lint=${{ needs.lint.result }}"
+          echo "shellcheck=${{ needs.shellcheck.result }}"
           echo "typecheck=${{ needs.typecheck.result }}"
           echo "test=${{ needs.test.result }}"
           echo "build=${{ needs.build.result }}"
@@ -347,6 +350,7 @@ jobs:
           echo "container-smoke=${{ needs.container-smoke.result }}"
 
           [ "${{ needs.lint.result }}" = "success" ] || exit 1
+          [ "${{ needs.shellcheck.result }}" = "success" ] || exit 1
           [ "${{ needs.typecheck.result }}" = "success" ] || exit 1
           [ "${{ needs.test.result }}" = "success" ] || exit 1
           [ "${{ needs.build.result }}" = "success" ] || exit 1

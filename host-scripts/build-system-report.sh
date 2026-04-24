@@ -111,20 +111,9 @@ mkdir -p "$ADMIN_DIR" "$CONTROL_DIR" "$LOG_DIR" "$(dirname "$LOCK_FILE")"
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "$(date -Iseconds) [ERROR] Missing required command: $1" >> "$LOG_DIR/system-report.log"
-    exit 1
+    return 1
   fi
 }
-
-require_cmd jq
-require_cmd docker
-require_cmd curl
-require_cmd sha256sum
-require_cmd flock
-
-if ! docker compose version >/dev/null 2>&1; then
-  echo "$(date -Iseconds) [ERROR] docker compose plugin is not available" >> "$LOG_DIR/system-report.log"
-  exit 1
-fi
 
 redact_secrets() {
   sed -E \
@@ -194,6 +183,35 @@ write_status() {
 }
 
 write_status "running"
+
+# ─── Dependency checks (after lock acquired, so ERR trap works) ────────────
+
+check_deps() {
+  local missing=""
+  for cmd in jq docker curl sha256sum flock; do
+    if ! require_cmd "$cmd"; then
+      missing="${missing}${missing:+, }'$cmd'"
+    fi
+  done
+
+  if ! docker compose version >/dev/null 2>&1; then
+    missing="${missing}${missing:+, }'docker compose'"
+  fi
+
+  if [ -n "$missing" ]; then
+    echo "$(date -Iseconds) [ERROR] Missing dependencies: $missing" >> "$LOG_DIR/system-report.log"
+    return 1
+  fi
+  return 0
+}
+
+if ! check_deps; then
+  FINAL_STATUS="failed"
+  FINAL_FINISHED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  FINAL_ERROR="Missing required dependencies"
+  FINAL_LAST_SUCCESS="$LAST_SUCCESS"
+  exit 1
+fi
 
 # ─── Generate report (best-effort) ─────────────────────────────────────────
 

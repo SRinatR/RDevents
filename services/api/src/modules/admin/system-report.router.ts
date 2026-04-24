@@ -151,6 +151,18 @@ systemReportRouter.post('/refresh', async (req, res) => {
   try {
     fd = openSync(requestPath, 'wx');
     writeFileSync(fd, JSON.stringify(requestPayload, null, 2), 'utf-8');
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'EEXIST') {
+      const existingRequestData = readRequest(requestPath);
+      res.status(409).json({
+        error: 'Report generation already in progress',
+        code: 'REPORT_GENERATION_IN_PROGRESS',
+        state: 'queued',
+        requestId: existingRequestData?.requestId ?? null,
+      });
+      return;
+    }
+    throw err;
   } finally {
     if (fd !== null) closeSync(fd);
   }
@@ -175,21 +187,30 @@ systemReportRouter.get('/status', async (_req, res) => {
   const requestData = existsSync(requestPath) ? readRequest(requestPath) : null;
   const requestStale = requestData ? isRequestStale(requestPath) : false;
 
-  if (requestData && !requestStale && status && (status.state === 'queued' || status.state === 'running')) {
+  if (requestStale) {
+    try {
+      unlinkSync(requestPath);
+    } catch {
+      // ignore cleanup errors
+    }
+  }
+
+  if (requestData && !requestStale) {
     res.json({
-      state: 'queued',
+      state: status?.state === 'running' ? 'running' : 'queued',
       requestId: requestData.requestId,
       requestedAt: requestData.requestedAt,
       requestedByUserId: requestData.requestedByUserId,
       requestedByEmail: requestData.requestedByEmail,
-      startedAt: status.startedAt,
-      finishedAt: status.finishedAt,
-      lastSuccessAt: status.lastSuccessAt,
-      lastError: status.lastError,
+      startedAt: status?.startedAt ?? null,
+      finishedAt: status?.finishedAt ?? null,
+      lastSuccessAt: status?.lastSuccessAt ?? null,
+      lastError: status?.lastError ?? null,
       fileName: meta?.fileName ?? null,
       generatedAt: meta?.generatedAt ?? null,
       fileSizeBytes: meta?.fileSizeBytes ?? null,
       sha256: meta?.sha256 ?? null,
+      reportExists,
       downloadAvailable,
     });
     return;
@@ -210,6 +231,7 @@ systemReportRouter.get('/status', async (_req, res) => {
       generatedAt: null,
       fileSizeBytes: null,
       sha256: null,
+      reportExists,
       downloadAvailable,
     });
     return;
@@ -237,6 +259,7 @@ systemReportRouter.get('/status', async (_req, res) => {
     generatedAt: meta?.generatedAt ?? null,
     fileSizeBytes: meta?.fileSizeBytes ?? null,
     sha256: meta?.sha256 ?? null,
+    reportExists,
     downloadAvailable,
   });
 });
