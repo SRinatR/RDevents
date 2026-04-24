@@ -66,7 +66,9 @@ jobs:
     timeout-minutes: 25
 
     env:
-      DATABASE_URL: postgresql://event_platform_user:event_platform_password@localhost:5432/event_platform?schema=public
+      DATABASE_URL: postgresql://event_platform_user:event_platform_password@127.0.0.1:5432/event_platform?schema=public
+      # Runner-only placeholder for Prisma tooling.
+      # This job does not run inside docker-compose network and must not claim production topology parity.
       JWT_ACCESS_SECRET: ci-access-secret
       JWT_REFRESH_SECRET: ci-refresh-secret
       CORS_ORIGIN: http://localhost:3000
@@ -121,16 +123,6 @@ jobs:
           --health-timeout 5s
           --health-retries 10
 
-    env:
-      DATABASE_URL: postgresql://event_platform_user:event_platform_password@127.0.0.1:5432/event_platform?schema=public
-      JWT_ACCESS_SECRET: ci-access-secret
-      JWT_REFRESH_SECRET: ci-refresh-secret
-      CORS_ORIGIN: http://localhost:3000
-      APP_URL: http://localhost:3000
-      DEFAULT_LOCALE: ru
-      NODE_ENV: test
-      PORT: 4000
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -151,11 +143,21 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Generate Prisma client
-        run: pnpm --filter @event-platform/api prisma:generate
-
       - name: Run tests
-        run: pnpm test
+        env:
+          DATABASE_URL: postgresql://event_platform_user:event_platform_password@127.0.0.1:5432/event_platform?schema=public
+          # Runner-based test topology: postgres is exposed to the runner on 127.0.0.1:5432.
+          # This is not the production compose-network contract.
+          JWT_ACCESS_SECRET: ci-access-secret
+          JWT_REFRESH_SECRET: ci-refresh-secret
+          CORS_ORIGIN: http://localhost:3000
+          APP_URL: http://localhost:3000
+          DEFAULT_LOCALE: ru
+          NODE_ENV: test
+          PORT: 4000
+        run: |
+          pnpm --filter @event-platform/api prisma:generate
+          pnpm test
 
   build:
     name: Build
@@ -163,7 +165,9 @@ jobs:
     timeout-minutes: 35
 
     env:
-      DATABASE_URL: postgresql://event_platform_user:event_platform_password@localhost:5432/event_platform?schema=public
+      DATABASE_URL: postgresql://event_platform_user:event_platform_password@127.0.0.1:5432/event_platform?schema=public
+      # Runner-only placeholder for build-time Prisma tooling.
+      # This job does not prove docker-compose network reachability and must not claim production topology parity.
       JWT_ACCESS_SECRET: ci-access-secret
       JWT_REFRESH_SECRET: ci-refresh-secret
       CORS_ORIGIN: http://localhost:3000
@@ -224,6 +228,88 @@ jobs:
       - name: Docker compose build
         run: docker compose -f docker-compose.prod.yml build api web
 
+  container-smoke:
+    name: Container Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs:
+      - docker-build
+
+    env:
+      RELEASE_SHA: ${{ github.sha }}
+      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:4000
+      DATABASE_URL: postgresql://event_platform_user:event_platform_password@postgres:5432/event_platform?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret
+      JWT_REFRESH_SECRET: ci-refresh-secret
+      CORS_ORIGIN: http://localhost:3000
+      APP_URL: http://localhost:3000
+      DEFAULT_LOCALE: ru
+      NODE_ENV: production
+      PORT: 4000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start postgres
+        run: docker compose -f docker-compose.prod.yml up -d postgres
+
+      - name: Wait for postgres
+        run: |
+          set -euo pipefail
+          CID=$(docker compose -f docker-compose.prod.yml ps -q postgres)
+          for i in $(seq 1 30); do
+            HEALTH=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' "$CID")
+            if [ "$HEALTH" = "healthy" ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f docker-compose.prod.yml ps
+          docker compose -f docker-compose.prod.yml logs --tail=100 postgres
+          exit 1
+
+      - name: Run migrations
+        run: |
+          echo "DATABASE_URL inside api container: $DATABASE_URL"
+          docker compose -f docker-compose.prod.yml run --rm --no-deps --entrypoint sh api -lc \
+            'echo "Effective DATABASE_URL: $DATABASE_URL" && cd /app/services/api && pnpm exec prisma migrate deploy'
+
+      - name: Start api and web
+        run: docker compose -f docker-compose.prod.yml up -d api web
+
+      - name: Wait for api and web
+        run: |
+          set -euo pipefail
+          for service in api web; do
+            CID=$(docker compose -f docker-compose.prod.yml ps -q "$service")
+            for i in $(seq 1 40); do
+              STATUS=$(docker inspect -f '{{.State.Status}}' "$CID")
+              HEALTH=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' "$CID")
+              if [ "$HEALTH" = "healthy" ] || { [ "$HEALTH" = "no-healthcheck" ] && [ "$STATUS" = "running" ]; }; then
+                break
+              fi
+              sleep 2
+            done
+          done
+
+      - name: Verify runtime contract
+        run: |
+          set -euo pipefail
+
+          API_SHA=$(curl -fsS http://127.0.0.1:4000/release.json | sed -n 's/.*"releaseSha":"\([^"]*\)".*/\1/p')
+          WEB_SHA=$(curl -fsS http://127.0.0.1:3000/release.json | sed -n 's/.*"releaseSha":"\([^"]*\)".*/\1/p')
+          HTML_SHA=$(curl -fsS http://127.0.0.1:3000/ru | sed -n 's/.*app-release-sha" content="\([^"]*\)".*/\1/p')
+
+          test "$API_SHA" = "$RELEASE_SHA"
+          test "$WEB_SHA" = "$RELEASE_SHA"
+          test "$HTML_SHA" = "$RELEASE_SHA"
+
+          curl -fsS http://127.0.0.1:4000/health > /dev/null
+          curl -fsS http://127.0.0.1:4000/ready > /dev/null
+          curl -fsS http://127.0.0.1:3000/ru > /dev/null
+          curl -fsS http://127.0.0.1:3000/ru/events > /dev/null
+
   required-checks:
     name: Required Checks
     runs-on: ubuntu-latest
@@ -234,6 +320,7 @@ jobs:
       - test
       - build
       - docker-build
+      - container-smoke
 
     steps:
       - name: Validate upstream jobs
@@ -245,11 +332,13 @@ jobs:
           echo "test=${{ needs.test.result }}"
           echo "build=${{ needs.build.result }}"
           echo "docker-build=${{ needs.docker-build.result }}"
+          echo "container-smoke=${{ needs.container-smoke.result }}"
 
           [ "${{ needs.lint.result }}" = "success" ] || exit 1
           [ "${{ needs.typecheck.result }}" = "success" ] || exit 1
           [ "${{ needs.test.result }}" = "success" ] || exit 1
           [ "${{ needs.build.result }}" = "success" ] || exit 1
           [ "${{ needs.docker-build.result }}" = "success" ] || exit 1
+          [ "${{ needs.container-smoke.result }}" = "success" ] || exit 1
 
           echo "All required checks passed."

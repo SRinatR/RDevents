@@ -5,7 +5,7 @@ import morgan from 'morgan';
 import { env } from './config/env.js';
 import { errorHandler, requestIdMiddleware, requestLogger } from './common/middleware.js';
 import { getMediaUploadDir } from './common/storage.js';
-import { releaseSha } from './common/release.js';
+import { buildReleasePayload, releaseSha } from './common/release.js';
 
 import { authRouter } from './modules/auth/auth.router.js';
 import { eventsRouter } from './modules/events/events.router.js';
@@ -56,6 +56,11 @@ export function createApp() {
     res.send(releaseSha);
   };
 
+  const releaseJsonHandler = (_req: express.Request, res: express.Response) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(buildReleasePayload('event-platform-api'));
+  };
+
   const readyHandler = async (_req: express.Request, res: express.Response) => {
     try {
       await prisma.$queryRaw`SELECT 1`;
@@ -71,6 +76,8 @@ export function createApp() {
   app.get('/api/version', versionTextHandler);
   app.get('/ready', readyHandler);
   app.get('/api/ready', readyHandler);
+  app.get('/release.json', releaseJsonHandler);
+  app.get('/api/release.json', releaseJsonHandler);
 
   // ─── API routes ───────────────────────────────────────────────────────────
   app.use('/api/auth', authRouter);

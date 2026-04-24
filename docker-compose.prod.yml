@@ -66,6 +66,8 @@ services:
       - "127.0.0.1:4000:4000"
     volumes:
       - api_uploads:/app/services/api/uploads
+      - /opt/rdevents/runtime/admin:/opt/rdevents/runtime/admin:ro
+      - /opt/rdevents/runtime/control:/opt/rdevents/runtime/control:rw
     healthcheck:
       test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:4000/health"]
       interval: 10s

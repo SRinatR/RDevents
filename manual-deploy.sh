@@ -150,6 +150,11 @@ fetch_release_json_sha() {
   curl -fsS "${url}" | sed -n 's/.*"releaseSha":"\([^"]*\)".*/\1/p' | tr -d '\r\n'
 }
 
+fetch_html_release_meta() {
+  local url="$1"
+  curl -fsS "${url}" | sed -n 's/.*app-release-sha" content="\([^"]*\)".*/\1/p' | tr -d '\r\n'
+}
+
 assert_eq() {
   local actual="$1"
   local expected="$2"
@@ -227,10 +232,18 @@ log "6) Start postgres again from deployed source and wait"
 compose up -d postgres
 wait_for_service postgres 120
 
-log "7) Run migrations"
+log "7) Validate DATABASE_URL"
+if ! grep -Eq '^DATABASE_URL=.*@postgres:5432/' "${ENV_FILE}" 2>/dev/null; then
+  fail "Invalid production DATABASE_URL: must use host 'postgres:5432' inside docker-compose network. "\
+"Current value: $(grep '^DATABASE_URL=' "${ENV_FILE}" || echo 'not found'). "\
+"Fix ${ENV_FILE} and retry."
+fi
+log "DATABASE_URL validated: uses postgres:5432 host."
+
+log "8) Run migrations"
 compose run --rm --no-deps --entrypoint sh api -lc 'cd /app/services/api && pnpm exec prisma migrate deploy'
 
-log "8) Recreate api and web"
+log "9) Recreate api and web"
 compose up -d --force-recreate --remove-orphans api web
 
 wait_for_service api 180
@@ -247,10 +260,14 @@ log "10) Verify localhost endpoints"
 LOCAL_API_SHA="$(fetch_plain_url "${LOCAL_API_VERSION_URL}")"
 LOCAL_WEB_SHA="$(fetch_plain_url "${LOCAL_WEB_VERSION_URL}")"
 LOCAL_WEB_JSON_SHA="$(fetch_release_json_sha "${LOCAL_WEB_RELEASE_JSON_URL}")"
+LOCAL_API_JSON_SHA="$(fetch_release_json_sha "http://127.0.0.1:4000/release.json")"
+LOCAL_WEB_HTML_SHA="$(fetch_html_release_meta "http://127.0.0.1:3000/ru")"
 
 assert_eq "${LOCAL_API_SHA}" "${RELEASE_SHA}" "Local API /version"
 assert_eq "${LOCAL_WEB_SHA}" "${RELEASE_SHA}" "Local Web /version.txt"
 assert_eq "${LOCAL_WEB_JSON_SHA}" "${RELEASE_SHA}" "Local Web /release.json"
+assert_eq "${LOCAL_API_JSON_SHA}" "${RELEASE_SHA}" "Local API /release.json"
+assert_eq "${LOCAL_WEB_HTML_SHA}" "${RELEASE_SHA}" "Local Web /ru HTML marker"
 
 log "11) Update runtime files"
 printf '%s\n' "${RELEASE_SHA}" > "${RUNTIME_DIR}/version.txt"
@@ -269,10 +286,14 @@ log "13) Verify public endpoints"
 PUBLIC_WEB_SHA="$(fetch_plain_url "${PUBLIC_WEB_VERSION_URL}")"
 PUBLIC_API_SHA="$(fetch_plain_url "${PUBLIC_API_VERSION_URL}")"
 PUBLIC_WEB_JSON_SHA="$(fetch_release_json_sha "${PUBLIC_WEB_RELEASE_JSON_URL}")"
+PUBLIC_API_JSON_SHA="$(fetch_release_json_sha "https://api.rdevents.uz/release.json")"
+PUBLIC_WEB_HTML_SHA="$(fetch_html_release_meta "https://rdevents.uz/ru")"
 
 assert_eq "${PUBLIC_WEB_SHA}" "${RELEASE_SHA}" "Public Web /version.txt"
 assert_eq "${PUBLIC_API_SHA}" "${RELEASE_SHA}" "Public API /version"
 assert_eq "${PUBLIC_WEB_JSON_SHA}" "${RELEASE_SHA}" "Public Web /release.json"
+assert_eq "${PUBLIC_API_JSON_SHA}" "${RELEASE_SHA}" "Public API /release.json"
+assert_eq "${PUBLIC_WEB_HTML_SHA}" "${RELEASE_SHA}" "Public Web /ru HTML marker"
 
 log "14) Persist deployed release marker"
 printf '%s\n' "${RELEASE_SHA}" > "${APP_DIR}/.release-commit"

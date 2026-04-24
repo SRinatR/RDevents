@@ -1,0 +1,16 @@
+[Unit]
+Description=RDEvents System Report Generator
+Documentation=
+After=network.target
+Before=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/rdevents/bin/build-system-report.sh
+StandardOutput=journal
+StandardError=journal
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

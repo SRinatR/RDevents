@@ -46,10 +46,11 @@ Triggers:
 
 Jobs:
 
-- `Type check`: installs dependencies and runs `pnpm typecheck`
+- `Type check`: installs dependencies, generates Prisma client, and runs `pnpm typecheck` on the GitHub runner
 - `Lint`: installs dependencies and runs `pnpm lint`
-- `Test`: starts a Postgres service, generates the Prisma client, and runs `pnpm test`
-- `Build`: waits for typecheck, lint, and test to pass, then installs dependencies and runs `pnpm build`
+- `Test`: starts PostgreSQL as a GitHub Actions service on the runner, generates Prisma client, and runs `pnpm test`
+- `Build`: installs dependencies, generates Prisma client, and runs `pnpm build` on the GitHub runner
+- `Container Smoke`: starts postgres/api/web via Docker Compose and validates the production-like runtime contract inside compose topology
 
 Runtime policy:
 
@@ -94,7 +95,8 @@ Deploy job:
 - deploys with Docker Compose on the server (see sequence below)
 - writes `.release-commit` with the deployed commit SHA
 - starts Postgres, waits for it to become healthy, and writes a non-empty pre-migration database backup
-- runs `pnpm prisma:deploy` only after the backup succeeds
+- validates that production `DATABASE_URL` uses `postgres:5432` as the host (inside docker-compose network, not `127.0.0.1` or `localhost`); the deploy aborts before migration if the host is wrong
+- runs `pnpm prisma:deploy` only after the backup succeeds and DATABASE_URL validation passes
 - recreates API and web with Docker Compose only after backup and migrations succeed
 - updates runtime fallback files in `/opt/rdevents/runtime/`
 - runs `nginx -t` and `systemctl reload nginx` after runtime files are updated
@@ -111,12 +113,52 @@ The deploy step on the server follows this exact order to keep the database safe
 4. **Start postgres** — `docker compose up -d postgres` ensures postgres is up without touching api/web.
 5. **Wait for postgres healthy** — polls the postgres container health status with `docker inspect` for up to 60 seconds; aborts the deploy if postgres does not become healthy. This checks the Docker health check (`pg_isready -U <user> -d <db>`) rather than a bare TCP probe, confirming the correct user and database are accepting connections.
 6. **Backup** — runs `pg_dump | gzip` inside the postgres container using the container's own `POSTGRES_USER` and `POSTGRES_DB`, then writes the compressed dump to `$DEPLOY_ROOT/backups/pre-migrate-<timestamp>.sql.gz`. The deploy aborts if the backup fails or the file is empty.
-7. **Migrate** — runs `pnpm prisma:deploy` inside a one-off API container (`docker compose run --rm --no-deps api`). The deploy aborts if any migration fails; the previously running api/web containers were not stopped by the deploy workflow. **Seed (`db:seed`) is never run here.**
-8. **Recreate api and web** — `docker compose up -d --no-build --force-recreate --remove-orphans api web` replaces the app containers using the images built in step 2. This step is only reached if backup and migration succeeded.
-9. **Update runtime fallbacks** — writes the deployed SHA into `/opt/rdevents/runtime/version.txt`, `/opt/rdevents/runtime/version`, and `/opt/rdevents/runtime/release.json`.
-10. **Validate and reload nginx** — runs `nginx -t` and then `systemctl reload nginx` so nginx fallback aliases pick up the fresh runtime files.
-11. **Verify release markers** — the deploy is considered failed unless all required SHA endpoints return the new release after reload.
-12. **Prune** — removes dangling Docker images.
+7. **Validate DATABASE_URL** — before running migrations, the deploy validates that `$DEPLOY_ROOT/.env` contains `DATABASE_URL` with host `postgres:5432` (not `127.0.0.1`, not `localhost`). Prisma connects from inside the `api` container, where `postgres` resolves to the database service in the Docker Compose network. The deploy aborts immediately if the host is wrong.
+8. **Migrate** — runs `pnpm prisma:deploy` inside a one-off API container (`docker compose run --rm --no-deps api`). The deploy aborts if any migration fails; the previously running api/web containers were not stopped by the deploy workflow. **Seed (`db:seed`) is never run here.**
+9. **Recreate api and web** — `docker compose up -d --no-build --force-recreate --remove-orphans api web` replaces the app containers using the images built in step 2. This step is only reached if backup and migration succeeded.
+10. **Update runtime fallbacks** — writes the deployed SHA into `/opt/rdevents/runtime/version.txt`, `/opt/rdevents/runtime/version`, and `/opt/rdevents/runtime/release.json`.
+11. **Validate and reload nginx** — runs `nginx -t` and then `systemctl reload nginx` so nginx fallback aliases pick up the fresh runtime files.
+12. **Verify release markers** — the deploy is considered failed unless all required SHA endpoints return the new release after reload.
+13. **Prune** — removes dangling Docker images.
+
+### Production .env contract
+
+The production `.env` file at `/opt/rdevents/.env` must define these variables:
+
+```env
+# PostgreSQL container credentials
+POSTGRES_DB=event_platform
+POSTGRES_USER=event_platform_user
+POSTGRES_PASSWORD=<strong-random-secret>
+
+# Database URL — CRITICAL: host must be "postgres", not "127.0.0.1" or "localhost"
+# Prisma connects from inside the api container where "postgres" resolves via Docker DNS.
+DATABASE_URL=postgresql://event_platform_user:<password>@postgres:5432/event_platform?schema=public
+
+# JWT secrets (min 32 chars each)
+JWT_ACCESS_SECRET=<strong-random-secret>
+JWT_REFRESH_SECRET=<strong-random-secret>
+
+# App URL for production
+APP_URL=https://rdevents.uz
+CORS_ORIGIN=https://rdevents.uz
+NEXT_PUBLIC_API_BASE_URL=https://api.rdevents.uz
+
+# Other required vars (defaults are set in docker-compose.prod.yml if missing)
+DEFAULT_LOCALE=ru
+PORT=4000
+```
+
+**Why `postgres` and not `127.0.0.1`/`localhost`?**
+
+In Docker Compose, each service is reachable by its service name from within the default network. The `api` container runs `node dist/main.js`, which uses Prisma to connect to the database. Prisma makes a TCP connection from inside the `api` container — it does not resolve `127.0.0.1` or `localhost` to the postgres container. Those addresses refer to the `api` container itself.
+
+The deploy workflow and the API startup guard (in `services/api/src/config/env.ts`) both validate that `DATABASE_URL` does not contain `@127.0.0.1:` or `@localhost:` when `NODE_ENV=production`. If the wrong host is detected, the deploy aborts before migrations and the API throws a startup error.
+
+**Only the `container-smoke` job mirrors production topology.**
+It runs postgres, migrations, api, and web inside the docker-compose network and therefore uses `DATABASE_URL` with `@postgres:5432/`.
+
+Runner-based CI jobs (`typecheck`, `test`, `build`) are not proof of compose-network reachability and must not be described as identical to production topology.
 
 ### Smoke checks (after deploy step)
 
@@ -151,16 +193,90 @@ The deploy workflow must not run from `main`, feature branches, or PRs.
 
 ### Release marker contract
 
-Every deployed image receives the same `RELEASE_SHA` build argument and runtime environment value. The web image writes it into static public files during Docker build; the API image writes it into `release.txt` and also exposes it through `RELEASE_SHA`. While the nginx static fallback aliases remain enabled, the deploy workflow also writes the same SHA to `$DEPLOY_ROOT/runtime/version.txt`, `$DEPLOY_ROOT/runtime/version`, and `$DEPLOY_ROOT/runtime/release.json`, then runs `nginx -t` and `systemctl reload nginx` so the fallback cannot keep serving a stale release.
+The primary release contract is the application-level endpoints, not the nginx static aliases. Runtime fallback files are a safety net, not a source of truth.
 
-Required app-level endpoints:
+**Primary release contract:**
 
-- Web: `GET /version.txt` returns `200 text/plain` with the deployed commit SHA.
-- Web: `GET /release.json` returns `200 application/json` with the deployed commit SHA in `releaseSha`.
-- API: `GET /version` returns `200 text/plain` with the deployed commit SHA.
-- API: `GET /api/version` returns `200 text/plain` with the deployed commit SHA.
+| Endpoint | Service | Format | Purpose |
+|----------|---------|--------|---------|
+| `GET /release.json` | API | JSON | Primary release marker for API service |
+| `GET /api/release.json` | API | JSON | API release marker under /api prefix |
+| `GET /release.json` | Web | JSON | Primary release marker for Web service |
+| `GET <locale>/` HTML | Web | `<meta name="app-release-sha">` | Release marker embedded in HTML |
 
-These endpoints must not depend on request headers, cookies, or other request-bound dynamic logic. Nginx may keep a static fallback as a safety layer, but the application endpoints are the primary contract and the deploy smoke checks validate that contract. A production deploy is not successful unless these four required endpoints return the new SHA: `http://127.0.0.1:3000/version.txt`, `http://127.0.0.1:4000/version`, `https://rdevents.uz/version.txt`, and `https://api.rdevents.uz/version`. The deploy workflow also keeps the local upstream `http://127.0.0.1:4000/api/version` and public `https://api.rdevents.uz/api/version` compatibility checks available, but the four required endpoints above are the hard gate.
+**JSON response shape:**
+```json
+{
+  "service": "event-platform-api",
+  "releaseSha": "<sha>",
+  "environment": "<NODE_ENV>"
+}
+```
+
+**HTML meta marker:**
+```html
+<meta name="app-release-sha" content="<sha>" />
+```
+
+**Legacy compatibility (temporary, not source of truth):**
+
+| Endpoint | Service | Format | Notes |
+|----------|---------|--------|-------|
+| `GET /version.txt` | Web | Plain text | Static file, nginx alias fallback |
+| `GET /version` | API | Plain text | Static file, nginx alias fallback |
+| `GET /api/version` | API | Plain text | Compatibility path |
+
+**Runtime fallback files** (`/opt/rdevents/runtime/`):
+
+- `version.txt`, `version`, `release.json`
+- These are nginx static aliases used as a safety net
+- They are updated after application verification passes
+- They are **not** the source of truth for deploy success
+
+**Deploy success criteria:**
+
+A deploy is successful only when:
+
+1. `GET /release.json` on API (local and public) returns the new SHA
+2. `GET /release.json` on Web (local and public) returns the new SHA
+3. HTML at `/ru` contains `app-release-sha` meta with the new SHA
+
+Version.txt and version files remain as legacy compatibility, but they are no longer the primary gate for deploy success.
+
+### CI container-smoke job
+
+The CI workflow includes a `container-smoke` job that runs after `docker-build`:
+
+- Starts postgres via Docker Compose
+- Runs database migrations
+- Starts API and Web containers
+- Verifies runtime contract:
+  - API `/release.json` SHA matches `RELEASE_SHA`
+  - Web `/release.json` SHA matches `RELEASE_SHA`
+  - HTML meta `app-release-sha` matches `RELEASE_SHA`
+  - `/health` and `/ready` endpoints respond correctly
+  - `/ru` and `/ru/events` pages respond correctly
+
+The `container-smoke` job is a required check in `required-checks`. This ensures the containerized application passes runtime verification before any production deploy.
+
+**Required status checks for branch protection:**
+
+- `Type check`
+- `Lint`
+- `Test`
+- `Build`
+- `Docker Build`
+- `Container Smoke`
+
+### Legacy compatibility markers
+
+The following endpoints remain enabled as legacy compatibility:
+
+- `GET /version.txt` — Web static file (nginx alias to `/opt/rdevents/runtime/version.txt`)
+- `GET /version` — API static file (nginx alias to `/opt/rdevents/runtime/version`)
+- `GET /api/version` — API compatibility path
+
+These are **not** the source of truth and are no longer the primary release gate. They may return stale values briefly during deploy if nginx reload timing is unfavorable. Always use the primary release contract endpoints above for release verification.
 
 ## Manual Recovery Script
 
@@ -222,7 +338,37 @@ Required environment secrets:
 - `PROD_SSH_KEY`
 - `PROD_ENV_FILE`
 
-Production secrets must not be stored as broadly available repository secrets unless there is a specific operational reason. CI must not reference them.
+`PROD_ENV_FILE` must contain a `DATABASE_URL` with the Docker Compose service name as host, not `127.0.0.1` or `localhost`. Prisma connects from inside the `api` container, so it must resolve `postgres` via the compose network:
+
+```
+DATABASE_URL=postgresql://event_platform_user:event_platform_password@postgres:5432/event_platform?schema=public
+```
+
+The deploy workflow validates this before running migrations and aborts if the host is not `postgres:5432`.
+
+### Production .env Contract
+
+The production `.env` (`PROD_ENV_FILE`) must contain the following variables. This contract is enforced by the deploy workflow preflight check, the manual deploy script, and the API runtime startup guard.
+
+**Database (compose network only):**
+
+```bash
+# These three must be consistent — docker-compose.prod.yml uses them for the postgres service.
+POSTGRES_DB=event_platform
+POSTGRES_USER=event_platform_user
+POSTGRES_PASSWORD=<secure-password>
+
+# DATABASE_URL uses @postgres:5432 — the compose service name, not 127.0.0.1 or localhost.
+# This URL is consumed by the api container inside the compose network; it must resolve
+# `postgres` via Docker's internal DNS. External access to postgres does not affect this URL.
+DATABASE_URL=postgresql://event_platform_user:<password>@postgres:5432/event_platform?schema=public
+```
+
+**Why `postgres:5432` and not `127.0.0.1` or `localhost`:**
+
+From inside any container in `docker-compose.prod.yml`, the service name `postgres` resolves to the database container via Docker's internal DNS. `127.0.0.1` and `localhost` inside a container refer to the container itself, not the database — Prisma will fail with `P1001: Can't reach database server at 127.0.0.1:5432`.
+
+The `DATABASE_URL` in production is exclusively an intra-compose-network address. External postgres access (e.g. `psql` from the host or a remote client) uses a different connection path and does not affect the runtime `DATABASE_URL`.
 
 ## Branch Protection
 
@@ -312,6 +458,7 @@ Deploy errors are in workflow `Deploy production`.
 - `Deploy on server` means the server-side deploy script failed. The failure message indicates the exact stage:
   - *Postgres did not become healthy* — postgres container failed to start or pass its health check; existing api/web containers were not stopped by the deploy workflow.
   - *pg_dump* error or empty backup file — backup failed; existing api/web containers were not stopped by the deploy workflow.
+  - *production DATABASE_URL must use host 'postgres:5432'* — `DATABASE_URL` in `$DEPLOY_ROOT/.env` contains `127.0.0.1`, `localhost`, or any host other than `postgres:5432`. Fix the `PROD_ENV_FILE` secret in the GitHub `production` environment and re-run the deploy.
   - *prisma migrate deploy* error — migration failed; existing api/web containers were not stopped by the deploy workflow; restore from `$DEPLOY_ROOT/backups/` if needed.
   - Any other error after migration — api/web start failed but migration may have already been applied; check `docker compose ps` and logs on the server.
 - `Smoke test - API container is running` / `Smoke test - Web container is running` — container did not reach running state within 60 s after `docker compose up`; check `docker compose ps` and logs on the server.
@@ -346,6 +493,35 @@ docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml up -d a
 ```
 
 If `DEPLOY_ROOT` is unset, that expands to `--env-file /.env` and can turn a recovery command into another outage. Use `/opt/rdevents/.env`.
+
+### Docker Compose networking rule
+
+Inside the API container, `127.0.0.1` and `localhost` do not reach the database. Postgres is available at the service name `postgres` from any container in the compose network.
+
+Production `DATABASE_URL` must use `@postgres:5432`:
+```
+DATABASE_URL=postgresql://event_platform_user:event_platform_password@postgres:5432/event_platform?schema=public
+```
+
+Using `127.0.0.1` or `localhost` in production causes Prisma to fail with `P1001: Can't reach database server at 127.0.0.1:5432`.
+
+### Standard production compose commands
+
+Always use explicit absolute paths and the correct compose file:
+
+```bash
+cd /opt/rdevents/app
+
+# Start postgres (from compose network)
+docker compose --env-file /opt/rdevents/.env -f docker-compose.prod.yml up -d postgres
+
+# Run migrations (from compose network)
+docker compose --env-file /opt/rdevents/.env -f docker-compose.prod.yml \
+  run --rm --no-deps --entrypoint sh api -lc 'cd /app/services/api && pnpm exec prisma migrate deploy'
+
+# Start app containers
+docker compose --env-file /opt/rdevents/.env -f docker-compose.prod.yml up -d api web
+```
 
 ### Diagnose a 502
 

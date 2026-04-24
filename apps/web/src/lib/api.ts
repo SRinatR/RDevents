@@ -642,6 +642,51 @@ export const adminSupportApi = {
   },
 };
 
+export interface SystemReportStatus {
+  state: 'idle' | 'queued' | 'running' | 'success' | 'failed';
+  requestId: string | null;
+  requestedAt: string | null;
+  requestedByUserId: string | null;
+  requestedByEmail: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  lastSuccessAt: string | null;
+  lastError: string | null;
+  fileName: string | null;
+  generatedAt: string | null;
+  fileSizeBytes: number | null;
+  sha256: string | null;
+}
+
+export const systemReportApi = {
+  getStatus: () =>
+    request<SystemReportStatus>('/api/admin/system-report/status', { auth: true }),
+
+  refresh: () =>
+    request<{ ok: boolean; requestId: string; state: string; requestedAt: string; requestedBy: string }>('/api/admin/system-report/refresh', { method: 'POST', auth: true }),
+
+  downloadReport: async () => {
+    const token = getAccessToken();
+    if (!token) throw new Error('No auth token');
+    const response = await fetch(`${BASE_URL}/api/admin/system-report/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Download failed' }));
+      throw new Error(err.error ?? 'Download failed');
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'system-report.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+};
+
 // ─── Admin Exports ─────────────────────────────────────────────────────────────
 
 export interface ExportFilters {

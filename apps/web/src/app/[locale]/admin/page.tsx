@@ -9,6 +9,7 @@ import { adminApi, adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
 import { EmptyState, LoadingLines, MetricCard, Panel } from '@/components/ui/signal-primitives';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
+import { SystemReportCard } from '@/components/admin/SystemReportCard';
 
 interface EmailOverview {
   provider: string | null;
@@ -244,6 +245,11 @@ export default function AdminPage() {
             </div>
           </div>
         </Panel>
+      )}
+
+      {/* System report - only for platform admins */}
+      {isPlatformAdmin && (
+        <SystemReportCard locale={locale} />
       )}
 
       {/* Two-column grid */}
