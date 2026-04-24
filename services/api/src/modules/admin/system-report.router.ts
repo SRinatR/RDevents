@@ -177,6 +177,8 @@ systemReportRouter.post('/refresh', async (req, res) => {
 });
 
 systemReportRouter.get('/status', async (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+
   const requestPath = join(RUNTIME_CONTROL, REQUEST_FILE);
   const reportPath = join(RUNTIME_ADMIN, REPORT_FILE);
   const status = readStatus();
