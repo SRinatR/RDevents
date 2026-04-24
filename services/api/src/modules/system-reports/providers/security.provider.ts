@@ -1,0 +1,43 @@
+import { BaseProvider, Context } from './base.provider';
+
+export class SecurityProvider extends BaseProvider {
+  readonly key = 'security';
+  readonly label = 'Security / Config';
+  readonly description = 'Environment validation and security status';
+  readonly category = 'security' as const;
+
+  async collect(context: Context) {
+    const lines: string[] = [];
+    lines.push('## Security Configuration');
+    lines.push('');
+
+    const required = ['DATABASE_URL', 'JWT_SECRET', 'NEXTAUTH_SECRET'];
+    const optional = ['RESEND_API_KEY', 'SMTP_HOST', 'SMTP_USER'];
+
+    lines.push('**Environment Variables:**');
+
+    for (const key of required) {
+      const value = process.env[key];
+      const status = value ? '✅ Present' : '❌ Missing';
+      lines.push(`- ${key}: ${status}`);
+    }
+
+    for (const key of optional) {
+      const value = process.env[key];
+      lines.push(`- ${key}: ${value ? '✅ Present' : '⚪ Not set'}`);
+    }
+
+    const level = context.redactionLevel;
+    lines.push('');
+    lines.push(`**Redaction Level:** ${level}`);
+    
+    if (level === 'strict') {
+      lines.push('All sensitive values are redacted');
+    }
+
+    return {
+      success: true,
+      data: { content: lines.join('\n') },
+    };
+  }
+}

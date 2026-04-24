@@ -681,3 +681,101 @@ export async function completeRun(
     },
   });
 }
+
+export async function generatePreview(
+  config: ReportConfig
+): Promise<{
+  sections: Array<{
+    key: string;
+    label: string;
+    description: string;
+    included: boolean;
+  }>;
+  estimatedSize: string;
+  warnings: string[];
+}> {
+  const warnings: string[] = [];
+
+  const sections = config.sections
+    .filter(s => s.enabled)
+    .map(s => {
+      if (s.key === 'docker' && (s.options?.includeLogs as boolean)) {
+        warnings.push('Docker logs section may generate large output');
+      }
+      return {
+        key: s.key,
+        label: s.key.charAt(0).toUpperCase() + s.key.slice(1),
+        description: s.key,
+        included: true,
+      };
+    });
+
+  const estimatedSize = `${Math.max(1, sections.length * 5)}KB`;
+
+  return {
+    sections,
+    estimatedSize,
+    warnings,
+  };
+}
+
+export async function getRunWithArtifacts(runId: string): Promise<{
+  run: ReportRun;
+  artifacts: Array<ReportArtifact>;
+} | null> {
+  const run = await prisma.systemReportRun.findUnique({
+    where: { id: runId },
+    include: {
+      artifacts: { orderBy: { createdAt: 'asc' } },
+      events: { orderBy: { createdAt: 'asc' } },
+    },
+  });
+
+  if (!run) return null;
+
+  return {
+    run: {
+      id: run.id,
+      templateId: run.templateId || undefined,
+      title: run.title || undefined,
+      status: run.status as ReportStatus,
+      stage: run.stage as ReportStage | undefined,
+      progressPercent: run.progressPercent,
+      config: run.configJson as unknown as ReportConfig,
+      summary: run.summaryJson as Record<string, unknown> | undefined,
+      errorText: run.errorText || undefined,
+      requestedByEmail: run.requestedByEmail,
+      startedAt: run.startedAt?.toISOString(),
+      finishedAt: run.finishedAt?.toISOString(),
+      createdAt: run.createdAt.toISOString(),
+      artifacts: run.artifacts.map(a => ({
+        id: a.id,
+        kind: a.kind as ReportArtifact['kind'],
+        fileName: a.fileName,
+        mimeType: a.mimeType,
+        storagePath: a.storagePath,
+        sizeBytes: a.sizeBytes,
+        checksum: a.checksum || undefined,
+        createdAt: a.createdAt.toISOString(),
+      })),
+      events: run.events.map(e => ({
+        id: e.id,
+        level: e.level as ReportEvent['level'],
+        code: e.code,
+        message: e.message,
+        payload: e.payloadJson as Record<string, unknown> | undefined,
+        createdAt: e.createdAt.toISOString(),
+      })),
+    },
+    artifacts: run.artifacts.map(a => ({
+      id: a.id,
+      kind: a.kind as ReportArtifact['kind'],
+      fileName: a.fileName,
+      mimeType: a.mimeType,
+      storagePath: a.storagePath,
+      sizeBytes: a.sizeBytes,
+      checksum: a.checksum || undefined,
+      createdAt: a.createdAt.toISOString(),
+    })),
+  };
+}
