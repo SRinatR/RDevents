@@ -35,6 +35,7 @@ CI is verification only. It must not deploy, connect to production, or read prod
 Triggers:
 
 - `pull_request` to `main`
+- `pull_request` to `production`
 - `push` to `main`
 - `push` to `feature/**`
 - `push` to `fix/**`
@@ -377,11 +378,9 @@ The `DATABASE_URL` in production is exclusively an intra-compose-network address
 
 ## Branch Protection
 
-These settings are configured in GitHub repository settings, not in workflow YAML.
+Repository settings must be configured so that:
 
 ### `main`
-
-Required:
 
 - Require a pull request before merging
 - Require at least 1 approval for the normal contributor flow
@@ -398,19 +397,15 @@ Required:
 - Block direct push
 - Do not allow force pushes
 - Do not allow branch deletion
-
-Recommended:
-
 - Dismiss stale approvals when new commits are pushed
 - Do not allow bypassing for regular contributors
-
-Repository settings must be configured so that owner/admin bypass is enabled for `main`. Regular contributors still go through PR, checks, and review; the owner can bypass branch protection when needed.
+- Owner/admin bypass is enabled for emergency operations
 
 ### `production`
 
 `production` must be stricter than `main`.
 
-Required:
+Recommended configuration:
 
 - Require a pull request before merging
 - Only accept release PRs from `main`
@@ -430,16 +425,11 @@ Required:
 - Block direct push
 - Do not allow force pushes
 - Do not allow branch deletion
-
-Recommended:
-
-- Allow manual bypass only for repository owners or admins
 - Require conversation resolution before merging
 - Require signed commits if the team uses signed commits consistently
+- Owner/admin bypass is enabled for emergency release operations
 
-Repository settings must be configured so that owner/admin bypass is enabled for `production`. Regular contributors still go through PR, 2 approvals, required checks, and the `production` environment reviewer; the owner can bypass branch protection for emergency release operations.
-
-Note for `SRinatR/RDevents`: this is a personal repository. GitHub rejects user/team push restrictions for personal repositories with `Only organization repositories can have users and team restrictions`. The active stricter controls for `production` are 2 required approvals, required checks, blocked force push/delete for non-admin contributors, owner/admin bypass, and the `production` environment required reviewer. If the repository moves to an organization, enable push restrictions for the release owner group.
+The `Required Checks` aggregator job is included in required checks and confirms all individual jobs passed.
 
 ## Release Process
 

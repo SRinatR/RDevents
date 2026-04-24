@@ -459,6 +459,7 @@ CI workflow (`.github/workflows/ci.yml`) включает следующие job
 - `Build`
 - `Docker Build`
 - `Container Smoke`
+- `Required Checks` (aggregator, подтверждает успех всех перечисленных выше)
 
 **Запуск CI:** PR в `main`/`production`, push в `main`/`feature/**`/`fix/**`/`hotfix/**`, `workflow_dispatch`
 
@@ -466,10 +467,14 @@ Deploy workflow (`.github/workflows/deploy-production.yml`): только produc
 
 ### Branch Protection
 
+Recommended configuration — repository settings must be configured so that:
+
 | Branch | Merge | Required checks | Bypass |
 |--------|-------|-----------------|--------|
-| `main` | PR only | `Lint`, `Shell validation`, `Typecheck`, `Test`, `Build`, `Docker Build`, `Container Smoke` | owner/admin bypass для emergency |
-| `production` | PR из `main` | `Lint`, `Shell validation`, `Typecheck`, `Test`, `Build`, `Docker Build`, `Container Smoke` + environment approval | owner/admin bypass для emergency release |
+| `main` | PR only | `Lint`, `Shell validation`, `Typecheck`, `Test`, `Build`, `Docker Build`, `Container Smoke`, `Required Checks` | owner/admin bypass for emergency |
+| `production` | PR from `main` | `Lint`, `Shell validation`, `Typecheck`, `Test`, `Build`, `Docker Build`, `Container Smoke`, `Required Checks` + environment approval | owner/admin bypass for emergency release |
+
+The `Required Checks` aggregator job is included in required checks and confirms all individual jobs passed.
 
 ### Secrets для production
 
