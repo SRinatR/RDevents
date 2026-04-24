@@ -333,6 +333,9 @@ export function RussiaHouseQuestPage({
               <a href={`mailto:${event.contactEmail ?? 'Uzb@vsezapobedu.com'}`}>
                 {event.contactEmail ?? 'Uzb@vsezapobedu.com'}
               </a>
+              <a href="https://t.me/SergeyEzhkov" target="_blank" rel="noopener noreferrer">
+                @SergeyEzhkov
+              </a>
             </article>
             <div className="rhq-faq-list">
               <QuestSectionHeader eyebrow="FAQ" title="Часто задаваемые вопросы" />
