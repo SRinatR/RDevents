@@ -104,6 +104,33 @@ STARTED_AT=""
 LAST_SUCCESS=""
 REPORT_GENERATED="no"
 
+# ─── Redaction helper ──────────────────────────────────────────────────────
+# Must be available before init so CI self-test does not touch /opt or /var.
+
+redact_secrets() {
+  sed -E \
+    -e 's#(DATABASE_URL=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(JWT_[A-Z_]*=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(RESEND_API_KEY=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(TOKEN=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(SECRET=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(PASSWORD=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(POSTGRES_PASSWORD=)[^&]*#\1[REDACTED]#g' \
+    -e 's#(POSTGRES_USER=)[^&]*#\1[REDACTED]#g' \
+    -e 's|(# vault:)[^|]*|\1[REDACTED]|g'
+}
+
+if [ "${1:-}" = "--self-test-redaction" ]; then
+  printf '%s\n' \
+    'DATABASE_URL=postgres://secret' \
+    '# vault:secret|ok' \
+    'JWT_TOKEN=abc123' \
+    'RESEND_API_KEY=re_123' \
+    'POSTGRES_PASSWORD=supersecret' \
+    | redact_secrets
+  exit 0
+fi
+
 # ─── Init ─────────────────────────────────────────────────────────────────
 
 mkdir -p "$ADMIN_DIR" "$CONTROL_DIR" "$LOG_DIR" "$(dirname "$LOCK_FILE")"
@@ -146,24 +173,6 @@ if [ -n "$missing_core" ]; then
   fi
 
   exit 1
-fi
-
-redact_secrets() {
-  sed -E \
-    -e 's#(DATABASE_URL=)[^&]*#\1[REDACTED]#g' \
-    -e 's#(JWT_[A-Z_]*=)[^&]*#\1[REDACTED]#g' \
-    -e 's#(RESEND_API_KEY=)[^&]*#\1[REDACTED]#g' \
-    -e 's#(TOKEN=)[^&]*#\1[REDACTED]#g' \
-    -e 's#(SECRET=)[^&]*#\1[REDACTED]#g' \
-    -e 's#(PASSWORD=)[^&]*#\1[REDACTED]#g' \
-    -e 's#(POSTGRES_PASSWORD=)[^&]*#\1[REDACTED]#g' \
-    -e 's#(POSTGRES_USER=)[^&]*#\1[REDACTED]#g' \
-    -e 's|(# vault:)[^|]*|\1[REDACTED]|g'
-}
-
-if [ "${1:-}" = "--self-test-redaction" ]; then
-  printf '%s\n' 'DATABASE_URL=postgres://secret' '# vault:secret|ok' 'JWT_TOKEN=abc123' | redact_secrets
-  exit 0
 fi
 
 if [ ! -f "$REQUEST_FILE" ]; then

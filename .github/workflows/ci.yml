@@ -74,7 +74,22 @@ jobs:
 
       - name: Runtime redaction smoke test
         run: |
-          bash host-scripts/build-system-report.sh --self-test-redaction | grep -q REDACTED
+          set -euo pipefail
+
+          out="$(bash host-scripts/build-system-report.sh --self-test-redaction)"
+
+          printf '%s\n' "$out" | grep -q 'DATABASE_URL=\[REDACTED\]'
+          printf '%s\n' "$out" | grep -q '# vault:\[REDACTED\]|ok'
+          printf '%s\n' "$out" | grep -q 'JWT_TOKEN=\[REDACTED\]'
+          printf '%s\n' "$out" | grep -q 'RESEND_API_KEY=\[REDACTED\]'
+          printf '%s\n' "$out" | grep -q 'POSTGRES_PASSWORD=\[REDACTED\]'
+
+          ! printf '%s\n' "$out" | grep -q 'postgres://secret'
+          ! printf '%s\n' "$out" | grep -q 'vault:secret'
+          ! printf '%s\n' "$out" | grep -q 'abc123'
+          ! printf '%s\n' "$out" | grep -q 're_123'
+          ! printf '%s\n' "$out" | grep -q 'supersecret'
+
           echo "Redaction test passed"
 
   typecheck:
