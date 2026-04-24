@@ -155,29 +155,70 @@ jobs:
                 "$status" \
                 "$stage" \
                 "$(date -u +%FT%TZ)" > "$STATE_FILE"
+              echo "[STAGE] $stage -> $status"
+            }
+
+            get_last_deploy_log() {
+              ls -t "$LOG_DIR"/deploy-*.log 2>/dev/null | head -1
             }
 
             dump_diagnostics() {
+              local last_log
+              last_log=$(get_last_deploy_log)
+
               echo
               echo "========== DEPLOY DIAGNOSTICS =========="
+              echo "TIMESTAMP=$(date -u +%FT%TZ)"
               echo "CURRENT_STAGE=$CURRENT_STAGE"
               echo "RELEASE_SHA=$RELEASE_SHA"
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps || true
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=120 postgres || true
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=120 api || true
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=120 web || true
-              tail -120 /var/log/nginx/error.log 2>/dev/null || true
+              echo "LAST_LOG_FILE=$last_log"
+              echo ""
+              echo "--- Docker Compose PS ---"
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps 2>&1 || true
+              echo ""
+              echo "--- Docker Images (rdevents) ---"
+              docker images 'app-*' --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.CreatedAt}}' 2>&1 || true
+              echo ""
+              echo "--- Postgres Logs (last 40) ---"
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=40 postgres 2>&1 || true
+              echo ""
+              echo "--- API Logs (last 40) ---"
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=40 api 2>&1 || true
+              echo ""
+              echo "--- Web Logs (last 40) ---"
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=40 web 2>&1 || true
+              echo ""
+              if [ -n "$last_log" ] && [ -f "$last_log" ]; then
+                echo "--- Last 120 lines of deploy log ($last_log) ---"
+                tail -120 "$last_log" 2>&1 || true
+              fi
+              echo ""
+              echo "--- Nginx Error Log (last 30) ---"
+              tail -30 /var/log/nginx/error.log 2>/dev/null || echo "(no nginx error log)"
+              echo ""
+              echo "--- Runtime state ---"
+              cat "$STATE_FILE" 2>/dev/null || echo "(no state file)"
+              echo ""
+              echo "--- Embedded release markers ---"
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml exec -T api sh -lc 'cat /app/services/api/release.txt' 2>/dev/null || echo "(cannot read api release.txt)"
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml exec -T web sh -lc 'cat /app/apps/web/public/version.txt' 2>/dev/null || echo "(cannot read web version.txt)"
+              echo ""
               echo "========================================"
             }
 
             on_error() {
-              rc=$?
+              rc=${1:-$?}
               set_stage "$CURRENT_STAGE" "failed"
+              echo ""
+              echo "========== DEPLOY FAILED =========="
+              echo "Exit code: $rc"
+              echo "Failed at stage: $CURRENT_STAGE"
+              echo "==================================="
               dump_diagnostics
               exit "$rc"
             }
 
-            trap on_error ERR
+            trap 'rc=$?; on_error $rc' ERR
 
             set_stage "$CURRENT_STAGE"
 
@@ -195,7 +236,27 @@ jobs:
             CURRENT_STAGE="build-images"
             set_stage "$CURRENT_STAGE"
 
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml build api web
+            SKIP_BUILD=false
+            if [ -f "$RUNTIME_DIR/images-built-$RELEASE_SHA.json" ]; then
+              echo "Found images-built marker for $RELEASE_SHA"
+              STORED_SHA=$(sed -n 's/.*"releaseSha":"\([^"]*\)".*/\1/p' "$RUNTIME_DIR/images-built-$RELEASE_SHA.json" | head -1)
+              if [ "$STORED_SHA" = "$RELEASE_SHA" ]; then
+                echo "Images already built for this release SHA. Checking if images exist locally..."
+                if docker image inspect app-api:latest >/dev/null 2>&1 && \
+                   docker image inspect app-web:latest >/dev/null 2>&1; then
+                  echo "Images found locally. Skipping build phase."
+                  SKIP_BUILD=true
+                else
+                  echo "Images not found locally. Proceeding with build."
+                fi
+              fi
+            fi
+
+            if [ "$SKIP_BUILD" = "true" ]; then
+              echo "Skipping docker compose build (recovery mode)"
+            else
+              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml build api web
+            fi
 
             CURRENT_STAGE="capture-built-image-ids"
             set_stage "$CURRENT_STAGE"
@@ -208,6 +269,20 @@ jobs:
 
             test -n "$EXPECTED_API_IMAGE_ID"
             test -n "$EXPECTED_WEB_IMAGE_ID"
+
+            # Write marker for recovery: this release's images have been built
+            printf '{"releaseSha":"%s","imagesBuilt":true,"imageIds":{"api":"%s","web":"%s"},"builtAt":"%s"}\n' \
+              "$RELEASE_SHA" \
+              "$EXPECTED_API_IMAGE_ID" \
+              "$EXPECTED_WEB_IMAGE_ID" \
+              "$(date -u +%FT%TZ)" > "$RUNTIME_DIR/images-built-$RELEASE_SHA.json"
+
+            echo "Image build marker written for recovery"
+
+            echo "Images built for release SHA=$RELEASE_SHA"
+
+            CURRENT_STAGE="images-ready"
+            set_stage "$CURRENT_STAGE"
 
             # Ensure postgres is up, without touching running api/web yet.
             docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml up -d postgres
@@ -263,16 +338,38 @@ jobs:
               return 1
             }
 
+            CURRENT_STAGE="backup-before-migrate"
+            set_stage "$CURRENT_STAGE"
+
             BACKUP_DIR="$DEPLOY_ROOT/backups"
             mkdir -p "$BACKUP_DIR"
             BACKUP_FILE="$BACKUP_DIR/pre-migrate-$(date +%Y%m%d-%H%M%S).sql.gz"
 
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
-              exec -T postgres sh -lc 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
-              | gzip > "$BACKUP_FILE"
+            BACKUP_START=$(date +%s)
+            BACKUP_TIMEOUT=120
 
-            test -s "$BACKUP_FILE"
-            echo "Backup written to $BACKUP_FILE ($(du -sh "$BACKUP_FILE" | cut -f1))"
+            echo "Starting postgres backup with ${BACKUP_TIMEOUT}s timeout..."
+
+            backup_status=0
+            timeout "$BACKUP_TIMEOUT"s docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
+              exec -T postgres sh -lc 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+              | gzip > "$BACKUP_FILE" || backup_status=$?
+
+            BACKUP_END=$(date +%s)
+            BACKUP_DURATION=$((BACKUP_END - BACKUP_START))
+
+            if [ $backup_status -eq 124 ]; then
+              echo "WARNING: Backup timed out after ${BACKUP_TIMEOUT}s"
+              rm -f "$BACKUP_FILE"
+            elif [ $backup_status -ne 0 ]; then
+              echo "WARNING: Backup failed with exit code $backup_status"
+              rm -f "$BACKUP_FILE"
+            elif [ ! -s "$BACKUP_FILE" ]; then
+              echo "WARNING: Backup file is empty or missing"
+              rm -f "$BACKUP_FILE"
+            else
+              echo "Backup written to $BACKUP_FILE ($(du -sh "$BACKUP_FILE" | cut -f1)) in ${BACKUP_DURATION}s"
+            fi
 
             echo "Checking DATABASE_URL in production env..."
             if ! grep -Eq '^DATABASE_URL=.*@postgres:5432/' "$DEPLOY_ROOT/.env" 2>/dev/null; then
@@ -633,6 +730,11 @@ jobs:
             # Mark release as successful only after all checks passed.
             printf '%s\n' "$RELEASE_SHA" > "$APP_DIR/.release-commit"
 
+            # Mark that this release's images have been built and deployed successfully.
+            printf '{"releaseSha":"%s","imagesBuilt":true,"deployedAt":"%s"}\n' \
+              "$RELEASE_SHA" \
+              "$(date -u +%FT%TZ)" > "$RUNTIME_DIR/release-$RELEASE_SHA.json"
+
             set_stage "success" "success"
 
             echo ""
@@ -658,22 +760,26 @@ jobs:
             set -euo pipefail
 
             echo "=== deploy-state.json ==="
-            cat /opt/rdevents/runtime/deploy-state.json
+            cat /opt/rdevents/runtime/deploy-state.json 2>/dev/null || echo "(no state file)"
             echo
 
             echo "=== .release-commit ==="
-            cat /opt/rdevents/app/.release-commit
+            cat /opt/rdevents/app/.release-commit 2>/dev/null || echo "NO .release-commit (deploy may have failed or not reached finalize)"
             echo
 
             echo "=== running image ids ==="
-            docker inspect app-api-1 --format 'api={{.Image}}' || echo "api container not running"
-            docker inspect app-web-1 --format 'web={{.Image}}' || echo "web container not running"
+            docker inspect app-api-1 --format 'api={{.Image}}' 2>/dev/null || echo "api container not running"
+            docker inspect app-web-1 --format 'web={{.Image}}' 2>/dev/null || echo "web container not running"
+            echo
+
+            echo "=== docker compose ps ==="
+            docker compose --env-file /opt/rdevents/.env -f /opt/rdevents/docker-compose.prod.yml ps 2>&1 || true
             echo
 
             echo "=== public releases ==="
-            curl -fsS "https://rdevents.uz/release.json?ts=$(date +%s)"
+            curl -fsS "https://rdevents.uz/release.json?ts=$(date +%s)" 2>/dev/null || echo "(cannot fetch web release.json)"
             echo
-            curl -fsS "https://api.rdevents.uz/release.json?ts=$(date +%s)"
+            curl -fsS "https://api.rdevents.uz/release.json?ts=$(date +%s)" 2>/dev/null || echo "(cannot fetch api release.json)"
             echo
           EOF
 
