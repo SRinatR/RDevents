@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requirePlatformAdmin } from '../../common/middleware.js';
 import type { AuthenticatedRequest } from '../../common/middleware.js';
-import { readFileSync, existsSync, statSync, writeFileSync, renameSync, unlinkSync } from 'fs';
+import { readFileSync, existsSync, statSync, writeFileSync, renameSync, unlinkSync, openSync } from 'fs';
 import { join } from 'path';
 
 const RUNTIME_ADMIN = '/opt/rdevents/runtime/admin';
@@ -13,6 +13,13 @@ const REQUEST_FILE = 'system-report-refresh-request.json';
 
 type ReportState = 'idle' | 'queued' | 'running' | 'success' | 'failed';
 
+interface RequestData {
+  requestId: string;
+  requestedAt: string;
+  requestedByUserId: string;
+  requestedByEmail: string;
+}
+
 interface StatusData {
   state: ReportState;
   requestId: string | null;
@@ -23,6 +30,26 @@ interface StatusData {
   finishedAt: string | null;
   lastSuccessAt: string | null;
   lastError: string | null;
+}
+
+const REQUEST_TTL_MS = 5 * 60 * 1000;
+
+function isRequestStale(requestPath: string): boolean {
+  try {
+    const stat = statSync(requestPath);
+    const ageMs = Date.now() - stat.mtimeMs;
+    return ageMs > REQUEST_TTL_MS;
+  } catch {
+    return false;
+  }
+}
+
+function readRequest(requestPath: string): RequestData | null {
+  try {
+    return JSON.parse(readFileSync(requestPath, 'utf-8')) as RequestData;
+  } catch {
+    return null;
+  }
 }
 
 interface MetaData {
@@ -69,19 +96,22 @@ systemReportRouter.post('/refresh', async (req, res) => {
   const requestPath = join(RUNTIME_CONTROL, REQUEST_FILE);
 
   if (existsSync(requestPath)) {
-    let requestData: { requestId: string | null } | null = null;
-    try {
-      requestData = JSON.parse(readFileSync(requestPath, 'utf-8'));
-    } catch {
-      // ignore parse errors, return null
-    }
+    if (isRequestStale(requestPath)) {
+      try {
+        unlinkSync(requestPath);
+      } catch {
+        // ignore unlink errors
+      }
+    } else {
+      const requestData = readRequest(requestPath);
 
-    res.status(409).json({
-      error: 'Report generation already in progress',
-      state: 'queued',
-      requestId: requestData?.requestId ?? null,
-    });
-    return;
+      res.status(409).json({
+        error: 'Report generation already in progress',
+        state: 'queued',
+        requestId: requestData?.requestId ?? null,
+      });
+      return;
+    }
   }
 
   const currentStatus = readStatus();
@@ -104,7 +134,21 @@ systemReportRouter.post('/refresh', async (req, res) => {
     requestedByEmail: user.email,
   };
 
-  atomicWriteFile(requestPath, JSON.stringify(requestPayload, null, 2));
+  try {
+    const fd = openSync(requestPath, 'wx');
+    writeFileSync(fd, JSON.stringify(requestPayload, null, 2), 'utf-8');
+  } catch (err: any) {
+    if (err.code === 'EEXIST') {
+      const requestData = readRequest(requestPath);
+      res.status(409).json({
+        error: 'Report generation already in progress',
+        state: 'queued',
+        requestId: requestData?.requestId ?? null,
+      });
+      return;
+    }
+    throw err;
+  }
 
   res.status(202).json({
     ok: true,

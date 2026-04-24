@@ -83,12 +83,12 @@ on_error() {
   if [ "$REPORT_GENERATED" = "yes" ]; then
     FINAL_STATUS="failed"
     FINAL_FINISHED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    FINAL_ERROR=$(echo "Script exited with code $exit_code" | jq -Rs .)
+    FINAL_ERROR="Script exited with code $exit_code"
     FINAL_LAST_SUCCESS="$LAST_SUCCESS"
   else
     FINAL_STATUS="failed"
     FINAL_FINISHED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    FINAL_ERROR=$(echo "Script exited with code $exit_code before report generation" | jq -Rs .)
+    FINAL_ERROR="Script exited with code $exit_code before report generation"
     FINAL_LAST_SUCCESS="$LAST_SUCCESS"
   fi
 }
