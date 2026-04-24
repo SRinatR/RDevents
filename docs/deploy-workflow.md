@@ -436,7 +436,7 @@ The `Required Checks` aggregator job is included in required checks and confirms
 1. Developer creates `feature/*`, `fix/*`, or `hotfix/*`.
 2. Developer opens a PR to `main`.
 3. CI runs on the PR.
-4. PR is reviewed and merged to `main` only after `Type check`, `Lint`, `Test`, and `Build` are green.
+4. PR is reviewed and merged to `main` only after `Lint`, `Shell validation`, `Typecheck`, `Test`, `Build`, `Docker Build`, `Container Smoke`, and `Required Checks` are green.
 5. When a release is approved, open PR `main -> production`.
 6. `production` PR goes through stricter review and required checks.
 7. Merge to `production`.
@@ -448,10 +448,14 @@ The `Required Checks` aggregator job is included in required checks and confirms
 
 CI errors are in workflow `CI`.
 
-- `Type check` failures are TypeScript or dependency install failures.
 - `Lint` failures are ESLint violations or dependency install failures.
+- `Shell validation` failures are host script syntax errors or redaction smoke test failures.
+- `Typecheck` failures are TypeScript or dependency install failures.
 - `Test` failures are Vitest failures, test database startup failures, Prisma client generation failures, or dependency install failures.
 - `Build` failures are production build failures.
+- `Docker Build` failures are Docker image build failures.
+- `Container Smoke` failures are runtime contract failures inside the Docker Compose topology.
+- `Required Checks` failures mean at least one upstream job did not pass.
 - CI never means production deployment failed.
 
 Deploy errors are in workflow `Deploy production`.
