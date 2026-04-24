@@ -294,6 +294,7 @@ export async function startGeneration(userId: string, userEmail: string, config:
       progress: 0,
       format: config.format,
       createdById: userId,
+      requestId: crypto.randomUUID(),
     },
   });
 

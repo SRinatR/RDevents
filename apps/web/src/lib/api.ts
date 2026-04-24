@@ -696,7 +696,8 @@ export interface SystemReportGeneration {
   id: string;
   templateId?: string;
   templateName?: string;
-  status: 'queued' | 'running' | 'success' | 'failed';
+  status: 'idle' | 'queued' | 'running' | 'success' | 'failed' | 'partial_success' | 'canceled' | 'stale';
+  stage?: 'queued' | 'collecting' | 'assembling' | 'writing_artifacts' | 'finalizing';
   progress: number;
   format: string;
   outputPath?: string;
@@ -719,6 +720,8 @@ export interface SystemReportGeneration {
     contentType: string;
   }>;
 }
+
+export type ReportStage = 'queued' | 'collecting' | 'assembling' | 'writing_artifacts' | 'finalizing';
 
 export const systemReportApi = {
   getStatus: () =>

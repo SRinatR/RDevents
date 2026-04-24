@@ -17,6 +17,13 @@ import {
   downloadLegacyReport,
   initializeDefaultTemplates,
 } from '../system-report/system-report.service.js';
+import {
+  reportOrchestrator,
+  allProviders,
+  type ReportConfig,
+} from '../system-report/report-orchestrator.service.js';
+
+allProviders.forEach(provider => reportOrchestrator.registerProvider(provider));
 
 const RUNTIME_ADMIN = '/opt/rdevents/runtime/admin';
 const RUNTIME_CONTROL = '/opt/rdevents/runtime/control';
@@ -480,5 +487,71 @@ systemReportRouter.get('/v2/legacy-download', async (_req, res) => {
     } else {
       res.status(500).json({ error: 'Failed to download report' });
     }
+  }
+});
+
+systemReportRouter.get('/v2/current-status', async (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
+  try {
+    const status = await reportOrchestrator.getCurrentStatus();
+    res.json(status);
+  } catch (error) {
+    console.error('Error getting current status:', error);
+    res.status(500).json({ error: 'Failed to get current status' });
+  }
+});
+
+systemReportRouter.post('/v2/generate', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    const { config, templateId } = req.body;
+
+    if (!config) {
+      res.status(400).json({ error: 'Config is required' });
+      return;
+    }
+
+    const generationId = await reportOrchestrator.createJob(
+      user.id,
+      user.email,
+      config as ReportConfig,
+      templateId
+    );
+
+    res.status(202).json({
+      generationId,
+      status: 'queued',
+      message: 'Generation job created',
+    });
+  } catch (error) {
+    console.error('Error creating generation job:', error);
+    res.status(500).json({ error: 'Failed to create generation job' });
+  }
+});
+
+systemReportRouter.get('/v2/generation/:generationId/status', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
+  try {
+    const { generationId } = req.params;
+    const summary = await reportOrchestrator.getGenerationSummary(generationId);
+
+    if (!summary) {
+      res.status(404).json({ error: 'Generation not found' });
+      return;
+    }
+
+    res.json(summary);
+  } catch (error) {
+    console.error('Error getting generation status:', error);
+    res.status(500).json({ error: 'Failed to get generation status' });
   }
 });
