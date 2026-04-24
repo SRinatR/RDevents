@@ -43,6 +43,23 @@ jobs:
           echo "Release SHA: $RELEASE_SHA"
           echo "This will force recreate api and web containers with the existing built images."
 
+      - name: Self-test redaction
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          out="$(bash host-scripts/build-system-report.sh --self-test-redaction)"
+
+          printf '%s\n' "$out" | grep -q 'DATABASE_URL=\[REDACTED\]'
+          printf '%s\n' "$out" | grep -q '# vault:\[REDACTED\]|ok'
+          printf '%s\n' "$out" | grep -q 'JWT_TOKEN=\[REDACTED\]'
+
+          ! printf '%s\n' "$out" | grep -q 'postgres://secret'
+          ! printf '%s\n' "$out" | grep -q 'vault:secret'
+          ! printf '%s\n' "$out" | grep -q 'abc123'
+
+          echo "Redaction self-test passed"
+
       - name: Prepare SSH
         shell: bash
         env:
