@@ -4,7 +4,7 @@ Documentation=
 After=network.target
 
 [Path]
-DirectoryNotEmpty=/opt/rdevents/runtime/control
+PathExists=/opt/rdevents/runtime/control/system-report-refresh-request.json
 Unit=rdevents-system-report-refresh.service
 
 [Install]

@@ -3,6 +3,7 @@
 # RDEvents System Report Generator
 # =============================================================================
 # Guarantees:
+# - flock for preventing parallel executions
 # - Atomic writes via temp files + mv
 # - Best-effort sections: failures are logged, not fatal
 # - Old report preserved on failure
@@ -18,6 +19,7 @@ RUNTIME_DIR="/opt/rdevents/runtime"
 ADMIN_DIR="$RUNTIME_DIR/admin"
 CONTROL_DIR="$RUNTIME_DIR/control"
 LOG_DIR="/var/log/rdevents"
+LOCK_FILE="/var/lock/rdevents-system-report.lock"
 
 STATUS_FILE="$ADMIN_DIR/system-report-status.json"
 META_FILE="$ADMIN_DIR/system-report-meta.json"
@@ -30,14 +32,15 @@ FINAL_STATUS=""
 FINAL_FINISHED_AT=""
 FINAL_ERROR=""
 FINAL_LAST_SUCCESS=""
+INSIDE_LOCK=0
 
 cleanup_on_exit() {
   rm -f "$ADMIN_DIR/.status.tmp.$$" \
         "$ADMIN_DIR/.meta.tmp.$$" \
         "$ADMIN_DIR/.report.tmp.$$" \
-        "$ADMIN_DIR"/*.tmp.* 2>/dev/null
+        "$ADMIN_DIR"/*.tmp.* 2>/dev/null || true
 
-  if [ -n "$FINAL_STATUS" ]; then
+  if [ "$INSIDE_LOCK" -eq 1 ] && [ -n "$FINAL_STATUS" ]; then
     local tmp_status="$ADMIN_DIR/.exit_status.tmp.$$"
     jq -n \
       --arg state "$FINAL_STATUS" \
@@ -64,9 +67,9 @@ cleanup_on_exit() {
     if [ -f "$tmp_status" ]; then
       mv -f "$tmp_status" "$STATUS_FILE"
     fi
-  fi
 
-  rm -f "$REQUEST_FILE" 2>/dev/null || true
+    rm -f "$REQUEST_FILE" 2>/dev/null || true
+  fi
 }
 
 trap cleanup_on_exit EXIT
@@ -103,20 +106,63 @@ REPORT_GENERATED="no"
 
 # ─── Init ─────────────────────────────────────────────────────────────────
 
-mkdir -p "$ADMIN_DIR" "$CONTROL_DIR" "$LOG_DIR"
+mkdir -p "$ADMIN_DIR" "$CONTROL_DIR" "$LOG_DIR" "$(dirname "$LOCK_FILE")"
 
-if [ -f "$REQUEST_FILE" ]; then
-  REQUEST_ID=$(jq -r '.requestId // empty' "$REQUEST_FILE" 2>/dev/null || echo "")
-  REQUEST_BY_USER=$(jq -r '.requestedByUserId // empty' "$REQUEST_FILE" 2>/dev/null || echo "")
-  REQUEST_BY_EMAIL=$(jq -r '.requestedByEmail // empty' "$REQUEST_FILE" 2>/dev/null || echo "")
-  REQUEST_AT=$(jq -r '.requestedAt // empty' "$REQUEST_FILE" 2>/dev/null || echo "")
+if [ ! -f "$REQUEST_FILE" ]; then
+  echo "$(date -Iseconds) [INFO] No request file found. Exiting." >> "$LOG_DIR/system-report.log"
+  exit 0
 fi
+
+REQUEST_ID=$(jq -r '.requestId // empty' "$REQUEST_FILE" 2>/dev/null || echo "")
+REQUEST_BY_USER=$(jq -r '.requestedByUserId // empty' "$REQUEST_FILE" 2>/dev/null || echo "")
+REQUEST_BY_EMAIL=$(jq -r '.requestedByEmail // empty' "$REQUEST_FILE" 2>/dev/null || echo "")
+REQUEST_AT=$(jq -r '.requestedAt // empty' "$REQUEST_FILE" 2>/dev/null || echo "")
 
 if [ -f "$STATUS_FILE" ]; then
   LAST_SUCCESS=$(jq -r '.lastSuccessAt // empty' "$STATUS_FILE" 2>/dev/null || echo "")
 fi
 
 STARTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# ─── Acquire lock ─────────────────────────────────────────────────────────
+
+exec 200>"$LOCK_FILE"
+if ! flock -n 200; then
+  echo "$(date -Iseconds) [INFO] Another instance is running. Exiting." >> "$LOG_DIR/system-report.log"
+  exit 0
+fi
+INSIDE_LOCK=1
+
+echo "$(date -Iseconds) [INFO] Acquired lock. Starting report. requestId=$REQUEST_ID by=$REQUEST_BY_EMAIL" >> "$LOG_DIR/system-report.log"
+
+# ─── Write running status ───────────────────────────────────────────────────
+
+write_status() {
+  local state="$1"
+  local tmp_status="$ADMIN_DIR/.status.running.$$"
+  jq -n \
+    --arg state "$state" \
+    --arg rid "$REQUEST_ID" \
+    --arg rat "$REQUEST_AT" \
+    --arg rbu "$REQUEST_BY_USER" \
+    --arg rbe "$REQUEST_BY_EMAIL" \
+    --arg sat "$STARTED_AT" \
+    --arg ls "$LAST_SUCCESS" \
+    '{
+      state: $state,
+      requestId: (if ($rid | length) > 0 then $rid else null end),
+      requestedAt: (if ($rat | length) > 0 then $rat else null end),
+      requestedByUserId: (if ($rbu | length) > 0 then $rbu else null end),
+      requestedByEmail: (if ($rbe | length) > 0 then $rbe else null end),
+      startedAt: (if ($sat | length) > 0 then $sat else null end),
+      finishedAt: null,
+      lastSuccessAt: (if ($ls | length) > 0 and $ls != "null" then $ls else null end),
+      lastError: null
+    }' > "$tmp_status"
+  mv -f "$tmp_status" "$STATUS_FILE"
+}
+
+write_status "running"
 
 # ─── Generate report (best-effort) ─────────────────────────────────────────
 
@@ -143,7 +189,6 @@ generate_report() {
   content+="uname=$(uname -a 2>/dev/null || echo unknown)"$'\n'
   content+=$'\n'
 
-  # Best-effort section helper
   capture() {
     local label="$1"; shift
     local cmd="$*"
@@ -209,8 +254,6 @@ generate_report() {
 
   echo "$content"
 }
-
-echo "$(date -Iseconds) [INFO] Starting report. requestId=$REQUEST_ID by=$REQUEST_BY_EMAIL" >> "$LOG_DIR/system-report.log"
 
 report_content=$(generate_report)
 

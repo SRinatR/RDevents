@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requirePlatformAdmin } from '../../common/middleware.js';
 import type { AuthenticatedRequest } from '../../common/middleware.js';
-import { readFileSync, existsSync, statSync, writeFileSync } from 'fs';
+import { readFileSync, existsSync, statSync, writeFileSync, renameSync, unlinkSync } from 'fs';
 import { join } from 'path';
 
 const RUNTIME_ADMIN = '/opt/rdevents/runtime/admin';
@@ -54,9 +54,10 @@ function readMeta(): MetaData | null {
   }
 }
 
-function writeStatus(status: StatusData): void {
-  const path = join(RUNTIME_ADMIN, STATUS_FILE);
-  writeFileSync(path, JSON.stringify(status, null, 2), 'utf-8');
+function atomicWriteFile(filePath: string, content: string): void {
+  const tempPath = `${filePath}.tmp.${process.pid}`;
+  writeFileSync(tempPath, content, 'utf-8');
+  renameSync(tempPath, filePath);
 }
 
 export const systemReportRouter = Router();
@@ -65,6 +66,23 @@ systemReportRouter.use(requirePlatformAdmin);
 
 systemReportRouter.post('/refresh', async (req, res) => {
   const user = (req as AuthenticatedRequest).user!;
+  const requestPath = join(RUNTIME_CONTROL, REQUEST_FILE);
+
+  if (existsSync(requestPath)) {
+    let requestData: { requestId: string | null } | null = null;
+    try {
+      requestData = JSON.parse(readFileSync(requestPath, 'utf-8'));
+    } catch {
+      // ignore parse errors, return null
+    }
+
+    res.status(409).json({
+      error: 'Report generation already in progress',
+      state: 'queued',
+      requestId: requestData?.requestId ?? null,
+    });
+    return;
+  }
 
   const currentStatus = readStatus();
   if (currentStatus && (currentStatus.state === 'queued' || currentStatus.state === 'running')) {
@@ -79,20 +97,6 @@ systemReportRouter.post('/refresh', async (req, res) => {
   const requestId = crypto.randomUUID();
   const requestedAt = new Date().toISOString();
 
-  const queuedStatus: StatusData = {
-    state: 'queued',
-    requestId,
-    requestedAt,
-    requestedByUserId: user.id,
-    requestedByEmail: user.email,
-    startedAt: null,
-    finishedAt: null,
-    lastSuccessAt: currentStatus?.lastSuccessAt ?? null,
-    lastError: null,
-  };
-
-  writeStatus(queuedStatus);
-
   const requestPayload = {
     requestId,
     requestedAt,
@@ -100,8 +104,7 @@ systemReportRouter.post('/refresh', async (req, res) => {
     requestedByEmail: user.email,
   };
 
-  const requestPath = join(RUNTIME_CONTROL, REQUEST_FILE);
-  writeFileSync(requestPath, JSON.stringify(requestPayload, null, 2), 'utf-8');
+  atomicWriteFile(requestPath, JSON.stringify(requestPayload, null, 2));
 
   res.status(202).json({
     ok: true,
@@ -167,6 +170,5 @@ systemReportRouter.get('/download', async (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Content-Length', stat.size);
 
-  const stream = readFileSync(reportPath);
-  res.send(stream);
+  res.send(readFileSync(reportPath));
 });

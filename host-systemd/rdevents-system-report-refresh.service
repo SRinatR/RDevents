@@ -9,6 +9,7 @@ Type=oneshot
 ExecStart=/opt/rdevents/bin/build-system-report.sh
 StandardOutput=journal
 StandardError=journal
+SyslogIdentifier=rdevents-system-report
 User=root
 Group=root
 
