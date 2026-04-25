@@ -413,7 +413,7 @@ export default function NewReportPage() {
 
         .format-option.selected, .redaction-option.selected {
           border-color: var(--primary-color, #3b82f6);
-          background: var(--primary-color-alpha, rgba(59, 130, 246, 0.1);
+          background: var(--primary-color-alpha, rgba(59, 130, 246, 0.1));
           color: var(--primary-color, #3b82f6);
         }
 

@@ -39,7 +39,6 @@ export function ReportPreviewPanel({
       txt: { en: 'Plain text format', ru: 'Простой текст' },
       json: { en: 'JSON structured data', ru: 'Структурированный JSON' },
       md: { en: 'Markdown format', ru: 'Markdown формат' },
-      zip: { en: 'Bundle with multiple files and attachments', ru: 'Архив с несколькими файлами и вложениями' },
     };
     return descriptions[format]?.[locale === 'ru' ? 'ru' : 'en'] || format;
   };
@@ -59,7 +58,6 @@ export function ReportPreviewPanel({
       if (section.key === 'audit') estimate += (sectionConfig?.params as any)?.limit || 20;
     });
 
-    if (config.format === 'zip') estimate *= 2;
     if (config.format === 'json') estimate = Math.floor(estimate * 1.2);
 
     if (estimate < 10) return `~${estimate} KB`;

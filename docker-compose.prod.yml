@@ -131,7 +131,7 @@ services:
       - /opt/rdevents/runtime/reports:/opt/rdevents/runtime/reports:rw
       - /opt/rdevents/runtime/admin:/opt/rdevents/runtime/admin:ro
       - /opt/rdevents/runtime/control:/opt/rdevents/runtime/control:rw
-    command: pnpm --filter @event-platform/api start:report-worker
+    command: ["node", "dist/report-worker.js"]
 
 volumes:
   postgres_data:

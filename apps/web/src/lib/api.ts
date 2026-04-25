@@ -684,7 +684,7 @@ export interface BuilderConfig {
 
 export interface ReportConfig {
   sections: ReportSectionConfig[];
-  format: 'txt' | 'json' | 'md' | 'zip';
+  format: 'txt' | 'json' | 'md';
   dateRange?: {
     start?: string;
     end?: string;

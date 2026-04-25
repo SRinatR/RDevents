@@ -125,7 +125,7 @@ export function ReportConfigPanel({
         <div className="config-section">
           <h4>{t('outputFormat')}</h4>
           <div className="format-selector">
-            {(['txt', 'json', 'md', 'zip'] as const).map((format) => (
+            {(['txt', 'json', 'md'] as const).map((format) => (
               <label key={format} className="format-option">
                 <input
                 type="radio"
@@ -137,9 +137,6 @@ export function ReportConfigPanel({
               />
                 <span className="format-label">
                   {format.toUpperCase()}
-                  {format === 'zip' && (
-                    <span className="format-badge">{locale === 'ru' ? 'Рекомендуется' : 'Recommended'}</span>
-                  )}
                 </span>
               </label>
             ))}

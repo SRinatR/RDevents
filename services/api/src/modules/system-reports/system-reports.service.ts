@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 
 export type ReportStatus = 'queued' | 'running' | 'success' | 'failed' | 'partial_success' | 'canceled' | 'stale';
 export type ReportStage = 'queued' | 'collecting' | 'assembling' | 'writing_artifacts' | 'finalizing';
-export type ReportFormat = 'txt' | 'json' | 'md' | 'zip';
+export type ReportFormat = 'txt' | 'json' | 'md';
 export type RedactionLevel = 'strict' | 'standard' | 'off';
 
 export interface ReportConfig {
