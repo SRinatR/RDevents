@@ -673,7 +673,7 @@ export interface BuilderSectionConfig {
 }
 
 export interface BuilderConfig {
-  format: 'txt' | 'json' | 'md' | 'zip';
+  format: 'txt' | 'json' | 'md';
   sections: BuilderSectionConfig[];
   redactionLevel?: 'strict' | 'standard' | 'off';
   dateRange?: {
@@ -838,7 +838,7 @@ export interface SystemReportSectionDefinition {
 
 export interface SystemReportConfigResponse {
   sections: SystemReportSectionDefinition[];
-  formats: Array<{ value: 'txt' | 'json' | 'md' | 'zip'; label: string }>;
+  formats: Array<{ value: 'txt' | 'json' | 'md'; label: string }>;
   redactionLevels: Array<{ value: 'strict' | 'standard' | 'off'; label: string; description: string }>;
   limits: {
     maxArtifacts: number;
@@ -852,7 +852,7 @@ export const systemReportsApi = {
     request<SystemReportConfigResponse>('/api/admin/system-reports/config', { auth: true }),
 
   preview: (body: {
-    format: 'txt' | 'json' | 'md' | 'zip';
+    format: 'txt' | 'json' | 'md';
     sections: Array<{ key: string; enabled: boolean; options: Record<string, unknown> }>;
     redactionLevel: 'strict' | 'standard' | 'off';
     dateRange?: { start?: string; end?: string };
@@ -878,7 +878,7 @@ export const systemReportsApi = {
   createRun: (data: {
     templateId?: string;
     title?: string;
-    format: 'txt' | 'json' | 'md' | 'zip';
+    format: 'txt' | 'json' | 'md';
     sections: Array<{ key: string; enabled: boolean; options: Record<string, unknown> }>;
     redactionLevel: 'strict' | 'standard' | 'off';
     dateRange?: { start?: string; end?: string };

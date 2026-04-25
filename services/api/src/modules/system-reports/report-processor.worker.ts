@@ -3,7 +3,6 @@ import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import JSZip from 'jszip';
 import { getProviders, getProvider } from './providers/index.js';
 import { addEvent, updateRunProgress, completeRun } from './system-reports.service.js';
 
@@ -190,61 +189,6 @@ async function prepareArtifacts(
       storagePath: txtPath,
       sizeBytes: txtBuffer.length,
       checksum: sha256(txtBuffer),
-    });
-
-    const metaPath = path.join(storageDir, `${baseName}-meta.json`);
-    const metaBuffer = Buffer.from(summaryJson, 'utf-8');
-    await writeArtifactFile(metaPath, metaBuffer);
-
-    artifacts.push({
-      kind: 'metadata',
-      fileName: `${baseName}-meta.json`,
-      mimeType: 'application/json',
-      storagePath: metaPath,
-      sizeBytes: metaBuffer.length,
-      checksum: sha256(metaBuffer),
-    });
-  }
-
-  if (format === 'zip') {
-    const txtPath = path.join(storageDir, `${baseName}.txt`);
-    const txtBuffer = Buffer.from(content, 'utf-8');
-    await writeArtifactFile(txtPath, txtBuffer);
-
-    artifacts.push({
-      kind: 'attachment',
-      fileName: `${baseName}.txt`,
-      mimeType: 'text/plain; charset=utf-8',
-      storagePath: txtPath,
-      sizeBytes: txtBuffer.length,
-      checksum: sha256(txtBuffer),
-    });
-
-    const zip = new JSZip();
-
-    zip.file(`${baseName}.txt`, txtBuffer);
-    zip.file('summary.json', summaryJson);
-    zip.file(
-      'results.json',
-      JSON.stringify(results, null, 2)
-    );
-
-    const zipBuffer = await zip.generateAsync({
-      type: 'nodebuffer',
-      compression: 'DEFLATE',
-      compressionOptions: { level: 9 },
-    });
-
-    const zipPath = path.join(storageDir, `${baseName}.zip`);
-    await writeArtifactFile(zipPath, zipBuffer);
-
-    artifacts.push({
-      kind: 'report',
-      fileName: `${baseName}.zip`,
-      mimeType: 'application/zip',
-      storagePath: zipPath,
-      sizeBytes: zipBuffer.length,
-      checksum: sha256(zipBuffer),
     });
 
     const metaPath = path.join(storageDir, `${baseName}-meta.json`);

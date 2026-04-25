@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
 import { useRouteLocale } from '@/hooks/useRouteParams';
 import { systemReportsApi } from '@/lib/api';
 import type { SystemReportTemplate, SystemReportConfigResponse, SystemReportSectionDefinition } from '@/lib/api';
@@ -10,7 +9,6 @@ import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { Panel } from '@/components/ui/signal-primitives';
 
 export default function NewReportPage() {
-  const t = useTranslations('admin.systemReports');
   const locale = useRouteLocale();
   const router = useRouter();
 
@@ -60,7 +58,7 @@ export default function NewReportPage() {
     if (templateId) {
       const template = templates.find(t => t.id === templateId);
       if (template && config) {
-        setFormat(template.config.format === 'zip' ? 'txt' : template.config.format as 'txt' | 'json' | 'md');
+        setFormat(template.config.format);
         if (template.config.redactionLevel) {
           setRedactionLevel(template.config.redactionLevel);
         }
@@ -165,7 +163,7 @@ export default function NewReportPage() {
     );
   }
 
-  const availableFormats = config?.formats.filter(f => f.value !== 'zip') || [
+  const availableFormats = config?.formats || [
     { value: 'txt' as const, label: 'Plain Text (.txt)' },
     { value: 'json' as const, label: 'JSON (.json)' },
     { value: 'md' as const, label: 'Markdown (.md)' },
