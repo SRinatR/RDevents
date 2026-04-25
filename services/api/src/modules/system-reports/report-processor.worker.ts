@@ -83,18 +83,33 @@ async function prepareArtifacts(
     2
   );
 
-  const txtPath = path.join(storageDir, `${baseName}.txt`);
-  const txtBuffer = Buffer.from(content, 'utf-8');
-  await writeArtifactFile(txtPath, txtBuffer);
+  if (format === 'txt') {
+    const txtPath = path.join(storageDir, `${baseName}.txt`);
+    const txtBuffer = Buffer.from(content, 'utf-8');
+    await writeArtifactFile(txtPath, txtBuffer);
 
-  artifacts.push({
-    kind: 'report',
-    fileName: `${baseName}.txt`,
-    mimeType: 'text/plain; charset=utf-8',
-    storagePath: txtPath,
-    sizeBytes: txtBuffer.length,
-    checksum: sha256(txtBuffer),
-  });
+    artifacts.push({
+      kind: 'report',
+      fileName: `${baseName}.txt`,
+      mimeType: 'text/plain; charset=utf-8',
+      storagePath: txtPath,
+      sizeBytes: txtBuffer.length,
+      checksum: sha256(txtBuffer),
+    });
+
+    const metaPath = path.join(storageDir, `${baseName}-meta.json`);
+    const metaBuffer = Buffer.from(summaryJson, 'utf-8');
+    await writeArtifactFile(metaPath, metaBuffer);
+
+    artifacts.push({
+      kind: 'metadata',
+      fileName: `${baseName}-meta.json`,
+      mimeType: 'application/json',
+      storagePath: metaPath,
+      sizeBytes: metaBuffer.length,
+      checksum: sha256(metaBuffer),
+    });
+  }
 
   if (format === 'json') {
     const jsonContent = JSON.stringify(
@@ -122,6 +137,32 @@ async function prepareArtifacts(
       sizeBytes: jsonBuffer.length,
       checksum: sha256(jsonBuffer),
     });
+
+    const txtPath = path.join(storageDir, `${baseName}.txt`);
+    const txtBuffer = Buffer.from(content, 'utf-8');
+    await writeArtifactFile(txtPath, txtBuffer);
+
+    artifacts.push({
+      kind: 'attachment',
+      fileName: `${baseName}.txt`,
+      mimeType: 'text/plain; charset=utf-8',
+      storagePath: txtPath,
+      sizeBytes: txtBuffer.length,
+      checksum: sha256(txtBuffer),
+    });
+
+    const metaPath = path.join(storageDir, `${baseName}-meta.json`);
+    const metaBuffer = Buffer.from(summaryJson, 'utf-8');
+    await writeArtifactFile(metaPath, metaBuffer);
+
+    artifacts.push({
+      kind: 'metadata',
+      fileName: `${baseName}-meta.json`,
+      mimeType: 'application/json',
+      storagePath: metaPath,
+      sizeBytes: metaBuffer.length,
+      checksum: sha256(metaBuffer),
+    });
   }
 
   if (format === 'md') {
@@ -137,9 +178,48 @@ async function prepareArtifacts(
       sizeBytes: mdBuffer.length,
       checksum: sha256(mdBuffer),
     });
+
+    const txtPath = path.join(storageDir, `${baseName}.txt`);
+    const txtBuffer = Buffer.from(content, 'utf-8');
+    await writeArtifactFile(txtPath, txtBuffer);
+
+    artifacts.push({
+      kind: 'attachment',
+      fileName: `${baseName}.txt`,
+      mimeType: 'text/plain; charset=utf-8',
+      storagePath: txtPath,
+      sizeBytes: txtBuffer.length,
+      checksum: sha256(txtBuffer),
+    });
+
+    const metaPath = path.join(storageDir, `${baseName}-meta.json`);
+    const metaBuffer = Buffer.from(summaryJson, 'utf-8');
+    await writeArtifactFile(metaPath, metaBuffer);
+
+    artifacts.push({
+      kind: 'metadata',
+      fileName: `${baseName}-meta.json`,
+      mimeType: 'application/json',
+      storagePath: metaPath,
+      sizeBytes: metaBuffer.length,
+      checksum: sha256(metaBuffer),
+    });
   }
 
   if (format === 'zip') {
+    const txtPath = path.join(storageDir, `${baseName}.txt`);
+    const txtBuffer = Buffer.from(content, 'utf-8');
+    await writeArtifactFile(txtPath, txtBuffer);
+
+    artifacts.push({
+      kind: 'attachment',
+      fileName: `${baseName}.txt`,
+      mimeType: 'text/plain; charset=utf-8',
+      storagePath: txtPath,
+      sizeBytes: txtBuffer.length,
+      checksum: sha256(txtBuffer),
+    });
+
     const zip = new JSZip();
 
     zip.file(`${baseName}.txt`, txtBuffer);
@@ -166,20 +246,20 @@ async function prepareArtifacts(
       sizeBytes: zipBuffer.length,
       checksum: sha256(zipBuffer),
     });
+
+    const metaPath = path.join(storageDir, `${baseName}-meta.json`);
+    const metaBuffer = Buffer.from(summaryJson, 'utf-8');
+    await writeArtifactFile(metaPath, metaBuffer);
+
+    artifacts.push({
+      kind: 'metadata',
+      fileName: `${baseName}-meta.json`,
+      mimeType: 'application/json',
+      storagePath: metaPath,
+      sizeBytes: metaBuffer.length,
+      checksum: sha256(metaBuffer),
+    });
   }
-
-  const metaPath = path.join(storageDir, `${baseName}-meta.json`);
-  const metaBuffer = Buffer.from(summaryJson, 'utf-8');
-  await writeArtifactFile(metaPath, metaBuffer);
-
-  artifacts.push({
-    kind: 'metadata',
-    fileName: `${baseName}-meta.json`,
-    mimeType: 'application/json',
-    storagePath: metaPath,
-    sizeBytes: metaBuffer.length,
-    checksum: sha256(metaBuffer),
-  });
 
   return artifacts;
 }

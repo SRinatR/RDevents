@@ -6,25 +6,20 @@ import type {
   SystemReportSectionDefinition,
   BuilderConfig,
   SystemReportPreview,
-  SystemReportTemplate,
 } from '@/lib/api';
 import { SystemReportSectionCard } from './SystemReportSectionCard';
 import { SystemReportPreviewPanel } from './SystemReportPreviewPanel';
 
 interface SystemReportBuilderProps {
   config: SystemReportConfigResponse | null;
+  value: BuilderConfig | null;
+  title: string;
+  onTitleChange: (title: string) => void;
+  onChange: (next: BuilderConfig) => void;
   onPreview: (cfg: BuilderConfig) => Promise<SystemReportPreview | null>;
-  onRunNow: (cfg: BuilderConfig) => Promise<void>;
-  onSaveTemplate: (name: string, description?: string) => Promise<void>;
-  onReset: () => void;
-  initialConfig?: BuilderConfig | null;
+  onRunNow: (cfg: BuilderConfig, title?: string) => Promise<void>;
+  onSaveTemplate: (name: string, description?: string, isDefault?: boolean) => Promise<void>;
   locale: string;
-}
-
-interface SectionState {
-  key: string;
-  enabled: boolean;
-  options: Record<string, unknown>;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -48,120 +43,93 @@ function groupSectionsByCategory(
 
 export function SystemReportBuilder({
   config,
+  value,
+  title,
+  onTitleChange,
+  onChange,
   onPreview,
   onRunNow,
   onSaveTemplate,
-  onReset,
-  initialConfig,
   locale,
 }: SystemReportBuilderProps) {
-  const [title, setTitle] = useState('');
-  const [format, setFormat] = useState<'txt' | 'json' | 'md' | 'zip'>('txt');
-  const [redactionLevel, setRedactionLevel] = useState<'strict' | 'standard' | 'off'>('standard');
-  const [sections, setSections] = useState<SectionState[]>(() => {
-    if (!config) return [];
-    return config.sections.map((s) => ({
-      key: s.key,
-      enabled: true,
-      options: Object.fromEntries(s.options.map((o) => [o.key, o.default])),
-    }));
-  });
   const [preview, setPreview] = useState<SystemReportPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [runLoading, setRunLoading] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [saveDescription, setSaveDescription] = useState('');
+  const [saveIsDefault, setSaveIsDefault] = useState(false);
 
-  const loadFromTemplate = useCallback((template: SystemReportTemplate) => {
-    const cfg = template.config;
-    setTitle('');
-    setFormat(cfg.format);
-    setRedactionLevel(cfg.redactionLevel || 'standard');
-    setSections(
-      config?.sections.map((s) => {
-        const existing = cfg.sections.find((cs) => cs.key === s.key);
-        return {
-          key: s.key,
-          enabled: existing?.enabled ?? true,
-          options: existing?.options ?? Object.fromEntries(s.options.map((o) => [o.key, o.default])),
-        };
-      }) ?? []
-    );
+  const handleFormatChange = useCallback((format: BuilderConfig['format']) => {
+    if (!value) return;
+    onChange({ ...value, format });
     setPreview(null);
-  }, [config]);
+  }, [value, onChange]);
+
+  const handleRedactionLevelChange = useCallback((redactionLevel: BuilderConfig['redactionLevel']) => {
+    if (!value) return;
+    onChange({ ...value, redactionLevel: redactionLevel || 'standard' });
+  }, [value, onChange]);
 
   const handleToggleSection = useCallback((key: string, enabled: boolean) => {
-    setSections((prev) => prev.map((s) => (s.key === key ? { ...s, enabled } : s)));
+    if (!value) return;
+    onChange({
+      ...value,
+      sections: value.sections.map((s) => (s.key === key ? { ...s, enabled } : s)),
+    });
     setPreview(null);
-  }, []);
+  }, [value, onChange]);
 
-  const handleOptionChange = useCallback((key: string, optionKey: string, value: unknown) => {
-    setSections((prev) =>
-      prev.map((s) =>
-        s.key === key ? { ...s, options: { ...s.options, [optionKey]: value } } : s
-      )
-    );
+  const handleOptionChange = useCallback((key: string, optionKey: string, optValue: unknown) => {
+    if (!value) return;
+    onChange({
+      ...value,
+      sections: value.sections.map((s) =>
+        s.key === key ? { ...s, options: { ...s.options, [optionKey]: optValue } } : s
+      ),
+    });
     setPreview(null);
-  }, []);
-
-  const buildConfig = useCallback((): BuilderConfig => ({
-    format,
-    sections: sections.map((s) => ({ key: s.key, enabled: s.enabled, options: s.options })),
-    redactionLevel,
-  }), [format, sections, redactionLevel]);
+  }, [value, onChange]);
 
   const handlePreview = useCallback(async () => {
+    if (!value) return;
     setPreviewLoading(true);
     try {
-      const result = await onPreview(buildConfig());
+      const result = await onPreview(value);
       setPreview(result);
     } catch (e) {
       console.error('Preview failed:', e);
     } finally {
       setPreviewLoading(false);
     }
-  }, [buildConfig, onPreview]);
+  }, [value, onPreview]);
 
   const handleRunNow = useCallback(async () => {
+    if (!value) return;
     setRunLoading(true);
     try {
-      await onRunNow(buildConfig());
+      await onRunNow(value, title);
     } catch (e) {
       console.error('Run failed:', e);
     } finally {
       setRunLoading(false);
     }
-  }, [buildConfig, onRunNow]);
+  }, [value, title, onRunNow]);
 
   const handleSave = useCallback(async () => {
     if (!saveName.trim()) return;
     try {
-      await onSaveTemplate(saveName.trim(), saveDescription.trim() || undefined);
+      await onSaveTemplate(saveName.trim(), saveDescription.trim() || undefined, saveIsDefault);
       setSaveName('');
       setSaveDescription('');
+      setSaveIsDefault(false);
       setShowSaveDialog(false);
     } catch (e) {
       console.error('Save template failed:', e);
     }
-  }, [saveName, saveDescription, onSaveTemplate]);
+  }, [saveName, saveDescription, saveIsDefault, onSaveTemplate]);
 
-  const handleReset = useCallback(() => {
-    setTitle('');
-    setFormat('txt');
-    setRedactionLevel('standard');
-    setSections(
-      config?.sections.map((s) => ({
-        key: s.key,
-        enabled: true,
-        options: Object.fromEntries(s.options.map((o) => [o.key, o.default])),
-      })) ?? []
-    );
-    setPreview(null);
-    onReset();
-  }, [config, onReset]);
-
-  if (!config) {
+  if (!config || !value) {
     return (
       <div className="sr-builder loading">
         <div className="builder-loading">
@@ -189,7 +157,7 @@ export function SystemReportBuilder({
               type="text"
               className="field-input"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => onTitleChange(e.target.value)}
               placeholder={locale === 'ru' ? 'Название отчёта (опц.)' : 'Report title (optional)'}
             />
           </label>
@@ -198,8 +166,8 @@ export function SystemReportBuilder({
             <span className="field-label">Format</span>
             <select
               className="field-select"
-              value={format}
-              onChange={(e) => setFormat(e.target.value as typeof format)}
+              value={value.format}
+              onChange={(e) => handleFormatChange(e.target.value as BuilderConfig['format'])}
             >
               {config.formats.map((f) => (
                 <option key={f.value} value={f.value}>
@@ -213,8 +181,8 @@ export function SystemReportBuilder({
             <span className="field-label">Redaction Level</span>
             <select
               className="field-select"
-              value={redactionLevel}
-              onChange={(e) => setRedactionLevel(e.target.value as typeof redactionLevel)}
+              value={value.redactionLevel || 'standard'}
+              onChange={(e) => handleRedactionLevelChange(e.target.value as BuilderConfig['redactionLevel'])}
             >
               {config.redactionLevels.map((r) => (
                 <option key={r.value} value={r.value}>
@@ -233,7 +201,7 @@ export function SystemReportBuilder({
               </h4>
               <div className="category-sections">
                 {groupedSections[category].map((sectionDef) => {
-                  const state = sections.find((s) => s.key === sectionDef.key);
+                  const state = value.sections.find((s) => s.key === sectionDef.key);
                   return (
                     <SystemReportSectionCard
                       key={sectionDef.key}
@@ -241,7 +209,7 @@ export function SystemReportBuilder({
                       enabled={state?.enabled ?? false}
                       options={state?.options ?? {}}
                       onToggle={(enabled) => handleToggleSection(sectionDef.key, enabled)}
-                      onOptionsChange={(key, value) => handleOptionChange(sectionDef.key, key, value)}
+                      onOptionsChange={(key, optValue) => handleOptionChange(sectionDef.key, key, optValue)}
                     />
                   );
                 })}
@@ -271,9 +239,6 @@ export function SystemReportBuilder({
           >
             💾 {locale === 'ru' ? 'Сохранить шаблон' : 'Save as Template'}
           </button>
-          <button className="action-btn reset-btn" onClick={handleReset}>
-            ↺ {locale === 'ru' ? 'Сброс' : 'Reset'}
-          </button>
         </div>
 
         {showSaveDialog && (
@@ -296,6 +261,14 @@ export function SystemReportBuilder({
                   onChange={(e) => setSaveDescription(e.target.value)}
                   placeholder={locale === 'ru' ? 'Описание (опц.)' : 'Description (optional)'}
                 />
+              </label>
+              <label className="dialog-checkbox">
+                <input
+                  type="checkbox"
+                  checked={saveIsDefault}
+                  onChange={(e) => setSaveIsDefault(e.target.checked)}
+                />
+                <span>{locale === 'ru' ? 'По умолчанию' : 'Set as default'}</span>
               </label>
               <div className="dialog-actions">
                 <button onClick={() => setShowSaveDialog(false)}>

@@ -9,6 +9,18 @@ import type { ReportRun } from '@/lib/api';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { Panel, StatusBadge, LoadingLines } from '@/components/ui/signal-primitives';
 
+function pickPrimaryArtifact(run: ReportRun) {
+  const expectedExt = `.${run.config.format.toLowerCase()}`;
+  return (
+    run.artifacts.find(
+      (a) => a.kind === 'report' && a.fileName.toLowerCase().endsWith(expectedExt)
+    ) ??
+    run.artifacts.find((a) => a.kind === 'report') ??
+    run.artifacts[0] ??
+    null
+  );
+}
+
 export default function SystemReportRunPage() {
   const params = useParams<{ locale: string; runId: string }>();
   const locale = params?.locale ?? 'uz';
@@ -327,7 +339,8 @@ export default function SystemReportRunPage() {
                 <button
                   className="action-btn download-all-btn"
                   onClick={() => {
-                    const main = run.artifacts.find((a) => a.kind === 'report') || run.artifacts[0];
+                    const main = pickPrimaryArtifact(run);
+                    if (!main) return;
                     handleDownload(main.id, main.fileName);
                   }}
                 >

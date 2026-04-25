@@ -19,6 +19,31 @@ import { SystemReportTemplatesPanel } from '@/components/admin/system-reports/Sy
 import { Panel, StatusBadge, LoadingLines } from '@/components/ui/signal-primitives';
 
 type ReportStatus = 'queued' | 'running' | 'success' | 'failed' | 'partial_success' | 'canceled' | 'stale';
+
+function makeDefaultBuilderConfig(config: SystemReportConfigResponse): BuilderConfig {
+  return {
+    format: 'txt',
+    redactionLevel: 'standard',
+    sections: config.sections.map((s) => ({
+      key: s.key,
+      enabled: true,
+      options: Object.fromEntries(s.options.map((o) => [o.key, o.default])),
+    })),
+  };
+}
+
+function pickPrimaryArtifact(run: ReportRun) {
+  const expectedExt = `.${run.config.format.toLowerCase()}`;
+  return (
+    run.artifacts.find(
+      (a) => a.kind === 'report' && a.fileName.toLowerCase().endsWith(expectedExt)
+    ) ??
+    run.artifacts.find((a) => a.kind === 'report') ??
+    run.artifacts[0] ??
+    null
+  );
+}
+
 type ReportStage = 'queued' | 'collecting' | 'assembling' | 'writing_artifacts' | 'finalizing';
 
 export default function SystemReportsPage() {
@@ -33,6 +58,8 @@ export default function SystemReportsPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'builder' | 'history'>('builder');
+  const [builderConfig, setBuilderConfig] = useState<BuilderConfig | null>(null);
+  const [builderTitle, setBuilderTitle] = useState('');
 
   const fetchData = useCallback(async () => {
     try {
@@ -55,6 +82,12 @@ export default function SystemReportsPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    if (config && !builderConfig) {
+      setBuilderConfig(makeDefaultBuilderConfig(config));
+    }
+  }, [config, builderConfig]);
 
   useEffect(() => {
     const hasActiveRuns = runs.some((r) => r.status === 'queued' || r.status === 'running');
@@ -81,13 +114,19 @@ export default function SystemReportsPage() {
   );
 
   const handleRunNow = useCallback(
-    async (cfg: BuilderConfig) => {
+    async (cfg: BuilderConfig, title?: string) => {
       setActionLoading('run');
       try {
         const run = await systemReportsApi.createRun({
+          title: title?.trim() || undefined,
           format: cfg.format,
-          sections: cfg.sections.map((s) => ({ key: s.key, enabled: s.enabled, options: s.options })),
+          sections: cfg.sections.map((s) => ({
+            key: s.key,
+            enabled: s.enabled,
+            options: s.options,
+          })),
           redactionLevel: cfg.redactionLevel || 'standard',
+          dateRange: cfg.dateRange,
         });
         router.push(`/${locale}/admin/system-reports/${run.id}`);
       } catch (err) {
@@ -101,22 +140,20 @@ export default function SystemReportsPage() {
   );
 
   const handleSaveTemplate = useCallback(
-    async (name: string, description?: string) => {
-      if (!config) return;
-      const cfg: BuilderConfig = {
-        format: 'txt',
-        sections: config.sections.map((s) => ({
-          key: s.key,
-          enabled: true,
-          options: Object.fromEntries(s.options.map((o) => [o.key, o.default])),
-        })),
-        redactionLevel: 'standard',
-      };
-      await systemReportsApi.createTemplate({ name, description, config: cfg });
+    async (name: string, description?: string, isDefault?: boolean) => {
+      if (!builderConfig) return;
+
+      await systemReportsApi.createTemplate({
+        name,
+        description,
+        isDefault,
+        config: builderConfig,
+      });
+
       const updated = await systemReportsApi.getTemplates();
       setTemplates(updated);
     },
-    [config]
+    [builderConfig]
   );
 
   const handleDeleteTemplate = useCallback(async (templateId: string) => {
@@ -139,14 +176,16 @@ export default function SystemReportsPage() {
   }, []);
 
   const handleLoadTemplate = useCallback((template: SystemReportTemplate) => {
+    setBuilderConfig(template.config);
+    setBuilderTitle('');
     setActiveTab('builder');
   }, []);
 
   const handleDownload = useCallback(async (run: ReportRun) => {
-    if (run.artifacts.length === 0) return;
+    const mainArtifact = pickPrimaryArtifact(run);
+    if (!mainArtifact) return;
     setActionLoading(run.id);
     try {
-      const mainArtifact = run.artifacts.find((a) => a.kind === 'report') || run.artifacts[0];
       await systemReportsApi.downloadArtifact(run.id, mainArtifact.id, mainArtifact.fileName);
     } catch (err) {
       console.error('Download failed:', err);
@@ -274,10 +313,13 @@ export default function SystemReportsPage() {
             <div className="sr-builder-wrapper">
               <SystemReportBuilder
                 config={config}
+                value={builderConfig}
+                title={builderTitle}
+                onTitleChange={setBuilderTitle}
+                onChange={setBuilderConfig}
                 onPreview={handlePreview}
                 onRunNow={handleRunNow}
                 onSaveTemplate={handleSaveTemplate}
-                onReset={() => {}}
                 locale={locale}
               />
             </div>
@@ -397,15 +439,7 @@ export default function SystemReportsPage() {
             onSave={handleSaveTemplate}
             onDelete={handleDeleteTemplate}
             onSetDefault={handleSetDefaultTemplate}
-            currentConfig={config ? {
-              format: 'txt',
-              sections: config.sections.map((s) => ({
-                key: s.key,
-                enabled: true,
-                options: Object.fromEntries(s.options.map((o) => [o.key, o.default])),
-              })),
-              redactionLevel: 'standard',
-            } : null}
+            currentConfig={builderConfig}
             locale={locale}
           />
         </div>
