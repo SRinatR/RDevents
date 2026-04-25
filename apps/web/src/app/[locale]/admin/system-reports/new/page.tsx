@@ -314,6 +314,7 @@ export default function NewReportPage() {
         </div>
       </form>
 
+      {/* eslint-disable-next-line react/no-unknown-property */}
       <style jsx>{`
         .report-builder-form {
           max-width: 1200px;

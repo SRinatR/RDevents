@@ -39,7 +39,8 @@ export default function SystemReportRunPage() {
 
     const timer = setInterval(load, 3000);
     return () => clearInterval(timer);
-  }, [runId, run?.status]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runId]);
 
   const handleDownload = async (artifactId: string, fileName: string) => {
     setDownloading(artifactId);
