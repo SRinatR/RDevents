@@ -323,7 +323,7 @@ export default function SystemReportRunPage() {
                 </button>
               )}
 
-              {run.status === 'success' && run.artifacts.length > 0 && (
+              {(run.status === 'success' || run.status === 'partial_success') && run.artifacts.length > 0 && (
                 <button
                   className="action-btn download-all-btn"
                   onClick={() => {

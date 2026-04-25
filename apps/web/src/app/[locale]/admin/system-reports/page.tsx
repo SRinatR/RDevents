@@ -71,7 +71,7 @@ export default function SystemReportsPage() {
     async (cfg: BuilderConfig): Promise<SystemReportPreview | null> => {
       const preview = await systemReportsApi.preview({
         format: cfg.format,
-        sections: cfg.sections.map((s) => ({ key: s.key, enabled: s.enabled, params: s.options })),
+        sections: cfg.sections.map((s) => ({ key: s.key, enabled: s.enabled, options: s.options })),
         redactionLevel: cfg.redactionLevel || 'standard',
         dateRange: cfg.dateRange,
       });
@@ -86,7 +86,7 @@ export default function SystemReportsPage() {
       try {
         const run = await systemReportsApi.createRun({
           format: cfg.format,
-          sections: cfg.sections.map((s) => ({ key: s.key, enabled: s.enabled, params: s.options })),
+          sections: cfg.sections.map((s) => ({ key: s.key, enabled: s.enabled, options: s.options })),
           redactionLevel: cfg.redactionLevel || 'standard',
         });
         router.push(`/${locale}/admin/system-reports/${run.id}`);
@@ -306,7 +306,7 @@ export default function SystemReportsPage() {
                     <tbody>
                       {runs.map((run) => {
                         const isActive = run.status === 'queued' || run.status === 'running';
-                        const canDownload = run.status === 'success' && run.artifacts.length > 0;
+                        const canDownload = (run.status === 'success' || run.status === 'partial_success') && run.artifacts.length > 0;
                         const canRetry = run.status === 'failed' || run.status === 'canceled';
                         const isLoading = actionLoading === run.id;
 

@@ -5,21 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useRouteLocale } from '@/hooks/useRouteParams';
 import { systemReportsApi } from '@/lib/api';
-import type { SystemReportTemplate, ReportConfig } from '@/lib/api';
+import type { SystemReportTemplate, SystemReportConfigResponse, SystemReportSectionDefinition } from '@/lib/api';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { Panel } from '@/components/ui/signal-primitives';
-
-const DEFAULT_SECTIONS = [
-  { key: 'release', label: 'Release / Deploy', enabled: true },
-  { key: 'health', label: 'Application Health', enabled: true },
-  { key: 'docker', label: 'Docker / Containers', enabled: true },
-  { key: 'systemd', label: 'Systemd / Host', enabled: true },
-  { key: 'database', label: 'Database', enabled: true },
-  { key: 'storage', label: 'Storage / Runtime', enabled: true },
-  { key: 'security', label: 'Security / Config', enabled: true },
-  { key: 'performance', label: 'Performance / Diagnostics', enabled: true },
-  { key: 'audit', label: 'Audit / Activity', enabled: true },
-];
 
 export default function NewReportPage() {
   const t = useTranslations('admin.systemReports');
@@ -28,49 +16,73 @@ export default function NewReportPage() {
 
   const [title, setTitle] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
-  const [format, setFormat] = useState<'txt' | 'json' | 'md' | 'zip'>('txt');
+  const [format, setFormat] = useState<'txt' | 'json' | 'md'>('txt');
   const [redactionLevel, setRedactionLevel] = useState<'strict' | 'standard' | 'off'>('standard');
-  const [sections, setSections] = useState(DEFAULT_SECTIONS);
+  const [sections, setSections] = useState<Array<{ key: string; label: string; enabled: boolean; options: Record<string, unknown> }>>([]);
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [templateName, setTemplateName] = useState('');
 
+  const [config, setConfig] = useState<SystemReportConfigResponse | null>(null);
   const [templates, setTemplates] = useState<SystemReportTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchTemplates() {
+    async function fetchData() {
       try {
-        const data = await systemReportsApi.getTemplates();
-        setTemplates(data);
+        const [configData, templatesData] = await Promise.all([
+          systemReportsApi.getConfig(),
+          systemReportsApi.getTemplates(),
+        ]);
+        setConfig(configData);
+        setTemplates(templatesData);
+
+        const defaultSections = configData.sections.map((s: SystemReportSectionDefinition) => ({
+          key: s.key,
+          label: s.label,
+          enabled: true,
+          options: Object.fromEntries(s.options.map(o => [o.key, o.default])),
+        }));
+        setSections(defaultSections);
       } catch (err) {
-        console.error('Failed to load templates:', err);
+        console.error('Failed to load data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load data');
       } finally {
         setLoading(false);
       }
     }
-    fetchTemplates();
+    fetchData();
   }, []);
 
   const handleTemplateChange = (templateId: string) => {
     setSelectedTemplateId(templateId);
     if (templateId) {
       const template = templates.find(t => t.id === templateId);
-      if (template) {
-        setFormat(template.config.format);
+      if (template && config) {
+        setFormat(template.config.format === 'zip' ? 'txt' : template.config.format as 'txt' | 'json' | 'md');
         if (template.config.redactionLevel) {
           setRedactionLevel(template.config.redactionLevel);
         }
-        const templateSections = DEFAULT_SECTIONS.map(s => {
+        const templateSections = config.sections.map((s: SystemReportSectionDefinition) => {
           const configSection = template.config.sections.find(sc => sc.key === s.key);
           return {
-            ...s,
-            enabled: configSection?.enabled ?? s.enabled,
+            key: s.key,
+            label: s.label,
+            enabled: configSection?.enabled ?? true,
+            options: configSection?.options ?? Object.fromEntries(s.options.map(o => [o.key, o.default])),
           };
         });
         setSections(templateSections);
       }
+    } else if (config) {
+      const defaultSections = config.sections.map((s: SystemReportSectionDefinition) => ({
+        key: s.key,
+        label: s.label,
+        enabled: true,
+        options: Object.fromEntries(s.options.map(o => [o.key, o.default])),
+      }));
+      setSections(defaultSections);
     }
   };
 
@@ -96,7 +108,7 @@ export default function NewReportPage() {
       const sectionsConfig = sections.map(s => ({
         key: s.key,
         enabled: s.enabled,
-        params: {},
+        options: s.options,
       }));
 
       const runData = {
@@ -111,7 +123,7 @@ export default function NewReportPage() {
 
       if (saveAsTemplate && templateName) {
         try {
-          const templateConfig: any = {
+          const templateConfig = {
             format,
             sections: sectionsConfig,
             redactionLevel,
@@ -132,14 +144,13 @@ export default function NewReportPage() {
     }
   };
 
-  const formatLabels = {
+  const formatLabels: Record<string, string> = {
     txt: locale === 'ru' ? 'Plain Text (.txt)' : 'Plain Text (.txt)',
     json: locale === 'ru' ? 'JSON (.json)' : 'JSON (.json)',
     md: locale === 'ru' ? 'Markdown (.md)' : 'Markdown (.md)',
-    zip: locale === 'ru' ? 'ZIP Bundle (.zip)' : 'ZIP Bundle (.zip)',
   };
 
-  const redactionLabels = {
+  const redactionLabels: Record<string, string> = {
     strict: locale === 'ru' ? 'Строгая' : 'Strict',
     standard: locale === 'ru' ? 'Стандартная' : 'Standard',
     off: locale === 'ru' ? 'Без редактирования' : 'No Redaction',
@@ -153,6 +164,12 @@ export default function NewReportPage() {
       </div>
     );
   }
+
+  const availableFormats = config?.formats.filter(f => f.value !== 'zip') || [
+    { value: 'txt' as const, label: 'Plain Text (.txt)' },
+    { value: 'json' as const, label: 'JSON (.json)' },
+    { value: 'md' as const, label: 'Markdown (.md)' },
+  ];
 
   return (
     <div className="signal-page-shell admin-dashboard-shell route-shell">
@@ -198,14 +215,14 @@ export default function NewReportPage() {
                 {locale === 'ru' ? 'Формат' : 'Format'}
               </label>
               <div className="format-selector">
-                {(['txt', 'json', 'md', 'zip'] as const).map(f => (
+                {availableFormats.map(f => (
                   <button
-                    key={f}
+                    key={f.value}
                     type="button"
-                    className={`format-option ${format === f ? 'selected' : ''}`}
-                    onClick={() => setFormat(f)}
+                    className={`format-option ${format === f.value ? 'selected' : ''}`}
+                    onClick={() => setFormat(f.value as 'txt' | 'json' | 'md')}
                   >
-                    {formatLabels[f]}
+                    {f.label}
                   </button>
                 ))}
               </div>
@@ -216,14 +233,18 @@ export default function NewReportPage() {
                 {locale === 'ru' ? 'Уровень редактирования' : 'Redaction Level'}
               </label>
               <div className="redaction-selector">
-                {(['strict', 'standard', 'off'] as const).map(r => (
+                {(config?.redactionLevels || [
+                  { value: 'strict' as const, label: 'Strict', description: '' },
+                  { value: 'standard' as const, label: 'Standard', description: '' },
+                  { value: 'off' as const, label: 'No Redaction', description: '' },
+                ]).map(r => (
                   <button
-                    key={r}
+                    key={r.value}
                     type="button"
-                    className={`redaction-option ${redactionLevel === r ? 'selected' : ''}`}
-                    onClick={() => setRedactionLevel(r)}
+                    className={`redaction-option ${redactionLevel === r.value ? 'selected' : ''}`}
+                    onClick={() => setRedactionLevel(r.value)}
                   >
-                    {redactionLabels[r]}
+                    {r.label}
                   </button>
                 ))}
               </div>
@@ -314,8 +335,7 @@ export default function NewReportPage() {
         </div>
       </form>
 
-      {/* eslint-disable-next-line react/no-unknown-property */}
-      <style jsx>{`
+      <style>{`
         .report-builder-form {
           max-width: 1200px;
         }
@@ -393,13 +413,13 @@ export default function NewReportPage() {
 
         .format-option.selected, .redaction-option.selected {
           border-color: var(--primary-color, #3b82f6);
-          background: var(--primary-color-alpha, rgba(59, 130, 246, 0.1));
+          background: var(--primary-color-alpha, rgba(59, 130, 246, 0.1);
           color: var(--primary-color, #3b82f6);
         }
 
         .sections-checklist {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
+          display: flex;
+          flex-direction: column;
           gap: 8px;
         }
 
@@ -414,11 +434,12 @@ export default function NewReportPage() {
           transition: all 0.2s;
         }
 
-        .section-checkbox:hover {
+        .section-checkbox:has(input:checked) {
           border-color: var(--primary-color, #3b82f6);
+          background: var(--primary-color-alpha, rgba(59, 130, 246, 0.05));
         }
 
-        .section-checkbox input {
+        .section-checkbox input[type="checkbox"] {
           width: 16px;
           height: 16px;
         }
@@ -428,24 +449,17 @@ export default function NewReportPage() {
         }
 
         .template-save-section {
-          border-top: 1px solid var(--border-color, #e5e7eb);
-          padding-top: 24px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
         }
 
         .checkbox-label {
           display: flex;
           align-items: center;
           gap: 8px;
+          font-size: 14px;
           cursor: pointer;
-        }
-
-        .checkbox-label input {
-          width: 16px;
-          height: 16px;
-        }
-
-        .template-save-section .signal-input {
-          margin-top: 12px;
         }
 
         .summary-item {
@@ -460,19 +474,34 @@ export default function NewReportPage() {
         }
 
         .summary-label {
-          color: var(--text-secondary, #6b7280);
           font-size: 14px;
+          color: var(--text-secondary, #6b7280);
         }
 
         .summary-value {
-          font-weight: 500;
           font-size: 14px;
+          font-weight: 500;
+        }
+
+        .error-banner {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 12px 16px;
+          background: var(--danger-bg, #fee2e2);
+          color: var(--danger-text, #991b1b);
+          border-radius: 6px;
+          margin-bottom: 24px;
+        }
+
+        .error-icon {
+          font-size: 16px;
         }
 
         .form-actions {
           display: flex;
-          justify-content: flex-end;
           gap: 12px;
+          justify-content: flex-end;
         }
 
         .signal-button {
@@ -490,17 +519,17 @@ export default function NewReportPage() {
           border: none;
         }
 
-        .signal-button.primary:hover:not(:disabled) {
-          background: var(--primary-hover, #2563eb);
+        .signal-button.primary:hover {
+          background: var(--primary-color-dark, #2563eb);
         }
 
         .signal-button.primary:disabled {
-          opacity: 0.6;
+          opacity: 0.5;
           cursor: not-allowed;
         }
 
         .signal-button.secondary {
-          background: transparent;
+          background: var(--bg-primary, #fff);
           color: var(--text-secondary, #6b7280);
           border: 1px solid var(--border-color, #e5e7eb);
         }
@@ -509,28 +538,8 @@ export default function NewReportPage() {
           background: var(--bg-secondary, #f9fafb);
         }
 
-        .error-banner {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 12px 16px;
-          background: rgba(239, 68, 68, 0.1);
-          border: 1px solid rgba(239, 68, 68, 0.3);
-          border-radius: 6px;
-          color: #dc2626;
-          margin-bottom: 16px;
-        }
-
-        .error-icon {
-          font-size: 16px;
-        }
-
         @media (max-width: 768px) {
           .report-builder-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .sections-checklist {
             grid-template-columns: 1fr;
           }
         }

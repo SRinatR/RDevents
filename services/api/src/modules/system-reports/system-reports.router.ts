@@ -17,7 +17,6 @@ import {
   type ReportConfig,
 } from './system-reports.service.js';
 import { createHash } from 'crypto';
-import { readFileSync } from 'fs';
 
 export const systemReportsRouter = Router();
 
@@ -127,7 +126,7 @@ systemReportsRouter.post('/preview', async (req, res) => {
       return;
     }
 
-    if (!['txt', 'json', 'md', 'zip'].includes(format)) {
+    if (!['txt', 'json', 'md'].includes(format)) {
       res.status(400).json({ error: 'Invalid format' });
       return;
     }
@@ -159,7 +158,7 @@ systemReportsRouter.post('/runs', async (req, res) => {
       return;
     }
 
-    if (!['txt', 'json', 'md', 'zip'].includes(format)) {
+    if (!['txt', 'json', 'md'].includes(format)) {
       res.status(400).json({ error: 'Invalid format' });
       return;
     }

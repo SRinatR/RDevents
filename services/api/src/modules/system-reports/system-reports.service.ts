@@ -203,7 +203,6 @@ export async function getConfig(): Promise<ReportConfigResponse> {
       { value: 'txt', label: 'Plain Text (.txt)' },
       { value: 'json', label: 'JSON (.json)' },
       { value: 'md', label: 'Markdown (.md)' },
-      { value: 'zip', label: 'ZIP Bundle (.zip)' },
     ],
     redactionLevels: [
       { value: 'strict', label: 'Strict', description: 'All sensitive data masked, recommended for external sharing' },
@@ -400,7 +399,7 @@ export async function createRun(
   };
 }
 
-export async function getRun(runId: string, userId: string): Promise<ReportRun | null> {
+export async function getRun(runId: string, _userId: string): Promise<ReportRun | null> {
   const run = await prisma.systemReportRun.findFirst({
     where: { id: runId },
     include: {

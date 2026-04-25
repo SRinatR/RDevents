@@ -107,10 +107,6 @@ services:
       retries: 30
       start_period: 20s
 
-volumes:
-  postgres_data:
-  api_uploads:
-
   report-worker:
     build:
       context: .
@@ -129,15 +125,14 @@ volumes:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       CORS_ORIGIN: ${CORS_ORIGIN}
-      MEDIA_STORAGE_DRIVER: ${MEDIA_STORAGE_DRIVER:-local}
-      MEDIA_UPLOAD_DIR: ${MEDIA_UPLOAD_DIR:-./uploads}
-      MEDIA_PUBLIC_BASE_URL: ${MEDIA_PUBLIC_BASE_URL:-https://api.rdevents.uz/uploads}
-      MAX_AVATAR_UPLOAD_MB: ${MAX_AVATAR_UPLOAD_MB:-3}
-      MAX_DOCUMENT_UPLOAD_MB: ${MAX_DOCUMENT_UPLOAD_MB:-10}
       APP_URL: ${APP_URL}
       DEFAULT_LOCALE: ${DEFAULT_LOCALE:-ru}
     volumes:
-      - /opt/rdevents/runtime/reports:/opt/rdevents/runtime/reports
+      - /opt/rdevents/runtime/reports:/opt/rdevents/runtime/reports:rw
       - /opt/rdevents/runtime/admin:/opt/rdevents/runtime/admin:ro
       - /opt/rdevents/runtime/control:/opt/rdevents/runtime/control:rw
     command: pnpm --filter @event-platform/api start:report-worker
+
+volumes:
+  postgres_data:
+  api_uploads:
