@@ -13,6 +13,7 @@ import {
   cancelRun,
   retryRun,
   getArtifact,
+  generatePreview,
   type ReportConfig,
 } from './system-reports.service.js';
 import { createHash } from 'crypto';
@@ -110,6 +111,38 @@ systemReportsRouter.delete('/templates/:templateId', async (req, res) => {
     } else {
       res.status(500).json({ error: 'Failed to delete template' });
     }
+  }
+});
+
+systemReportsRouter.post('/preview', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
+  try {
+    const { format, sections, redactionLevel, dateRange } = req.body as ReportConfig;
+
+    if (!format || !Array.isArray(sections)) {
+      res.status(400).json({ error: 'Format and sections are required' });
+      return;
+    }
+
+    if (!['txt', 'json', 'md', 'zip'].includes(format)) {
+      res.status(400).json({ error: 'Invalid format' });
+      return;
+    }
+
+    const preview = await generatePreview({
+      format,
+      sections,
+      redactionLevel: redactionLevel || 'standard',
+      dateRange,
+    });
+
+    res.json(preview);
+  } catch (error) {
+    console.error('Error generating preview:', error);
+    res.status(500).json({ error: 'Failed to generate preview' });
   }
 });
 

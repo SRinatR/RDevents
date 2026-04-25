@@ -1,6 +1,9 @@
 import { PrismaClient } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import JSZip from 'jszip';
 import { getProviders, getProvider } from './providers/index.js';
 import { addEvent, updateRunProgress, completeRun } from './system-reports.service.js';
 
@@ -20,11 +23,165 @@ export type PreparedArtifact = {
   storagePath: string;
   sizeBytes: number;
   checksum: string;
-  content: Buffer;
 };
+
+interface SectionResult {
+  key: string;
+  success: boolean;
+  content?: string;
+  error?: string;
+  warnings?: string[];
+}
 
 async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function ensureDirForFile(storagePath: string): Promise<void> {
+  await mkdir(path.dirname(storagePath), { recursive: true });
+}
+
+async function writeArtifactFile(storagePath: string, content: Buffer | string): Promise<void> {
+  await ensureDirForFile(storagePath);
+  await writeFile(storagePath, content);
+}
+
+function sha256(content: Buffer | string): string {
+  return createHash('sha256').update(content).digest('hex');
+}
+
+async function prepareArtifacts(
+  content: string,
+  run: any,
+  results: SectionResult[]
+): Promise<PreparedArtifact[]> {
+  const artifacts: PreparedArtifact[] = [];
+
+  const storageDir = path.join('/var/lib/rdevents/reports', run.id);
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const baseName = `report-${run.id}-${timestamp}`;
+
+  const format = run.configJson && typeof run.configJson === 'object' && 'format' in run.configJson
+    ? (run.configJson as any).format
+    : 'txt';
+
+  const summaryJson = JSON.stringify(
+    {
+      generatedAt: new Date().toISOString(),
+      runId: run.id,
+      templateId: run.templateId ?? null,
+      format,
+      config: run.configJson,
+      results: results.map(r => ({
+        key: r.key,
+        success: r.success,
+        error: r.error ?? null,
+        warnings: r.warnings ?? [],
+      })),
+    },
+    null,
+    2
+  );
+
+  const txtPath = path.join(storageDir, `${baseName}.txt`);
+  const txtBuffer = Buffer.from(content, 'utf-8');
+  await writeArtifactFile(txtPath, txtBuffer);
+
+  artifacts.push({
+    kind: 'report',
+    fileName: `${baseName}.txt`,
+    mimeType: 'text/plain; charset=utf-8',
+    storagePath: txtPath,
+    sizeBytes: txtBuffer.length,
+    checksum: sha256(txtBuffer),
+  });
+
+  if (format === 'json') {
+    const jsonContent = JSON.stringify(
+      {
+        generatedAt: new Date().toISOString(),
+        runId: run.id,
+        templateId: run.templateId ?? null,
+        config: run.configJson,
+        reportText: content,
+        results,
+      },
+      null,
+      2
+    );
+
+    const jsonPath = path.join(storageDir, `${baseName}.json`);
+    const jsonBuffer = Buffer.from(jsonContent, 'utf-8');
+    await writeArtifactFile(jsonPath, jsonBuffer);
+
+    artifacts.push({
+      kind: 'report',
+      fileName: `${baseName}.json`,
+      mimeType: 'application/json',
+      storagePath: jsonPath,
+      sizeBytes: jsonBuffer.length,
+      checksum: sha256(jsonBuffer),
+    });
+  }
+
+  if (format === 'md') {
+    const mdPath = path.join(storageDir, `${baseName}.md`);
+    const mdBuffer = Buffer.from(content, 'utf-8');
+    await writeArtifactFile(mdPath, mdBuffer);
+
+    artifacts.push({
+      kind: 'report',
+      fileName: `${baseName}.md`,
+      mimeType: 'text/markdown; charset=utf-8',
+      storagePath: mdPath,
+      sizeBytes: mdBuffer.length,
+      checksum: sha256(mdBuffer),
+    });
+  }
+
+  if (format === 'zip') {
+    const zip = new JSZip();
+
+    zip.file(`${baseName}.txt`, txtBuffer);
+    zip.file('summary.json', summaryJson);
+    zip.file(
+      'results.json',
+      JSON.stringify(results, null, 2)
+    );
+
+    const zipBuffer = await zip.generateAsync({
+      type: 'nodebuffer',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 9 },
+    });
+
+    const zipPath = path.join(storageDir, `${baseName}.zip`);
+    await writeArtifactFile(zipPath, zipBuffer);
+
+    artifacts.push({
+      kind: 'report',
+      fileName: `${baseName}.zip`,
+      mimeType: 'application/zip',
+      storagePath: zipPath,
+      sizeBytes: zipBuffer.length,
+      checksum: sha256(zipBuffer),
+    });
+  }
+
+  const metaPath = path.join(storageDir, `${baseName}-meta.json`);
+  const metaBuffer = Buffer.from(summaryJson, 'utf-8');
+  await writeArtifactFile(metaPath, metaBuffer);
+
+  artifacts.push({
+    kind: 'metadata',
+    fileName: `${baseName}-meta.json`,
+    mimeType: 'application/json',
+    storagePath: metaPath,
+    sizeBytes: metaBuffer.length,
+    checksum: sha256(metaBuffer),
+  });
+
+  return artifacts;
 }
 
 async function processRun(runId: string): Promise<void> {
@@ -67,7 +224,7 @@ async function processRun(runId: string): Promise<void> {
 
     const enabledSections = config.sections.filter(s => s.enabled);
     const providers = getProviders();
-    const results: Array<{ key: string; success: boolean; content?: string; error?: string; warnings?: string[] }> = [];
+    const results: SectionResult[] = [];
 
     const totalSteps = enabledSections.length;
     let completedSteps = 0;
@@ -133,17 +290,12 @@ async function processRun(runId: string): Promise<void> {
     await addEvent(runId, 'info', 'ASSEMBLING_STARTED', 'Assembling report from sections');
 
     const reportContent = assembleReport(results, config.redactionLevel as 'strict' | 'standard' | 'off');
-    const artifactsData = prepareArtifacts(reportContent, run);
+    const artifactsData = await prepareArtifacts(reportContent, run, results);
 
     await updateRunProgress(runId, 'writing_artifacts', 90);
     await addEvent(runId, 'info', 'ARTIFACTS_WRITING', `Writing ${artifactsData.length} artifact(s)`);
 
-    const storageDir = '/opt/rdevents/runtime/reports';
-    await fs.mkdir(storageDir, { recursive: true });
-
     for (const artifact of artifactsData) {
-      await fs.writeFile(artifact.storagePath, artifact.content);
-
       await prisma.systemReportArtifact.create({
         data: {
           runId,
@@ -230,85 +382,6 @@ function assembleReport(
   }
 
   return lines.join('\n');
-}
-
-function prepareArtifacts(content: string, run: any): PreparedArtifact[] {
-  const artifacts: PreparedArtifact[] = [];
-
-  const storageDir = '/opt/rdevents/runtime/reports';
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const baseName = `report-${run.id}-${timestamp}`;
-
-  const checksum = createHash('sha256')
-    .update(content)
-    .digest('hex');
-
-  const artifact: PreparedArtifact = {
-    kind: 'report',
-    fileName: `${baseName}.txt`,
-    mimeType: 'text/plain; charset=utf-8',
-    storagePath: `${storageDir}/${baseName}.txt`,
-    sizeBytes: Buffer.byteLength(content, 'utf-8'),
-    checksum,
-    content: Buffer.from(content, 'utf-8'),
-  };
-
-  artifacts.push(artifact);
-
-  if (run.configJson && typeof run.configJson === 'object' && 'format' in run.configJson) {
-    const format = (run.configJson as any).format;
-
-    if (format === 'json') {
-      const jsonContent = JSON.stringify({
-        generated: new Date().toISOString(),
-        runId: run.id,
-        report: content,
-      }, null, 2);
-
-      artifacts.push({
-        kind: 'report',
-        fileName: `${baseName}.json`,
-        mimeType: 'application/json',
-        storagePath: `${storageDir}/${baseName}.json`,
-        sizeBytes: Buffer.byteLength(jsonContent, 'utf-8'),
-        checksum: createHash('sha256')
-          .update(jsonContent)
-          .digest('hex'),
-        content: Buffer.from(jsonContent, 'utf-8'),
-      });
-    } else if (format === 'md') {
-      artifacts.push({
-        kind: 'report',
-        fileName: `${baseName}.md`,
-        mimeType: 'text/markdown; charset=utf-8',
-        storagePath: `${storageDir}/${baseName}.md`,
-        sizeBytes: Buffer.byteLength(content, 'utf-8'),
-        checksum,
-        content: Buffer.from(content, 'utf-8'),
-      });
-    } else if (format === 'zip') {
-      const metadata = {
-        generated: new Date().toISOString(),
-        runId: run.id,
-        templateId: run.templateId,
-        config: run.configJson,
-      };
-
-      artifacts.push({
-        kind: 'metadata',
-        fileName: `${baseName}-meta.json`,
-        mimeType: 'application/json',
-        storagePath: `${storageDir}/${baseName}-meta.json`,
-        sizeBytes: Buffer.byteLength(JSON.stringify(metadata), 'utf-8'),
-        checksum: createHash('sha256')
-          .update(JSON.stringify(metadata))
-          .digest('hex'),
-        content: Buffer.from(JSON.stringify(metadata), 'utf-8'),
-      });
-    }
-  }
-
-  return artifacts;
 }
 
 export async function startWorker(pollIntervalMs = 5000): Promise<() => void> {
