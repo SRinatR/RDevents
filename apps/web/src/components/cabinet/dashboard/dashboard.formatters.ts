@@ -13,9 +13,14 @@ const REGISTRATION_STATUS_LABELS: Record<string, { ru: string; en: string }> = {
   DRAFT: { ru: 'Черновик', en: 'Draft' },
   SUBMITTED: { ru: 'Подана', en: 'Submitted' },
   UNDER_REVIEW: { ru: 'На рассмотрении', en: 'Under review' },
+  PENDING: { ru: 'На рассмотрении', en: 'Pending review' },
+  APPROVED: { ru: 'Одобрена', en: 'Approved' },
   CONFIRMED: { ru: 'Подтверждена', en: 'Confirmed' },
+  ACTIVE: { ru: 'Активна', en: 'Active' },
   REJECTED: { ru: 'Отклонена', en: 'Rejected' },
   RESERVE: { ru: 'В резерве', en: 'Reserve' },
+  CANCELLED: { ru: 'Отменена', en: 'Cancelled' },
+  REMOVED: { ru: 'Удалена', en: 'Removed' },
   WITHDRAWN: { ru: 'Отозвана', en: 'Withdrawn' },
 };
 

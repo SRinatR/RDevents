@@ -6,7 +6,39 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../../hooks/useAuth';
 import { eventsApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
-import { EmptyState, LoadingLines, Notice, PageHeader, Panel, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, Notice, PageHeader, Panel, StatusBadge } from '@/components/ui/signal-primitives';
+
+type StatusTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
+
+function statusTone(status?: string): StatusTone {
+  if (!status) return 'neutral';
+  if (['ACTIVE', 'APPROVED', 'CONFIRMED'].includes(status)) return 'success';
+  if (['PENDING', 'UNDER_REVIEW', 'SUBMITTED'].includes(status)) return 'warning';
+  if (status === 'RESERVE') return 'info';
+  if (['REJECTED', 'CANCELLED', 'REMOVED', 'WITHDRAWN'].includes(status)) return 'danger';
+  return 'neutral';
+}
+
+function statusLabel(status: string | undefined, locale: string) {
+  const ru: Record<string, string> = {
+    ACTIVE: 'Активно',
+    APPROVED: 'Одобрено',
+    PENDING: 'На рассмотрении',
+    RESERVE: 'В резерве',
+    REJECTED: 'Отклонено',
+    CANCELLED: 'Отменено',
+  };
+  const en: Record<string, string> = {
+    ACTIVE: 'Active',
+    APPROVED: 'Approved',
+    PENDING: 'Pending',
+    RESERVE: 'Reserve',
+    REJECTED: 'Rejected',
+    CANCELLED: 'Cancelled',
+  };
+  if (!status) return locale === 'ru' ? 'Активно' : 'Active';
+  return (locale === 'ru' ? ru : en)[status] ?? status;
+}
 
 export default function MyEventsPage() {
   const { user, loading } = useAuth();
@@ -62,10 +94,12 @@ export default function MyEventsPage() {
                     <strong>{event.title}</strong>
                     <div className="signal-muted">{event.location ? `${event.location} · ` : ''}{event.startsAt && event.endsAt ? `${formatDate(event.startsAt)} — ${formatDate(event.endsAt)}` : ''}</div>
                   </div>
-                  <ToolbarRow>
-                    
+                  <div className="cabinet-list-item-actions">
+                    <StatusBadge tone={statusTone(registration.status ?? registration.registrationStatus)}>
+                      {statusLabel(registration.status ?? registration.registrationStatus, locale)}
+                    </StatusBadge>
                     <span className="signal-chip-link">{locale === 'ru' ? 'Открыть' : 'Open'}</span>
-                  </ToolbarRow>
+                  </div>
                 </Link>
               );
             })}

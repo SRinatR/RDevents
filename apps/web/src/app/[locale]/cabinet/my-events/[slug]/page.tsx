@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../../../hooks/useAuth';
 import { ApiError, eventsApi } from '../../../../../lib/api';
 import { useRouteLocale } from '../../../../../hooks/useRouteParams';
-import { EmptyState, FieldInput, Notice, PageHeader, Panel, SectionHeader, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldInput, Notice, PageHeader, Panel, SectionHeader, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
 
 export default function CabinetEventDashboard({ params }: { params: Promise<{ slug: string }> }) {
   const { user, loading } = useAuth();
@@ -67,6 +67,7 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
   const myTeam = event.teamMembership?.team;
   const isCaptain = Boolean(myTeam && user && myTeam.captainUserId === user.id);
   const isVolunteer = event.memberships?.find((membership: any) => membership.role === 'VOLUNTEER');
+  const volunteerTrackAvailable = Boolean(event.volunteerApplicationsEnabled || isVolunteer);
   const participantMembership = event.participantMembership ?? event.memberships?.find((membership: any) => membership.role === 'PARTICIPANT');
   const isActiveParticipation = participantMembership?.status === 'ACTIVE';
   const eventEnded = event.endsAt ? new Date(event.endsAt).getTime() <= Date.now() : false;
@@ -219,12 +220,13 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
       <div className="workspace-status-strip workspace-status-strip-v2">
         <div className="workspace-status-card"><small>{locale === 'ru' ? 'Статус участия' : 'Participation status'}</small><strong>{isActiveParticipation ? (locale === 'ru' ? 'Активно' : 'Active') : (locale === 'ru' ? 'Ожидает действий' : 'Action required')}</strong></div>
         <div className="workspace-status-card"><small>{locale === 'ru' ? 'Командный модуль' : 'Team module'}</small><strong>{event.isTeamBased ? (locale === 'ru' ? 'Включён' : 'Enabled') : (locale === 'ru' ? 'Не требуется' : 'Not required')}</strong></div>
-        <div className="workspace-status-card"><small>{locale === 'ru' ? 'Волонтёрский трек' : 'Volunteer track'}</small><strong>{isVolunteer ? isVolunteer.status : (locale === 'ru' ? 'Не активирован' : 'Not active')}</strong></div>
+        <div className="workspace-status-card"><small>{locale === 'ru' ? 'Волонтёрский трек' : 'Volunteer track'}</small><strong>{isVolunteer ? formatMemberStatus(isVolunteer.status, locale) : (locale === 'ru' ? 'Не активирован' : 'Not active')}</strong></div>
       </div>
 
       <div className="workspace-tab-row">
         <button onClick={() => setActiveTab('info')} className={`signal-chip-link ${activeTab === 'info' ? 'active' : ''}`}>{locale === 'ru' ? 'Обзор' : 'Overview'}</button>
         {event.isTeamBased ? <button onClick={() => setActiveTab('team')} className={`signal-chip-link ${activeTab === 'team' ? 'active' : ''}`}>{locale === 'ru' ? 'Команда' : 'Team'}</button> : null}
+        {volunteerTrackAvailable ? <button onClick={() => setActiveTab('volunteer')} className={`signal-chip-link ${activeTab === 'volunteer' ? 'active' : ''}`}>{locale === 'ru' ? 'Волонтёрство' : 'Volunteer'}</button> : null}
         <button onClick={() => setActiveTab('history')} className={`signal-chip-link ${activeTab === 'history' ? 'active' : ''}`}>{locale === 'ru' ? 'История' : 'History'}</button>
         <button onClick={() => setActiveTab('media')} className={`signal-chip-link ${activeTab === 'media' ? 'active' : ''}`}>Media</button>
         <button onClick={() => setActiveTab('feedback')} className={`signal-chip-link ${activeTab === 'feedback' ? 'active' : ''}`}>{locale === 'ru' ? 'Отзыв' : 'Feedback'}</button>
@@ -399,14 +401,66 @@ export default function CabinetEventDashboard({ params }: { params: Promise<{ sl
         <Panel variant="elevated" className="workspace-event-panel">
           <SectionHeader title={locale === 'ru' ? 'Волонтёрский статус' : 'Volunteer status'} />
           {isVolunteer ? (
-            <div className="signal-ranked-item"><span>{locale === 'ru' ? 'Текущий статус' : 'Current status'}</span></div>
+            <div className="signal-stack">
+              <div className="signal-ranked-item">
+                <span>{locale === 'ru' ? 'Текущий статус' : 'Current status'}</span>
+                <StatusBadge tone={memberStatusTone(isVolunteer.status)}>{formatMemberStatus(isVolunteer.status, locale)}</StatusBadge>
+              </div>
+              <div className="signal-ranked-item">
+                <span>{locale === 'ru' ? 'Дата заявки' : 'Application date'}</span>
+                <strong>{isVolunteer.assignedAt ? new Date(isVolunteer.assignedAt).toLocaleString(locale === 'ru' ? 'ru-RU' : 'en-US') : '—'}</strong>
+              </div>
+              {isVolunteer.status === 'PENDING' ? (
+                <Notice tone="warning">
+                  {locale === 'ru'
+                    ? 'Организатор ещё рассматривает волонтёрскую заявку. После решения статус обновится здесь и в разделе волонтёрства.'
+                    : 'Organizer is still reviewing the volunteer application. The status updates here and in the volunteer center.'}
+                </Notice>
+              ) : null}
+            </div>
           ) : (
-            <EmptyState title={locale === 'ru' ? 'Заявка не подана' : 'No volunteer request'} description={locale === 'ru' ? 'Подайте заявку на публичной странице мероприятия.' : 'Apply from the public event page.'} actions={<Link href={`/${locale}/events/${event.slug}`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Открыть страницу события' : 'Open event page'}</Link>} />
+            <EmptyState title={locale === 'ru' ? 'Заявка не подана' : 'No volunteer request'} description={locale === 'ru' ? 'Подайте заявку из каталога кабинета, если организатор открыл набор волонтёров.' : 'Apply from the cabinet catalog if the organizer enabled volunteer recruitment.'} actions={<Link href={`/${locale}/cabinet/events?event=${event.slug}&openApplyChoice=1`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Открыть подачу заявки' : 'Open application'}</Link>} />
           )}
         </Panel>
       ) : null}
     </div>
   );
+}
+
+type StatusTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
+
+function memberStatusTone(status: string | null | undefined): StatusTone {
+  if (!status) return 'neutral';
+  if (['ACTIVE', 'APPROVED', 'CONFIRMED'].includes(status)) return 'success';
+  if (['PENDING', 'SUBMITTED', 'UNDER_REVIEW', 'CHANGES_PENDING'].includes(status)) return 'warning';
+  if (status === 'RESERVE') return 'info';
+  if (['REJECTED', 'CANCELLED', 'REMOVED', 'WITHDRAWN'].includes(status)) return 'danger';
+  return 'neutral';
+}
+
+function formatMemberStatus(status: string | null | undefined, locale: string) {
+  const ru: Record<string, string> = {
+    ACTIVE: 'Активно',
+    APPROVED: 'Одобрено',
+    PENDING: 'На рассмотрении',
+    RESERVE: 'В резерве',
+    REJECTED: 'Отклонено',
+    CANCELLED: 'Отменено',
+    REMOVED: 'Удалено',
+    WITHDRAWN: 'Отозвано',
+  };
+  const en: Record<string, string> = {
+    ACTIVE: 'Active',
+    APPROVED: 'Approved',
+    PENDING: 'Pending',
+    RESERVE: 'Reserve',
+    REJECTED: 'Rejected',
+    CANCELLED: 'Cancelled',
+    REMOVED: 'Removed',
+    WITHDRAWN: 'Withdrawn',
+  };
+
+  return (locale === 'ru' ? ru : en)[status ?? ''] ?? (status ?? '—');
 }
 
 function formatTeamStatus(status: string | null | undefined, locale: string) {

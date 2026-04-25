@@ -171,7 +171,7 @@ export default function CabinetAllEventsPage() {
       <div className="workspace-command-row">
         <Link href={`/${locale}/cabinet/my-events`} className="signal-chip-link">{locale === 'ru' ? 'Мои мероприятия' : 'My events'}</Link>
         <Link href={`/${locale}/cabinet/applications`} className="signal-chip-link">{locale === 'ru' ? 'Заявки и статусы' : 'Applications'}</Link>
-        
+        <Link href={`/${locale}/cabinet/volunteer`} className="signal-chip-link">{locale === 'ru' ? 'Волонтёрство' : 'Volunteer center'}</Link>
       </div>
 
       <div className="workspace-status-strip workspace-status-strip-v2">
@@ -264,9 +264,16 @@ export default function CabinetAllEventsPage() {
               <button className="btn btn-primary" disabled={Boolean(applyChoiceLoading)} onClick={() => void handleApplyTypeSelect('participant')}>
                 {applyChoiceLoading === 'participant' ? '...' : (locale === 'ru' ? 'Участник' : 'Participant')}
               </button>
-              <button className="btn btn-secondary" disabled={Boolean(applyChoiceLoading)} onClick={() => void handleApplyTypeSelect('volunteer')}>
+              <button className="btn btn-secondary" disabled={Boolean(applyChoiceLoading) || !applyChoiceEvent.volunteerApplicationsEnabled} onClick={() => void handleApplyTypeSelect('volunteer')}>
                 {applyChoiceLoading === 'volunteer' ? '...' : (locale === 'ru' ? 'Волонтёр' : 'Volunteer')}
               </button>
+              {!applyChoiceEvent.volunteerApplicationsEnabled ? (
+                <p className="signal-muted">
+                  {locale === 'ru'
+                    ? 'На это событие сейчас не принимают волонтёрские заявки.'
+                    : 'This event is not accepting volunteer applications right now.'}
+                </p>
+              ) : null}
               <button className="btn btn-ghost btn-sm" disabled={Boolean(applyChoiceLoading)} onClick={() => setApplyChoiceEvent(null)}>
                 {locale === 'ru' ? 'Отмена' : 'Cancel'}
               </button>

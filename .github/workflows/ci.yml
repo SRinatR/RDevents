@@ -29,7 +29,7 @@ concurrency:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   NODE_VERSION: '24'
-  PNPM_VERSION: '10.33.1'
+  PNPM_VERSION: '10.33.2'
 
 jobs:
   lint:
