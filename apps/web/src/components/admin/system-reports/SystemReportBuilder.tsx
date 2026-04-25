@@ -74,7 +74,7 @@ export function SystemReportBuilder({
   const [saveDescription, setSaveDescription] = useState('');
 
   const loadFromTemplate = useCallback((template: SystemReportTemplate) => {
-    const cfg = template.config as BuilderConfig;
+    const cfg = template.config as unknown as BuilderConfig;
     setTitle('');
     setFormat(cfg.format);
     setRedactionLevel(cfg.redactionLevel || 'standard');

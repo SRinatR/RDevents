@@ -663,7 +663,7 @@ export interface SystemReportStatus {
 export interface ReportSectionConfig {
   key: string;
   enabled: boolean | null;
-  params: Record<string, unknown>;
+  options: Record<string, unknown>;
 }
 
 export interface BuilderSectionConfig {
