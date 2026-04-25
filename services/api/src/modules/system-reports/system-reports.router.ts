@@ -14,6 +14,7 @@ import {
   retryRun,
   getArtifact,
   generatePreview,
+  validateAndNormalizeConfig,
   type ReportConfig,
 } from './system-reports.service.js';
 import { createHash } from 'crypto';
@@ -58,10 +59,12 @@ systemReportsRouter.post('/templates', async (req, res) => {
       return;
     }
 
+    const normalized = validateAndNormalizeConfig(config);
+
     const template = await createTemplate(user.id, {
       name,
       description,
-      config,
+      config: normalized,
       isDefault,
     });
 
@@ -78,12 +81,23 @@ systemReportsRouter.patch('/templates/:templateId', async (req, res) => {
     const { templateId } = req.params;
     const { name, description, config, isDefault } = req.body;
 
-    const template = await updateTemplate(user.id, templateId, {
-      name,
-      description,
-      config,
-      isDefault,
-    });
+    const updateData: { name?: string; description?: string; config?: any; isDefault?: boolean } = {};
+
+    if (name) {
+      updateData.name = name;
+    }
+    if (description !== undefined) {
+      updateData.description = description;
+    }
+    if (config) {
+      const normalized = validateAndNormalizeConfig(config);
+      updateData.config = normalized;
+    }
+    if (isDefault !== undefined) {
+      updateData.isDefault = isDefault;
+    }
+
+    const template = await updateTemplate(user.id, templateId, updateData);
 
     res.json(template);
   } catch (error) {
@@ -119,28 +133,22 @@ systemReportsRouter.post('/preview', async (req, res) => {
   res.setHeader('Expires', '0');
 
   try {
-    const { format, sections, redactionLevel, dateRange } = req.body as ReportConfig;
-
-    if (!format || !Array.isArray(sections)) {
-      res.status(400).json({ error: 'Format and sections are required' });
-      return;
-    }
-
-    if (!['txt', 'json', 'md'].includes(format)) {
-      res.status(400).json({ error: 'Invalid format' });
-      return;
-    }
-
-    const preview = await generatePreview({
-      format,
-      sections,
-      redactionLevel: redactionLevel || 'standard',
-      dateRange,
-    });
-
+    const normalized = validateAndNormalizeConfig(req.body as ReportConfig);
+    const preview = await generatePreview(normalized);
     res.json(preview);
   } catch (error) {
     console.error('Error generating preview:', error);
+
+    if (error instanceof Error && error.message.startsWith('Invalid')) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+
+    if (error instanceof Error && error.message.startsWith('Unknown section')) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+
     res.status(500).json({ error: 'Failed to generate preview' });
   }
 });
@@ -151,14 +159,14 @@ systemReportsRouter.post('/runs', async (req, res) => {
 
   try {
     const user = (req as AuthenticatedRequest).user!;
-    const { templateId, title, format, sections, redactionLevel } = req.body;
+    const { templateId, title, format, sections, redactionLevel, dateRange } = req.body;
 
     if (!format || !sections) {
       res.status(400).json({ error: 'Format and sections are required' });
       return;
     }
 
-    if (!['txt', 'json', 'md'].includes(format)) {
+    if (!['txt', 'json', 'md', 'zip'].includes(format)) {
       res.status(400).json({ error: 'Invalid format' });
       return;
     }
@@ -168,12 +176,20 @@ systemReportsRouter.post('/runs', async (req, res) => {
       return;
     }
 
-    const run = await createRun(user.id, user.email, {
-      templateId,
-      title,
+    const normalized = validateAndNormalizeConfig({
       format,
       sections,
       redactionLevel: redactionLevel || 'standard',
+      dateRange,
+    });
+
+    const run = await createRun(user.id, user.email, {
+      templateId,
+      title,
+      format: normalized.format,
+      sections: normalized.sections,
+      redactionLevel: normalized.redactionLevel,
+      dateRange: normalized.dateRange,
     });
 
     res.status(202).json(run);

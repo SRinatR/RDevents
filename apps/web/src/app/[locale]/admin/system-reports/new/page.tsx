@@ -14,7 +14,7 @@ export default function NewReportPage() {
 
   const [title, setTitle] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
-  const [format, setFormat] = useState<'txt' | 'json' | 'md'>('txt');
+  const [format, setFormat] = useState<'txt' | 'json' | 'md' | 'zip'>('txt');
   const [redactionLevel, setRedactionLevel] = useState<'strict' | 'standard' | 'off'>('standard');
   const [sections, setSections] = useState<Array<{ key: string; label: string; enabled: boolean; options: Record<string, unknown> }>>([]);
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
@@ -218,7 +218,7 @@ export default function NewReportPage() {
                     key={f.value}
                     type="button"
                     className={`format-option ${format === f.value ? 'selected' : ''}`}
-                    onClick={() => setFormat(f.value as 'txt' | 'json' | 'md')}
+                    onClick={() => setFormat(f.value as 'txt' | 'json' | 'md' | 'zip')}
                   >
                     {f.label}
                   </button>

@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 
 export type ReportStatus = 'queued' | 'running' | 'success' | 'failed' | 'partial_success' | 'canceled' | 'stale';
 export type ReportStage = 'queued' | 'collecting' | 'assembling' | 'writing_artifacts' | 'finalizing';
-export type ReportFormat = 'txt' | 'json' | 'md';
+export type ReportFormat = 'txt' | 'json' | 'md' | 'zip';
 export type RedactionLevel = 'strict' | 'standard' | 'off';
 
 export interface ReportConfig {
@@ -28,7 +28,7 @@ export interface ReportSectionDefinition {
   category: 'system' | 'application' | 'infrastructure' | 'security';
   options: Array<{
     key: string;
-    type: 'boolean' | 'number' | 'select' | 'text';
+    type: 'boolean' | 'number' | 'select' | 'multiselect' | 'text';
     label: string;
     default?: unknown;
     required?: boolean;
@@ -136,7 +136,18 @@ const REPORT_SECTIONS: ReportSectionDefinition[] = [
     description: 'Service units status, failed units, journal logs',
     category: 'infrastructure',
     options: [
-      { key: 'units', type: 'select', label: 'Service units', default: ['rdevents-api', 'rdevents-web'] },
+      {
+        key: 'units',
+        type: 'multiselect',
+        label: 'Service units',
+        default: ['docker.service', 'nginx.service', 'rdevents-system-report-refresh.service'],
+        options: [
+          'docker.service',
+          'nginx.service',
+          'rdevents-system-report-refresh.service',
+          'rdevents-system-report-refresh.path',
+        ],
+      },
       { key: 'includeFailedOnly', type: 'boolean', label: 'Failed units only', default: false },
     ],
   },
@@ -188,6 +199,96 @@ const REPORT_SECTIONS: ReportSectionDefinition[] = [
   },
 ];
 
+function isValidIsoDate(value: unknown): value is string {
+  return typeof value === 'string' && !Number.isNaN(Date.parse(value));
+}
+
+function normalizeDateRange(dateRange?: { start?: string; end?: string }) {
+  if (!dateRange) return undefined;
+
+  const start = dateRange.start && isValidIsoDate(dateRange.start) ? dateRange.start : undefined;
+  const end = dateRange.end && isValidIsoDate(dateRange.end) ? dateRange.end : undefined;
+
+  if (!start && !end) return undefined;
+  return { start, end };
+}
+
+function normalizeOptionValue(
+  optionDef: ReportSectionDefinition['options'][number],
+  value: unknown
+): unknown {
+  if (value === undefined) return optionDef.default;
+
+  switch (optionDef.type) {
+    case 'boolean':
+      return Boolean(value);
+
+    case 'number': {
+      const num = typeof value === 'number' ? value : Number(value);
+      return Number.isFinite(num) ? num : (optionDef.default ?? 0);
+    }
+
+    case 'select': {
+      const normalized = String(value);
+      const allowed = (optionDef.options ?? []).map(String);
+      return allowed.includes(normalized) ? normalized : optionDef.default;
+    }
+
+    case 'multiselect': {
+      const allowed = new Set((optionDef.options ?? []).map(String));
+      const values = Array.isArray(value) ? value.map(String) : [];
+      return values.filter((item) => allowed.has(item));
+    }
+
+    case 'text':
+    default:
+      return String(value);
+  }
+}
+
+export function validateAndNormalizeConfig(input: ReportConfig): ReportConfig {
+  if (!['txt', 'json', 'md', 'zip'].includes(input.format)) {
+    throw new Error('Invalid format');
+  }
+
+  if (!['strict', 'standard', 'off'].includes(input.redactionLevel)) {
+    throw new Error('Invalid redaction level');
+  }
+
+  const sectionMap = new Map(REPORT_SECTIONS.map((section) => [section.key, section]));
+
+  if (!Array.isArray(input.sections)) {
+    throw new Error('Sections must be an array');
+  }
+
+  const sections = input.sections.map((rawSection) => {
+    const definition = sectionMap.get(rawSection.key);
+    if (!definition) {
+      throw new Error(`Unknown section: ${rawSection.key}`);
+    }
+
+    const options = Object.fromEntries(
+      definition.options.map((optionDef) => [
+        optionDef.key,
+        normalizeOptionValue(optionDef, rawSection.options?.[optionDef.key]),
+      ])
+    );
+
+    return {
+      key: definition.key,
+      enabled: Boolean(rawSection.enabled),
+      options,
+    };
+  });
+
+  return {
+    format: input.format,
+    sections,
+    redactionLevel: input.redactionLevel,
+    dateRange: normalizeDateRange(input.dateRange),
+  };
+}
+
 function createSlug(name: string): string {
   return name
     .toLowerCase()
@@ -203,6 +304,7 @@ export async function getConfig(): Promise<ReportConfigResponse> {
       { value: 'txt', label: 'Plain Text (.txt)' },
       { value: 'json', label: 'JSON (.json)' },
       { value: 'md', label: 'Markdown (.md)' },
+      { value: 'zip', label: 'ZIP Bundle (.zip)' },
     ],
     redactionLevels: [
       { value: 'strict', label: 'Strict', description: 'All sensitive data masked, recommended for external sharing' },
@@ -345,12 +447,17 @@ export async function createRun(
     format: ReportFormat;
     sections: Array<{ key: string; enabled: boolean; options: Record<string, unknown> }>;
     redactionLevel: RedactionLevel;
+    dateRange?: {
+      start?: string;
+      end?: string;
+    };
   }
 ): Promise<ReportRun> {
   const config: ReportConfig = {
     format: data.format,
     sections: data.sections,
     redactionLevel: data.redactionLevel,
+    dateRange: data.dateRange,
   };
 
   let templateName: string | undefined;
@@ -707,26 +814,52 @@ export async function generatePreview(
   warnings: string[];
 }> {
   const warnings: string[] = [];
+  const sectionMap = new Map(REPORT_SECTIONS.map((section) => [section.key, section]));
+  const enabledSections = config.sections.filter((section) => section.enabled);
 
-  const sections = config.sections
-    .filter(s => s.enabled)
-    .map(s => {
-      if (s.key === 'docker' && (s.options?.includeLogs as boolean)) {
-        warnings.push('Docker logs section may generate large output');
-      }
-      return {
-        key: s.key,
-        label: s.key.charAt(0).toUpperCase() + s.key.slice(1),
-        description: s.key,
-        included: true,
-      };
-    });
+  if (enabledSections.length === 0) {
+    warnings.push('No sections selected');
+  }
 
-  const estimatedSize = `${Math.max(1, sections.length * 5)}KB`;
+  if (config.redactionLevel === 'off') {
+    warnings.push('Redaction is disabled. Report may contain sensitive data.');
+  }
+
+  if (
+    enabledSections.some(
+      (section) => section.key === 'docker' && section.options?.includeLogs === true
+    )
+  ) {
+    warnings.push('Docker logs may significantly increase report size.');
+  }
+
+  if (enabledSections.length >= 6) {
+    warnings.push('Large section count may increase generation time.');
+  }
+
+  if (config.format === 'zip') {
+    warnings.push('ZIP bundle will include report, metadata and attachments.');
+  }
+
+  const sections = enabledSections.map((section) => {
+    const definition = sectionMap.get(section.key);
+
+    return {
+      key: section.key,
+      label: definition?.label ?? section.key,
+      description: definition?.description ?? section.key,
+      included: true,
+    };
+  });
+
+  const estimatedKb =
+    enabledSections.length * 8 +
+    (enabledSections.some((section) => section.key === 'docker') ? 20 : 0) +
+    (config.format === 'zip' ? 15 : 0);
 
   return {
     sections,
-    estimatedSize,
+    estimatedSize: `${Math.max(5, estimatedKb)}KB`,
     warnings,
   };
 }

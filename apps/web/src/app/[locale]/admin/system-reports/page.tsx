@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { systemReportsApi } from '@/lib/api';
+import { systemReportsApi, ApiError } from '@/lib/api';
 import type {
   ReportRun,
   BuilderConfig,
@@ -57,6 +57,7 @@ export default function SystemReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'builder' | 'history'>('builder');
   const [builderConfig, setBuilderConfig] = useState<BuilderConfig | null>(null);
   const [builderTitle, setBuilderTitle] = useState('');
@@ -184,15 +185,29 @@ export default function SystemReportsPage() {
   const handleDownload = useCallback(async (run: ReportRun) => {
     const mainArtifact = pickPrimaryArtifact(run);
     if (!mainArtifact) return;
+
+    setActionError(null);
     setActionLoading(run.id);
     try {
       await systemReportsApi.downloadArtifact(run.id, mainArtifact.id, mainArtifact.fileName);
     } catch (err) {
-      console.error('Download failed:', err);
+      if (err instanceof ApiError && err.code === 'ARTIFACT_FILE_MISSING') {
+        setActionError(
+          locale === 'ru'
+            ? 'Файл отчёта отсутствует на диске. Перезапустите генерацию.'
+            : 'Artifact file is missing on disk. Please rerun the report.'
+        );
+      } else {
+        setActionError(
+          locale === 'ru'
+            ? 'Не удалось скачать файл отчёта.'
+            : 'Failed to download report artifact.'
+        );
+      }
     } finally {
       setActionLoading(null);
     }
-  }, []);
+  }, [locale]);
 
   const handleRetry = useCallback(async (run: ReportRun) => {
     setActionLoading(run.id);
@@ -291,6 +306,13 @@ export default function SystemReportsPage() {
         </div>
       )}
 
+      {actionError && (
+        <div className="error-banner">
+          <span className="error-icon">⚠</span>
+          <span>{actionError}</span>
+        </div>
+      )}
+
       <div className="sr-page-layout">
         <div className="sr-main-column">
           <div className="sr-tab-bar">
@@ -319,7 +341,6 @@ export default function SystemReportsPage() {
                 onChange={setBuilderConfig}
                 onPreview={handlePreview}
                 onRunNow={handleRunNow}
-                onSaveTemplate={handleSaveTemplate}
                 locale={locale}
               />
             </div>

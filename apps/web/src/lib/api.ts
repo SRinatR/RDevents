@@ -673,7 +673,7 @@ export interface BuilderSectionConfig {
 }
 
 export interface BuilderConfig {
-  format: 'txt' | 'json' | 'md';
+  format: 'txt' | 'json' | 'md' | 'zip';
   sections: BuilderSectionConfig[];
   redactionLevel?: 'strict' | 'standard' | 'off';
   dateRange?: {
@@ -684,7 +684,7 @@ export interface BuilderConfig {
 
 export interface ReportConfig {
   sections: ReportSectionConfig[];
-  format: 'txt' | 'json' | 'md';
+  format: 'txt' | 'json' | 'md' | 'zip';
   dateRange?: {
     start?: string;
     end?: string;
@@ -821,7 +821,7 @@ export interface SystemReportPreview {
 
 export interface SystemReportSectionOption {
   key: string;
-  type: 'boolean' | 'number' | 'select' | 'text';
+  type: 'boolean' | 'number' | 'select' | 'multiselect' | 'text';
   label: string;
   default?: unknown;
   required?: boolean;
@@ -838,7 +838,7 @@ export interface SystemReportSectionDefinition {
 
 export interface SystemReportConfigResponse {
   sections: SystemReportSectionDefinition[];
-  formats: Array<{ value: 'txt' | 'json' | 'md'; label: string }>;
+  formats: Array<{ value: 'txt' | 'json' | 'md' | 'zip'; label: string }>;
   redactionLevels: Array<{ value: 'strict' | 'standard' | 'off'; label: string; description: string }>;
   limits: {
     maxArtifacts: number;
@@ -852,7 +852,7 @@ export const systemReportsApi = {
     request<SystemReportConfigResponse>('/api/admin/system-reports/config', { auth: true }),
 
   preview: (body: {
-    format: 'txt' | 'json' | 'md';
+    format: 'txt' | 'json' | 'md' | 'zip';
     sections: Array<{ key: string; enabled: boolean; options: Record<string, unknown> }>;
     redactionLevel: 'strict' | 'standard' | 'off';
     dateRange?: { start?: string; end?: string };
@@ -878,7 +878,7 @@ export const systemReportsApi = {
   createRun: (data: {
     templateId?: string;
     title?: string;
-    format: 'txt' | 'json' | 'md';
+    format: 'txt' | 'json' | 'md' | 'zip';
     sections: Array<{ key: string; enabled: boolean; options: Record<string, unknown> }>;
     redactionLevel: 'strict' | 'standard' | 'off';
     dateRange?: { start?: string; end?: string };

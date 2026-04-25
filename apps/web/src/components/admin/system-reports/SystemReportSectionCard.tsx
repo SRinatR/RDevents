@@ -63,6 +63,34 @@ function SectionOptionField({
         </label>
       );
 
+    case 'multiselect': {
+      const selectedValues = Array.isArray(value)
+        ? value.map(String)
+        : Array.isArray(option.default)
+          ? option.default.map(String)
+          : [];
+
+      return (
+        <label className="sr-option">
+          <span className="option-label">{option.label}</span>
+          <select
+            multiple
+            className="option-select option-select-multiple"
+            value={selectedValues}
+            onChange={(e) =>
+              onChange(Array.from(e.target.selectedOptions).map((opt) => opt.value))
+            }
+          >
+            {(option.options ?? []).map((item) => (
+              <option key={String(item)} value={String(item)}>
+                {String(item)}
+              </option>
+            ))}
+          </select>
+        </label>
+      );
+    }
+
     case 'text':
     default:
       return (

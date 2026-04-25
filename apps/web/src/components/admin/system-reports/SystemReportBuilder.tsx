@@ -18,7 +18,6 @@ interface SystemReportBuilderProps {
   onChange: (next: BuilderConfig) => void;
   onPreview: (cfg: BuilderConfig) => Promise<SystemReportPreview | null>;
   onRunNow: (cfg: BuilderConfig, title?: string) => Promise<void>;
-  onSaveTemplate: (name: string, description?: string, isDefault?: boolean) => Promise<void>;
   locale: string;
 }
 
@@ -49,16 +48,11 @@ export function SystemReportBuilder({
   onChange,
   onPreview,
   onRunNow,
-  onSaveTemplate,
   locale,
 }: SystemReportBuilderProps) {
   const [preview, setPreview] = useState<SystemReportPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [runLoading, setRunLoading] = useState(false);
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [saveName, setSaveName] = useState('');
-  const [saveDescription, setSaveDescription] = useState('');
-  const [saveIsDefault, setSaveIsDefault] = useState(false);
 
   const handleFormatChange = useCallback((format: BuilderConfig['format']) => {
     if (!value) return;
@@ -70,6 +64,22 @@ export function SystemReportBuilder({
     if (!value) return;
     onChange({ ...value, redactionLevel: redactionLevel || 'standard' });
   }, [value, onChange]);
+
+  const handleDateRangeChange = useCallback(
+    (patch: { start?: string; end?: string }) => {
+      if (!value) return;
+
+      onChange({
+        ...value,
+        dateRange: {
+          ...value.dateRange,
+          ...patch,
+        },
+      });
+      setPreview(null);
+    },
+    [value, onChange]
+  );
 
   const handleToggleSection = useCallback((key: string, enabled: boolean) => {
     if (!value) return;
@@ -115,19 +125,6 @@ export function SystemReportBuilder({
       setRunLoading(false);
     }
   }, [value, title, onRunNow]);
-
-  const handleSave = useCallback(async () => {
-    if (!saveName.trim()) return;
-    try {
-      await onSaveTemplate(saveName.trim(), saveDescription.trim() || undefined, saveIsDefault);
-      setSaveName('');
-      setSaveDescription('');
-      setSaveIsDefault(false);
-      setShowSaveDialog(false);
-    } catch (e) {
-      console.error('Save template failed:', e);
-    }
-  }, [saveName, saveDescription, saveIsDefault, onSaveTemplate]);
 
   if (!config || !value) {
     return (
@@ -191,6 +188,40 @@ export function SystemReportBuilder({
               ))}
             </select>
           </label>
+
+          <div className="builder-field-row">
+            <label className="builder-field">
+              <span className="field-label">
+                {locale === 'ru' ? 'Дата от' : 'Date from'}
+              </span>
+              <input
+                type="datetime-local"
+                className="field-input"
+                value={value.dateRange?.start ? value.dateRange.start.slice(0, 16) : ''}
+                onChange={(e) =>
+                  handleDateRangeChange({
+                    start: e.target.value ? new Date(e.target.value).toISOString() : undefined,
+                  })
+                }
+              />
+            </label>
+
+            <label className="builder-field">
+              <span className="field-label">
+                {locale === 'ru' ? 'Дата до' : 'Date to'}
+              </span>
+              <input
+                type="datetime-local"
+                className="field-input"
+                value={value.dateRange?.end ? value.dateRange.end.slice(0, 16) : ''}
+                onChange={(e) =>
+                  handleDateRangeChange({
+                    end: e.target.value ? new Date(e.target.value).toISOString() : undefined,
+                  })
+                }
+              />
+            </label>
+          </div>
         </div>
 
         <div className="builder-sections">
@@ -233,54 +264,7 @@ export function SystemReportBuilder({
           >
             {runLoading ? '...' : '▶'} {locale === 'ru' ? 'Запустить' : 'Run Now'}
           </button>
-          <button
-            className="action-btn save-btn"
-            onClick={() => setShowSaveDialog(true)}
-          >
-            💾 {locale === 'ru' ? 'Сохранить шаблон' : 'Save as Template'}
-          </button>
         </div>
-
-        {showSaveDialog && (
-          <div className="save-dialog-overlay">
-            <div className="save-dialog">
-              <h4>{locale === 'ru' ? 'Сохранить как шаблон' : 'Save as Template'}</h4>
-              <label className="dialog-field">
-                <span>Name</span>
-                <input
-                  type="text"
-                  value={saveName}
-                  onChange={(e) => setSaveName(e.target.value)}
-                  placeholder={locale === 'ru' ? 'Название шаблона' : 'Template name'}
-                />
-              </label>
-              <label className="dialog-field">
-                <span>Description</span>
-                <textarea
-                  value={saveDescription}
-                  onChange={(e) => setSaveDescription(e.target.value)}
-                  placeholder={locale === 'ru' ? 'Описание (опц.)' : 'Description (optional)'}
-                />
-              </label>
-              <label className="dialog-checkbox">
-                <input
-                  type="checkbox"
-                  checked={saveIsDefault}
-                  onChange={(e) => setSaveIsDefault(e.target.checked)}
-                />
-                <span>{locale === 'ru' ? 'По умолчанию' : 'Set as default'}</span>
-              </label>
-              <div className="dialog-actions">
-                <button onClick={() => setShowSaveDialog(false)}>
-                  {locale === 'ru' ? 'Отмена' : 'Cancel'}
-                </button>
-                <button className="primary" onClick={handleSave} disabled={!saveName.trim()}>
-                  {locale === 'ru' ? 'Сохранить' : 'Save'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="builder-preview">

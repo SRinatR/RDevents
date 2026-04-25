@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useEffect, useState, useCallback } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { systemReportsApi } from '@/lib/api';
+import { systemReportsApi, ApiError } from '@/lib/api';
 import type { ReportRun } from '@/lib/api';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { Panel, StatusBadge, LoadingLines } from '@/components/ui/signal-primitives';
@@ -25,14 +25,16 @@ export default function SystemReportRunPage() {
   const params = useParams<{ locale: string; runId: string }>();
   const locale = params?.locale ?? 'uz';
   const runId = params?.runId ?? '';
+  const router = useRouter();
 
   const [run, setRun] = useState<ReportRun | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       const data = await systemReportsApi.getRun(runId);
       setRun(data);
@@ -42,24 +44,45 @@ export default function SystemReportRunPage() {
     } finally {
       setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    load();
-    const hasActiveRun = !run || run.status === 'queued' || run.status === 'running';
-    if (!hasActiveRun) return;
-
-    const timer = setInterval(load, 3000);
-    return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId]);
 
+  useEffect(() => {
+    if (!runId) return;
+    load();
+  }, [runId, load]);
+
+  useEffect(() => {
+    if (!runId) return;
+    if (!run) return;
+    if (run.status !== 'queued' && run.status !== 'running') return;
+
+    const timer = setInterval(() => {
+      load();
+    }, 3000);
+
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runId, run?.status, load]);
+
   const handleDownload = async (artifactId: string, fileName: string) => {
+    setActionError(null);
     setDownloading(artifactId);
     try {
       await systemReportsApi.downloadArtifact(runId, artifactId, fileName);
     } catch (e) {
-      console.error('Download failed:', e);
+      if (e instanceof ApiError && e.code === 'ARTIFACT_FILE_MISSING') {
+        setActionError(
+          locale === 'ru'
+            ? 'Файл отчёта отсутствует на диске. Перезапустите генерацию.'
+            : 'Artifact file is missing on disk. Please rerun the report.'
+        );
+      } else {
+        setActionError(
+          locale === 'ru'
+            ? 'Не удалось скачать файл отчёта.'
+            : 'Failed to download report artifact.'
+        );
+      }
     } finally {
       setDownloading(null);
     }
@@ -83,7 +106,7 @@ export default function SystemReportRunPage() {
     setActionLoading(true);
     try {
       const newRun = await systemReportsApi.retryRun(runId);
-      window.location.href = `/${locale}/admin/system-reports/${newRun.id}`;
+      router.push(`/${locale}/admin/system-reports/${newRun.id}`);
     } catch (e) {
       console.error('Retry failed:', e);
     } finally {
@@ -188,6 +211,13 @@ export default function SystemReportRunPage() {
           </Link>
         }
       />
+
+      {actionError && (
+        <div className="error-banner">
+          <span className="error-icon">⚠</span>
+          <span>{actionError}</span>
+        </div>
+      )}
 
       <div className="run-detail-layout">
         <div className="run-main-column">
