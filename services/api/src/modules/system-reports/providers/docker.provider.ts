@@ -1,6 +1,36 @@
 import { execSync } from 'child_process';
 import { BaseReportProvider, ProviderContext, SectionResult } from './base.provider.js';
 
+interface CommandResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
+
+function runCommand(options: {
+  command: string;
+  args: string[];
+  cwd?: string;
+  timeoutMs?: number;
+}): CommandResult {
+  const { command, args, cwd, timeoutMs = 10000 } = options;
+  
+  try {
+    const stdout = execSync(`${command} ${args.join(' ')}`, {
+      encoding: 'utf-8',
+      timeout: timeoutMs,
+      cwd,
+    });
+    return { stdout: stdout || '', stderr: '', exitCode: 0 };
+  } catch (error: any) {
+    return {
+      stdout: error.stdout || '',
+      stderr: error.stderr || '',
+      exitCode: error.status || 1,
+    };
+  }
+}
+
 export class DockerProvider extends BaseReportProvider {
   readonly key = 'docker';
   readonly label = 'Docker Containers';
@@ -16,17 +46,24 @@ export class DockerProvider extends BaseReportProvider {
 
       let containers: any[] = [];
       
-      try {
-        const psOutput = execSync('docker compose ps --format json 2>/dev/null || echo "[]', {
-          encoding: 'utf-8',
-          timeout: 10000,
-        });
-        containers = JSON.parse(psOutput || '[]');
-      } catch {
-        lines.push('Docker not available or no containers running');
+      const psResult = runCommand({
+        command: 'docker',
+        args: ['compose', 'ps', '--format', 'json'],
+        cwd: '/opt/rdevents/app',
+        timeoutMs: 10000,
+      });
+
+      if (psResult.exitCode === 0 && psResult.stdout) {
+        try {
+          containers = JSON.parse(psResult.stdout || '[]');
+        } catch {
+          containers = [];
+        }
       }
 
-      if (containers.length > 0) {
+      if (containers.length === 0) {
+        lines.push('Docker not available or no containers running');
+      } else {
         lines.push('');
         lines.push(`**Running:** ${containers.length} containers`);
         lines.push('');
@@ -51,17 +88,19 @@ export class DockerProvider extends BaseReportProvider {
         
         for (const container of containers.slice(0, 3)) {
           const name = container.Name || container.name;
-          try {
-            const logs = execSync(
-              `docker logs ${name} --tail ${logLines} 2>&1 || echo "Logs unavailable"`,
-              { encoding: 'utf-8', timeout: 5000 }
-            );
+          const logsResult = runCommand({
+            command: 'docker',
+            args: ['logs', name, '--tail', String(logLines)],
+            timeoutMs: 5000,
+          });
+
+          if (logsResult.exitCode === 0) {
             lines.push('');
             lines.push(`### ${name} logs`);
             lines.push('```');
-            lines.push(this.redact(logs, context.redactionLevel).substring(0, 2000));
+            lines.push(this.redact(logsResult.stdout.substring(0, 2000), context.redactionLevel));
             lines.push('```');
-          } catch {
+          } else {
             warnings.push(`Could not fetch logs for ${name}`);
           }
         }

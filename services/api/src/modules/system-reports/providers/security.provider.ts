@@ -11,8 +11,19 @@ export class SecurityProvider extends BaseReportProvider {
     lines.push('## Security Configuration');
     lines.push('');
 
-    const required = ['DATABASE_URL', 'JWT_SECRET', 'NEXTAUTH_SECRET'];
-    const optional = ['RESEND_API_KEY', 'SMTP_HOST', 'SMTP_USER'];
+    const required = [
+      'DATABASE_URL',
+      'JWT_ACCESS_SECRET',
+      'JWT_REFRESH_SECRET',
+    ];
+
+    const optional = [
+      'RESEND_API_KEY',
+      'SMTP_HOST',
+      'SMTP_USER',
+      'CORS_ORIGIN',
+      'APP_URL',
+    ];
 
     lines.push('**Environment Variables:**');
 

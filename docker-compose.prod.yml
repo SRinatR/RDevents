@@ -66,6 +66,7 @@ services:
       - "127.0.0.1:4000:4000"
     volumes:
       - api_uploads:/app/services/api/uploads
+      - /opt/rdevents/runtime/reports:/opt/rdevents/runtime/reports:ro
       - /opt/rdevents/runtime/admin:/opt/rdevents/runtime/admin:ro
       - /opt/rdevents/runtime/control:/opt/rdevents/runtime/control:rw
     healthcheck:
@@ -109,3 +110,34 @@ services:
 volumes:
   postgres_data:
   api_uploads:
+
+  report-worker:
+    build:
+      context: .
+      dockerfile: ./services/api/Dockerfile
+      target: prod
+      args:
+        RELEASE_SHA: ${RELEASE_SHA:-unknown}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      RELEASE_SHA: ${RELEASE_SHA:-unknown}
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      MEDIA_STORAGE_DRIVER: ${MEDIA_STORAGE_DRIVER:-local}
+      MEDIA_UPLOAD_DIR: ${MEDIA_UPLOAD_DIR:-./uploads}
+      MEDIA_PUBLIC_BASE_URL: ${MEDIA_PUBLIC_BASE_URL:-https://api.rdevents.uz/uploads}
+      MAX_AVATAR_UPLOAD_MB: ${MAX_AVATAR_UPLOAD_MB:-3}
+      MAX_DOCUMENT_UPLOAD_MB: ${MAX_DOCUMENT_UPLOAD_MB:-10}
+      APP_URL: ${APP_URL}
+      DEFAULT_LOCALE: ${DEFAULT_LOCALE:-ru}
+    volumes:
+      - /opt/rdevents/runtime/reports:/opt/rdevents/runtime/reports
+      - /opt/rdevents/runtime/admin:/opt/rdevents/runtime/admin:ro
+      - /opt/rdevents/runtime/control:/opt/rdevents/runtime/control:rw
+    command: pnpm --filter @event-platform/api start:report-worker

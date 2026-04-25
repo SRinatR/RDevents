@@ -613,6 +613,12 @@ export async function getArtifact(
   if (!artifact) return null;
 
   const fs = await import('fs');
+  const { existsSync } = fs;
+
+  if (!existsSync(artifact.storagePath)) {
+    throw new Error('Artifact file missing');
+  }
+
   const content = fs.readFileSync(artifact.storagePath);
 
   return {

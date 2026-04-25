@@ -253,7 +253,7 @@ systemReportsRouter.get('/runs/:runId/artifacts/:artifactId/download', async (re
     const result = await getArtifact(runId, artifactId);
 
     if (!result) {
-      res.status(404).json({ error: 'Artifact not found' });
+      res.status(404).json({ error: 'Artifact not found', code: 'ARTIFACT_NOT_FOUND' });
       return;
     }
 
@@ -267,6 +267,10 @@ systemReportsRouter.get('/runs/:runId/artifacts/:artifactId/download', async (re
     res.send(result.content);
   } catch (error) {
     console.error('Error downloading artifact:', error);
+    if (error instanceof Error && error.message === 'Artifact file missing') {
+      res.status(404).json({ error: 'Artifact file missing', code: 'ARTIFACT_FILE_MISSING' });
+      return;
+    }
     res.status(500).json({ error: 'Failed to download artifact' });
   }
 });

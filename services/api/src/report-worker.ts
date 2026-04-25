@@ -1,14 +1,13 @@
 import { env } from './config/env.js';
-import { createApp } from './app.js';
 import { prisma } from './db/prisma.js';
 import { logger } from './common/logger.js';
+import { startWorker } from './modules/system-reports/report-processor.worker.js';
 
 async function main() {
-  logger.info('Starting Event Platform API', {
-    action: 'startup',
+  logger.info('Starting Report Worker', {
+    action: 'worker_startup',
     meta: {
       nodeEnv: env.NODE_ENV,
-      port: env.PORT,
       nodeVersion: process.version,
     },
   });
@@ -16,7 +15,6 @@ async function main() {
   logger.info('Environment loaded', {
     action: 'env_loaded',
     meta: {
-      corsOrigin: env.CORS_ORIGIN,
       databaseUrl: env.DATABASE_URL.replace(/:[^:@]*@/, ':***@'),
     },
   });
@@ -26,42 +24,33 @@ async function main() {
     logger.info('Database connected successfully', { action: 'database_connected' });
   } catch (error) {
     logger.error('Database connection failed', error, { action: 'database_failed' });
-    logger.warn('Starting API in degraded mode; /ready will return 503 until the database is reachable', {
-      action: 'database_degraded_startup',
-    });
+    throw error;
   }
 
-  const app = createApp();
+  const stopWorker = await startWorker(5000);
+  logger.info('Report worker started', { action: 'worker_started' });
 
-  app.listen(env.PORT, () => {
-    logger.info(`API server ready`, {
-      action: 'server_ready',
-      meta: {
-        port: env.PORT,
-        url: `http://localhost:${env.PORT}`,
-      },
-    });
-    console.log(`✓ API running on http://localhost:${env.PORT}`);
-    console.log(`  ENV: ${env.NODE_ENV}`);
-    console.log(`  Health: http://localhost:${env.PORT}/health`);
-    console.log(`  Ready: http://localhost:${env.PORT}/ready`);
-  });
+  console.log('✓ Report Worker running');
+  console.log(`  ENV: ${env.NODE_ENV}`);
+  console.log(`  Polling interval: 5000ms`);
 
   process.on('SIGINT', async () => {
     logger.info('SIGINT received, shutting down gracefully...', { action: 'shutdown' });
+    await stopWorker();
     await prisma.$disconnect();
     process.exit(0);
   });
 
   process.on('SIGTERM', async () => {
     logger.info('SIGTERM received, shutting down gracefully...', { action: 'shutdown' });
+    await stopWorker();
     await prisma.$disconnect();
     process.exit(0);
   });
 }
 
 main().catch((err) => {
-  logger.error('Fatal startup error', err, { action: 'startup_error' });
+  logger.error('Fatal worker startup error', err, { action: 'startup_error' });
   console.error('Fatal startup error:', err);
   process.exit(1);
 });

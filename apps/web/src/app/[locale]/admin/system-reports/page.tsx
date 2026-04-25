@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { systemReportApi } from '@/lib/api';
+import { systemReportsApi } from '@/lib/api';
 import type { ReportRun, ReportConfig, ReportSection, SystemReportTemplate } from '@/lib/api';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { Panel, StatusBadge, LoadingLines } from '@/components/ui/signal-primitives';
@@ -20,6 +21,7 @@ interface RunFilters {
 export default function SystemReportsPage() {
   const t = useTranslations('admin.systemReports');
   const locale = useRouteLocale();
+  const router = useRouter();
 
   const [runs, setRuns] = useState<ReportRun[]>([]);
   const [templates, setTemplates] = useState<SystemReportTemplate[]>([]);
@@ -33,9 +35,9 @@ export default function SystemReportsPage() {
   const fetchData = useCallback(async () => {
     try {
       const [runsData, templatesData, configData] = await Promise.all([
-        systemReportApi.getRuns(filters),
-        systemReportApi.getTemplates(),
-        systemReportApi.getConfig(),
+        systemReportsApi.getRuns(filters),
+        systemReportsApi.getTemplates(),
+        systemReportsApi.getConfig(),
       ]);
       setRuns(runsData);
       setTemplates(templatesData);
@@ -69,7 +71,7 @@ export default function SystemReportsPage() {
     setActionLoading(run.id);
     try {
       const mainArtifact = run.artifacts.find(a => a.kind === 'report') || run.artifacts[0];
-      await systemReportApi.downloadArtifact(run.id, mainArtifact.id, mainArtifact.fileName);
+      await systemReportsApi.downloadArtifact(run.id, mainArtifact.id, mainArtifact.fileName);
     } catch (err) {
       console.error('Download failed:', err);
     } finally {
@@ -80,7 +82,7 @@ export default function SystemReportsPage() {
   const handleRetry = async (run: ReportRun) => {
     setActionLoading(run.id);
     try {
-      await systemReportApi.retryRun(run.id);
+      await systemReportsApi.retryRun(run.id);
       fetchData();
     } catch (err) {
       console.error('Retry failed:', err);
@@ -92,7 +94,7 @@ export default function SystemReportsPage() {
   const handleCancel = async (run: ReportRun) => {
     setActionLoading(run.id);
     try {
-      await systemReportApi.cancelRun(run.id);
+      await systemReportsApi.cancelRun(run.id);
       fetchData();
     } catch (err) {
       console.error('Cancel failed:', err);
@@ -181,6 +183,14 @@ export default function SystemReportsPage() {
       <AdminPageHeader
         title={t('title') || 'System Reports'}
         subtitle={locale === 'ru' ? 'Гибкий конструктор системных отчётов' : 'Flexible system report constructor'}
+        actions={
+          <Link
+            href={`/${locale}/admin/system-reports/new`}
+            className="signal-button primary"
+          >
+            {locale === 'ru' ? 'Создать отчёт' : 'Create Report'}
+          </Link>
+        }
       />
 
       {error && (

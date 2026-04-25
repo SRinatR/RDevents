@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { createHash } from 'node:crypto';
+import { promises as fs } from 'node:fs';
 import { getProviders, getProvider } from './providers/index.js';
 import { addEvent, updateRunProgress, completeRun } from './system-reports.service.js';
 
@@ -11,6 +12,16 @@ export interface WorkerContext {
   options: Record<string, unknown>;
   redactionLevel: 'strict' | 'standard' | 'off';
 }
+
+export type PreparedArtifact = {
+  kind: 'report' | 'attachment' | 'log' | 'metadata';
+  fileName: string;
+  mimeType: string;
+  storagePath: string;
+  sizeBytes: number;
+  checksum: string;
+  content: Buffer;
+};
 
 async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -127,7 +138,12 @@ async function processRun(runId: string): Promise<void> {
     await updateRunProgress(runId, 'writing_artifacts', 90);
     await addEvent(runId, 'info', 'ARTIFACTS_WRITING', `Writing ${artifactsData.length} artifact(s)`);
 
+    const storageDir = '/opt/rdevents/runtime/reports';
+    await fs.mkdir(storageDir, { recursive: true });
+
     for (const artifact of artifactsData) {
+      await fs.writeFile(artifact.storagePath, artifact.content);
+
       await prisma.systemReportArtifact.create({
         data: {
           runId,
@@ -216,24 +232,10 @@ function assembleReport(
   return lines.join('\n');
 }
 
-function prepareArtifacts(content: string, run: any): Array<{
-  kind: string;
-  fileName: string;
-  mimeType: string;
-  storagePath: string;
-  sizeBytes: number;
-  checksum: string;
-}> {
-  const artifacts: Array<{
-    kind: string;
-    fileName: string;
-    mimeType: string;
-    storagePath: string;
-    sizeBytes: number;
-    checksum: string;
-  }> = [];
+function prepareArtifacts(content: string, run: any): PreparedArtifact[] {
+  const artifacts: PreparedArtifact[] = [];
 
-  const storageDir = '/var/lib/rdevents/reports';
+  const storageDir = '/opt/rdevents/runtime/reports';
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const baseName = `report-${run.id}-${timestamp}`;
 
@@ -241,13 +243,14 @@ function prepareArtifacts(content: string, run: any): Array<{
     .update(content)
     .digest('hex');
 
-  const artifact = {
+  const artifact: PreparedArtifact = {
     kind: 'report',
     fileName: `${baseName}.txt`,
     mimeType: 'text/plain; charset=utf-8',
     storagePath: `${storageDir}/${baseName}.txt`,
     sizeBytes: Buffer.byteLength(content, 'utf-8'),
     checksum,
+    content: Buffer.from(content, 'utf-8'),
   };
 
   artifacts.push(artifact);
@@ -271,6 +274,7 @@ function prepareArtifacts(content: string, run: any): Array<{
         checksum: createHash('sha256')
           .update(jsonContent)
           .digest('hex'),
+        content: Buffer.from(jsonContent, 'utf-8'),
       });
     } else if (format === 'md') {
       artifacts.push({
@@ -280,6 +284,7 @@ function prepareArtifacts(content: string, run: any): Array<{
         storagePath: `${storageDir}/${baseName}.md`,
         sizeBytes: Buffer.byteLength(content, 'utf-8'),
         checksum,
+        content: Buffer.from(content, 'utf-8'),
       });
     } else if (format === 'zip') {
       const metadata = {
@@ -298,6 +303,7 @@ function prepareArtifacts(content: string, run: any): Array<{
         checksum: createHash('sha256')
           .update(JSON.stringify(metadata))
           .digest('hex'),
+        content: Buffer.from(JSON.stringify(metadata), 'utf-8'),
       });
     }
   }
