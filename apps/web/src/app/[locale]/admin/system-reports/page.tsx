@@ -71,7 +71,7 @@ export default function SystemReportsPage() {
     async (cfg: BuilderConfig): Promise<SystemReportPreview | null> => {
       const preview = await systemReportsApi.preview({
         format: cfg.format,
-        sections: cfg.sections,
+        sections: cfg.sections.map((s) => ({ key: s.key, enabled: s.enabled, params: s.options })),
         redactionLevel: cfg.redactionLevel || 'standard',
         dateRange: cfg.dateRange,
       });
@@ -86,7 +86,7 @@ export default function SystemReportsPage() {
       try {
         const run = await systemReportsApi.createRun({
           format: cfg.format,
-          sections: cfg.sections,
+          sections: cfg.sections.map((s) => ({ key: s.key, enabled: s.enabled, params: s.options })),
           redactionLevel: cfg.redactionLevel || 'standard',
         });
         router.push(`/${locale}/admin/system-reports/${run.id}`);

@@ -663,7 +663,7 @@ export interface SystemReportStatus {
 export interface ReportSectionConfig {
   key: string;
   enabled: boolean | null;
-  options: Record<string, unknown>;
+  params: Record<string, unknown>;
 }
 
 export interface BuilderSectionConfig {
@@ -853,7 +853,7 @@ export const systemReportsApi = {
 
   preview: (body: {
     format: 'txt' | 'json' | 'md' | 'zip';
-    sections: Array<{ key: string; enabled: boolean; options: Record<string, unknown> }>;
+    sections: Array<{ key: string; enabled: boolean; params: Record<string, unknown> }>;
     redactionLevel: 'strict' | 'standard' | 'off';
     dateRange?: { start?: string; end?: string };
   }) =>
@@ -879,7 +879,7 @@ export const systemReportsApi = {
     templateId?: string;
     title?: string;
     format: 'txt' | 'json' | 'md' | 'zip';
-    sections: Array<{ key: string; enabled: boolean; options: Record<string, unknown> }>;
+    sections: Array<{ key: string; enabled: boolean; params: Record<string, unknown> }>;
     redactionLevel: 'strict' | 'standard' | 'off';
     dateRange?: { start?: string; end?: string };
   }) =>
