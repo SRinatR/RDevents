@@ -18,6 +18,7 @@ interface SystemReportBuilderProps {
   onChange: (next: BuilderConfig) => void;
   onPreview: (cfg: BuilderConfig) => Promise<SystemReportPreview | null>;
   onRunNow: (cfg: BuilderConfig, title?: string) => Promise<void>;
+  onSaveTemplate: (name: string, description?: string, isDefault?: boolean) => Promise<void>;
   locale: string;
 }
 
@@ -48,6 +49,7 @@ export function SystemReportBuilder({
   onChange,
   onPreview,
   onRunNow,
+  onSaveTemplate,
   locale,
 }: SystemReportBuilderProps) {
   const [preview, setPreview] = useState<SystemReportPreview | null>(null);

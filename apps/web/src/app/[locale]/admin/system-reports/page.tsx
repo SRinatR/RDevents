@@ -178,7 +178,7 @@ export default function SystemReportsPage() {
 
   const handleLoadTemplate = useCallback((template: SystemReportTemplate) => {
     setBuilderConfig(template.config);
-    setBuilderTitle('');
+    setBuilderTitle(template.name);
     setActiveTab('builder');
   }, []);
 
@@ -341,6 +341,7 @@ export default function SystemReportsPage() {
                 onChange={setBuilderConfig}
                 onPreview={handlePreview}
                 onRunNow={handleRunNow}
+                onSaveTemplate={handleSaveTemplate}
                 locale={locale}
               />
             </div>

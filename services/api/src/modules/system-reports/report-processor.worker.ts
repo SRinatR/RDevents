@@ -1,12 +1,18 @@
 import { PrismaClient } from '@prisma/client';
 import { createHash } from 'node:crypto';
-import { promises as fs } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { getProviders, getProvider } from './providers/index.js';
+import JSZip from 'jszip';
+import { getProvider } from './providers/index.js';
 import { addEvent, updateRunProgress, completeRun } from './system-reports.service.js';
 
 const prisma = new PrismaClient();
+
+const REPORTS_STORAGE_ROOT =
+  process.env.SYSTEM_REPORTS_STORAGE_DIR ?? '/opt/rdevents/runtime/reports';
+
+const MAX_ARTIFACT_SIZE_BYTES =
+  Number(process.env.SYSTEM_REPORTS_MAX_ARTIFACT_BYTES ?? 100 * 1024 * 1024);
 
 export interface WorkerContext {
   runId: string;
@@ -49,6 +55,50 @@ function sha256(content: Buffer | string): string {
   return createHash('sha256').update(content).digest('hex');
 }
 
+type ReportFormat = 'txt' | 'json' | 'md' | 'zip';
+
+function normalizeReportFormat(value: unknown): ReportFormat {
+  return value === 'json' || value === 'md' || value === 'zip' ? value : 'txt';
+}
+
+function safeZipFileName(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'section';
+}
+
+async function persistArtifact(
+  artifacts: PreparedArtifact[],
+  params: {
+    kind: PreparedArtifact['kind'];
+    fileName: string;
+    mimeType: string;
+    storagePath: string;
+    content: Buffer | string;
+  }
+): Promise<void> {
+  const buffer = Buffer.isBuffer(params.content)
+    ? params.content
+    : Buffer.from(params.content, 'utf-8');
+
+  if (buffer.length > MAX_ARTIFACT_SIZE_BYTES) {
+    throw new Error(`Artifact ${params.fileName} is too large: ${buffer.length} bytes`);
+  }
+
+  await writeArtifactFile(params.storagePath, buffer);
+
+  artifacts.push({
+    kind: params.kind,
+    fileName: params.fileName,
+    mimeType: params.mimeType,
+    storagePath: params.storagePath,
+    sizeBytes: buffer.length,
+    checksum: sha256(buffer),
+  });
+}
+
 async function prepareArtifacts(
   content: string,
   run: any,
@@ -56,156 +106,164 @@ async function prepareArtifacts(
 ): Promise<PreparedArtifact[]> {
   const artifacts: PreparedArtifact[] = [];
 
-  const storageDir = path.join('/var/lib/rdevents/reports', run.id);
+  const storageDir = path.join(REPORTS_STORAGE_ROOT, run.id);
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const baseName = `report-${run.id}-${timestamp}`;
 
-  const format = run.configJson && typeof run.configJson === 'object' && 'format' in run.configJson
-    ? (run.configJson as any).format
-    : 'txt';
-
-  const summaryJson = JSON.stringify(
-    {
-      generatedAt: new Date().toISOString(),
-      runId: run.id,
-      templateId: run.templateId ?? null,
-      format,
-      config: run.configJson,
-      results: results.map(r => ({
-        key: r.key,
-        success: r.success,
-        error: r.error ?? null,
-        warnings: r.warnings ?? [],
-      })),
-    },
-    null,
-    2
+  const format = normalizeReportFormat(
+    run.configJson && typeof run.configJson === 'object' && 'format' in run.configJson
+      ? (run.configJson as any).format
+      : 'txt'
   );
 
-  if (format === 'txt') {
-    const txtPath = path.join(storageDir, `${baseName}.txt`);
-    const txtBuffer = Buffer.from(content, 'utf-8');
-    await writeArtifactFile(txtPath, txtBuffer);
+  const metadata = {
+    generatedAt: new Date().toISOString(),
+    runId: run.id,
+    templateId: run.templateId ?? null,
+    format,
+    config: run.configJson,
+    results: results.map((result) => ({
+      key: result.key,
+      success: result.success,
+      error: result.error ?? null,
+      warnings: result.warnings ?? [],
+    })),
+  };
 
-    artifacts.push({
+  const summaryJson = JSON.stringify(metadata, null, 2);
+
+  if (format === 'txt') {
+    await persistArtifact(artifacts, {
       kind: 'report',
       fileName: `${baseName}.txt`,
       mimeType: 'text/plain; charset=utf-8',
-      storagePath: txtPath,
-      sizeBytes: txtBuffer.length,
-      checksum: sha256(txtBuffer),
+      storagePath: path.join(storageDir, `${baseName}.txt`),
+      content,
     });
 
-    const metaPath = path.join(storageDir, `${baseName}-meta.json`);
-    const metaBuffer = Buffer.from(summaryJson, 'utf-8');
-    await writeArtifactFile(metaPath, metaBuffer);
-
-    artifacts.push({
+    await persistArtifact(artifacts, {
       kind: 'metadata',
       fileName: `${baseName}-meta.json`,
       mimeType: 'application/json',
-      storagePath: metaPath,
-      sizeBytes: metaBuffer.length,
-      checksum: sha256(metaBuffer),
+      storagePath: path.join(storageDir, `${baseName}-meta.json`),
+      content: summaryJson,
     });
+
+    return artifacts;
   }
 
   if (format === 'json') {
     const jsonContent = JSON.stringify(
       {
-        generatedAt: new Date().toISOString(),
-        runId: run.id,
-        templateId: run.templateId ?? null,
-        config: run.configJson,
+        ...metadata,
         reportText: content,
-        results,
+        sections: results,
       },
       null,
       2
     );
 
-    const jsonPath = path.join(storageDir, `${baseName}.json`);
-    const jsonBuffer = Buffer.from(jsonContent, 'utf-8');
-    await writeArtifactFile(jsonPath, jsonBuffer);
-
-    artifacts.push({
+    await persistArtifact(artifacts, {
       kind: 'report',
       fileName: `${baseName}.json`,
       mimeType: 'application/json',
-      storagePath: jsonPath,
-      sizeBytes: jsonBuffer.length,
-      checksum: sha256(jsonBuffer),
+      storagePath: path.join(storageDir, `${baseName}.json`),
+      content: jsonContent,
     });
 
-    const txtPath = path.join(storageDir, `${baseName}.txt`);
-    const txtBuffer = Buffer.from(content, 'utf-8');
-    await writeArtifactFile(txtPath, txtBuffer);
-
-    artifacts.push({
+    await persistArtifact(artifacts, {
       kind: 'attachment',
       fileName: `${baseName}.txt`,
       mimeType: 'text/plain; charset=utf-8',
-      storagePath: txtPath,
-      sizeBytes: txtBuffer.length,
-      checksum: sha256(txtBuffer),
+      storagePath: path.join(storageDir, `${baseName}.txt`),
+      content,
     });
 
-    const metaPath = path.join(storageDir, `${baseName}-meta.json`);
-    const metaBuffer = Buffer.from(summaryJson, 'utf-8');
-    await writeArtifactFile(metaPath, metaBuffer);
-
-    artifacts.push({
+    await persistArtifact(artifacts, {
       kind: 'metadata',
       fileName: `${baseName}-meta.json`,
       mimeType: 'application/json',
-      storagePath: metaPath,
-      sizeBytes: metaBuffer.length,
-      checksum: sha256(metaBuffer),
+      storagePath: path.join(storageDir, `${baseName}-meta.json`),
+      content: summaryJson,
     });
+
+    return artifacts;
   }
 
   if (format === 'md') {
-    const mdPath = path.join(storageDir, `${baseName}.md`);
-    const mdBuffer = Buffer.from(content, 'utf-8');
-    await writeArtifactFile(mdPath, mdBuffer);
-
-    artifacts.push({
+    await persistArtifact(artifacts, {
       kind: 'report',
       fileName: `${baseName}.md`,
       mimeType: 'text/markdown; charset=utf-8',
-      storagePath: mdPath,
-      sizeBytes: mdBuffer.length,
-      checksum: sha256(mdBuffer),
+      storagePath: path.join(storageDir, `${baseName}.md`),
+      content,
     });
 
-    const txtPath = path.join(storageDir, `${baseName}.txt`);
-    const txtBuffer = Buffer.from(content, 'utf-8');
-    await writeArtifactFile(txtPath, txtBuffer);
-
-    artifacts.push({
+    await persistArtifact(artifacts, {
       kind: 'attachment',
       fileName: `${baseName}.txt`,
       mimeType: 'text/plain; charset=utf-8',
-      storagePath: txtPath,
-      sizeBytes: txtBuffer.length,
-      checksum: sha256(txtBuffer),
+      storagePath: path.join(storageDir, `${baseName}.txt`),
+      content,
     });
 
-    const metaPath = path.join(storageDir, `${baseName}-meta.json`);
-    const metaBuffer = Buffer.from(summaryJson, 'utf-8');
-    await writeArtifactFile(metaPath, metaBuffer);
-
-    artifacts.push({
+    await persistArtifact(artifacts, {
       kind: 'metadata',
       fileName: `${baseName}-meta.json`,
       mimeType: 'application/json',
-      storagePath: metaPath,
-      sizeBytes: metaBuffer.length,
-      checksum: sha256(metaBuffer),
+      storagePath: path.join(storageDir, `${baseName}-meta.json`),
+      content: summaryJson,
     });
+
+    return artifacts;
   }
 
-  return artifacts;
+  if (format === 'zip') {
+    const zip = new JSZip();
+
+    zip.file('report.txt', content);
+    zip.file('metadata.json', summaryJson);
+
+    const sectionsFolder = zip.folder('sections');
+
+    for (const result of results) {
+      const sectionFileName = `${safeZipFileName(result.key)}.txt`;
+
+      const sectionText = [
+        `# ${result.key}`,
+        '',
+        `success: ${result.success}`,
+        result.error ? `error: ${result.error}` : null,
+        result.warnings?.length ? `warnings: ${result.warnings.join(', ')}` : null,
+        '',
+        result.content ?? '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      sectionsFolder?.file(sectionFileName, sectionText);
+    }
+
+    const zipBuffer = await zip.generateAsync({
+      type: 'nodebuffer',
+      compression: 'DEFLATE',
+      compressionOptions: {
+        level: 6,
+      },
+    });
+
+    await persistArtifact(artifacts, {
+      kind: 'report',
+      fileName: `${baseName}.zip`,
+      mimeType: 'application/zip',
+      storagePath: path.join(storageDir, `${baseName}.zip`),
+      content: zipBuffer,
+    });
+
+    return artifacts;
+  }
+
+  throw new Error(`Unsupported report format: ${format}`);
 }
 
 async function processRun(runId: string): Promise<void> {
@@ -247,7 +305,6 @@ async function processRun(runId: string): Promise<void> {
     };
 
     const enabledSections = config.sections.filter(s => s.enabled);
-    const providers = getProviders();
     const results: SectionResult[] = [];
 
     const totalSteps = enabledSections.length;
@@ -446,26 +503,5 @@ export async function startWorker(pollIntervalMs = 5000): Promise<() => void> {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  startWorker()
-    .then(stop => {
-      console.log('[ReportWorker] Worker started');
-
-      process.on('SIGINT', async () => {
-        console.log('[ReportWorker] Received SIGINT');
-        await stop();
-        await prisma.$disconnect();
-        process.exit(0);
-      });
-
-      process.on('SIGTERM', async () => {
-        console.log('[ReportWorker] Received SIGTERM');
-        await stop();
-        await prisma.$disconnect();
-        process.exit(0);
-      });
-    })
-    .catch(error => {
-      console.error('[ReportWorker] Failed to start:', error);
-      process.exit(1);
-    });
+  startWorker();
 }

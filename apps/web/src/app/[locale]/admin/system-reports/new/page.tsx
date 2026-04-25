@@ -146,6 +146,7 @@ export default function NewReportPage() {
     txt: locale === 'ru' ? 'Plain Text (.txt)' : 'Plain Text (.txt)',
     json: locale === 'ru' ? 'JSON (.json)' : 'JSON (.json)',
     md: locale === 'ru' ? 'Markdown (.md)' : 'Markdown (.md)',
+    zip: locale === 'ru' ? 'ZIP Archive (.zip)' : 'ZIP Archive (.zip)',
   };
 
   const redactionLabels: Record<string, string> = {
@@ -218,7 +219,7 @@ export default function NewReportPage() {
                     key={f.value}
                     type="button"
                     className={`format-option ${format === f.value ? 'selected' : ''}`}
-                    onClick={() => setFormat(f.value as 'txt' | 'json' | 'md' | 'zip')}
+                    onClick={() => setFormat(f.value)}
                   >
                     {f.label}
                   </button>

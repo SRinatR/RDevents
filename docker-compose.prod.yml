@@ -62,6 +62,8 @@ services:
       YANDEX_REDIRECT_URI: ${YANDEX_REDIRECT_URI:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      SYSTEM_REPORTS_STORAGE_DIR: /opt/rdevents/runtime/reports
+      SYSTEM_REPORTS_MAX_ARTIFACT_BYTES: ${SYSTEM_REPORTS_MAX_ARTIFACT_BYTES:-104857600}
     ports:
       - "127.0.0.1:4000:4000"
     volumes:
@@ -127,6 +129,8 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN}
       APP_URL: ${APP_URL}
       DEFAULT_LOCALE: ${DEFAULT_LOCALE:-ru}
+      SYSTEM_REPORTS_STORAGE_DIR: /opt/rdevents/runtime/reports
+      SYSTEM_REPORTS_MAX_ARTIFACT_BYTES: ${SYSTEM_REPORTS_MAX_ARTIFACT_BYTES:-104857600}
     volumes:
       - /opt/rdevents/runtime/reports:/opt/rdevents/runtime/reports:rw
       - /opt/rdevents/runtime/admin:/opt/rdevents/runtime/admin:ro

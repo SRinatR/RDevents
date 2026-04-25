@@ -666,6 +666,8 @@ export interface ReportSectionConfig {
   params: Record<string, unknown>;
 }
 
+export type ReportFormat = 'txt' | 'json' | 'md' | 'zip';
+
 export interface BuilderSectionConfig {
   key: string;
   enabled: boolean;
@@ -673,7 +675,7 @@ export interface BuilderSectionConfig {
 }
 
 export interface BuilderConfig {
-  format: 'txt' | 'json' | 'md' | 'zip';
+  format: ReportFormat;
   sections: BuilderSectionConfig[];
   redactionLevel?: 'strict' | 'standard' | 'off';
   dateRange?: {
@@ -684,7 +686,7 @@ export interface BuilderConfig {
 
 export interface ReportConfig {
   sections: ReportSectionConfig[];
-  format: 'txt' | 'json' | 'md' | 'zip';
+  format: ReportFormat;
   dateRange?: {
     start?: string;
     end?: string;
