@@ -61,7 +61,6 @@ export default function SystemReportRunPage() {
     }, 3000);
 
     return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId, run?.status, load]);
 
   const handleDownload = async (artifactId: string, fileName: string) => {

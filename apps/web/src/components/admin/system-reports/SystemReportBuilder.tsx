@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import type {
   SystemReportConfigResponse,
   SystemReportSectionDefinition,
@@ -29,6 +30,13 @@ const CATEGORY_LABELS: Record<string, string> = {
   security: 'Security',
 };
 
+const CATEGORY_LABELS_I18N: Record<string, string> = {
+  system: 'category.system',
+  application: 'category.application',
+  infrastructure: 'category.infrastructure',
+  security: 'category.security',
+};
+
 function groupSectionsByCategory(
   sections: SystemReportSectionDefinition[]
 ): Record<string, SystemReportSectionDefinition[]> {
@@ -52,9 +60,11 @@ export function SystemReportBuilder({
   onSaveTemplate,
   locale,
 }: SystemReportBuilderProps) {
+  const t = useTranslations('admin.systemReports.builder');
   const [preview, setPreview] = useState<SystemReportPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [runLoading, setRunLoading] = useState(false);
+  const [builderError, setBuilderError] = useState<string | null>(null);
 
   const handleFormatChange = useCallback((format: BuilderConfig['format']) => {
     if (!value) return;
@@ -105,35 +115,39 @@ export function SystemReportBuilder({
 
   const handlePreview = useCallback(async () => {
     if (!value) return;
+    setBuilderError(null);
     setPreviewLoading(true);
     try {
       const result = await onPreview(value);
       setPreview(result);
     } catch (e) {
       console.error('Preview failed:', e);
+      setBuilderError(t('previewError') || 'Failed to generate report preview.');
     } finally {
       setPreviewLoading(false);
     }
-  }, [value, onPreview]);
+  }, [value, onPreview, t]);
 
   const handleRunNow = useCallback(async () => {
     if (!value) return;
+    setBuilderError(null);
     setRunLoading(true);
     try {
       await onRunNow(value, title);
     } catch (e) {
       console.error('Run failed:', e);
+      setBuilderError(t('runError') || 'Failed to start report run.');
     } finally {
       setRunLoading(false);
     }
-  }, [value, title, onRunNow]);
+  }, [value, title, onRunNow, t]);
 
   if (!config || !value) {
     return (
       <div className="sr-builder loading">
         <div className="builder-loading">
           <span className="loading-spinner" />
-          Loading configuration...
+          {t('loading') || 'Loading configuration...'}
         </div>
       </div>
     );
@@ -146,23 +160,30 @@ export function SystemReportBuilder({
     <div className="sr-builder">
       <div className="builder-main">
         <div className="builder-header">
-          <h3>Builder</h3>
+          <h3>{t('title') || 'Builder'}</h3>
         </div>
+
+        {builderError && (
+          <div className="error-banner">
+            <span className="error-icon">⚠</span>
+            <span>{builderError}</span>
+          </div>
+        )}
 
         <div className="builder-fields">
           <label className="builder-field">
-            <span className="field-label">Title</span>
+            <span className="field-label">{t('fieldTitle') || 'Title'}</span>
             <input
               type="text"
               className="field-input"
               value={title}
               onChange={(e) => onTitleChange(e.target.value)}
-              placeholder={locale === 'ru' ? 'Название отчёта (опц.)' : 'Report title (optional)'}
+              placeholder={t('titlePlaceholder') || 'Report title (optional)'}
             />
           </label>
 
           <label className="builder-field">
-            <span className="field-label">Format</span>
+            <span className="field-label">{t('fieldFormat') || 'Format'}</span>
             <select
               className="field-select"
               value={value.format}
@@ -177,7 +198,7 @@ export function SystemReportBuilder({
           </label>
 
           <label className="builder-field">
-            <span className="field-label">Redaction Level</span>
+            <span className="field-label">{t('fieldRedactionLevel') || 'Redaction Level'}</span>
             <select
               className="field-select"
               value={value.redactionLevel || 'standard'}
@@ -193,9 +214,7 @@ export function SystemReportBuilder({
 
           <div className="builder-field-row">
             <label className="builder-field">
-              <span className="field-label">
-                {locale === 'ru' ? 'Дата от' : 'Date from'}
-              </span>
+              <span className="field-label">{t('dateFrom') || 'Date from'}</span>
               <input
                 type="datetime-local"
                 className="field-input"
@@ -209,9 +228,7 @@ export function SystemReportBuilder({
             </label>
 
             <label className="builder-field">
-              <span className="field-label">
-                {locale === 'ru' ? 'Дата до' : 'Date to'}
-              </span>
+              <span className="field-label">{t('dateTo') || 'Date to'}</span>
               <input
                 type="datetime-local"
                 className="field-input"
@@ -230,7 +247,7 @@ export function SystemReportBuilder({
           {categories.map((category) => (
             <div key={category} className="section-category">
               <h4 className="category-title">
-                {CATEGORY_LABELS[category] || category}
+                {t(CATEGORY_LABELS_I18N[category]) || CATEGORY_LABELS[category] || category}
               </h4>
               <div className="category-sections">
                 {groupedSections[category].map((sectionDef) => {
@@ -257,14 +274,14 @@ export function SystemReportBuilder({
             onClick={handlePreview}
             disabled={previewLoading}
           >
-            {previewLoading ? '...' : '👁'} Preview
+            {previewLoading ? '...' : '👁'} {t('preview') || 'Preview'}
           </button>
           <button
             className="action-btn run-btn"
             onClick={handleRunNow}
             disabled={runLoading}
           >
-            {runLoading ? '...' : '▶'} {locale === 'ru' ? 'Запустить' : 'Run Now'}
+            {runLoading ? '...' : '▶'} {t('runNow') || 'Run Now'}
           </button>
         </div>
       </div>

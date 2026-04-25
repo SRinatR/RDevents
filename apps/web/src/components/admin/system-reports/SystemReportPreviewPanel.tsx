@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import type { SystemReportPreview } from '@/lib/api';
 
 interface SystemReportPreviewPanelProps {
@@ -8,15 +9,17 @@ interface SystemReportPreviewPanelProps {
 }
 
 export function SystemReportPreviewPanel({ preview, loading }: SystemReportPreviewPanelProps) {
+  const t = useTranslations('admin.systemReports.preview');
+
   if (loading) {
     return (
       <div className="sr-preview-panel loading">
         <div className="preview-header">
-          <h4>Preview</h4>
+          <h4>{t('title') || 'Preview'}</h4>
         </div>
         <div className="preview-loading">
           <span className="loading-spinner" />
-          Generating preview...
+          {t('generating') || 'Generating preview...'}
         </div>
       </div>
     );
@@ -26,10 +29,10 @@ export function SystemReportPreviewPanel({ preview, loading }: SystemReportPrevi
     return (
       <div className="sr-preview-panel empty">
         <div className="preview-header">
-          <h4>Preview</h4>
+          <h4>{t('title') || 'Preview'}</h4>
         </div>
         <p className="preview-empty-hint">
-          Configure your report and click Preview to see a summary
+          {t('emptyHint') || 'Configure your report and click Preview to see a summary'}
         </p>
       </div>
     );
@@ -38,23 +41,23 @@ export function SystemReportPreviewPanel({ preview, loading }: SystemReportPrevi
   return (
     <div className="sr-preview-panel">
       <div className="preview-header">
-        <h4>Preview</h4>
+        <h4>{t('title') || 'Preview'}</h4>
       </div>
 
       <div className="preview-stats">
         <div className="stat-item">
           <span className="stat-value">{preview.sections.length}</span>
-          <span className="stat-label">Sections</span>
+          <span className="stat-label">{t('sections') || 'Sections'}</span>
         </div>
         <div className="stat-item">
           <span className="stat-value">{preview.estimatedSize}</span>
-          <span className="stat-label">Est. Size</span>
+          <span className="stat-label">{t('estSize') || 'Est. Size'}</span>
         </div>
       </div>
 
       {preview.sections.length > 0 && (
         <div className="preview-sections">
-          <h5>Included Sections</h5>
+          <h5>{t('includedSections') || 'Included Sections'}</h5>
           <ul className="section-list">
             {preview.sections.map((s) => (
               <li key={s.key} className="section-item">
@@ -68,7 +71,7 @@ export function SystemReportPreviewPanel({ preview, loading }: SystemReportPrevi
 
       {preview.warnings.length > 0 && (
         <div className="preview-warnings">
-          <h5>Warnings</h5>
+          <h5>{t('warnings') || 'Warnings'}</h5>
           <ul className="warnings-list">
             {preview.warnings.map((w, i) => (
               <li key={i} className="warning-item">

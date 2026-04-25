@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { SystemReportTemplate, BuilderConfig } from '@/lib/api';
 
 interface SystemReportTemplatesPanelProps {
@@ -24,6 +25,7 @@ export function SystemReportTemplatesPanel({
   currentConfig,
   locale,
 }: SystemReportTemplatesPanelProps) {
+  const t = useTranslations('admin.systemReports.templates');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
@@ -47,34 +49,34 @@ export function SystemReportTemplatesPanel({
   return (
     <div className="sr-templates-panel">
       <div className="panel-header">
-        <h3>Templates</h3>
+        <h3>{t('title') || 'Templates'}</h3>
         <button
           className="save-template-btn"
           onClick={() => setShowSaveDialog(true)}
           disabled={!currentConfig}
         >
-          {locale === 'ru' ? '💾 Сохранить' : '💾 Save'}
+          💾 {t('save') || 'Save'}
         </button>
       </div>
 
       {showSaveDialog && (
         <div className="save-dialog">
-          <h4>{locale === 'ru' ? 'Сохранить как шаблон' : 'Save as Template'}</h4>
+          <h4>{t('saveAsTitle') || 'Save as Template'}</h4>
           <label className="dialog-field">
-            <span>Name</span>
+            <span>{t('name') || 'Name'}</span>
             <input
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder={locale === 'ru' ? 'Название шаблона' : 'Template name'}
+              placeholder={t('namePlaceholder') || 'Template name'}
             />
           </label>
           <label className="dialog-field">
-            <span>Description</span>
+            <span>{t('description') || 'Description'}</span>
             <textarea
               value={newDescription}
               onChange={(e) => setNewDescription(e.target.value)}
-              placeholder={locale === 'ru' ? 'Описание (опц.)' : 'Description (optional)'}
+              placeholder={t('descriptionPlaceholder') || 'Description (optional)'}
             />
           </label>
           <label className="dialog-checkbox">
@@ -83,14 +85,14 @@ export function SystemReportTemplatesPanel({
               checked={newIsDefault}
               onChange={(e) => setNewIsDefault(e.target.checked)}
             />
-            <span>{locale === 'ru' ? 'По умолчанию' : 'Set as default'}</span>
+            <span>{t('setAsDefault') || 'Set as default'}</span>
           </label>
           <div className="dialog-actions">
             <button onClick={() => setShowSaveDialog(false)}>
-              {locale === 'ru' ? 'Отмена' : 'Cancel'}
+              {t('cancel') || 'Cancel'}
             </button>
             <button className="primary" onClick={handleSave} disabled={!newName.trim()}>
-              {locale === 'ru' ? 'Сохранить' : 'Save'}
+              {t('save') || 'Save'}
             </button>
           </div>
         </div>
@@ -102,7 +104,7 @@ export function SystemReportTemplatesPanel({
         </div>
       ) : templates.length === 0 ? (
         <p className="templates-empty-hint">
-          {locale === 'ru' ? 'Нет сохранённых шаблонов' : 'No saved templates'}
+          {t('noTemplates') || 'No saved templates'}
         </p>
       ) : (
         <ul className="templates-list">
@@ -111,7 +113,7 @@ export function SystemReportTemplatesPanel({
               <div className="template-info">
                 <span className="template-name">
                   {template.name}
-                  {template.isDefault && <span className="default-badge">Default</span>}
+                  {template.isDefault && <span className="default-badge">{t('defaultBadge') || 'Default'}</span>}
                 </span>
                 {template.description && (
                   <span className="template-description">{template.description}</span>
@@ -121,15 +123,15 @@ export function SystemReportTemplatesPanel({
                 <button
                   className="template-action load-btn"
                   onClick={() => onLoad(template)}
-                  title={locale === 'ru' ? 'Загрузить в конструктор' : 'Load into builder'}
+                  title={t('loadTitle') || 'Load into builder'}
                 >
-                  {locale === 'ru' ? '📂' : '📂'}
+                  📂
                 </button>
                 {!template.isDefault && (
                   <button
                     className="template-action default-btn"
                     onClick={() => onSetDefault(template.id)}
-                    title={locale === 'ru' ? 'Сделать по умолчанию' : 'Set as default'}
+                    title={t('setDefaultTitle') || 'Set as default'}
                   >
                     ★
                   </button>
@@ -139,14 +141,14 @@ export function SystemReportTemplatesPanel({
                     <button
                       className="template-action confirm-delete-btn"
                       onClick={() => handleDelete(template.id)}
-                      title={locale === 'ru' ? 'Подтвердить удаление' : 'Confirm delete'}
+                      title={t('confirmDeleteTitle') || 'Confirm delete'}
                     >
                       ✓
                     </button>
                     <button
                       className="template-action cancel-delete-btn"
                       onClick={() => setConfirmDelete(null)}
-                      title={locale === 'ru' ? 'Отмена' : 'Cancel'}
+                      title={t('cancel') || 'Cancel'}
                     >
                       ✕
                     </button>
@@ -155,7 +157,7 @@ export function SystemReportTemplatesPanel({
                   <button
                     className="template-action delete-btn"
                     onClick={() => setConfirmDelete(template.id)}
-                    title={locale === 'ru' ? 'Удалить' : 'Delete'}
+                    title={t('deleteTitle') || 'Delete'}
                   >
                     🗑
                   </button>

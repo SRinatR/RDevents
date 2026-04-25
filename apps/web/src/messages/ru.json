@@ -260,6 +260,64 @@
       "assembling": "Сборка отчёта",
       "writingArtifacts": "Запись артефактов",
       "finalizing": "Финализация"
+    },
+    "builder": {
+      "title": "Конструктор",
+      "loading": "Загрузка конфигурации...",
+      "previewError": "Не удалось построить preview отчёта.",
+      "runError": "Не удалось запустить отчёт.",
+      "fieldTitle": "Название",
+      "titlePlaceholder": "Название отчёта (опц.)",
+      "fieldFormat": "Формат",
+      "fieldRedactionLevel": "Уровень редактирования",
+      "dateFrom": "Дата от",
+      "dateTo": "Дата до",
+      "preview": "Превью",
+      "runNow": "Запустить",
+      "category": {
+        "system": "Система",
+        "application": "Приложение",
+        "infrastructure": "Инфраструктура",
+        "security": "Безопасность"
+      }
+    },
+    "preview": {
+      "title": "Превью",
+      "generating": "Генерация превью...",
+      "emptyHint": "Настройте отчёт и нажмите Превью для просмотра сводки",
+      "sections": "Секций",
+      "estSize": "Прим. размер",
+      "includedSections": "Включённые секции",
+      "warnings": "Предупреждения"
+    },
+    "templates": {
+      "title": "Шаблоны",
+      "save": "Сохранить",
+      "saveAsTitle": "Сохранить как шаблон",
+      "name": "Название",
+      "namePlaceholder": "Название шаблона",
+      "description": "Описание",
+      "descriptionPlaceholder": "Описание (опц.)",
+      "setAsDefault": "По умолчанию",
+      "cancel": "Отмена",
+      "noTemplates": "Нет сохранённых шаблонов",
+      "defaultBadge": "По умолч.",
+      "loadTitle": "Загрузить в конструктор",
+      "setDefaultTitle": "Сделать по умолчанию",
+      "confirmDeleteTitle": "Подтвердить удаление",
+      "deleteTitle": "Удалить"
+    },
+    "runDetail": {
+      "loadingRun": "Загрузка данных запуска...",
+      "loadError": "Не удалось загрузить детали запуска",
+      "artifactError": "Файл отчёта отсутствует на диске. Перезапустите генерацию.",
+      "downloadError": "Не удалось скачать файл отчёта.",
+      "cancelSuccess": "Запуск отменён",
+      "retrySuccess": "Запуск перезапущен",
+      "actions": {
+        "cancel": "Отмена",
+        "retry": "Повторить"
+      }
     }
   },
   "analytics": {

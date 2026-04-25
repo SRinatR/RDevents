@@ -260,6 +260,64 @@
       "assembling": "Assembling Report",
       "writingArtifacts": "Writing Artifacts",
       "finalizing": "Finalizing"
+    },
+    "builder": {
+      "title": "Builder",
+      "loading": "Loading configuration...",
+      "previewError": "Failed to generate report preview.",
+      "runError": "Failed to start report run.",
+      "fieldTitle": "Title",
+      "titlePlaceholder": "Report title (optional)",
+      "fieldFormat": "Format",
+      "fieldRedactionLevel": "Redaction Level",
+      "dateFrom": "Date from",
+      "dateTo": "Date to",
+      "preview": "Preview",
+      "runNow": "Run Now",
+      "category": {
+        "system": "System",
+        "application": "Application",
+        "infrastructure": "Infrastructure",
+        "security": "Security"
+      }
+    },
+    "preview": {
+      "title": "Preview",
+      "generating": "Generating preview...",
+      "emptyHint": "Configure your report and click Preview to see a summary",
+      "sections": "Sections",
+      "estSize": "Est. Size",
+      "includedSections": "Included Sections",
+      "warnings": "Warnings"
+    },
+    "templates": {
+      "title": "Templates",
+      "save": "Save",
+      "saveAsTitle": "Save as Template",
+      "name": "Name",
+      "namePlaceholder": "Template name",
+      "description": "Description",
+      "descriptionPlaceholder": "Description (optional)",
+      "setAsDefault": "Set as default",
+      "cancel": "Cancel",
+      "noTemplates": "No saved templates",
+      "defaultBadge": "Default",
+      "loadTitle": "Load into builder",
+      "setDefaultTitle": "Set as default",
+      "confirmDeleteTitle": "Confirm delete",
+      "deleteTitle": "Delete"
+    },
+    "runDetail": {
+      "loadingRun": "Loading run details...",
+      "loadError": "Failed to load run details",
+      "artifactError": "Artifact file is missing on disk. Please rerun the report.",
+      "downloadError": "Failed to download report artifact.",
+      "cancelSuccess": "Run canceled",
+      "retrySuccess": "Run restarted",
+      "actions": {
+        "cancel": "Cancel",
+        "retry": "Retry"
+      }
     }
   },
   "analytics": {
