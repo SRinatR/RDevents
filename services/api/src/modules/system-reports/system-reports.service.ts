@@ -612,14 +612,17 @@ export async function getArtifact(
 
   if (!artifact) return null;
 
-  const fs = await import('fs');
-  const { existsSync } = fs;
+  const fs = await import('node:fs/promises');
 
-  if (!existsSync(artifact.storagePath)) {
-    throw new Error('Artifact file missing');
+  let content: Buffer;
+  try {
+    content = await fs.readFile(artifact.storagePath);
+  } catch (error: any) {
+    if (error?.code === 'ENOENT') {
+      throw new Error('Artifact file missing on disk');
+    }
+    throw error;
   }
-
-  const content = fs.readFileSync(artifact.storagePath);
 
   return {
     content,

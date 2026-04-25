@@ -300,8 +300,8 @@ systemReportsRouter.get('/runs/:runId/artifacts/:artifactId/download', async (re
     res.send(result.content);
   } catch (error) {
     console.error('Error downloading artifact:', error);
-    if (error instanceof Error && error.message === 'Artifact file missing') {
-      res.status(404).json({ error: 'Artifact file missing', code: 'ARTIFACT_FILE_MISSING' });
+    if (error instanceof Error && error.message === 'Artifact file missing on disk') {
+      res.status(410).json({ error: 'Artifact file missing on disk', code: 'ARTIFACT_FILE_MISSING' });
       return;
     }
     res.status(500).json({ error: 'Failed to download artifact' });

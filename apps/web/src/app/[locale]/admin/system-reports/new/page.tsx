@@ -96,7 +96,7 @@ export default function NewReportPage() {
       const sectionsConfig = sections.map(s => ({
         key: s.key,
         enabled: s.enabled,
-        params: {},
+        options: {},
       }));
 
       const runData = {
