@@ -539,10 +539,25 @@ export const adminEmailApi = {
     return request<{ data: any[]; meta: any }>(`/api/admin/email/templates${qs}`, { auth: true });
   },
 
+  createTemplate: (body: Record<string, unknown>) =>
+    request<{ data: any }>('/api/admin/email/templates', { method: 'POST', auth: true, body }),
+
+  updateTemplate: (templateId: string, body: Record<string, unknown>) =>
+    request<{ data: any }>(`/api/admin/email/templates/${templateId}`, { method: 'PATCH', auth: true, body }),
+
+  archiveTemplate: (templateId: string) =>
+    request<{ data: any }>(`/api/admin/email/templates/${templateId}/archive`, { method: 'POST', auth: true }),
+
   listBroadcasts: (params: Record<string, string | number> = {}) => {
     const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
     return request<{ data: any[]; meta: any }>(`/api/admin/email/broadcasts${qs}`, { auth: true });
   },
+
+  createBroadcast: (body: Record<string, unknown>) =>
+    request<{ data: any }>('/api/admin/email/broadcasts', { method: 'POST', auth: true, body }),
+
+  sendBroadcast: (broadcastId: string) =>
+    request<{ data: any }>(`/api/admin/email/broadcasts/${broadcastId}/send`, { method: 'POST', auth: true }),
 
   listAutomations: (params: Record<string, string | number> = {}) => {
     const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
@@ -557,8 +572,10 @@ export const adminEmailApi = {
     return request<{ data: any[]; meta: any }>(`/api/admin/email/domains${qs}`, { auth: true });
   },
 
-  getWebhooks: () =>
-    request<any>('/api/admin/email/webhooks', { auth: true }),
+  getWebhooks: (params: Record<string, string | number> = {}) => {
+    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<any>(`/api/admin/email/webhooks${qs}`, { auth: true });
+  },
 };
 
 // ─── Analytics ────────────────────────────────────────────────────────────────

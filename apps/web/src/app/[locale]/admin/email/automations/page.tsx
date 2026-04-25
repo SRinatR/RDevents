@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, LoadingLines, Panel, TableShell } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, Notice, Panel, StatusBadge, TableShell } from '@/components/ui/signal-primitives';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 
 export default function AdminEmailAutomationsPage() {
@@ -17,6 +17,7 @@ export default function AdminEmailAutomationsPage() {
 
   const [automations, setAutomations] = useState<any[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) {
@@ -27,11 +28,17 @@ export default function AdminEmailAutomationsPage() {
   useEffect(() => {
     if (!user || !isAdmin || !isPlatformAdmin) return;
 
+    setLoadingData(true);
+    setError(null);
     adminEmailApi.listAutomations({})
       .then((res: { data: any[] }) => setAutomations(res.data))
-      .catch(() => setAutomations([]))
+      .catch((e) => {
+        console.error('Load email automations failed:', e);
+        setAutomations([]);
+        setError(locale === 'ru' ? 'Не удалось загрузить автоматизации.' : 'Failed to load automations.');
+      })
       .finally(() => setLoadingData(false));
-  }, [user, isAdmin, isPlatformAdmin]);
+  }, [user, isAdmin, isPlatformAdmin, locale]);
 
   if (loading || !user || !isAdmin) {
     return <div className="admin-loading-screen"><div className="spinner" /></div>;
@@ -59,12 +66,9 @@ export default function AdminEmailAutomationsPage() {
       <AdminPageHeader
         title={t('admin.automations') ?? 'Automations'}
         subtitle={locale === 'ru' ? 'Email автоматизации и триггеры' : 'Email automations and triggers'}
-        actions={
-          <button className="btn btn-primary btn-sm">
-            {locale === 'ru' ? 'Создать автоматизацию' : 'Create automation'}
-          </button>
-        }
       />
+
+      {error ? <Notice tone="danger">{error}</Notice> : null}
 
       <Panel variant="elevated" className="admin-command-panel">
         {loadingData ? (
@@ -72,12 +76,7 @@ export default function AdminEmailAutomationsPage() {
         ) : automations.length === 0 ? (
           <EmptyState
             title={locale === 'ru' ? 'Нет автоматизаций' : 'No automations'}
-            description={locale === 'ru' ? 'Создайте email автоматизацию для автоматической коммуникации.' : 'Create an email automation for automated communication.'}
-            actions={
-              <button className="btn btn-secondary btn-sm">
-                {locale === 'ru' ? 'Создать автоматизацию' : 'Create automation'}
-              </button>
-            }
+            description={locale === 'ru' ? 'Автоматизации пока не включены: сейчас рабочий контур покрывает шаблоны, рассылки, журнал и webhooks.' : 'Automations are not enabled yet: the working email loop currently covers templates, broadcasts, logs, and webhooks.'}
           />
         ) : (
           <TableShell>
@@ -97,7 +96,7 @@ export default function AdminEmailAutomationsPage() {
                   <tr key={auto.id}>
                     <td><strong>{auto.name}</strong></td>
                     <td className="signal-muted">{auto.trigger}</td>
-                    <td></td>
+                    <td><StatusBadge tone={toneByStatus[auto.status] ?? 'neutral'}>{auto.status}</StatusBadge></td>
                     <td className="signal-muted">{auto.lastRunAt ? new Date(auto.lastRunAt).toLocaleString() : '—'}</td>
                     <td className="signal-muted">{auto.nextRunAt ? new Date(auto.nextRunAt).toLocaleString() : '—'}</td>
                     <td className="right">

@@ -212,6 +212,55 @@ enum MediaAssetStatus {
   DELETED
 }
 
+enum EmailMessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  COMPLAINED
+  FAILED
+}
+
+enum EmailMessageSource {
+  VERIFICATION
+  INVITATION
+  NOTIFICATION
+  BROADCAST
+  PASSWORD_RESET
+  SYSTEM
+}
+
+enum EmailTemplateStatus {
+  ACTIVE
+  DRAFT
+  ARCHIVED
+}
+
+enum EmailBroadcastStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  PARTIAL
+  FAILED
+}
+
+enum EmailAudienceKind {
+  MAILING_CONSENT
+  VERIFIED_USERS
+  ACTIVE_USERS
+  PLATFORM_ADMINS
+}
+
+enum EmailWebhookProcessingStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
 model User {
   id                    String   @id @default(cuid())
   email                 String   @unique
@@ -292,6 +341,10 @@ model User {
   createdExportPresets ExportPreset[] @relation("ExportPresetCreatedBy")
   createdReportTemplates SystemReportTemplate[] @relation("SystemReportTemplateCreatedBy")
   requestedReportRuns SystemReportRun[] @relation("SystemReportRunRequestedBy")
+  emailMessages       EmailMessage[] @relation("EmailMessageUser")
+  createdEmailTemplates EmailTemplate[] @relation("EmailTemplateCreatedBy")
+  updatedEmailTemplates EmailTemplate[] @relation("EmailTemplateUpdatedBy")
+  createdEmailBroadcasts EmailBroadcast[] @relation("EmailBroadcastCreatedBy")
 
   @@map("users")
 }
@@ -1020,6 +1073,121 @@ model ExportPreset {
 
   @@index([eventId])
   @@map("export_presets")
+}
+
+// ─── Email Operations ────────────────────────────────────────────────────────
+
+model EmailTemplate {
+  id          String              @id @default(cuid())
+  name        String
+  key         String              @unique
+  subject     String
+  preheader   String?
+  htmlBody    String              @db.Text
+  textBody    String              @db.Text
+  status      EmailTemplateStatus @default(DRAFT)
+  createdById String?
+  updatedById String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  createdBy   User?               @relation("EmailTemplateCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?               @relation("EmailTemplateUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  broadcasts  EmailBroadcast[]
+  messages    EmailMessage[]
+
+  @@index([status])
+  @@index([createdById])
+  @@map("email_templates")
+}
+
+model EmailBroadcast {
+  id              String               @id @default(cuid())
+  title           String
+  subject         String
+  preheader       String?
+  htmlBody        String               @db.Text
+  textBody        String               @db.Text
+  audienceKind    EmailAudienceKind    @default(MAILING_CONSENT)
+  status          EmailBroadcastStatus @default(DRAFT)
+  scheduledAt     DateTime?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  totalRecipients Int                  @default(0)
+  sentCount       Int                  @default(0)
+  failedCount     Int                  @default(0)
+  errorText       String?              @db.Text
+  templateId      String?
+  createdById     String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  template        EmailTemplate?       @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  createdBy       User?                @relation("EmailBroadcastCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  messages        EmailMessage[]
+
+  @@index([status])
+  @@index([audienceKind])
+  @@index([templateId])
+  @@index([createdById])
+  @@index([createdAt])
+  @@map("email_broadcasts")
+}
+
+model EmailMessage {
+  id                String             @id @default(cuid())
+  toEmail           String
+  toUserId          String?
+  subject           String
+  source            EmailMessageSource
+  status            EmailMessageStatus @default(PENDING)
+  providerMessageId String?            @unique
+  errorText         String?            @db.Text
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  openedAt          DateTime?
+  clickedAt         DateTime?
+  bouncedAt         DateTime?
+  complainedAt      DateTime?
+  broadcastId       String?
+  templateId        String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  toUser            User?              @relation("EmailMessageUser", fields: [toUserId], references: [id], onDelete: SetNull)
+  broadcast         EmailBroadcast?    @relation(fields: [broadcastId], references: [id], onDelete: SetNull)
+  template          EmailTemplate?     @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  webhookEvents     EmailWebhookEvent[]
+
+  @@index([toEmail])
+  @@index([toUserId])
+  @@index([source])
+  @@index([status])
+  @@index([sentAt])
+  @@index([createdAt])
+  @@index([broadcastId])
+  @@map("email_messages")
+}
+
+model EmailWebhookEvent {
+  id                String                       @id @default(cuid())
+  eventType         String
+  providerEventId   String?                      @unique
+  providerMessageId String?
+  payloadJson       Json
+  processingStatus  EmailWebhookProcessingStatus @default(PENDING)
+  relatedMessageId  String?
+  errorMessage      String?                      @db.Text
+  receivedAt        DateTime                     @default(now())
+  processedAt       DateTime?
+
+  relatedMessage    EmailMessage?                @relation(fields: [relatedMessageId], references: [id], onDelete: SetNull)
+
+  @@index([eventType])
+  @@index([providerMessageId])
+  @@index([processingStatus])
+  @@index([receivedAt])
+  @@map("email_webhook_events")
 }
 
 // ─── System Report Module ────────────────────────────────────────────────────

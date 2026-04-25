@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, LoadingLines, MetricCard, PageHeader, Panel, TableShell } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, MetricCard, Notice, PageHeader, Panel, StatusBadge, TableShell } from '@/components/ui/signal-primitives';
 
 export default function AdminEmailAudiencePage() {
   const t = useTranslations();
@@ -16,6 +16,7 @@ export default function AdminEmailAudiencePage() {
 
   const [audience, setAudience] = useState<any>(null);
   const [loadingData, setLoadingData] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) {
@@ -26,11 +27,17 @@ export default function AdminEmailAudiencePage() {
   useEffect(() => {
     if (!user || !isAdmin || !isPlatformAdmin) return;
 
+    setLoadingData(true);
+    setError(null);
     adminEmailApi.getAudience()
       .then(setAudience)
-      .catch(() => setAudience(null))
+      .catch((e) => {
+        console.error('Load email audience failed:', e);
+        setAudience(null);
+        setError(locale === 'ru' ? 'Не удалось загрузить аудиторию.' : 'Failed to load audience.');
+      })
       .finally(() => setLoadingData(false));
-  }, [user, isAdmin, isPlatformAdmin]);
+  }, [user, isAdmin, isPlatformAdmin, locale]);
 
   if (loading || !user || !isAdmin) {
     return <div className="admin-loading-screen"><div className="spinner" /></div>;
@@ -53,6 +60,8 @@ export default function AdminEmailAudiencePage() {
         title={t('admin.audience') ?? 'Audience'}
         subtitle={locale === 'ru' ? 'Контакты и сегменты' : 'Contacts and segments'}
       />
+
+      {error ? <Notice tone="danger">{error}</Notice> : null}
 
       {/* KPI cards */}
       {loadingData ? (
@@ -97,7 +106,7 @@ export default function AdminEmailAudiencePage() {
                 {audience.segments.map((seg: any) => (
                   <tr key={seg.id}>
                     <td><strong>{seg.name}</strong></td>
-                    <td></td>
+                    <td><StatusBadge tone="info">{seg.size.toLocaleString()}</StatusBadge></td>
                     <td className="signal-muted">{seg.source}</td>
                     <td className="signal-muted">{new Date(seg.updatedAt).toLocaleDateString()}</td>
                   </tr>

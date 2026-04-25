@@ -1096,6 +1096,40 @@ img { display: block; max-width: 100%; }
 .signal-table td strong { font-weight: 650; letter-spacing: -0.01em; }
 .signal-table tbody tr:last-child td { border-bottom: none; }
 
+.admin-email-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+.admin-email-form-grid label {
+  display: grid;
+  gap: 7px;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+.admin-email-form-wide { grid-column: 1 / -1; }
+.admin-email-checkbox {
+  grid-column: 1 / -1;
+  display: inline-flex !important;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px !important;
+  width: fit-content;
+  color: var(--color-text-secondary) !important;
+}
+.admin-email-checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+}
+.admin-email-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .signal-avatar {
   position: relative;
   width: 32px;
@@ -1122,6 +1156,7 @@ img { display: block; max-width: 100%; }
 @media (max-width: 1024px) {
   .signal-two-col,
   .signal-three-col { grid-template-columns: 1fr; }
+  .admin-email-form-grid { grid-template-columns: 1fr; }
 }
 
 /* Public shell redesign */

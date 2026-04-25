@@ -1,14 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, FieldSelect, LoadingLines, MetricCard, Panel, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, MetricCard, Notice, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { AdminToolbarSelect } from '@/components/admin/AdminToolbar';
+
+const toneByStatus: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
+  processed: 'success',
+  processing: 'info',
+  failed: 'danger',
+  pending: 'warning',
+};
 
 export default function AdminEmailWebhooksPage() {
   const t = useTranslations();
@@ -18,6 +25,7 @@ export default function AdminEmailWebhooksPage() {
 
   const [webhooks, setWebhooks] = useState<any>(null);
   const [loadingData, setLoadingData] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('ALL');
 
   useEffect(() => {
@@ -26,14 +34,26 @@ export default function AdminEmailWebhooksPage() {
     }
   }, [user, loading, isAdmin, router, locale]);
 
+  const loadWebhooks = useCallback(async () => {
+    setLoadingData(true);
+    setError(null);
+
+    try {
+      const data = await adminEmailApi.getWebhooks(statusFilter === 'ALL' ? {} : { status: statusFilter });
+      setWebhooks(data);
+    } catch (e) {
+      console.error('Load email webhooks failed:', e);
+      setWebhooks(null);
+      setError(locale === 'ru' ? 'Не удалось загрузить webhooks.' : 'Failed to load webhooks.');
+    } finally {
+      setLoadingData(false);
+    }
+  }, [locale, statusFilter]);
+
   useEffect(() => {
     if (!user || !isAdmin || !isPlatformAdmin) return;
-
-    adminEmailApi.getWebhooks()
-      .then(setWebhooks)
-      .catch(() => setWebhooks(null))
-      .finally(() => setLoadingData(false));
-  }, [user, isAdmin, isPlatformAdmin]);
+    void loadWebhooks();
+  }, [user, isAdmin, isPlatformAdmin, loadWebhooks]);
 
   if (loading || !user || !isAdmin) {
     return <div className="admin-loading-screen"><div className="spinner" /></div>;
@@ -50,30 +70,23 @@ export default function AdminEmailWebhooksPage() {
     );
   }
 
-  const filteredLogs = webhooks?.logs?.filter((log: any) => {
-    return statusFilter === 'ALL' || log.processingStatus === statusFilter;
-  }) ?? [];
-
-  const toneByStatus: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
-    processed: 'success',
-    processing: 'info',
-    failed: 'danger',
-    pending: 'warning',
-  };
+  const logs = webhooks?.logs ?? [];
 
   return (
     <div className="signal-page-shell admin-control-page">
       <AdminPageHeader
         title={t('admin.webhooks') ?? 'Webhooks'}
-        subtitle={locale === 'ru' ? 'Webhook интеграция и логи' : 'Webhook integration and logs'}
+        subtitle={locale === 'ru' ? 'Webhook интеграция Resend и журнал обработки' : 'Resend webhook integration and processing log'}
+        actions={<button className="btn btn-secondary btn-sm" onClick={() => void loadWebhooks()} disabled={loadingData}>{locale === 'ru' ? 'Обновить' : 'Refresh'}</button>}
       />
 
-      {/* Status cards */}
+      {error ? <Notice tone="danger">{error}</Notice> : null}
+
       {loadingData ? (
         <div className="signal-kpi-grid"><LoadingLines rows={6} /></div>
       ) : webhooks ? (
         <div className="signal-kpi-grid">
-          <MetricCard tone="info" label={locale === 'ru' ? 'Endpoint' : 'Endpoint'} value={webhooks.endpoint ?? 'Not configured'} />
+          <MetricCard tone="info" label="Endpoint" value={webhooks.endpoint ?? 'Not configured'} />
           <MetricCard tone={webhooks.signatureStatus === 'valid' ? 'success' : 'warning'} label={locale === 'ru' ? 'Подпись' : 'Signature'} value={webhooks.signatureStatus ?? 'unknown'} />
           <MetricCard tone="neutral" label={locale === 'ru' ? 'Подписки' : 'Subscriptions'} value={webhooks.subscribedEvents?.length ?? 0} />
           <MetricCard tone="neutral" label={locale === 'ru' ? 'Получено' : 'Received'} value={webhooks.totalReceived ?? 0} />
@@ -83,49 +96,50 @@ export default function AdminEmailWebhooksPage() {
       ) : (
         <EmptyState
           title={locale === 'ru' ? 'Нет данных' : 'No data'}
-          description={locale === 'ru' ? 'Webhook данные будут загружены после настройки.' : 'Webhook data will be loaded after configuration.'}
+          description={locale === 'ru' ? 'Webhook данные появятся после настройки Resend.' : 'Webhook data will appear after Resend is configured.'}
         />
       )}
 
-      {/* Event types */}
       {webhooks?.subscribedEvents?.length ? (
         <Panel variant="subtle" className="admin-command-panel">
           <div className="signal-section-header">
             <div>
               <h2>{locale === 'ru' ? 'Подписанные события' : 'Subscribed events'}</h2>
-              <p className="signal-muted">{locale === 'ru' ? 'Типы webhook событий' : 'Webhook event types'}</p>
+              <p className="signal-muted">{locale === 'ru' ? 'Типы событий, которые обновляют статусы сообщений.' : 'Event types that update message statuses.'}</p>
             </div>
           </div>
-          <div className="signal-muted">{webhooks.subscribedEvents.join(', ')}</div>
+          <div className="admin-email-chip-row">
+            {webhooks.subscribedEvents.map((eventType: string) => (
+              <StatusBadge key={eventType} tone="neutral">{eventType}</StatusBadge>
+            ))}
+          </div>
         </Panel>
       ) : null}
 
-      {/* Event log table */}
       <Panel variant="elevated" className="admin-command-panel">
         <div className="signal-section-header">
           <div>
             <h2>{locale === 'ru' ? 'Журнал событий' : 'Event log'}</h2>
-            <p className="signal-muted">{locale === 'ru' ? 'Последние webhook события' : 'Recent webhook events'}</p>
+            <p className="signal-muted">{locale === 'ru' ? 'Последние webhook события с результатом обработки.' : 'Recent webhook events with processing result.'}</p>
           </div>
         </div>
 
         <ToolbarRow>
-          <FieldSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="admin-filter-select">
+          <AdminToolbarSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="ALL">{locale === 'ru' ? 'Все статусы' : 'All statuses'}</option>
             <option value="processed">{locale === 'ru' ? 'Обработано' : 'Processed'}</option>
             <option value="processing">{locale === 'ru' ? 'В процессе' : 'Processing'}</option>
             <option value="failed">{locale === 'ru' ? 'Ошибка' : 'Failed'}</option>
             <option value="pending">{locale === 'ru' ? 'В ожидании' : 'Pending'}</option>
-          </FieldSelect>
-          
+          </AdminToolbarSelect>
         </ToolbarRow>
 
         {loadingData ? (
           <LoadingLines rows={8} />
-        ) : filteredLogs.length === 0 ? (
+        ) : logs.length === 0 ? (
           <EmptyState
             title={locale === 'ru' ? 'Нет событий' : 'No events'}
-            description={locale === 'ru' ? 'Webhook события будут появляться после подключения провайдера.' : 'Webhook events will appear after provider connection.'}
+            description={locale === 'ru' ? 'Webhook события будут появляться после доставки писем.' : 'Webhook events will appear after emails are delivered.'}
           />
         ) : (
           <TableShell>
@@ -133,22 +147,22 @@ export default function AdminEmailWebhooksPage() {
               <thead>
                 <tr>
                   <th>{locale === 'ru' ? 'Тип события' : 'Event type'}</th>
-                  <th>{locale === 'ru' ? 'ID провайдера' : 'Provider ID'}</th>
+                  <th>{locale === 'ru' ? 'ID события' : 'Event ID'}</th>
                   <th>{locale === 'ru' ? 'Получено' : 'Received'}</th>
                   <th>{locale === 'ru' ? 'Статус' : 'Status'}</th>
-                  <th>{locale === 'ru' ? 'Сущность' : 'Entity'}</th>
+                  <th>{locale === 'ru' ? 'Связь' : 'Related'}</th>
                   <th>{locale === 'ru' ? 'Ошибка' : 'Error'}</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredLogs.map((log: any) => (
+                {logs.map((log: any) => (
                   <tr key={log.id}>
-                    <td></td>
-                    <td className="signal-muted signal-overflow-ellipsis">{log.providerEventId ?? '—'}</td>
+                    <td><StatusBadge tone="neutral">{log.eventType}</StatusBadge></td>
+                    <td className="signal-muted signal-overflow-ellipsis">{log.providerEventId ?? '-'}</td>
                     <td className="signal-muted">{new Date(log.receivedAt).toLocaleString()}</td>
-                    <td></td>
-                    <td className="signal-muted">{log.relatedEntity ?? '—'}</td>
-                    <td className="signal-muted signal-overflow-ellipsis">{log.errorMessage ?? '—'}</td>
+                    <td><StatusBadge tone={toneByStatus[log.processingStatus] ?? 'neutral'}>{log.processingStatus}</StatusBadge></td>
+                    <td className="signal-muted signal-overflow-ellipsis">{log.relatedEntity ?? '-'}</td>
+                    <td className="signal-muted signal-overflow-ellipsis">{log.errorMessage ?? '-'}</td>
                   </tr>
                 ))}
               </tbody>
