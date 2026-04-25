@@ -68,9 +68,7 @@ cleanup_on_exit() {
       mv -f "$tmp_status" "$STATUS_FILE"
     fi
 
-    if [ "$FINAL_STATUS" = "success" ]; then
-      rm -f "$REQUEST_FILE" 2>/dev/null || true
-    fi
+    rm -f "$REQUEST_FILE" 2>/dev/null || true
   fi
 }
 
