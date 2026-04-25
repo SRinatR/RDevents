@@ -32,6 +32,74 @@ function makeDefaultBuilderConfig(config: SystemReportConfigResponse): BuilderCo
   };
 }
 
+function normalizeBuilderConfigForCurrentSchema(
+  config: SystemReportConfigResponse,
+  templateConfig: BuilderConfig
+): { value: BuilderConfig; adjusted: boolean } {
+  const formatValues = new Set(config.formats.map((format) => format.value));
+  const redactionValues = new Set(config.redactionLevels.map((redaction) => redaction.value));
+  const templateSections = new Map(templateConfig.sections.map((section) => [section.key, section]));
+  let adjusted = false;
+
+  const sections = config.sections.map((sectionDefinition) => {
+    const templateSection = templateSections.get(sectionDefinition.key);
+    if (!templateSection) adjusted = true;
+
+    const options = Object.fromEntries(
+      sectionDefinition.options.map((optionDefinition) => {
+        const templateValue = templateSection?.options?.[optionDefinition.key];
+        if (templateSection && !(optionDefinition.key in (templateSection.options ?? {}))) {
+          adjusted = true;
+        }
+        return [optionDefinition.key, templateValue ?? optionDefinition.default];
+      })
+    );
+
+    if (templateSection) {
+      for (const optionKey of Object.keys(templateSection.options ?? {})) {
+        if (!sectionDefinition.options.some((optionDefinition) => optionDefinition.key === optionKey)) {
+          adjusted = true;
+          break;
+        }
+      }
+    }
+
+    return {
+      key: sectionDefinition.key,
+      enabled: templateSection?.enabled ?? false,
+      options,
+    };
+  });
+
+  for (const section of templateConfig.sections) {
+    if (!config.sections.some((definition) => definition.key === section.key)) {
+      adjusted = true;
+      break;
+    }
+  }
+
+  const format = formatValues.has(templateConfig.format)
+    ? templateConfig.format
+    : (config.formats[0]?.value ?? 'txt');
+  if (format !== templateConfig.format) adjusted = true;
+
+  const redactionLevel =
+    templateConfig.redactionLevel && redactionValues.has(templateConfig.redactionLevel)
+      ? templateConfig.redactionLevel
+      : 'standard';
+  if (redactionLevel !== templateConfig.redactionLevel) adjusted = true;
+
+  return {
+    value: {
+      format,
+      redactionLevel,
+      sections,
+      dateRange: templateConfig.dateRange,
+    },
+    adjusted,
+  };
+}
+
 function pickPrimaryArtifact(run: ReportRun) {
   const expectedExt = `.${run.config.format.toLowerCase()}`;
   return (
@@ -43,8 +111,6 @@ function pickPrimaryArtifact(run: ReportRun) {
     null
   );
 }
-
-type ReportStage = 'queued' | 'collecting' | 'assembling' | 'writing_artifacts' | 'finalizing';
 
 export default function SystemReportsPage() {
   const t = useTranslations('admin.systemReports');
@@ -58,6 +124,7 @@ export default function SystemReportsPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'builder' | 'history'>('builder');
   const [builderConfig, setBuilderConfig] = useState<BuilderConfig | null>(null);
   const [builderTitle, setBuilderTitle] = useState('');
@@ -117,6 +184,8 @@ export default function SystemReportsPage() {
   const handleRunNow = useCallback(
     async (cfg: BuilderConfig, title?: string) => {
       setActionLoading('run');
+      setActionError(null);
+      setActionNotice(null);
       try {
         const run = await systemReportsApi.createRun({
           title: title?.trim() || undefined,
@@ -153,8 +222,9 @@ export default function SystemReportsPage() {
 
       const updated = await systemReportsApi.getTemplates();
       setTemplates(updated);
+      setActionNotice(t('templateSaved') || 'Template saved.');
     },
-    [builderConfig]
+    [builderConfig, t]
   );
 
   const handleDeleteTemplate = useCallback(async (templateId: string) => {
@@ -177,10 +247,18 @@ export default function SystemReportsPage() {
   }, []);
 
   const handleLoadTemplate = useCallback((template: SystemReportTemplate) => {
-    setBuilderConfig(template.config);
+    if (!config) return;
+    const normalized = normalizeBuilderConfigForCurrentSchema(config, template.config);
+    setBuilderConfig(normalized.value);
     setBuilderTitle(template.name);
+    setActionError(null);
+    setActionNotice(
+      normalized.adjusted
+        ? (t('templateAdjusted') || 'Template was adjusted to the current report schema.')
+        : null
+    );
     setActiveTab('builder');
-  }, []);
+  }, [config, t]);
 
   const handleDownload = useCallback(async (run: ReportRun) => {
     const mainArtifact = pickPrimaryArtifact(run);
@@ -250,14 +328,6 @@ export default function SystemReportsPage() {
     return `${Math.floor(diff / 3600)}h ${Math.floor((diff % 3600) / 60)}m`;
   };
 
-  const formatBytes = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const getTotalSize = (run: ReportRun) => run.artifacts.reduce((sum, a) => sum + a.sizeBytes, 0);
-
   const getStatusTone = (status: ReportStatus) => {
     switch (status) {
       case 'success': return 'success';
@@ -310,6 +380,12 @@ export default function SystemReportsPage() {
         <div className="error-banner">
           <span className="error-icon">⚠</span>
           <span>{actionError}</span>
+        </div>
+      )}
+
+      {actionNotice && (
+        <div className="signal-notice tone-info">
+          {actionNotice}
         </div>
       )}
 
@@ -462,7 +538,6 @@ export default function SystemReportsPage() {
             onDelete={handleDeleteTemplate}
             onSetDefault={handleSetDefaultTemplate}
             currentConfig={builderConfig}
-            locale={locale}
           />
         </div>
       </div>

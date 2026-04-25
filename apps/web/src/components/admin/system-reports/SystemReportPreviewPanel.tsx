@@ -9,7 +9,7 @@ interface SystemReportPreviewPanelProps {
 }
 
 export function SystemReportPreviewPanel({ preview, loading }: SystemReportPreviewPanelProps) {
-  const t = useTranslations('admin.systemReports.preview');
+  const t = useTranslations('admin.preview');
 
   if (loading) {
     return (

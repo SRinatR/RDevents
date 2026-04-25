@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { SystemReportTemplate, BuilderConfig } from '@/lib/api';
 
@@ -8,11 +8,10 @@ interface SystemReportTemplatesPanelProps {
   templates: SystemReportTemplate[];
   loading: boolean;
   onLoad: (template: SystemReportTemplate) => void;
-  onSave: (name: string, description?: string, isDefault?: boolean) => void;
-  onDelete: (templateId: string) => void;
-  onSetDefault: (templateId: string) => void;
+  onSave: (name: string, description?: string, isDefault?: boolean) => Promise<void> | void;
+  onDelete: (templateId: string) => Promise<void> | void;
+  onSetDefault: (templateId: string) => Promise<void> | void;
   currentConfig: BuilderConfig | null;
-  locale: string;
 }
 
 export function SystemReportTemplatesPanel({
@@ -23,28 +22,65 @@ export function SystemReportTemplatesPanel({
   onDelete,
   onSetDefault,
   currentConfig,
-  locale,
 }: SystemReportTemplatesPanelProps) {
-  const t = useTranslations('admin.systemReports.templates');
+  const t = useTranslations('admin.templates');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newIsDefault, setNewIsDefault] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [templateError, setTemplateError] = useState<string | null>(null);
+  const [templateActionLoading, setTemplateActionLoading] = useState<string | null>(null);
 
-  const handleSave = () => {
-    if (!newName.trim()) return;
-    onSave(newName.trim(), newDescription.trim() || undefined, newIsDefault);
+  const resetDialog = useCallback(() => {
     setNewName('');
     setNewDescription('');
     setNewIsDefault(false);
     setShowSaveDialog(false);
-  };
+  }, []);
 
-  const handleDelete = (templateId: string) => {
-    onDelete(templateId);
-    setConfirmDelete(null);
-  };
+  const handleSave = useCallback(async () => {
+    if (!newName.trim()) return;
+    setTemplateError(null);
+    setSaveLoading(true);
+    try {
+      await onSave(newName.trim(), newDescription.trim() || undefined, newIsDefault);
+      resetDialog();
+    } catch (error) {
+      console.error('Save template failed:', error);
+      setTemplateError(t('saveError') || 'Failed to save template.');
+    } finally {
+      setSaveLoading(false);
+    }
+  }, [newName, newDescription, newIsDefault, onSave, resetDialog, t]);
+
+  const handleDelete = useCallback(async (templateId: string) => {
+    setTemplateError(null);
+    setTemplateActionLoading(`delete:${templateId}`);
+    try {
+      await onDelete(templateId);
+      setConfirmDelete(null);
+    } catch (error) {
+      console.error('Delete template failed:', error);
+      setTemplateError(t('deleteError') || 'Failed to delete template.');
+    } finally {
+      setTemplateActionLoading(null);
+    }
+  }, [onDelete, t]);
+
+  const handleSetDefault = useCallback(async (templateId: string) => {
+    setTemplateError(null);
+    setTemplateActionLoading(`default:${templateId}`);
+    try {
+      await onSetDefault(templateId);
+    } catch (error) {
+      console.error('Set default template failed:', error);
+      setTemplateError(t('defaultError') || 'Failed to update default template.');
+    } finally {
+      setTemplateActionLoading(null);
+    }
+  }, [onSetDefault, t]);
 
   return (
     <div className="sr-templates-panel">
@@ -52,12 +88,22 @@ export function SystemReportTemplatesPanel({
         <h3>{t('title') || 'Templates'}</h3>
         <button
           className="save-template-btn"
-          onClick={() => setShowSaveDialog(true)}
+          onClick={() => {
+            setTemplateError(null);
+            setShowSaveDialog(true);
+          }}
           disabled={!currentConfig}
         >
           💾 {t('save') || 'Save'}
         </button>
       </div>
+
+      {templateError && (
+        <div className="error-banner sr-template-error">
+          <span className="error-icon">⚠</span>
+          <span>{templateError}</span>
+        </div>
+      )}
 
       {showSaveDialog && (
         <div className="save-dialog">
@@ -88,11 +134,11 @@ export function SystemReportTemplatesPanel({
             <span>{t('setAsDefault') || 'Set as default'}</span>
           </label>
           <div className="dialog-actions">
-            <button onClick={() => setShowSaveDialog(false)}>
+            <button onClick={resetDialog} disabled={saveLoading}>
               {t('cancel') || 'Cancel'}
             </button>
-            <button className="primary" onClick={handleSave} disabled={!newName.trim()}>
-              {t('save') || 'Save'}
+            <button className="primary" onClick={handleSave} disabled={saveLoading || !newName.trim()}>
+              {saveLoading ? t('saving') || 'Saving...' : t('save') || 'Save'}
             </button>
           </div>
         </div>
@@ -130,10 +176,11 @@ export function SystemReportTemplatesPanel({
                 {!template.isDefault && (
                   <button
                     className="template-action default-btn"
-                    onClick={() => onSetDefault(template.id)}
+                    onClick={() => handleSetDefault(template.id)}
+                    disabled={templateActionLoading === `default:${template.id}`}
                     title={t('setDefaultTitle') || 'Set as default'}
                   >
-                    ★
+                    {templateActionLoading === `default:${template.id}` ? '...' : '★'}
                   </button>
                 )}
                 {confirmDelete === template.id ? (
@@ -141,9 +188,10 @@ export function SystemReportTemplatesPanel({
                     <button
                       className="template-action confirm-delete-btn"
                       onClick={() => handleDelete(template.id)}
+                      disabled={templateActionLoading === `delete:${template.id}`}
                       title={t('confirmDeleteTitle') || 'Confirm delete'}
                     >
-                      ✓
+                      {templateActionLoading === `delete:${template.id}` ? '...' : '✓'}
                     </button>
                     <button
                       className="template-action cancel-delete-btn"

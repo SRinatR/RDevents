@@ -33,6 +33,7 @@ export default function SystemReportRunPage() {
   const [downloading, setDownloading] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const runStatus = run?.status;
 
   const load = useCallback(async () => {
     try {
@@ -53,15 +54,15 @@ export default function SystemReportRunPage() {
 
   useEffect(() => {
     if (!runId) return;
-    if (!run) return;
-    if (run.status !== 'queued' && run.status !== 'running') return;
+    if (!runStatus) return;
+    if (runStatus !== 'queued' && runStatus !== 'running') return;
 
     const timer = setInterval(() => {
       load();
     }, 3000);
 
     return () => clearInterval(timer);
-  }, [runId, run?.status, load]);
+  }, [runId, runStatus, load]);
 
   const handleDownload = async (artifactId: string, fileName: string) => {
     setActionError(null);

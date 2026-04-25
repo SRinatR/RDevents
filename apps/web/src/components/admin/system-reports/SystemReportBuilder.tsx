@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import type {
   SystemReportConfigResponse,
@@ -37,6 +37,32 @@ const CATEGORY_LABELS_I18N: Record<string, string> = {
   security: 'category.security',
 };
 
+const DEPENDENCY_HINTS: Array<{
+  key: string;
+  when: (enabled: Set<string>, value: BuilderConfig) => boolean;
+}> = [
+  {
+    key: 'dockerWithoutSystemd',
+    when: (enabled) => enabled.has('docker') && !enabled.has('systemd'),
+  },
+  {
+    key: 'systemdWithoutDocker',
+    when: (enabled) => enabled.has('systemd') && !enabled.has('docker'),
+  },
+  {
+    key: 'databaseWithoutHealth',
+    when: (enabled) => enabled.has('database') && !enabled.has('health'),
+  },
+  {
+    key: 'securityWithoutRelease',
+    when: (enabled) => enabled.has('security') && !enabled.has('release'),
+  },
+  {
+    key: 'redactionOff',
+    when: (_enabled, value) => value.redactionLevel === 'off',
+  },
+];
+
 function groupSectionsByCategory(
   sections: SystemReportSectionDefinition[]
 ): Record<string, SystemReportSectionDefinition[]> {
@@ -60,11 +86,32 @@ export function SystemReportBuilder({
   onSaveTemplate,
   locale,
 }: SystemReportBuilderProps) {
-  const t = useTranslations('admin.systemReports.builder');
+  const t = useTranslations('admin.builder');
   const [preview, setPreview] = useState<SystemReportPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [runLoading, setRunLoading] = useState(false);
+  const [saveTemplateLoading, setSaveTemplateLoading] = useState(false);
   const [builderError, setBuilderError] = useState<string | null>(null);
+
+  const selectedSections = useMemo(() => {
+    if (!config || !value) return [];
+    const enabledByKey = new Map(value.sections.map((section) => [section.key, section.enabled]));
+    return config.sections.filter((section) => enabledByKey.get(section.key));
+  }, [config, value]);
+
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const section of selectedSections) {
+      counts.set(section.category, (counts.get(section.category) ?? 0) + 1);
+    }
+    return counts;
+  }, [selectedSections]);
+
+  const dependencyHintKeys = useMemo(() => {
+    if (!value) return [];
+    const enabled = new Set(selectedSections.map((section) => section.key));
+    return DEPENDENCY_HINTS.filter((hint) => hint.when(enabled, value)).map((hint) => hint.key);
+  }, [selectedSections, value]);
 
   const handleFormatChange = useCallback((format: BuilderConfig['format']) => {
     if (!value) return;
@@ -142,6 +189,27 @@ export function SystemReportBuilder({
     }
   }, [value, title, onRunNow, t]);
 
+  const handleSaveTemplate = useCallback(async () => {
+    const templateName = title.trim();
+
+    if (!templateName) {
+      setBuilderError(t('templateNameRequired') || 'Enter a title before saving a template.');
+      return;
+    }
+
+    setBuilderError(null);
+    setSaveTemplateLoading(true);
+
+    try {
+      await onSaveTemplate(templateName, undefined, false);
+    } catch (e) {
+      console.error('Save template failed:', e);
+      setBuilderError(t('saveTemplateError') || 'Failed to save template.');
+    } finally {
+      setSaveTemplateLoading(false);
+    }
+  }, [title, onSaveTemplate, t]);
+
   if (!config || !value) {
     return (
       <div className="sr-builder loading">
@@ -155,6 +223,16 @@ export function SystemReportBuilder({
 
   const groupedSections = groupSectionsByCategory(config.sections);
   const categories = Object.keys(groupedSections);
+  const formatLabel = config.formats.find((format) => format.value === value.format)?.label ?? value.format.toUpperCase();
+  const redactionLabel =
+    config.redactionLevels.find((redaction) => redaction.value === (value.redactionLevel || 'standard'))?.label ??
+    (value.redactionLevel || 'standard');
+  const dateRangeLabel =
+    value.dateRange?.start || value.dateRange?.end
+      ? `${value.dateRange?.start ? new Date(value.dateRange.start).toLocaleString(locale) : t('notSet')} - ${
+          value.dateRange?.end ? new Date(value.dateRange.end).toLocaleString(locale) : t('notSet')
+        }`
+      : t('notSet');
 
   return (
     <div className="sr-builder">
@@ -248,6 +326,9 @@ export function SystemReportBuilder({
             <div key={category} className="section-category">
               <h4 className="category-title">
                 {t(CATEGORY_LABELS_I18N[category]) || CATEGORY_LABELS[category] || category}
+                <span className="category-count">
+                  {categoryCounts.get(category) ?? 0}/{groupedSections[category].length}
+                </span>
               </h4>
               <div className="category-sections">
                 {groupedSections[category].map((sectionDef) => {
@@ -268,6 +349,47 @@ export function SystemReportBuilder({
           ))}
         </div>
 
+        <div className="builder-summary-panel">
+          <div className="builder-summary-header">
+            <h4>{t('selectedSummary') || 'Selected report composition'}</h4>
+            <span>
+              {selectedSections.length}/{config.sections.length} {t('selectedSections') || 'sections'}
+            </span>
+          </div>
+
+          <div className="builder-summary-grid">
+            <div>
+              <span>{t('formatSummary') || 'Format'}</span>
+              <strong>{formatLabel}</strong>
+            </div>
+            <div>
+              <span>{t('redactionSummary') || 'Redaction'}</span>
+              <strong>{redactionLabel}</strong>
+            </div>
+            <div>
+              <span>{t('dateRangeSummary') || 'Date range'}</span>
+              <strong>{dateRangeLabel}</strong>
+            </div>
+          </div>
+
+          {value.format === 'zip' && (
+            <p className="builder-summary-note">
+              {t('zipBundleHint') || 'ZIP bundle will include report.txt, metadata.json and per-section files.'}
+            </p>
+          )}
+
+          {dependencyHintKeys.length > 0 && (
+            <div className="builder-dependency-hints">
+              <span>{t('softDependencies') || 'Composition hints'}</span>
+              <ul>
+                {dependencyHintKeys.map((key) => (
+                  <li key={key}>{t(`dependencies.${key}`)}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
         <div className="builder-actions">
           <button
             className="action-btn preview-btn"
@@ -275,6 +397,13 @@ export function SystemReportBuilder({
             disabled={previewLoading}
           >
             {previewLoading ? '...' : '👁'} {t('preview') || 'Preview'}
+          </button>
+          <button
+            className="action-btn save-template-btn"
+            onClick={handleSaveTemplate}
+            disabled={saveTemplateLoading || !title.trim()}
+          >
+            {saveTemplateLoading ? '...' : '💾'} {t('saveTemplate') || 'Save Template'}
           </button>
           <button
             className="action-btn run-btn"
