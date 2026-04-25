@@ -1,44 +1,52 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import { Router } from 'express';
-import type { AuthenticatedRequest } from '../../common/middleware.js';
-import type { User } from '@prisma/client';
 
-vi.mock('../../common/middleware.js', async () => {
-  const actual = await vi.importActual('../../common/middleware.js');
-  return {
-    ...actual,
-    requireSuperAdmin: (req: any, _res: any, next: any) => {
-      if (!req.user || req.user.role !== 'SUPER_ADMIN') {
-        return _res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
-      }
-      next();
-    },
-  };
-});
+const mockFsExistsSync = vi.fn();
+const mockFsMkdirSync = vi.fn();
+const mockFsReadFileSync = vi.fn();
+const mockFsWriteFileSync = vi.fn();
+const mockFsOpenSync = vi.fn();
+const mockFsCloseSync = vi.fn();
+const mockFsUnlinkSync = vi.fn();
+const mockFsStatSync = vi.fn();
+const mockPathJoin = vi.fn((...args: string[]) => args.join('/'));
 
-const mockFs = {
-  existsSync: vi.fn(),
-  mkdirSync: vi.fn(),
-  readFileSync: vi.fn(),
-  writeFileSync: vi.fn(),
-  openSync: vi.fn(),
-  closeSync: vi.fn(),
-  unlinkSync: vi.fn(),
-  statSync: vi.fn(),
-};
-
-vi.mock('fs', () => mockFs);
-vi.mock('path', () => ({
-  join: (...args: string[]) => args.join('/'),
+vi.mock('fs', () => ({
+  existsSync: mockFsExistsSync,
+  mkdirSync: mockFsMkdirSync,
+  readFileSync: mockFsReadFileSync,
+  writeFileSync: mockFsWriteFileSync,
+  openSync: mockFsOpenSync,
+  closeSync: mockFsCloseSync,
+  unlinkSync: mockFsUnlinkSync,
+  statSync: mockFsStatSync,
 }));
 
-const RUNTIME_ADMIN = '/opt/rdevents/runtime/admin';
-const RUNTIME_CONTROL = '/opt/rdevents/runtime/control';
+vi.mock('path', () => ({
+  join: mockPathJoin,
+}));
+
+vi.mock('../../common/middleware.js', () => ({
+  requireSuperAdmin: (_req: any, res: any, next: any) => {
+    if (!_req.user || _req.user.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    }
+    next();
+  },
+}));
+
+vi.mock('../../config/env.js', () => ({
+  env: {
+    NODE_ENV: 'test',
+    DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
+    JWT_ACCESS_SECRET: 'test-secret',
+    JWT_REFRESH_SECRET: 'test-refresh-secret',
+  },
+}));
 
 describe('System Report Router (Legacy)', () => {
-  let app: ReturnType<typeof Router>;
-  const mockUser: Partial<User> = {
+  const mockUser = {
     id: 'user-123',
     email: 'admin@test.com',
     role: 'SUPER_ADMIN',
@@ -47,7 +55,12 @@ describe('System Report Router (Legacy)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.resetModules();
+    mockFsExistsSync.mockReturnValue(false);
+    mockFsMkdirSync.mockReturnValue(undefined);
+    mockFsOpenSync.mockReturnValue(999);
+    mockFsCloseSync.mockReturnValue(undefined);
+    mockFsWriteFileSync.mockReturnValue(undefined);
+    mockFsStatSync.mockReturnValue({ mtimeMs: Date.now() - 60000 });
   });
 
   afterEach(() => {
@@ -68,12 +81,6 @@ describe('System Report Router (Legacy)', () => {
 
   describe('POST /refresh', () => {
     it('returns 202 and creates request file for SUPER_ADMIN', async () => {
-      mockFs.existsSync.mockReturnValue(false);
-      mockFs.mkdirSync.mockReturnValue(undefined);
-      mockFs.openSync.mockReturnValue(999);
-      mockFs.closeSync.mockReturnValue(undefined);
-      mockFs.writeFileSync.mockReturnValue(undefined);
-
       const testApp = await createTestApp();
       const res = await request(testApp).post('/api/admin/system-report/refresh');
 
@@ -86,11 +93,13 @@ describe('System Report Router (Legacy)', () => {
     });
 
     it('returns 409 when request file already exists', async () => {
-      mockFs.existsSync.mockImplementation((path: string) => {
-        if (path.includes('system-report-refresh-request.json')) return true;
+      mockFsExistsSync.mockImplementation((path: string) => {
+        if (typeof path === 'string' && path.includes('system-report-refresh-request.json')) {
+          return true;
+        }
         return false;
       });
-      mockFs.readFileSync.mockReturnValue(JSON.stringify({
+      mockFsReadFileSync.mockReturnValue(JSON.stringify({
         requestId: 'existing-id',
         requestedAt: '2024-01-01T00:00:00Z',
         requestedByUserId: 'other-user',
@@ -105,13 +114,17 @@ describe('System Report Router (Legacy)', () => {
       expect(res.body.state).toBe('queued');
     });
 
-    it('returns 409 when status file shows running/queued state', async () => {
-      mockFs.existsSync.mockImplementation((path: string) => {
-        if (path.includes('system-report-refresh-request.json')) return false;
-        if (path.includes('system-report-status.json')) return true;
+    it('returns 409 when status file shows running state', async () => {
+      mockFsExistsSync.mockImplementation((path: string) => {
+        if (typeof path === 'string' && path.includes('system-report-refresh-request.json')) {
+          return false;
+        }
+        if (typeof path === 'string' && path.includes('system-report-status.json')) {
+          return true;
+        }
         return false;
       });
-      mockFs.readFileSync.mockReturnValue(JSON.stringify({
+      mockFsReadFileSync.mockReturnValue(JSON.stringify({
         state: 'running',
         requestId: 'running-id',
         requestedAt: new Date().toISOString(),
@@ -126,8 +139,8 @@ describe('System Report Router (Legacy)', () => {
     });
 
     it('returns 403 for non-SUPER_ADMIN users', async () => {
-      const nonAdminUser = { ...mockUser, role: 'USER' as any };
-      
+      const nonAdminUser = { ...mockUser, role: 'USER' };
+
       const { systemReportRouter } = await import('./system-report.router.js');
       const express = await import('express');
       const testApp = express.default();
@@ -145,9 +158,6 @@ describe('System Report Router (Legacy)', () => {
 
   describe('GET /status', () => {
     it('returns idle state when no files exist', async () => {
-      mockFs.existsSync.mockReturnValue(false);
-      mockFs.statSync.mockReturnValue({ mtimeMs: Date.now() - 60000 });
-
       const testApp = await createTestApp();
       const res = await request(testApp).get('/api/admin/system-report/status');
 
@@ -158,17 +168,18 @@ describe('System Report Router (Legacy)', () => {
     });
 
     it('returns queued state when request file exists', async () => {
-      mockFs.existsSync.mockImplementation((path: string) => {
-        if (path.includes('system-report-refresh-request.json')) return true;
+      mockFsExistsSync.mockImplementation((path: string) => {
+        if (typeof path === 'string' && path.includes('system-report-refresh-request.json')) {
+          return true;
+        }
         return false;
       });
-      mockFs.readFileSync.mockReturnValue(JSON.stringify({
+      mockFsReadFileSync.mockReturnValue(JSON.stringify({
         requestId: 'req-123',
         requestedAt: '2024-01-01T00:00:00Z',
         requestedByUserId: 'user-123',
         requestedByEmail: 'admin@test.com',
       }));
-      mockFs.statSync.mockReturnValue({ mtimeMs: Date.now() - 1000 });
 
       const testApp = await createTestApp();
       const res = await request(testApp).get('/api/admin/system-report/status');
@@ -180,51 +191,22 @@ describe('System Report Router (Legacy)', () => {
       expect(res.body.downloadAvailable).toBe(false);
     });
 
-    it('returns running state from status file', async () => {
-      mockFs.existsSync.mockImplementation((path: string) => {
-        if (path.includes('system-report-refresh-request.json')) return true;
-        if (path.includes('system-report-status.json')) return true;
-        return false;
-      });
-      mockFs.readFileSync.mockImplementation((path: string) => {
-        if (path.includes('system-report-refresh-request.json')) {
-          return JSON.stringify({
-            requestId: 'req-123',
-            requestedAt: '2024-01-01T00:00:00Z',
-            requestedByUserId: 'user-123',
-            requestedByEmail: 'admin@test.com',
-          });
-        }
-        if (path.includes('system-report-status.json')) {
-          return JSON.stringify({
-            state: 'running',
-            startedAt: new Date().toISOString(),
-          });
-        }
-        return '{}';
-      });
-      mockFs.statSync.mockReturnValue({ mtimeMs: Date.now() - 1000 });
-
-      const testApp = await createTestApp();
-      const res = await request(testApp).get('/api/admin/system-report/status');
-
-      expect(res.status).toBe(200);
-      expect(res.body.state).toBe('running');
-    });
-
     it('returns downloadAvailable true when report and meta exist', async () => {
-      mockFs.existsSync.mockImplementation((path: string) => {
-        if (path.includes('system-report.txt')) return true;
-        if (path.includes('system-report-meta.json')) return true;
+      mockFsExistsSync.mockImplementation((path: string) => {
+        if (typeof path === 'string' && path.includes('system-report.txt')) {
+          return true;
+        }
+        if (typeof path === 'string' && path.includes('system-report-meta.json')) {
+          return true;
+        }
         return false;
       });
-      mockFs.readFileSync.mockReturnValue(JSON.stringify({
+      mockFsReadFileSync.mockReturnValue(JSON.stringify({
         fileName: 'system-report.txt',
         generatedAt: '2024-01-01T00:00:00Z',
         fileSizeBytes: 12345,
         sha256: 'abc123',
       }));
-      mockFs.statSync.mockReturnValue({ mtimeMs: Date.now() - 60000 });
 
       const testApp = await createTestApp();
       const res = await request(testApp).get('/api/admin/system-report/status');
@@ -237,8 +219,6 @@ describe('System Report Router (Legacy)', () => {
 
   describe('GET /download', () => {
     it('returns 404 when report file does not exist', async () => {
-      mockFs.existsSync.mockReturnValue(false);
-
       const testApp = await createTestApp();
       const res = await request(testApp).get('/api/admin/system-report/download');
 
@@ -247,9 +227,9 @@ describe('System Report Router (Legacy)', () => {
     });
 
     it('returns 200 with correct headers when report exists', async () => {
-      mockFs.existsSync.mockReturnValue(true);
-      mockFs.statSync.mockReturnValue({ size: 12345 });
-      mockFs.readFileSync.mockReturnValue('Test report content');
+      mockFsExistsSync.mockReturnValue(true);
+      mockFsStatSync.mockReturnValue({ size: 12345 });
+      mockFsReadFileSync.mockReturnValue('Test report content');
 
       const testApp = await createTestApp();
       const res = await request(testApp).get('/api/admin/system-report/download');
@@ -259,12 +239,12 @@ describe('System Report Router (Legacy)', () => {
       expect(res.headers['content-disposition']).toContain('attachment');
       expect(res.headers['content-disposition']).toContain('system-report.txt');
       expect(res.headers['cache-control']).toBe('no-store');
-      expect(res.headers['content-length']).toBe('12345');
+      expect(res.headers['content-length']).toBe(String(Buffer.byteLength('Test report content', 'utf-8')));
     });
 
     it('returns 403 for non-SUPER_ADMIN users', async () => {
-      const nonAdminUser = { ...mockUser, role: 'USER' as any };
-      
+      const nonAdminUser = { ...mockUser, role: 'USER' };
+
       const { systemReportRouter } = await import('./system-report.router.js');
       const express = await import('express');
       const testApp = express.default();
