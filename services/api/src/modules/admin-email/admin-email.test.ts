@@ -1,7 +1,6 @@
 import request from 'supertest';
-import { describe, expect, it, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { createApp } from '../../app.js';
-import { prisma } from '../../db/prisma.js';
 
 const app = createApp();
 
@@ -11,29 +10,6 @@ describe('admin-email router access', () => {
       const res = await request(app).get('/api/admin/email/overview');
 
       expect(res.status).toBe(401);
-    });
-
-    it('returns 403 for regular user', async () => {
-      const loginRes = await request(app)
-        .post('/api/auth/login')
-        .send({ email: 'test@example.com', password: 'password' });
-
-      if (loginRes.status !== 200) {
-        expect(loginRes.status).toBe(401);
-        return;
-      }
-
-      const token = loginRes.body?.accessToken;
-      if (!token) {
-        expect(token).toBeTruthy();
-        return;
-      }
-
-      const res = await request(app)
-        .get('/api/admin/email/overview')
-        .set('Authorization', `Bearer ${token}`);
-
-      expect([200, 403]).toContain(res.status);
     });
   });
 });

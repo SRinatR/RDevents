@@ -1093,6 +1093,21 @@ export async function emailBroadcastWorkerTick() {
     await prisma.emailBroadcast.update({ where: { id: broadcast.id }, data: { status: 'QUEUED' as any, sendMode: 'SEND_NOW' as any } });
     await addBroadcastEvent({ broadcastId: broadcast.id, type: 'QUEUED', payloadJson: { reason: 'scheduled_due' } });
   }
+
+  await prisma.emailBroadcastRecipient.updateMany({
+    where: {
+      status: 'SENDING' as any,
+      sendingStartedAt: {
+        lt: new Date(Date.now() - 15 * 60 * 1000),
+      },
+      retryCount: { lt: 3 },
+    },
+    data: {
+      status: 'QUEUED' as any,
+      failureReason: null,
+    },
+  });
+
   const broadcasts = await prisma.emailBroadcast.findMany({ where: { status: { in: ['QUEUED', 'SENDING'] as any[] } }, orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'asc' }], take: 5 });
   for (const broadcast of broadcasts) {
     if (broadcast.status === 'QUEUED') {
@@ -1108,7 +1123,7 @@ export async function emailBroadcastWorkerTick() {
 
       if (rows.length === 0) return rows;
 
-      await tx.emailBroadcastRecipient.updateMany({
+      const updated = await tx.emailBroadcastRecipient.updateMany({
         where: {
           id: { in: rows.map(row => row.id) },
           status: 'QUEUED' as any,
@@ -1118,6 +1133,10 @@ export async function emailBroadcastWorkerTick() {
           sendingStartedAt: new Date(),
         },
       });
+
+      if (updated.count !== rows.length) {
+        return [];
+      }
 
       return rows;
     });

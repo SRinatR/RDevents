@@ -5,6 +5,24 @@ import { normalizeEmail } from '@event-platform/shared';
 
 export const emailPublicRouter = Router();
 
+function mapConsentTopic(topic?: string | null) {
+  switch (topic) {
+    case 'EVENT_ANNOUNCEMENT':
+      return 'EVENT_ANNOUNCEMENTS';
+    case 'EVENT_REMINDER':
+      return 'EVENT_REMINDERS';
+    case 'PLATFORM_NEWS':
+      return 'PLATFORM_NEWS';
+    case 'PARTNER_NEWS':
+      return 'PARTNER_NEWS';
+    case 'SYSTEM':
+      return 'SYSTEM';
+    case 'MARKETING':
+    default:
+      return 'MARKETING';
+  }
+}
+
 emailPublicRouter.post('/unsubscribe', async (req, res) => {
   const token = String(req.body?.token ?? '');
 
@@ -17,6 +35,7 @@ emailPublicRouter.post('/unsubscribe', async (req, res) => {
     const payload = verifyUnsubscribeToken(token);
     const normalizedEmail = normalizeEmail(payload.email);
     const now = new Date();
+    const consentTopic = mapConsentTopic(payload.topic);
 
     await prisma.$transaction(async (tx) => {
       const user = payload.userId
@@ -29,7 +48,7 @@ emailPublicRouter.post('/unsubscribe', async (req, res) => {
             userId_channel_topic: {
               userId: user.id,
               channel: 'EMAIL' as any,
-              topic: 'MARKETING' as any,
+              topic: consentTopic,
             },
           },
           update: {
@@ -40,7 +59,7 @@ emailPublicRouter.post('/unsubscribe', async (req, res) => {
           create: {
             userId: user.id,
             channel: 'EMAIL' as any,
-            topic: 'MARKETING' as any,
+            topic: consentTopic,
             status: 'OPTED_OUT' as any,
             optedOutAt: now,
             lastChangedAt: now,

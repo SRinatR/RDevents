@@ -203,6 +203,7 @@ jobs:
             docker compose --env-file /opt/rdevents/.env -f /opt/rdevents/app/docker-compose.prod.yml exec -T api sh -lc 'cat /app/services/api/release.txt' 2>/dev/null || echo "(cannot read api release.txt)"
             docker compose --env-file /opt/rdevents/.env -f /opt/rdevents/app/docker-compose.prod.yml exec -T web sh -lc 'cat /app/apps/web/public/version.txt' 2>/dev/null || echo "(cannot read web version.txt)"
             docker compose --env-file /opt/rdevents/.env -f /opt/rdevents/app/docker-compose.prod.yml exec -T report-worker sh -lc 'cat /app/services/api/release.txt' 2>/dev/null || echo "(cannot read report-worker release.txt)"
+            docker compose --env-file /opt/rdevents/.env -f /opt/rdevents/app/docker-compose.prod.yml exec -T email-broadcast-worker sh -lc 'cat /app/services/api/release.txt' 2>/dev/null || echo "(cannot read email-broadcast-worker release.txt)"
             echo
 
             echo "=== public releases ==="

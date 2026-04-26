@@ -120,10 +120,12 @@ assert_equal "runtime/release.json.releaseSha" "$(read_json_file_field "$DEPLOY_
 container_status api
 container_status web
 container_status report-worker
+container_status email-broadcast-worker
 
 container_file_sha api "/app/services/api/release.txt" "api release.txt"
 container_file_sha web "/app/apps/web/public/version.txt" "web version.txt"
 container_file_sha report-worker "/app/services/api/release.txt" "report-worker release.txt"
+container_file_sha email-broadcast-worker "/app/services/api/release.txt" "email-broadcast-worker release.txt"
 
 http_json_sha "https://api.rdevents.uz/release.json" "public API /release.json"
 http_json_sha "https://rdevents.uz/release.json" "public WEB /release.json"
