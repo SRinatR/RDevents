@@ -45,6 +45,10 @@ const createPresetSchema = z.object({
       status: z.array(z.string()).optional(),
       hasTeam: z.boolean().optional(),
       hasPhoto: z.boolean().optional(),
+      includeArchived: z.boolean().optional(),
+      includeRejected: z.boolean().optional(),
+      includeCancelled: z.boolean().optional(),
+      includeRemoved: z.boolean().optional(),
     }).optional(),
   }),
 });
@@ -268,6 +272,8 @@ exportsRouter.post('/events/:eventId/exports/run', async (req, res) => {
     data = await exportParticipants(eventId, config);
   } else if (config.scope === 'teams') {
     data = await exportTeams(eventId, config);
+  } else if (config.scope === 'team_members') {
+    data = await exportTeamMembers(eventId, config);
   } else {
     data = [];
   }

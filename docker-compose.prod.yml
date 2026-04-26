@@ -16,6 +16,7 @@ services:
       retries: 10
 
   api:
+    image: app-api:latest
     build:
       context: .
       dockerfile: ./services/api/Dockerfile
@@ -81,6 +82,7 @@ services:
       start_period: 30s
 
   web:
+    image: app-web:latest
     build:
       context: .
       dockerfile: ./apps/web/Dockerfile
@@ -110,12 +112,7 @@ services:
       start_period: 20s
 
   report-worker:
-    build:
-      context: .
-      dockerfile: ./services/api/Dockerfile
-      target: prod
-      args:
-        RELEASE_SHA: ${RELEASE_SHA:-unknown}
+    image: app-api:latest
     restart: unless-stopped
     depends_on:
       postgres:
@@ -134,6 +131,12 @@ services:
     volumes:
       - /opt/rdevents/runtime/reports:/opt/rdevents/runtime/reports:rw
     command: ["pnpm", "--filter", "@event-platform/api", "start:report-worker"]
+    healthcheck:
+      test: ["CMD-SHELL", "test -r /app/services/api/release.txt || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
 
 volumes:
   postgres_data:

@@ -12443,3 +12443,131 @@ body {
     overflow-x: auto;
   }
 }
+
+/* Admin team management and organization map */
+.admin-team-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.admin-team-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-team-form-grid label,
+.admin-team-member-form {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-team-form-grid label span {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.admin-team-form-wide {
+  grid-column: 1 / -1;
+}
+
+.admin-team-member-form {
+  grid-template-columns: minmax(180px, 1fr) 130px 130px auto;
+  align-items: end;
+}
+
+.admin-team-actions {
+  margin-top: 14px;
+  justify-content: flex-end;
+}
+
+.organization-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.organization-map-table td {
+  vertical-align: top;
+}
+
+@media (max-width: 1024px) {
+  .admin-team-detail-grid,
+  .organization-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-team-member-form {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .signal-page-header,
+  .signal-section-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .signal-page-actions,
+  .signal-row-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .signal-toolbar-row,
+  .admin-team-form-grid,
+  .admin-team-member-form {
+    grid-template-columns: 1fr;
+  }
+
+  .signal-toolbar-row {
+    display: grid;
+    padding: 8px;
+  }
+
+  .signal-toolbar-row .signal-field,
+  .signal-toolbar-row .btn,
+  .admin-team-member-form .btn {
+    width: 100%;
+  }
+
+  .cabinet-app-rail {
+    padding: 12px;
+  }
+
+  .cabinet-app-rail .cabinet-user-block {
+    grid-template-columns: 36px minmax(0, 1fr);
+    padding: 8px;
+  }
+
+  .cabinet-app-rail .cabinet-nav-list {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .cabinet-app-rail .cabinet-nav-label {
+    display: none;
+  }
+
+  .cabinet-app-rail .cabinet-nav-link {
+    flex: 0 0 58px;
+    justify-content: center;
+    padding: 10px;
+  }
+
+  .cabinet-app-rail .workspace-nav-item-copy {
+    display: none;
+  }
+
+  .cabinet-app-main {
+    padding: 12px;
+  }
+}

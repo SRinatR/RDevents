@@ -448,6 +448,35 @@ export const adminApi = {
   getTeam: (teamId: string) =>
     request<{ data: any }>(`/api/admin/teams/${teamId}`, { auth: true }),
 
+  updateTeam: (teamId: string, body: {
+    name?: string;
+    description?: string | null;
+    maxSize?: number;
+    status?: string;
+    captainUserId?: string;
+  }) =>
+    request<{ data: any }>(`/api/admin/teams/${teamId}`, { method: 'PATCH', auth: true, body }),
+
+  addTeamMember: (teamId: string, body: {
+    userId?: string;
+    email?: string;
+    role?: 'CAPTAIN' | 'MEMBER';
+    status?: 'PENDING' | 'ACTIVE' | 'REJECTED' | 'REMOVED' | 'LEFT';
+  }) =>
+    request<{ data: any }>(`/api/admin/teams/${teamId}/members`, { method: 'POST', auth: true, body }),
+
+  updateTeamMember: (teamId: string, userId: string, body: {
+    role?: 'CAPTAIN' | 'MEMBER';
+    status?: 'PENDING' | 'ACTIVE' | 'REJECTED' | 'REMOVED' | 'LEFT';
+  }) =>
+    request<{ data: any }>(`/api/admin/teams/${teamId}/members/${userId}`, { method: 'PATCH', auth: true, body }),
+
+  removeTeamMember: (teamId: string, userId: string) =>
+    request<{ data: any }>(`/api/admin/teams/${teamId}/members/${userId}`, { method: 'DELETE', auth: true }),
+
+  transferTeamCaptain: (teamId: string, userId: string) =>
+    request<{ data: any }>(`/api/admin/teams/${teamId}/captain`, { method: 'POST', auth: true, body: { userId } }),
+
   getUserStats: () =>
     request<any>('/api/admin/users/stats', { auth: true }),
 
@@ -616,8 +645,48 @@ export const adminEmailApi = {
   createBroadcast: (body: Record<string, unknown>) =>
     request<{ data: any }>('/api/admin/email/broadcasts', { method: 'POST', auth: true, body }),
 
-  sendBroadcast: (broadcastId: string) =>
-    request<{ data: any }>(`/api/admin/email/broadcasts/${broadcastId}/send`, { method: 'POST', auth: true }),
+  getBroadcast: (broadcastId: string) =>
+    request<any>(`/api/admin/email/broadcasts/${broadcastId}`, { auth: true }),
+
+  updateBroadcast: (broadcastId: string, body: Record<string, unknown>) =>
+    request<{ data: any }>(`/api/admin/email/broadcasts/${broadcastId}`, { method: 'PATCH', auth: true, body }),
+
+  sendBroadcast: (broadcastId: string, body: Record<string, unknown> = { mode: 'ALL_ELIGIBLE' }) =>
+    request<{ data: any }>(`/api/admin/email/broadcasts/${broadcastId}/send`, { method: 'POST', auth: true, body }),
+
+  scheduleBroadcast: (broadcastId: string, body: { scheduledAt: string; timezone?: string }) =>
+    request<{ data: any }>(`/api/admin/email/broadcasts/${broadcastId}/schedule`, { method: 'POST', auth: true, body }),
+
+  cancelBroadcast: (broadcastId: string) =>
+    request<{ data: any }>(`/api/admin/email/broadcasts/${broadcastId}/cancel`, { method: 'POST', auth: true }),
+
+  createBroadcastSnapshot: (broadcastId: string) =>
+    request<{ data: any }>(`/api/admin/email/broadcasts/${broadcastId}/snapshot`, { method: 'POST', auth: true }),
+
+  estimateAudience: (body: Record<string, unknown>) =>
+    request<any>('/api/admin/email/audience/estimate', { method: 'POST', auth: true, body }),
+
+  previewAudience: (body: Record<string, unknown>, params: Record<string, string | number> = {}) => {
+    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<any>(`/api/admin/email/audience/preview${qs}`, { method: 'POST', auth: true, body });
+  },
+
+  listBroadcastRecipients: (broadcastId: string, params: Record<string, string | number> = {}) => {
+    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/email/broadcasts/${broadcastId}/recipients${qs}`, { auth: true });
+  },
+
+  retryBroadcastRecipient: (broadcastId: string, recipientId: string) =>
+    request<{ data: any }>(`/api/admin/email/broadcasts/${broadcastId}/recipients/${recipientId}/retry`, { method: 'POST', auth: true }),
+
+  getBroadcastAnalytics: (broadcastId: string) =>
+    request<any>(`/api/admin/email/broadcasts/${broadcastId}/analytics`, { auth: true }),
+
+  previewEmail: (body: Record<string, unknown>) =>
+    request<any>('/api/admin/email/preview', { method: 'POST', auth: true, body }),
+
+  testSendEmail: (body: Record<string, unknown>) =>
+    request<any>('/api/admin/email/test-send', { method: 'POST', auth: true, body }),
 
   listAutomations: (params: Record<string, string | number> = {}) => {
     const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';

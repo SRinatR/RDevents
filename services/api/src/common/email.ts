@@ -10,6 +10,7 @@ export type EmailDeliverySource =
   | 'invitation'
   | 'notification'
   | 'broadcast'
+  | 'admin_test'
   | 'password_reset'
   | 'system';
 
@@ -18,6 +19,7 @@ const SOURCE_TO_DB: Record<EmailDeliverySource, string> = {
   invitation: 'INVITATION',
   notification: 'NOTIFICATION',
   broadcast: 'BROADCAST',
+  admin_test: 'ADMIN_TEST',
   password_reset: 'PASSWORD_RESET',
   system: 'SYSTEM',
 };
@@ -295,6 +297,7 @@ function escapeHtml(value: string) {
 
 export async function sendPasswordResetEmail(input: {
   to: string;
+  toUserId?: string | null;
   userName: string;
   resetUrl: string;
   expiresAt: string;
@@ -311,6 +314,7 @@ export async function sendPasswordResetEmail(input: {
     text,
     html,
     source: 'password_reset',
+    toUserId: input.toUserId ?? undefined,
   });
 }
 

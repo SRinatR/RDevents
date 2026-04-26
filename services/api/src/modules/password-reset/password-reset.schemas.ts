@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const requestPasswordResetSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().toLowerCase().email(),
 });
 
 export const verifyPasswordResetTokenSchema = z.object({

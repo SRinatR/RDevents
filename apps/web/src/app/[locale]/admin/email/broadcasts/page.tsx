@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
@@ -65,6 +66,8 @@ const toneByStatus: Record<string, 'success' | 'warning' | 'danger' | 'info' | '
   scheduled: 'info',
   draft: 'warning',
   failed: 'danger',
+  queued: 'info',
+  cancelled: 'neutral',
 };
 
 function escapeHtml(value: string) {
@@ -230,7 +233,7 @@ export default function AdminEmailBroadcastsPage() {
       <AdminPageHeader
         title={t('admin.broadcasts') ?? 'Broadcasts'}
         subtitle={locale === 'ru' ? 'Массовые email рассылки по управляемым сегментам' : 'Mass email broadcasts for controlled segments'}
-        actions={<button className="btn btn-primary btn-sm" onClick={() => { setForm(emptyBroadcastForm); setShowComposer(true); }}>{locale === 'ru' ? 'Создать рассылку' : 'Create broadcast'}</button>}
+        actions={<Link className="btn btn-primary btn-sm" href={`/${locale}/admin/email/broadcasts/new`}>{locale === 'ru' ? 'Создать рассылку' : 'Create broadcast'}</Link>}
       />
 
       {error ? <Notice tone="danger">{error}</Notice> : null}
@@ -301,6 +304,7 @@ export default function AdminEmailBroadcastsPage() {
             <option value="ALL">{locale === 'ru' ? 'Все статусы' : 'All statuses'}</option>
             <option value="draft">{locale === 'ru' ? 'Черновики' : 'Drafts'}</option>
             <option value="scheduled">{locale === 'ru' ? 'Запланированные' : 'Scheduled'}</option>
+            <option value="queued">{locale === 'ru' ? 'В очереди' : 'Queued'}</option>
             <option value="sending">{locale === 'ru' ? 'Отправляются' : 'Sending'}</option>
             <option value="sent">{locale === 'ru' ? 'Отправленные' : 'Sent'}</option>
             <option value="partial">{locale === 'ru' ? 'Частично' : 'Partial'}</option>
@@ -346,6 +350,7 @@ export default function AdminEmailBroadcastsPage() {
                             {actionId === bc.id ? '...' : locale === 'ru' ? 'Отправить' : 'Send'}
                           </button>
                         ) : null}
+                        <Link className="btn btn-ghost btn-sm" href={`/${locale}/admin/email/broadcasts/${bc.id}`}>{locale === 'ru' ? 'Открыть' : 'Open'}</Link>
                       </div>
                     </td>
                   </tr>

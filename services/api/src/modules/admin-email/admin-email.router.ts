@@ -1,23 +1,38 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { requirePlatformAdmin, type AuthenticatedRequest } from '../../common/middleware.js';
+import { requireAuth, type AuthenticatedRequest } from '../../common/middleware.js';
 import { logger } from '../../common/logger.js';
 import {
   createEmailBroadcastSchema,
   createEmailTemplateSchema,
+  audienceEstimateSchema,
+  audiencePreviewQuerySchema,
+  emailPreviewSchema,
+  emailRecipientsQuerySchema,
+  emailTestSendSchema,
   emailMessagesQuerySchema,
   emailTemplatesQuerySchema,
   emailBroadcastsQuerySchema,
   emailAutomationsQuerySchema,
   emailDomainsQuerySchema,
   emailWebhooksQuerySchema,
+  scheduleBroadcastSchema,
+  sendBroadcastSchema,
+  updateEmailBroadcastSchema,
   updateEmailTemplateSchema,
 } from './admin-email.schemas.js';
 import {
   archiveEmailTemplate,
+  cancelEmailBroadcast,
   createEmailBroadcast,
+  createEmailBroadcastSnapshot,
   createEmailTemplate,
+  estimateEmailAudience,
+  exportEmailBroadcastRecipientsCsv,
+  getEmailBroadcast,
+  getEmailBroadcastAnalytics,
   getEmailOverview,
+  listEmailBroadcastRecipients,
   listEmailMessages,
   listEmailTemplates,
   listEmailBroadcasts,
@@ -25,7 +40,13 @@ import {
   getEmailAudience,
   listEmailDomains,
   getEmailWebhooks,
+  previewEmailAudience,
+  previewEmailContent,
+  retryEmailBroadcastRecipient,
+  scheduleEmailBroadcast,
   sendEmailBroadcast,
+  sendTestEmail,
+  updateEmailBroadcast,
   updateEmailTemplate,
 } from './admin-email.service.js';
 
@@ -39,22 +60,61 @@ function withErrorHandler(handler: (req: Request, res: Response) => Promise<void
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       const requestId = (req as any).requestId ?? req.headers['x-request-id'] ?? 'unknown';
+      const known = mapServiceError(errorMessage);
 
-      logger.error(`[admin-email] ${req.method} ${req.path} - ${errorMessage}`, error, {
-        module: 'admin-email',
-        action: 'request_error',
-        requestId: String(requestId),
-      });
+      if (known.status >= 500) {
+        logger.error(`[admin-email] ${req.method} ${req.path} - ${errorMessage}`, error, {
+          module: 'admin-email',
+          action: 'request_error',
+          requestId: String(requestId),
+        });
+      } else {
+        logger.warn(`[admin-email] ${req.method} ${req.path} - ${errorMessage}`, {
+          module: 'admin-email',
+          action: 'request_error',
+          requestId: String(requestId),
+        });
+      }
 
-      res.status(500).json({
-        error: 'Internal server error',
+      res.status(known.status).json({
+        error: known.message,
+        code: known.code,
         requestId: String(requestId),
       });
     }
   };
 }
 
-adminEmailRouter.use(requirePlatformAdmin);
+function mapServiceError(message: string) {
+  const code = message.split(':')[0] || 'INTERNAL_ERROR';
+  const known: Record<string, [number, string]> = {
+    FORBIDDEN: [403, 'Forbidden'],
+    EVENT_SCOPED_AUDIENCE_REQUIRED: [403, 'Event-scoped audience is required for event admins'],
+    EMAIL_BROADCAST_NOT_FOUND: [404, 'Broadcast not found'],
+    EMAIL_RECIPIENT_NOT_FOUND: [404, 'Recipient not found'],
+    EMAIL_BROADCAST_NOT_EDITABLE: [409, 'Broadcast is not editable'],
+    EMAIL_BROADCAST_NOT_SENDABLE: [409, 'Broadcast is not sendable'],
+    EMAIL_BROADCAST_NOT_CANCELLABLE: [409, 'Broadcast is not cancellable'],
+    EMAIL_RECIPIENT_NOT_RETRYABLE: [409, 'Recipient is not retryable'],
+    NO_FAILED_RECIPIENTS_TO_RETRY: [409, 'No failed recipients to retry'],
+    SCHEDULED_AT_IN_PAST: [400, 'scheduledAt must be in the future'],
+    UNSUBSCRIBE_URL_REQUIRED: [400, 'Marketing/event broadcasts must include {{unsubscribeUrl}} in HTML or text'],
+    EMAIL_TEST_SEND_RATE_LIMITED: [429, 'Test send rate limit exceeded'],
+  };
+  const [status, text] = known[code] ?? [500, 'Internal server error'];
+  return { status, code, message: text };
+}
+
+function requirePlatformAdminForMutation(req: Request, res: Response) {
+  const user = (req as AuthenticatedRequest).user;
+  if (!user || !['PLATFORM_ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return false;
+  }
+  return true;
+}
+
+adminEmailRouter.use(requireAuth);
 
 // ─── GET /api/admin/email/overview ────────────────────────────────────────────
 
@@ -88,6 +148,7 @@ adminEmailRouter.get('/templates', withErrorHandler(async (req, res) => {
 }));
 
 adminEmailRouter.post('/templates', withErrorHandler(async (req, res) => {
+  if (!requirePlatformAdminForMutation(req, res)) return;
   const parsed = createEmailTemplateSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
@@ -100,6 +161,7 @@ adminEmailRouter.post('/templates', withErrorHandler(async (req, res) => {
 }));
 
 adminEmailRouter.patch('/templates/:id', withErrorHandler(async (req, res) => {
+  if (!requirePlatformAdminForMutation(req, res)) return;
   const parsed = updateEmailTemplateSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
@@ -112,6 +174,7 @@ adminEmailRouter.patch('/templates/:id', withErrorHandler(async (req, res) => {
 }));
 
 adminEmailRouter.post('/templates/:id/archive', withErrorHandler(async (req, res) => {
+  if (!requirePlatformAdminForMutation(req, res)) return;
   const user = (req as AuthenticatedRequest).user;
   const template = await archiveEmailTemplate(String(req.params['id']), user?.id);
   res.json({ data: template });
@@ -125,7 +188,8 @@ adminEmailRouter.get('/broadcasts', withErrorHandler(async (req, res) => {
     res.status(400).json({ error: 'Invalid query params', details: parsed.error.flatten() });
     return;
   }
-  const result = await listEmailBroadcasts(parsed.data);
+  const user = (req as AuthenticatedRequest).user;
+  const result = await listEmailBroadcasts(user, parsed.data);
   res.json(result);
 }));
 
@@ -137,13 +201,132 @@ adminEmailRouter.post('/broadcasts', withErrorHandler(async (req, res) => {
   }
 
   const user = (req as AuthenticatedRequest).user;
-  const broadcast = await createEmailBroadcast(parsed.data, user?.id);
+  const broadcast = await createEmailBroadcast(parsed.data, user);
   res.status(201).json({ data: broadcast });
 }));
 
 adminEmailRouter.post('/broadcasts/:id/send', withErrorHandler(async (req, res) => {
-  const broadcast = await sendEmailBroadcast(String(req.params['id']));
+  const parsed = sendBroadcastSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
+    return;
+  }
+  const user = (req as AuthenticatedRequest).user;
+  const broadcast = await sendEmailBroadcast(String(req.params['id']), parsed.data, user);
   res.json({ data: broadcast });
+}));
+
+adminEmailRouter.get('/broadcasts/:id', withErrorHandler(async (req, res) => {
+  const user = (req as AuthenticatedRequest).user;
+  const data = await getEmailBroadcast(String(req.params['id']), user);
+  res.json(data);
+}));
+
+adminEmailRouter.patch('/broadcasts/:id', withErrorHandler(async (req, res) => {
+  const parsed = updateEmailBroadcastSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
+    return;
+  }
+  const user = (req as AuthenticatedRequest).user;
+  const broadcast = await updateEmailBroadcast(String(req.params['id']), parsed.data, user);
+  res.json({ data: broadcast });
+}));
+
+adminEmailRouter.post('/broadcasts/:id/snapshot', withErrorHandler(async (req, res) => {
+  const user = (req as AuthenticatedRequest).user;
+  const broadcast = await createEmailBroadcastSnapshot(String(req.params['id']), user);
+  res.json({ data: broadcast });
+}));
+
+adminEmailRouter.post('/broadcasts/:id/schedule', withErrorHandler(async (req, res) => {
+  const parsed = scheduleBroadcastSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
+    return;
+  }
+  const user = (req as AuthenticatedRequest).user;
+  const broadcast = await scheduleEmailBroadcast(String(req.params['id']), parsed.data, user);
+  res.json({ data: broadcast });
+}));
+
+adminEmailRouter.post('/broadcasts/:id/cancel', withErrorHandler(async (req, res) => {
+  const user = (req as AuthenticatedRequest).user;
+  const broadcast = await cancelEmailBroadcast(String(req.params['id']), user);
+  res.json({ data: broadcast });
+}));
+
+adminEmailRouter.get('/broadcasts/:id/recipients', withErrorHandler(async (req, res) => {
+  const parsed = emailRecipientsQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid query params', details: parsed.error.flatten() });
+    return;
+  }
+  const user = (req as AuthenticatedRequest).user;
+  const result = await listEmailBroadcastRecipients(String(req.params['id']), parsed.data, user);
+  res.json(result);
+}));
+
+adminEmailRouter.get('/broadcasts/:id/recipients/export.csv', withErrorHandler(async (req, res) => {
+  const user = (req as AuthenticatedRequest).user;
+  const csv = await exportEmailBroadcastRecipientsCsv(String(req.params['id']), user);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="broadcast-${String(req.params['id'])}-recipients.csv"`);
+  res.send(csv);
+}));
+
+adminEmailRouter.post('/broadcasts/:id/recipients/:recipientId/retry', withErrorHandler(async (req, res) => {
+  const user = (req as AuthenticatedRequest).user;
+  const broadcast = await retryEmailBroadcastRecipient(String(req.params['id']), String(req.params['recipientId']), user);
+  res.json({ data: broadcast });
+}));
+
+adminEmailRouter.get('/broadcasts/:id/analytics', withErrorHandler(async (req, res) => {
+  const user = (req as AuthenticatedRequest).user;
+  const analytics = await getEmailBroadcastAnalytics(String(req.params['id']), user);
+  res.json(analytics);
+}));
+
+adminEmailRouter.post('/audience/estimate', withErrorHandler(async (req, res) => {
+  const parsed = audienceEstimateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
+    return;
+  }
+  const user = (req as AuthenticatedRequest).user;
+  const result = await estimateEmailAudience(parsed.data, user);
+  res.json(result);
+}));
+
+adminEmailRouter.post('/audience/preview', withErrorHandler(async (req, res) => {
+  const body = audienceEstimateSchema.safeParse(req.body);
+  const query = audiencePreviewQuerySchema.safeParse(req.query);
+  if (!body.success || !query.success) {
+    res.status(400).json({ error: 'Invalid request' });
+    return;
+  }
+  const user = (req as AuthenticatedRequest).user;
+  const result = await previewEmailAudience(body.data, query.data, user);
+  res.json(result);
+}));
+
+adminEmailRouter.post('/preview', withErrorHandler(async (req, res) => {
+  const parsed = emailPreviewSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
+    return;
+  }
+  res.json(await previewEmailContent(parsed.data));
+}));
+
+adminEmailRouter.post('/test-send', withErrorHandler(async (req, res) => {
+  const parsed = emailTestSendSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
+    return;
+  }
+  const user = (req as AuthenticatedRequest).user;
+  res.json(await sendTestEmail(parsed.data, user));
 }));
 
 // ─── GET /api/admin/email/automations ─────────────────────────────────────────
