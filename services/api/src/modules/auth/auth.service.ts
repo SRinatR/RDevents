@@ -7,6 +7,7 @@ import { logger } from '../../common/logger.js';
 import { buildPublicMediaUrl } from '../../common/storage.js';
 import { env } from '../../config/env.js';
 import { prisma } from '../../db/prisma.js';
+import { normalizeEmail } from '@event-platform/shared';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 import { bindPendingInvitationsToUser } from '../events/team-invitations.service.js';
 import { createSession } from './auth.sessions.js';
@@ -308,8 +309,9 @@ export async function loginWithProvider(
   }
 
   // Try to find user by email (link accounts)
-  let user = providerData.email
-    ? await prisma.user.findUnique({ where: { email: providerData.email } })
+  const normalizedProviderEmail = providerData.email ? normalizeEmail(providerData.email) : null;
+  let user = normalizedProviderEmail
+    ? await prisma.user.findUnique({ where: { email: normalizedProviderEmail } })
     : null;
 
   const isNewUser = !user;
@@ -317,7 +319,7 @@ export async function loginWithProvider(
     // Create new user
     user = await prisma.user.create({
       data: {
-        email: providerData.email ?? `${provider.toLowerCase()}_${providerAccountId}@noemail.local`,
+        email: normalizedProviderEmail ?? `${provider.toLowerCase()}_${providerAccountId}@noemail.local`,
         name: providerData.username ?? null,
         avatarUrl: providerData.avatarUrl,
         registeredAt: new Date(),
@@ -332,7 +334,7 @@ export async function loginWithProvider(
       userId: user.id,
       provider,
       providerAccountId,
-      providerEmail: providerData.email,
+      providerEmail: normalizedProviderEmail,
       providerUsername: providerData.username,
       providerAvatarUrl: providerData.avatarUrl,
       linkedAt: new Date(),

@@ -30,6 +30,8 @@ export {
   type ProfileSectionKey,
 } from './profile/profile-field-registry.js';
 
+export { normalizeEmail } from './utils/index.js';
+
 export interface UserPublic {
   id: string;
   email: string;

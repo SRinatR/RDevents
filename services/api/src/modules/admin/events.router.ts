@@ -7,6 +7,7 @@ import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 import { notifyParticipantStatusChanged } from '../events/notifications.service.js';
 import { approveTeamChangeRequest, rejectTeamChangeRequest } from '../events/events.service.js';
 import { getActiveProfileRequirementFields } from '../profile-config/profile-field-values.js';
+import { normalizeEmail } from '@event-platform/shared';
 import {
   applyActiveWorkspacePoliciesToEvent,
   canAccessEvent,
@@ -74,7 +75,7 @@ const EVENT_STAFF_ROLES = new Set(['OWNER', 'ADMIN', 'MANAGER', 'PR_MANAGER', 'C
 
 async function resolveTargetUser(input: { userId?: unknown; email?: unknown }) {
   if (input.userId) return prisma.user.findUnique({ where: { id: String(input.userId) } });
-  if (input.email) return prisma.user.findUnique({ where: { email: String(input.email) } });
+  if (input.email) return prisma.user.findUnique({ where: { email: normalizeEmail(String(input.email)) } });
   return null;
 }
 

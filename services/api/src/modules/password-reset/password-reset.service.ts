@@ -6,6 +6,7 @@ import { revokeAllUserSessions } from '../auth/auth.sessions.js';
 import { sendPasswordResetEmail } from '../../common/email.js';
 import { logger } from '../../common/logger.js';
 import { env } from '../../config/env.js';
+import { normalizeEmail } from '@event-platform/shared';
 import type {
   RequestPasswordResetInput,
   ResetPasswordInput,
@@ -26,8 +27,9 @@ export async function requestPasswordReset(
   input: RequestPasswordResetInput,
   context: { ipAddress?: string | null; userAgent?: string | null } = {},
 ) {
+  const normalizedEmail = normalizeEmail(input.email);
   const user = await prisma.user.findUnique({
-    where: { email: input.email.toLowerCase() },
+    where: { email: normalizedEmail },
     select: {
       id: true,
       email: true,
@@ -40,7 +42,7 @@ export async function requestPasswordReset(
     logger.info('Password reset requested for non-existent email', {
       module: 'password-reset',
       action: 'PASSWORD_RESET_REQUESTED',
-      meta: { email: input.email },
+      meta: { email: normalizedEmail },
     });
     return { success: true };
   }
@@ -49,7 +51,7 @@ export async function requestPasswordReset(
     logger.info('Password reset requested for social-only account', {
       module: 'password-reset',
       action: 'PASSWORD_RESET_REJECTED',
-      meta: { email: input.email, reason: 'social_only_account' },
+      meta: { email: normalizedEmail, reason: 'social_only_account' },
     });
     return { success: true };
   }

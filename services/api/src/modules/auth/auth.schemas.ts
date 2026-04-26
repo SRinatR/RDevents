@@ -1,23 +1,25 @@
 import { z } from 'zod';
 
+const emailSchema = z.string().trim().toLowerCase().email();
+
 export const startRegistrationSchema = z.object({
-  email: z.string().email(),
+  email: emailSchema,
 });
 
 export const verifyRegistrationCodeSchema = z.object({
-  email: z.string().email(),
+  email: emailSchema,
   code: z.string().trim().regex(/^\d{6}$/, 'Verification code must contain 6 digits'),
 });
 
 export const completeRegistrationSchema = z.object({
-  email: z.string().email(),
+  email: emailSchema,
   registrationToken: z.string().min(1),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   name: z.string().min(2, 'Name must be at least 2 characters').optional(),
 });
 
 export const loginSchema = z.object({
-  email: z.string().email(),
+  email: emailSchema,
   password: z.string().min(1),
 });
 
@@ -45,12 +47,10 @@ export const updateProfileSchema = z.object({
 });
 
 export const socialAuthSchema = z.object({
-  // For dev mock flow — pass provider data directly
   providerAccountId: z.string(),
-  providerEmail: z.string().email().optional(),
+  providerEmail: emailSchema.optional(),
   providerUsername: z.string().optional(),
   providerAvatarUrl: z.string().optional(),
-  // For production OAuth — pass code from provider
   code: z.string().optional(),
 });
 
