@@ -1,5 +1,6 @@
 'use client';
 
+<<<<<<< HEAD
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { adminApi } from '@/lib/api';
@@ -35,14 +36,26 @@ type OrganizationEdge = {
   label?: string;
   meta?: Record<string, unknown>;
 };
+=======
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { adminApi } from '@/lib/api';
+import { useRouteLocale } from '@/hooks/useRouteParams';
+import { EmptyState, LoadingLines, MetricCard, PageHeader, Panel, StatusBadge, TableShell } from '@/components/ui/signal-primitives';
+>>>>>>> origin/production
 
 export default function OrganizationMapPage() {
   const locale = useRouteLocale();
   const isRu = locale === 'ru';
+<<<<<<< HEAD
   const [map, setMap] = useState<{ nodes: OrganizationNode[]; edges: OrganizationEdge[]; summary: any } | null>(null);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
+=======
+  const [map, setMap] = useState<any | null>(null);
+  const [error, setError] = useState('');
+>>>>>>> origin/production
 
   useEffect(() => {
     adminApi.getOrganizationMap()
@@ -50,6 +63,7 @@ export default function OrganizationMapPage() {
       .catch((err) => setError(err?.message || (isRu ? 'Не удалось загрузить карту.' : 'Failed to load organization map.')));
   }, [isRu]);
 
+<<<<<<< HEAD
   const filteredNodes = useMemo(() => {
     const nodes = map?.nodes ?? [];
     const normalizedSearch = search.trim().toLowerCase();
@@ -73,6 +87,13 @@ export default function OrganizationMapPage() {
       <PageHeader
         title={isRu ? 'Организация' : 'Organization'}
         subtitle={isRu ? 'Отделы, сотрудники, мероприятия и источники доступа в единой структуре.' : 'Workspaces, staff, events and access sources in one structure.'}
+=======
+  return (
+    <div className="admin-page">
+      <PageHeader
+        title={isRu ? 'Карта организации' : 'Organization map'}
+        subtitle={isRu ? 'Отделы, сотрудники, мероприятия и источники доступа без чувствительных данных.' : 'Workspaces, staff, events and access sources without sensitive data.'}
+>>>>>>> origin/production
         actions={<Link href={`/${locale}/admin/workspaces`} className="btn btn-secondary">{isRu ? 'Отделы' : 'Workspaces'}</Link>}
       />
 
@@ -81,6 +102,7 @@ export default function OrganizationMapPage() {
 
       {map ? (
         <>
+<<<<<<< HEAD
           <div className="signal-metrics-grid organization-summary-grid">
             <MetricCard label={isRu ? 'Отделы' : 'Workspaces'} value={map.summary?.workspaces ?? 0} />
             <MetricCard label={isRu ? 'Люди' : 'People'} value={map.summary?.users ?? 0} />
@@ -113,11 +135,24 @@ export default function OrganizationMapPage() {
             />
             <TableShell>
               <table className="signal-table organization-map-table">
+=======
+          <div className="signal-metrics-grid">
+            <MetricCard label={isRu ? 'Отделы' : 'Workspaces'} value={map.summary?.workspaces ?? 0} />
+            <MetricCard label={isRu ? 'Сотрудники' : 'Users'} value={map.summary?.users ?? 0} />
+            <MetricCard label={isRu ? 'Мероприятия' : 'Events'} value={map.summary?.events ?? 0} />
+            <MetricCard label={isRu ? 'Policies' : 'Policies'} value={map.summary?.policies ?? 0} />
+          </div>
+
+          <Panel>
+            <TableShell>
+              <table>
+>>>>>>> origin/production
                 <thead>
                   <tr>
                     <th>{isRu ? 'Тип' : 'Type'}</th>
                     <th>{isRu ? 'Название' : 'Label'}</th>
                     <th>{isRu ? 'Статус' : 'Status'}</th>
+<<<<<<< HEAD
                     <th>{isRu ? 'Параметры' : 'Details'}</th>
                   </tr>
                 </thead>
@@ -131,12 +166,25 @@ export default function OrganizationMapPage() {
                       </td>
                       <td>{node.status || node.kind || '—'}</td>
                       <td>{formatNodeMeta(node, locale)}</td>
+=======
+                    <th>{isRu ? 'Данные' : 'Meta'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {map.nodes?.slice(0, 200).map((node: any) => (
+                    <tr key={node.id}>
+                      <td><StatusBadge tone="info">{node.type}</StatusBadge></td>
+                      <td>{node.label}</td>
+                      <td>{node.status || node.kind || '-'}</td>
+                      <td>{node.meta ? JSON.stringify(node.meta) : '-'}</td>
+>>>>>>> origin/production
                     </tr>
                   ))}
                 </tbody>
               </table>
             </TableShell>
           </Panel>
+<<<<<<< HEAD
 
           <Panel variant="elevated">
             <SectionHeader
@@ -170,11 +218,14 @@ export default function OrganizationMapPage() {
               </TableShell>
             )}
           </Panel>
+=======
+>>>>>>> origin/production
         </>
       ) : null}
     </div>
   );
 }
+<<<<<<< HEAD
 
 function toneByType(type: OrganizationNode['type']): 'neutral' | 'info' | 'success' | 'warning' {
   if (type === 'workspace') return 'info';
@@ -242,3 +293,5 @@ function formatNodeMeta(node: OrganizationNode, locale: string) {
 function labelForNode(nodes: OrganizationNode[], id: string) {
   return nodes.find((node) => node.id === id)?.label ?? id;
 }
+=======
+>>>>>>> origin/production
