@@ -6,7 +6,7 @@ import { revokeAllUserSessions } from '../auth/auth.sessions.js';
 import { sendPasswordResetEmail } from '../../common/email.js';
 import { logger } from '../../common/logger.js';
 import { env } from '../../config/env.js';
-import { normalizeEmail } from '@event-platform/shared';
+import { normalizeEmail } from '../../common/email-normalization.js';
 import type {
   RequestPasswordResetInput,
   ResetPasswordInput,
