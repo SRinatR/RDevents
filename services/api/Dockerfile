@@ -15,9 +15,10 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
   pnpm install --frozen-lockfile --filter @event-platform/api...
 
 FROM deps AS dev
+COPY packages/shared ./packages/shared
 WORKDIR /app/services/api
 EXPOSE 4000
-CMD ["sh", "-c", "pnpm prisma generate && pnpm dev"]
+CMD ["sh", "-c", "pnpm --filter @event-platform/shared run build && pnpm prisma generate && pnpm dev"]
 
 FROM deps AS prod
 ARG RELEASE_SHA=unknown

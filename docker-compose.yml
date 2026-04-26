@@ -41,8 +41,9 @@ services:
       - ./services/api/prisma:/app/services/api/prisma
       - ./services/api/prisma.config.ts:/app/services/api/prisma.config.ts
       - ./services/api/tsconfig.json:/app/services/api/tsconfig.json:ro
+      - ./packages/shared:/app/packages/shared
     working_dir: /app/services/api
-    command: sh -c "pnpm prisma generate && pnpm prisma migrate deploy && pnpm db:seed && pnpm dev"
+    command: sh -c "pnpm --filter @event-platform/shared run build && pnpm prisma generate && pnpm prisma migrate deploy && pnpm db:seed && pnpm dev"
 
   web:
     build:
