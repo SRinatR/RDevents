@@ -142,12 +142,21 @@ export function AdminShell({ children }: { children: ReactNode }) {
           { href: `/${locale}/admin/support`, label: locale === 'ru' ? 'Поддержка' : 'Support', icon: <SupportIcon />, allow: isPlatformAdmin },
           { href: `/${locale}/admin/email`, label: t('admin.email'), icon: <MailIcon />, allow: isPlatformAdmin },
           { href: `/${locale}/admin/email/messages`, label: t('admin.messages'), icon: <InboxIcon />, allow: isPlatformAdmin },
-          { href: `/${locale}/admin/email/templates`, label: t('admin.templates'), icon: <TemplateIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/email/templates`, label: t('admin.emailTemplates'), icon: <TemplateIcon />, allow: isPlatformAdmin },
           { href: `/${locale}/admin/email/broadcasts`, label: t('admin.broadcasts'), icon: <BroadcastIcon />, allow: isPlatformAdmin },
           { href: `/${locale}/admin/email/automations`, label: t('admin.automations'), icon: <AutomationIcon />, allow: isPlatformAdmin },
           { href: `/${locale}/admin/email/audience`, label: t('admin.audience'), icon: <AudienceIcon />, allow: isPlatformAdmin },
           { href: `/${locale}/admin/email/domains`, label: t('admin.domains'), icon: <GlobeIcon />, allow: isPlatformAdmin },
           { href: `/${locale}/admin/email/webhooks`, label: t('admin.webhooks'), icon: <WebhookIcon />, allow: isPlatformAdmin },
+        ],
+      },
+      {
+        label: locale === 'ru' ? 'Организация' : 'Organization',
+        items: [
+          { href: `/${locale}/admin/organization-map`, label: locale === 'ru' ? 'Карта организации' : 'Organization map', icon: <GlobeIcon />, allow: isPlatformAdmin },
+          { href: `/${locale}/admin/workspaces`, label: locale === 'ru' ? 'Отделы' : 'Workspaces', icon: <ShieldIcon />, allow: true },
+          { href: `/${locale}/admin/workspaces?view=members`, label: locale === 'ru' ? 'Сотрудники отделов' : 'Workspace staff', icon: <UsersIcon />, allow: true },
+          { href: `/${locale}/admin/workspaces?view=access`, label: locale === 'ru' ? 'Политики доступа' : 'Access policies', icon: <SettingsIcon />, allow: true },
         ],
       },
       {
@@ -169,6 +178,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         items: [
           { href: `${eventBase}/overview`, label: locale === 'ru' ? 'Обзор' : 'Overview', icon: <DashboardIcon />, allow: true },
           { href: `${eventBase}/participants`, label: t('admin.participants'), icon: <HandshakeIcon />, allow: true },
+          { href: `${eventBase}/staff`, label: 'Staff', icon: <ShieldIcon />, allow: true },
           { href: `${eventBase}/volunteers`, label: t('admin.volunteers'), icon: <UsersIcon />, allow: true },
           { href: `${eventBase}/teams`, label: t('admin.teams'), icon: <TeamIcon />, allow: true },
           { href: `${eventBase}/registrations`, label: locale === 'ru' ? 'Регистрации' : 'Registrations', icon: <InboxIcon />, allow: true },

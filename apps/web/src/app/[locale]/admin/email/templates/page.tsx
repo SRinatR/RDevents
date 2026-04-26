@@ -216,7 +216,7 @@ export default function AdminEmailTemplatesPage() {
   return (
     <div className="signal-page-shell admin-control-page">
       <AdminPageHeader
-        title={t('admin.templates') ?? 'Templates'}
+        title={t('admin.emailTemplates') ?? 'Templates'}
         subtitle={locale === 'ru' ? 'Рабочие email шаблоны для рассылок' : 'Working email templates for broadcasts'}
         actions={<button className="btn btn-primary btn-sm" onClick={startCreate}>{locale === 'ru' ? 'Создать шаблон' : 'Create template'}</button>}
       />

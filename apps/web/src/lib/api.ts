@@ -356,7 +356,7 @@ export const adminApi = {
     request<{ eventAdmins: any[] }>(`/api/admin/events/${eventId}/admins`, { auth: true }),
 
   assignEventAdmin: (eventId: string, body: { userId?: string; email?: string; notes?: string }) =>
-    request<{ membership: any }>(`/api/admin/events/${eventId}/admins`, { method: 'POST', auth: true, body }),
+    request<{ membership?: any; grant?: any }>(`/api/admin/events/${eventId}/admins`, { method: 'POST', auth: true, body }),
 
   removeEventAdmin: (eventId: string, userId: string) =>
     request<{ ok: boolean }>(`/api/admin/events/${eventId}/admins/${userId}`, { method: 'DELETE', auth: true }),
@@ -524,6 +524,63 @@ export const adminApi = {
 
   updateProfileField: (fieldKey: string, body: Record<string, unknown>) =>
     request<any>(`/api/admin/profile-fields/${fieldKey}`, { method: 'PATCH', auth: true, body }),
+
+  listWorkspaces: () =>
+    request<{ workspaces: any[] }>('/api/admin/workspaces', { auth: true }),
+
+  createWorkspace: (body: Record<string, unknown>) =>
+    request<{ workspace: any }>('/api/admin/workspaces', { method: 'POST', auth: true, body }),
+
+  getWorkspace: (workspaceId: string) =>
+    request<{ workspace: any }>(`/api/admin/workspaces/${workspaceId}`, { auth: true }),
+
+  updateWorkspace: (workspaceId: string, body: Record<string, unknown>) =>
+    request<{ workspace: any }>(`/api/admin/workspaces/${workspaceId}`, { method: 'PATCH', auth: true, body }),
+
+  archiveWorkspace: (workspaceId: string, force = false) =>
+    request<{ workspace: any }>(`/api/admin/workspaces/${workspaceId}/archive`, { method: 'POST', auth: true, body: { force } }),
+
+  restoreWorkspace: (workspaceId: string) =>
+    request<{ workspace: any }>(`/api/admin/workspaces/${workspaceId}/restore`, { method: 'POST', auth: true }),
+
+  listWorkspaceMembers: (workspaceId: string) =>
+    request<{ members: any[] }>(`/api/admin/workspaces/${workspaceId}/members`, { auth: true }),
+
+  addWorkspaceMember: (workspaceId: string, body: Record<string, unknown>) =>
+    request<{ member: any }>(`/api/admin/workspaces/${workspaceId}/members`, { method: 'POST', auth: true, body }),
+
+  updateWorkspaceMember: (workspaceId: string, memberId: string, body: Record<string, unknown>) =>
+    request<{ member: any }>(`/api/admin/workspaces/${workspaceId}/members/${memberId}`, { method: 'PATCH', auth: true, body }),
+
+  removeWorkspaceMember: (workspaceId: string, memberId: string) =>
+    request<{ member: any }>(`/api/admin/workspaces/${workspaceId}/members/${memberId}`, { method: 'DELETE', auth: true }),
+
+  previewWorkspacePolicy: (workspaceId: string, body: Record<string, unknown>) =>
+    request<any>(`/api/admin/workspaces/${workspaceId}/access-policies/preview`, { method: 'POST', auth: true, body }),
+
+  createWorkspacePolicy: (workspaceId: string, body: Record<string, unknown>) =>
+    request<any>(`/api/admin/workspaces/${workspaceId}/access-policies`, { method: 'POST', auth: true, body }),
+
+  revokeWorkspacePolicy: (workspaceId: string, policyId: string) =>
+    request<{ ok: boolean }>(`/api/admin/workspaces/${workspaceId}/access-policies/${policyId}/revoke`, { method: 'POST', auth: true }),
+
+  getOrganizationMap: () =>
+    request<any>('/api/admin/organization-map', { auth: true }),
+
+  getWorkspaceOrganizationMap: (workspaceId: string) =>
+    request<any>(`/api/admin/workspaces/${workspaceId}/organization-map`, { auth: true }),
+
+  listEventStaff: (eventId: string) =>
+    request<{ grants: any[]; accesses: any[] }>(`/api/admin/events/${eventId}/staff`, { auth: true }),
+
+  createEventStaffGrant: (eventId: string, body: Record<string, unknown>) =>
+    request<{ grant: any; access: any }>(`/api/admin/events/${eventId}/staff`, { method: 'POST', auth: true, body }),
+
+  updateEventStaffGrant: (eventId: string, grantId: string, body: Record<string, unknown>) =>
+    request<{ grant: any }>(`/api/admin/events/${eventId}/staff/grants/${grantId}`, { method: 'PATCH', auth: true, body }),
+
+  revokeEventStaffGrant: (eventId: string, grantId: string) =>
+    request<{ ok: boolean }>(`/api/admin/events/${eventId}/staff/grants/${grantId}`, { method: 'DELETE', auth: true }),
 };
 
 // ─── Admin Email ──────────────────────────────────────────────────────────────

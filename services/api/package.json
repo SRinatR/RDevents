@@ -15,7 +15,7 @@
     "start:report-worker": "node dist/report-worker.js",
     "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "corepack pnpm --filter @event-platform/shared build && tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
+    "test": "corepack pnpm --filter @event-platform/shared run build && vitest run",
     "clean": "node -e \"const fs=require('fs'); ['dist','node_modules'].forEach(p=>fs.rmSync(p,{recursive:true,force:true}))\"",
     "prisma": "prisma",
     "prisma:generate": "prisma generate",
@@ -23,6 +23,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:push": "prisma db push",
     "prisma:studio": "prisma studio",
+    "rbac:backfill": "tsx prisma/backfill-rbac-v2.ts",
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {

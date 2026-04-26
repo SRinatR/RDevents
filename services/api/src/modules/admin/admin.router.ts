@@ -12,6 +12,9 @@ import { adminSupportRouter } from './support.router.js';
 import { systemReportsRouter } from '../system-reports/system-reports.router.js';
 import { profileConfigRouter } from '../profile-config/profile-config.router.js';
 import { exportsRouter } from '../exports/exports.router.js';
+import { workspacesRouter } from '../workspaces/workspaces.router.js';
+import { organizationMapRouter } from '../organization-map/organization-map.router.js';
+import { accessControlRouter } from '../access-control/access-control.router.js';
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
 
@@ -29,6 +32,9 @@ adminRouter.use('/support', adminSupportRouter);
 adminRouter.use('/system-reports', systemReportsRouter);
 adminRouter.use('/profile-fields', profileConfigRouter);
 adminRouter.use('/exports', exportsRouter);
+adminRouter.use('/workspaces', workspacesRouter);
+adminRouter.use(organizationMapRouter);
+adminRouter.use(accessControlRouter);
 
 // Users routes on /users prefix
 adminRouter.use('/users', adminUsersRouter);

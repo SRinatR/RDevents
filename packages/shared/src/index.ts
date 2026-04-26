@@ -2,10 +2,19 @@
 // Keep this minimal — only truly shared contracts belong here.
 
 export type UserRole = 'USER' | 'PLATFORM_ADMIN' | 'SUPER_ADMIN';
+export type OrganizerWorkspaceKind = 'ROOT_ORGANIZATION' | 'DEPARTMENT' | 'SUBDEPARTMENT' | 'WORKING_GROUP' | 'EXTERNAL_PARTNER';
+export type OrganizerWorkspaceStatus = 'ACTIVE' | 'ARCHIVED' | 'DISABLED';
+export type OrganizerMemberRole = 'OWNER' | 'ADMIN' | 'MANAGER' | 'PR_MANAGER' | 'CHECKIN_MANAGER' | 'VIEWER';
+export type OrganizerMemberStatus = 'ACTIVE' | 'INVITED' | 'SUSPENDED' | 'REMOVED';
 export type AuthProvider = 'EMAIL' | 'GOOGLE' | 'YANDEX' | 'TELEGRAM';
 export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'CANCELLED' | 'COMPLETED';
 export type EventMemberRole = 'PARTICIPANT' | 'VOLUNTEER' | 'EVENT_ADMIN';
 export type EventMemberStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'ACTIVE' | 'REMOVED';
+export type EventStaffRole = 'OWNER' | 'ADMIN' | 'MANAGER' | 'PR_MANAGER' | 'CHECKIN_OPERATOR' | 'VIEWER';
+export type EventStaffGrantStatus = 'ACTIVE' | 'DISABLED' | 'REMOVED';
+export type EventStaffGrantSource = 'DIRECT' | 'WORKSPACE_POLICY' | 'SYSTEM' | 'LEGACY_EVENT_ADMIN_MIGRATION';
+export type EventStaffAccessStatus = 'ACTIVE' | 'REMOVED';
+export type WorkspaceEventAccessPolicyStatus = 'ACTIVE' | 'DISABLED' | 'REMOVED';
 export type EventTeamStatus = 'DRAFT' | 'ACTIVE' | 'PENDING' | 'CHANGES_PENDING' | 'REJECTED' | 'SUBMITTED' | 'ARCHIVED';
 export type EventTeamRole = 'CAPTAIN' | 'MEMBER';
 export type EventTeamMemberStatus = 'PENDING' | 'ACTIVE' | 'REJECTED' | 'REMOVED' | 'LEFT';

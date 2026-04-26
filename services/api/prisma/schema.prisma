@@ -15,6 +15,36 @@ enum UserRole {
   SUPER_ADMIN
 }
 
+enum OrganizerWorkspaceKind {
+  ROOT_ORGANIZATION
+  DEPARTMENT
+  SUBDEPARTMENT
+  WORKING_GROUP
+  EXTERNAL_PARTNER
+}
+
+enum OrganizerWorkspaceStatus {
+  ACTIVE
+  ARCHIVED
+  DISABLED
+}
+
+enum OrganizerMemberRole {
+  OWNER
+  ADMIN
+  MANAGER
+  PR_MANAGER
+  CHECKIN_MANAGER
+  VIEWER
+}
+
+enum OrganizerMemberStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+  REMOVED
+}
+
 enum AuthProvider {
   EMAIL
   GOOGLE
@@ -42,6 +72,39 @@ enum EventMemberStatus {
   RESERVE
   REJECTED
   CANCELLED
+  REMOVED
+}
+
+enum EventStaffRole {
+  OWNER
+  ADMIN
+  MANAGER
+  PR_MANAGER
+  CHECKIN_OPERATOR
+  VIEWER
+}
+
+enum EventStaffGrantStatus {
+  ACTIVE
+  DISABLED
+  REMOVED
+}
+
+enum EventStaffGrantSource {
+  DIRECT
+  WORKSPACE_POLICY
+  SYSTEM
+  LEGACY_EVENT_ADMIN_MIGRATION
+}
+
+enum EventStaffAccessStatus {
+  ACTIVE
+  REMOVED
+}
+
+enum WorkspaceEventAccessPolicyStatus {
+  ACTIVE
+  DISABLED
   REMOVED
 }
 
@@ -261,6 +324,32 @@ enum EmailWebhookProcessingStatus {
   FAILED
 }
 
+enum AuditAction {
+  WORKSPACE_CREATED
+  WORKSPACE_UPDATED
+  WORKSPACE_ARCHIVED
+  WORKSPACE_RESTORED
+  WORKSPACE_PARENT_CHANGED
+
+  WORKSPACE_MEMBER_ADDED
+  WORKSPACE_MEMBER_UPDATED
+  WORKSPACE_MEMBER_REMOVED
+
+  WORKSPACE_ACCESS_POLICY_CREATED
+  WORKSPACE_ACCESS_POLICY_UPDATED
+  WORKSPACE_ACCESS_POLICY_REVOKED
+
+  EVENT_STAFF_GRANT_CREATED
+  EVENT_STAFF_GRANT_UPDATED
+  EVENT_STAFF_GRANT_REVOKED
+  EVENT_STAFF_ACCESS_RECALCULATED
+  EVENT_OWNER_TRANSFERRED
+
+  ORGANIZATION_MAP_VIEWED
+
+  LEGACY_EVENT_ADMIN_MIGRATED
+}
+
 model User {
   id                    String   @id @default(cuid())
   email                 String   @unique
@@ -306,6 +395,17 @@ model User {
 
   accounts              UserAccount[]
   createdEvents         Event[] @relation("CreatedBy")
+  createdOrganizerWorkspaces OrganizerWorkspace[] @relation("OrganizerWorkspaceCreatedBy")
+  organizerWorkspaceMemberships OrganizerWorkspaceMember[] @relation("OrganizerWorkspaceMemberUser")
+  invitedOrganizerWorkspaceMemberships OrganizerWorkspaceMember[] @relation("OrganizerWorkspaceMemberInvitedBy")
+  workspaceEventAccessPolicies WorkspaceEventAccessPolicy[] @relation("WorkspaceEventAccessPolicyUser")
+  createdWorkspaceEventAccessPolicies WorkspaceEventAccessPolicy[] @relation("WorkspaceEventAccessPolicyCreatedBy")
+  revokedWorkspaceEventAccessPolicies WorkspaceEventAccessPolicy[] @relation("WorkspaceEventAccessPolicyRevokedBy")
+  eventStaffGrants      EventStaffGrant[] @relation("EventStaffGrantUser")
+  assignedEventStaffGrants EventStaffGrant[] @relation("EventStaffGrantAssignedBy")
+  eventStaffAccesses    EventStaffAccess[] @relation("EventStaffAccessUser")
+  auditLogsAuthored     AuditLog[] @relation("AuditLogActor")
+  auditLogsTargeting    AuditLog[] @relation("AuditLogTargetUser")
   eventMemberships      EventMember[] @relation("EventMemberUser")
   assignedEventMembers  EventMember[] @relation("EventMemberAssignedBy")
   teamMemberships       EventTeamMember[]
@@ -650,6 +750,61 @@ model RegistrationVerification {
   @@map("registration_verifications")
 }
 
+model OrganizerWorkspace {
+  id          String                   @id @default(cuid())
+  name        String
+  slug        String                   @unique
+  description String?
+  kind        OrganizerWorkspaceKind   @default(DEPARTMENT)
+  status      OrganizerWorkspaceStatus @default(ACTIVE)
+
+  parentId    String?
+  parent      OrganizerWorkspace?      @relation("WorkspaceTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children    OrganizerWorkspace[]     @relation("WorkspaceTree")
+
+  createdById String?
+  createdBy   User?                    @relation("OrganizerWorkspaceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  members     OrganizerWorkspaceMember[]
+  policies    WorkspaceEventAccessPolicy[]
+  events      Event[]
+
+  sortOrder   Int                      @default(0)
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  archivedAt  DateTime?
+
+  @@index([parentId])
+  @@index([kind, status])
+  @@index([status])
+  @@map("organizer_workspaces")
+}
+
+model OrganizerWorkspaceMember {
+  id          String                @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        OrganizerMemberRole
+  status      OrganizerMemberStatus @default(ACTIVE)
+
+  invitedByUserId String?
+  invitedAt       DateTime?
+  joinedAt        DateTime?
+  removedAt       DateTime?
+
+  workspace OrganizerWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User               @relation("OrganizerWorkspaceMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy User?              @relation("OrganizerWorkspaceMemberInvitedBy", fields: [invitedByUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workspaceId, userId])
+  @@index([userId, status])
+  @@index([workspaceId, role, status])
+  @@map("organizer_workspace_members")
+}
+
 model Event {
   id                               String                     @id @default(cuid())
   slug                             String                     @unique
@@ -700,11 +855,15 @@ model Event {
 
   publishedAt                      DateTime?
   createdById                      String?
+  organizerWorkspaceId             String?
   createdAt                        DateTime                   @default(now())
   updatedAt                        DateTime                   @updatedAt
 
   createdBy                        User?                      @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  organizerWorkspace               OrganizerWorkspace?        @relation(fields: [organizerWorkspaceId], references: [id], onDelete: SetNull)
   members                          EventMember[]
+  staffGrants                      EventStaffGrant[]
+  staffAccesses                    EventStaffAccess[]
   teams                            EventTeam[]
   teamInvitations                  EventTeamInvitation[]
   analyticsEvents                  AnalyticsEvent[]
@@ -712,6 +871,7 @@ model Event {
   milestones                       EventMilestone[]
   exportPresets                    ExportPreset[]
 
+  @@index([organizerWorkspaceId])
   @@map("events")
 }
 
@@ -755,6 +915,100 @@ model EventMember {
   @@index([userId, role, status])
   @@index([eventId, role, status])
   @@map("event_members")
+}
+
+model WorkspaceEventAccessPolicy {
+  id          String                           @id @default(cuid())
+  workspaceId String
+  userId      String
+
+  role        EventStaffRole
+  status      WorkspaceEventAccessPolicyStatus @default(ACTIVE)
+
+  includePastEvents      Boolean @default(false)
+  includeCurrentEvents   Boolean @default(false)
+  includeFutureEvents    Boolean @default(false)
+  includeCancelledEvents Boolean @default(false)
+
+  autoApplyToNewEvents   Boolean @default(false)
+  fullWorkspaceAccess    Boolean @default(false)
+
+  createdByUserId String?
+  revokedByUserId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  revokedAt DateTime?
+
+  workspace OrganizerWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User               @relation("WorkspaceEventAccessPolicyUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy User?              @relation("WorkspaceEventAccessPolicyCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  revokedBy User?              @relation("WorkspaceEventAccessPolicyRevokedBy", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+
+  grants    EventStaffGrant[]
+
+  @@index([workspaceId, status])
+  @@index([userId, status])
+  @@index([workspaceId, userId, status])
+  @@map("workspace_event_access_policies")
+}
+
+model EventStaffGrant {
+  id               String                @id @default(cuid())
+
+  eventId          String
+  userId           String
+  role             EventStaffRole
+  status           EventStaffGrantStatus @default(ACTIVE)
+
+  source           EventStaffGrantSource @default(DIRECT)
+  policyId         String?
+
+  assignedByUserId String?
+  assignedAt       DateTime              @default(now())
+  disabledAt       DateTime?
+  removedAt        DateTime?
+
+  reason           String?
+
+  event            Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user             User                  @relation("EventStaffGrantUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedBy       User?                 @relation("EventStaffGrantAssignedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+  policy           WorkspaceEventAccessPolicy? @relation(fields: [policyId], references: [id], onDelete: SetNull)
+
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@index([eventId, status])
+  @@index([userId, status])
+  @@index([eventId, userId, status])
+  @@index([policyId, status])
+  @@map("event_staff_grants")
+}
+
+model EventStaffAccess {
+  id              String                 @id @default(cuid())
+  eventId         String
+  userId          String
+
+  status          EventStaffAccessStatus @default(ACTIVE)
+
+  roles           String[]               @default([])
+  permissions     String[]               @default([])
+
+  isOwner         Boolean                @default(false)
+  recalculatedAt  DateTime               @default(now())
+
+  event           Event                  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user            User                   @relation("EventStaffAccessUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  @@unique([eventId, userId])
+  @@index([userId, status])
+  @@index([eventId, status])
+  @@map("event_staff_accesses")
 }
 
 model EventTeam {
@@ -1273,4 +1527,36 @@ model SystemReportEvent {
   @@index([level])
   @@index([createdAt])
   @@map("system_report_events")
+}
+
+model AuditLog {
+  id           String      @id @default(cuid())
+
+  actorUserId  String?
+  action       AuditAction
+
+  workspaceId  String?
+  eventId      String?
+  targetUserId String?
+
+  beforeJson   Json?
+  afterJson    Json?
+  meta         Json?
+
+  requestId    String?
+  ipAddress    String?
+  userAgent    String?
+
+  createdAt    DateTime @default(now())
+
+  actor         User? @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  targetUser    User? @relation("AuditLogTargetUser", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId])
+  @@index([workspaceId])
+  @@index([eventId])
+  @@index([targetUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
