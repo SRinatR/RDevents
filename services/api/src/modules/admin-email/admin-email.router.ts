@@ -87,22 +87,39 @@ function withErrorHandler(handler: (req: Request, res: Response) => Promise<void
 
 function mapServiceError(message: string) {
   const code = message.split(':')[0] || 'INTERNAL_ERROR';
+
   const known: Record<string, [number, string]> = {
     FORBIDDEN: [403, 'Forbidden'],
     EVENT_SCOPED_AUDIENCE_REQUIRED: [403, 'Event-scoped audience is required for event admins'],
+
     EMAIL_BROADCAST_NOT_FOUND: [404, 'Broadcast not found'],
     EMAIL_RECIPIENT_NOT_FOUND: [404, 'Recipient not found'],
+
     EMAIL_BROADCAST_NOT_EDITABLE: [409, 'Broadcast is not editable'],
     EMAIL_BROADCAST_NOT_SENDABLE: [409, 'Broadcast is not sendable'],
     EMAIL_BROADCAST_NOT_CANCELLABLE: [409, 'Broadcast is not cancellable'],
     EMAIL_RECIPIENT_NOT_RETRYABLE: [409, 'Recipient is not retryable'],
     NO_FAILED_RECIPIENTS_TO_RETRY: [409, 'No failed recipients to retry'],
-    SCHEDULED_AT_IN_PAST: [400, 'scheduledAt must be in the future'],
+
+    EMAIL_SUBJECT_REQUIRED: [400, 'Subject is required'],
+    EMAIL_TEXT_BODY_REQUIRED: [400, 'Text body is required'],
+    EMAIL_HTML_BODY_REQUIRED: [400, 'HTML body is required'],
     UNSUBSCRIBE_URL_REQUIRED: [400, 'Marketing/event broadcasts must include {{unsubscribeUrl}} in HTML or text'],
+    SCHEDULED_AT_IN_PAST: [400, 'scheduledAt must be in the future'],
+    EMAIL_BROADCAST_MAX_RECIPIENTS_EXCEEDED: [400, 'Broadcast recipient limit exceeded'],
+
     EMAIL_TEST_SEND_RATE_LIMITED: [429, 'Test send rate limit exceeded'],
   };
+
   const [status, text] = known[code] ?? [500, 'Internal server error'];
-  return { status, code, message: text };
+
+  return {
+    status,
+    code,
+    message: code === 'EMAIL_BROADCAST_MAX_RECIPIENTS_EXCEEDED'
+      ? `${text}: ${message.split(':')[1] ?? ''}`.trim()
+      : text,
+  };
 }
 
 function requirePlatformAdminForMutation(req: Request, res: Response) {
@@ -115,6 +132,22 @@ function requirePlatformAdminForMutation(req: Request, res: Response) {
 }
 
 adminEmailRouter.use(requireAuth);
+
+function requirePlatformAdmin(req: Request, res: Response, next: () => void) {
+  const user = (req as AuthenticatedRequest).user;
+
+  if (!user || !['PLATFORM_ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+    res.status(403).json({
+      error: 'Forbidden',
+      code: 'FORBIDDEN',
+    });
+    return;
+  }
+
+  next();
+}
+
+adminEmailRouter.use(requirePlatformAdmin);
 
 // ─── GET /api/admin/email/overview ────────────────────────────────────────────
 

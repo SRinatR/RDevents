@@ -138,6 +138,37 @@ services:
       retries: 6
       start_period: 15s
 
+  email-broadcast-worker:
+    image: app-api:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      RELEASE_SHA: ${RELEASE_SHA:-unknown}
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      APP_URL: ${APP_URL}
+      DEFAULT_LOCALE: ${DEFAULT_LOCALE:-ru}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
+      RESEND_FROM_NAME: ${RESEND_FROM_NAME:-RDEvents}
+      RESEND_REPLY_TO_EMAIL: ${RESEND_REPLY_TO_EMAIL:-}
+      EMAIL_BROADCAST_MAX_RECIPIENTS: ${EMAIL_BROADCAST_MAX_RECIPIENTS:-1000}
+      EMAIL_BROADCAST_CONCURRENCY: ${EMAIL_BROADCAST_CONCURRENCY:-3}
+      EMAIL_BROADCAST_BATCH_SIZE: ${EMAIL_BROADCAST_BATCH_SIZE:-50}
+      EMAIL_BROADCAST_BATCH_DELAY_MS: ${EMAIL_BROADCAST_BATCH_DELAY_MS:-1000}
+    command: ["pnpm", "--filter", "@event-platform/api", "start:email-broadcast-worker"]
+    healthcheck:
+      test: ["CMD-SHELL", "test -r /app/services/api/release.txt || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
 volumes:
   postgres_data:
   api_uploads:

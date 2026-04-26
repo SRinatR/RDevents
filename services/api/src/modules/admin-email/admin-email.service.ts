@@ -692,6 +692,7 @@ export async function createEmailBroadcastSnapshot(id: string, actor?: User): Pr
   if (!broadcast) throw new Error('EMAIL_BROADCAST_NOT_FOUND');
   await ensureBroadcastAccess(actor, broadcast);
   const result = await resolveAudience({
+    broadcastId: id,
     broadcastType: toApiEnum(broadcast.type),
     audienceKind: toApiEnum(broadcast.audienceKind),
     audienceSource: toApiEnum(broadcast.audienceSource),

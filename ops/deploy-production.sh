@@ -100,6 +100,9 @@ dump_diagnostics() {
     echo "--- Report Worker Logs (last 80) ---"
     compose logs --tail=80 report-worker 2>&1 || true
     echo ""
+    echo "--- Email Broadcast Worker Logs (last 80) ---"
+    compose logs --tail=80 email-broadcast-worker 2>&1 || true
+    echo ""
   else
     echo "(compose file not available at $COMPOSE_FILE)"
     echo ""
@@ -122,6 +125,7 @@ dump_diagnostics() {
     compose exec -T api sh -lc 'cat /app/services/api/release.txt' 2>/dev/null || echo "(cannot read api release.txt)"
     compose exec -T web sh -lc 'cat /app/apps/web/public/version.txt' 2>/dev/null || echo "(cannot read web version.txt)"
     compose exec -T report-worker sh -lc 'cat /app/services/api/release.txt' 2>/dev/null || echo "(cannot read report-worker release.txt)"
+    compose exec -T email-broadcast-worker sh -lc 'cat /app/services/api/release.txt' 2>/dev/null || echo "(cannot read email-broadcast-worker release.txt)"
   fi
   echo ""
   echo "========================================"
@@ -599,7 +603,7 @@ if [ "$SKIP_BUILD" = "true" ]; then
     exit 1
   fi
 else
-  compose build api web report-worker
+  compose build api web report-worker email-broadcast-worker
 
   CURRENT_STAGE="capture-built-image-ids"
   set_stage "$CURRENT_STAGE"
@@ -623,6 +627,7 @@ else
 fi
 
 EXPECTED_REPORT_WORKER_IMAGE_ID="$EXPECTED_API_IMAGE_ID"
+EXPECTED_EMAIL_BROADCAST_WORKER_IMAGE_ID="$EXPECTED_API_IMAGE_ID"
 
 echo "Images built for release SHA=$RELEASE_SHA"
 
@@ -653,7 +658,7 @@ compose run --rm --no-deps --entrypoint sh api -lc 'cd /app/services/api && pnpm
 CURRENT_STAGE="recreate-api-web-report-worker"
 set_stage "$CURRENT_STAGE"
 
-compose up -d --force-recreate --remove-orphans api web report-worker
+compose up -d --force-recreate --remove-orphans api web report-worker email-broadcast-worker
 
 CURRENT_STAGE="wait-api-healthy"
 set_stage "$CURRENT_STAGE"
@@ -667,12 +672,17 @@ CURRENT_STAGE="wait-report-worker-healthy"
 set_stage "$CURRENT_STAGE"
 wait_for_service_healthy report-worker 90
 
+CURRENT_STAGE="wait-email-broadcast-worker-healthy"
+set_stage "$CURRENT_STAGE"
+wait_for_service_healthy email-broadcast-worker 90
+
 CURRENT_STAGE="verify-running-image-ids"
 set_stage "$CURRENT_STAGE"
 
 verify_running_image api "$EXPECTED_API_IMAGE_ID"
 verify_running_image web "$EXPECTED_WEB_IMAGE_ID"
 verify_running_image report-worker "$EXPECTED_REPORT_WORKER_IMAGE_ID"
+verify_running_image email-broadcast-worker "$EXPECTED_EMAIL_BROADCAST_WORKER_IMAGE_ID"
 
 CURRENT_STAGE="host-install"
 set_stage "$CURRENT_STAGE"
@@ -690,6 +700,7 @@ FAILED=0
 API_CONTAINER_SHA="$(verify_container_sha api "/app/services/api/release.txt" "API")" || FAILED=1
 WEB_CONTAINER_SHA="$(verify_container_sha web "/app/apps/web/public/version.txt" "Web")" || FAILED=1
 REPORT_WORKER_CONTAINER_SHA="$(verify_container_sha report-worker "/app/services/api/release.txt" "Report worker")" || FAILED=1
+EMAIL_BROADCAST_WORKER_CONTAINER_SHA="$(verify_container_sha email-broadcast-worker "/app/services/api/release.txt" "Email broadcast worker")" || FAILED=1
 
 if [ "$FAILED" -eq 0 ] && [ "$API_CONTAINER_SHA" != "$WEB_CONTAINER_SHA" ]; then
   echo "FAIL: API and Web container SHAs differ: api='$API_CONTAINER_SHA', web='$WEB_CONTAINER_SHA'"
@@ -698,6 +709,11 @@ fi
 
 if [ "$FAILED" -eq 0 ] && [ "$API_CONTAINER_SHA" != "$REPORT_WORKER_CONTAINER_SHA" ]; then
   echo "FAIL: API and report-worker container SHAs differ: api='$API_CONTAINER_SHA', report-worker='$REPORT_WORKER_CONTAINER_SHA'"
+  FAILED=1
+fi
+
+if [ "$FAILED" -eq 0 ] && [ "$API_CONTAINER_SHA" != "$EMAIL_BROADCAST_WORKER_CONTAINER_SHA" ]; then
+  echo "FAIL: API and email-broadcast-worker container SHAs differ: api='$API_CONTAINER_SHA', email-broadcast-worker='$EMAIL_BROADCAST_WORKER_CONTAINER_SHA'"
   FAILED=1
 fi
 
@@ -718,6 +734,7 @@ if [ "$FAILED" -ne 0 ]; then
   compose logs --tail=120 api
   compose logs --tail=120 web
   compose logs --tail=120 report-worker
+  compose logs --tail=120 email-broadcast-worker
   exit 1
 fi
 
@@ -769,6 +786,7 @@ if [ "$FAILED" -ne 0 ]; then
   compose logs --tail=120 api
   compose logs --tail=120 web
   compose logs --tail=120 report-worker
+  compose logs --tail=120 email-broadcast-worker
   tail -120 /var/log/nginx/error.log 2>/dev/null || true
   exit 1
 fi
