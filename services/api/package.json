@@ -10,11 +10,11 @@
   ],
   "scripts": {
     "dev": "tsx watch src/main.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "corepack pnpm --filter @event-platform/shared build && tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "start:report-worker": "node dist/report-worker.js",
     "lint": "eslint \"src/**/*.ts\"",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "corepack pnpm --filter @event-platform/shared build && tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "clean": "node -e \"const fs=require('fs'); ['dist','node_modules'].forEach(p=>fs.rmSync(p,{recursive:true,force:true}))\"",
     "prisma": "prisma",
@@ -26,6 +26,7 @@
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@event-platform/shared": "workspace:*",
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.7.0",
     "argon2": "^0.41.1",

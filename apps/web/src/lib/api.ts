@@ -473,8 +473,11 @@ export const adminApi = {
   updateUserRole: (id: string, role: string) =>
     request<{ user: any }>(`/api/admin/users/${id}/role`, { method: 'PATCH', auth: true, body: { role } }),
 
-  getUserFullProfile: (userId: string, eventId?: string) => {
-    const qs = eventId ? `?eventId=${encodeURIComponent(eventId)}` : '';
+  getUserFullProfile: (userId: string, eventId?: string, options?: { revealSensitive?: boolean }) => {
+    const qp = new URLSearchParams();
+    if (eventId) qp.set('eventId', eventId);
+    if (options?.revealSensitive) qp.set('revealSensitive', 'true');
+    const qs = qp.toString() ? `?${qp.toString()}` : '';
     return request<any>(`/api/admin/users/${userId}/profile${qs}`, { auth: true });
   },
 
@@ -798,35 +801,6 @@ export interface ReportRun {
 
 export type ReportStage = 'queued' | 'collecting' | 'assembling' | 'writing_artifacts' | 'finalizing';
 
-export const legacySystemReportApi = {
-  getStatus: () =>
-    request<SystemReportStatus>('/api/admin/system-report/status', { auth: true }),
-
-  refresh: () =>
-    request<{ ok: boolean; requestId: string; state: string; requestedAt: string; requestedBy: string }>('/api/admin/system-report/refresh', { method: 'POST', auth: true }),
-
-  downloadReport: async () => {
-    const token = getAccessToken();
-    if (!token) throw new Error('No auth token');
-    const response = await fetch(`${BASE_URL}/api/admin/system-report/download`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ error: 'Download failed' }));
-      throw new Error(err.error ?? 'Download failed');
-    }
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'system-report.txt';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  },
-};
-
 export interface SystemReportPreview {
   sections: Array<{
     key: string;
@@ -935,163 +909,6 @@ export const systemReportsApi = {
       `/api/admin/system-reports/runs/${runId}/artifacts/${artifactId}/download`,
       filenameFallback
     ),
-};
-
-export const systemReportApi = {
-  getStatus: () =>
-    request<SystemReportStatus>('/api/admin/system-report/status', { auth: true }),
-
-  refresh: () =>
-    request<{ ok: boolean; requestId: string; state: string; requestedAt: string; requestedBy: string }>('/api/admin/system-report/refresh', { method: 'POST', auth: true }),
-
-  downloadReport: async () => {
-    const token = getAccessToken();
-    if (!token) throw new Error('No auth token');
-    const response = await fetch(`${BASE_URL}/api/admin/system-report/download`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ error: 'Download failed' }));
-      throw new Error(err.error ?? 'Download failed');
-    }
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'system-report.txt';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  },
-
-  getV2Templates: () =>
-    request<SystemReportTemplate[]>('/api/admin/system-report/v2/templates', { auth: true }),
-
-  createV2Template: (data: { name: string; description?: string; config: ReportConfig; isDefault?: boolean }) =>
-    request<SystemReportTemplate>('/api/admin/system-report/v2/templates', { method: 'POST', body: data, auth: true }),
-
-  updateV2Template: (templateId: string, data: Partial<{ name: string; description?: string; config: ReportConfig; isDefault?: boolean }>) =>
-    request<SystemReportTemplate>(`/api/admin/system-report/v2/templates/${templateId}`, { method: 'PUT', body: data, auth: true }),
-
-  deleteV2Template: (templateId: string) =>
-    request<void>(`/api/admin/system-report/v2/templates/${templateId}`, { method: 'DELETE', auth: true }),
-
-  getSections: () =>
-    request<ReportSection[]>('/api/admin/system-report/v2/sections', { auth: true }),
-
-  getGenerations: (limit = 20) =>
-    request<SystemReportGeneration[]>(`/api/admin/system-report/v2/generations?limit=${limit}`, { auth: true }),
-
-  getGeneration: (generationId: string) =>
-    request<SystemReportGeneration>(`/api/admin/system-report/v2/generations/${generationId}`, { auth: true }),
-
-  startGeneration: (config: ReportConfig, templateId?: string) =>
-    request<{ id: string; status: string; progress: number; createdAt: string }>('/api/admin/system-report/v2/generations', { method: 'POST', body: { config, templateId }, auth: true }),
-
-  downloadGeneration: async (generationId: string, fileName: string) => {
-    const token = getAccessToken();
-    if (!token) throw new Error('No auth token');
-    const response = await fetch(`${BASE_URL}/api/admin/system-report/v2/generations/${generationId}/download`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ error: 'Download failed' }));
-      throw new Error(err.error ?? 'Download failed');
-    }
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  },
-
-  getLegacyStatus: () =>
-    request<SystemReportStatus>('/api/admin/system-report/v2/legacy-status', { auth: true }),
-
-  downloadLegacy: async () => {
-    const token = getAccessToken();
-    if (!token) throw new Error('No auth token');
-    const response = await fetch(`${BASE_URL}/api/admin/system-report/v2/legacy-download`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ error: 'Download failed' }));
-      throw new Error(err.error ?? 'Download failed');
-    }
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'system-report.txt';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  },
-
-  getConfig: () =>
-    request<any>('/api/admin/system-reports/config', { auth: true }),
-
-  getTemplates: () =>
-    request<SystemReportTemplate[]>('/api/admin/system-reports/templates', { auth: true }),
-
-  createTemplate: (data: { name: string; description?: string; config: ReportConfig; isDefault?: boolean }) =>
-    request<SystemReportTemplate>('/api/admin/system-reports/templates', { method: 'POST', body: data, auth: true }),
-
-  updateTemplate: (templateId: string, data: Partial<{ name: string; description?: string; config: ReportConfig; isDefault?: boolean }>) =>
-    request<SystemReportTemplate>(`/api/admin/system-reports/templates/${templateId}`, { method: 'PATCH', body: data, auth: true }),
-
-  deleteTemplate: (templateId: string) =>
-    request<void>(`/api/admin/system-reports/templates/${templateId}`, { method: 'DELETE', auth: true }),
-
-  createRun: (data: { templateId?: string; title?: string; format: string; sections: any[]; redactionLevel: string }) =>
-    request<ReportRun>('/api/admin/system-reports/runs', { method: 'POST', body: data, auth: true }),
-
-  getRuns: (filters?: { status?: string[]; templateId?: string; dateFrom?: string; dateTo?: string }) => {
-    const params = new URLSearchParams();
-    if (filters?.status) filters.status.forEach(s => params.append('status', s));
-    if (filters?.templateId) params.set('templateId', filters.templateId);
-    if (filters?.dateFrom) params.set('dateFrom', filters.dateFrom);
-    if (filters?.dateTo) params.set('dateTo', filters.dateTo);
-    const query = params.toString();
-    return request<ReportRun[]>(`/api/admin/system-reports/runs${query ? `?${query}` : ''}`, { auth: true });
-  },
-
-  getRun: (runId: string) =>
-    request<ReportRun>(`/api/admin/system-reports/runs/${runId}`, { auth: true }),
-
-  cancelRun: (runId: string) =>
-    request<{ ok: boolean }>(`/api/admin/system-reports/runs/${runId}/cancel`, { method: 'POST', auth: true }),
-
-  retryRun: (runId: string) =>
-    request<ReportRun>(`/api/admin/system-reports/runs/${runId}/retry`, { method: 'POST', auth: true }),
-
-  downloadArtifact: async (runId: string, artifactId: string, fileName: string) => {
-    const token = getAccessToken();
-    if (!token) throw new Error('No auth token');
-    const response = await fetch(
-      `${BASE_URL}/api/admin/system-reports/runs/${runId}/artifacts/${artifactId}/download`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ error: 'Download failed' }));
-      throw new Error(err.error ?? 'Download failed');
-    }
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  },
 };
 
 // ─── Admin Exports ─────────────────────────────────────────────────────────────

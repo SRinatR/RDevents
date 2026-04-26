@@ -5,6 +5,13 @@
   align-items: stretch;
 }
 
+.headerActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .identityBlock {
   display: flex;
   align-items: center;

@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../db/prisma.js';
 
 export type ReportStatus = 'queued' | 'running' | 'success' | 'failed' | 'partial_success' | 'canceled' | 'stale';
 export type ReportStage = 'queued' | 'collecting' | 'assembling' | 'writing_artifacts' | 'finalizing';
@@ -140,12 +138,10 @@ const REPORT_SECTIONS: ReportSectionDefinition[] = [
         key: 'units',
         type: 'multiselect',
         label: 'Service units',
-        default: ['docker.service', 'nginx.service', 'rdevents-system-report-refresh.service'],
+        default: ['docker.service', 'nginx.service'],
         options: [
           'docker.service',
           'nginx.service',
-          'rdevents-system-report-refresh.service',
-          'rdevents-system-report-refresh.path',
         ],
       },
       { key: 'includeFailedOnly', type: 'boolean', label: 'Failed units only', default: false },

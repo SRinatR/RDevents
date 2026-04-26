@@ -1,20 +1,24 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import Link from 'next/link';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { Panel, StatusBadge, LoadingLines } from '@/components/ui/signal-primitives';
-import type { SystemReportStatus } from '@/lib/api';
-import { systemReportApi } from '@/lib/api';
+import type { ReportRun } from '@/lib/api';
+import { systemReportsApi } from '@/lib/api';
 
-type ReportState = SystemReportStatus['state'];
+type ReportState = ReportRun['status'] | 'idle';
 
-function stateLabel(state: ReportState, t: (key: string) => string): string {
+function stateLabel(state: ReportState, t: (key: string) => string, locale: string): string {
   switch (state) {
     case 'idle': return t('idle');
     case 'queued': return t('queued');
     case 'running': return t('running');
     case 'success': return t('success');
     case 'failed': return t('failed');
+    case 'partial_success': return locale === 'ru' ? 'Частично готов' : 'Partial success';
+    case 'canceled': return locale === 'ru' ? 'Отменен' : 'Canceled';
+    case 'stale': return locale === 'ru' ? 'Устарел' : 'Stale';
   }
 }
 
@@ -24,19 +28,23 @@ function stateTone(state: ReportState): 'neutral' | 'info' | 'success' | 'warnin
     case 'queued': return 'warning';
     case 'running': return 'info';
     case 'success': return 'success';
+    case 'partial_success': return 'warning';
     case 'failed': return 'danger';
+    case 'canceled':
+    case 'stale':
+      return 'neutral';
   }
 }
 
 function formatBytes(bytes: number | null): string {
-  if (bytes === null) return '—';
+  if (bytes === null) return '-';
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function formatDate(iso: string | null, locale: string): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   try {
     return new Date(iso).toLocaleString(locale === 'ru' ? 'ru-RU' : locale === 'uz' ? 'uz-UZ' : 'en-US', {
       year: 'numeric', month: 'short', day: 'numeric',
@@ -56,26 +64,25 @@ function InfoRow({ label, value }: InfoRowProps) {
   return (
     <div className="sr-info-row">
       <span className="sr-info-label">{label}</span>
-      <span className="sr-info-value">{value ?? '—'}</span>
+      <span className="sr-info-value">{value ?? '-'}</span>
     </div>
   );
 }
 
 export function SystemReportCard({ locale }: { locale: string }) {
   const t = useTranslations('admin.systemReport');
-  const [status, setStatus] = useState<SystemReportStatus | null>(null);
+  const [runs, setRuns] = useState<ReportRun[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mountedRef = useRef(true);
 
-  const fetchStatus = useCallback(async () => {
+  const fetchRuns = useCallback(async () => {
     try {
-      const data = await systemReportApi.getStatus();
+      const data = await systemReportsApi.getRuns();
       if (mountedRef.current) {
-        setStatus(data);
+        setRuns(data);
         setError(null);
       }
     } catch {
@@ -96,61 +103,47 @@ export function SystemReportCard({ locale }: { locale: string }) {
     stopPolling();
     pollingRef.current = setInterval(async () => {
       try {
-        const data = await systemReportApi.getStatus();
+        const data = await systemReportsApi.getRuns();
         if (!mountedRef.current) return;
-        setStatus(data);
-        if (data.state !== 'queued' && data.state !== 'running') {
+        setRuns(data);
+        const latest = data[0];
+        if (latest?.status !== 'queued' && latest?.status !== 'running') {
           stopPolling();
         }
       } catch {
-        // Silent poll failure
+        // Keep the dashboard quiet while the full page can show detailed errors.
       }
     }, 2000);
   }, [stopPolling]);
 
   useEffect(() => {
     mountedRef.current = true;
-    fetchStatus();
+    fetchRuns();
     return () => {
       mountedRef.current = false;
       stopPolling();
     };
-  }, [fetchStatus, stopPolling]);
+  }, [fetchRuns, stopPolling]);
+
+  const latestRun = runs[0] ?? null;
+  const reportArtifact = useMemo(
+    () => latestRun?.artifacts.find((artifact) => artifact.kind === 'report') ?? latestRun?.artifacts[0] ?? null,
+    [latestRun]
+  );
 
   useEffect(() => {
-    if (status?.state === 'queued' || status?.state === 'running') {
+    if (latestRun?.status === 'queued' || latestRun?.status === 'running') {
       startPolling();
     } else {
       stopPolling();
     }
-  }, [status?.state, startPolling, stopPolling]);
-
-  const handleRefresh = async () => {
-    if (refreshing) return;
-    setRefreshing(true);
-    setError(null);
-    try {
-      await systemReportApi.refresh();
-      await fetchStatus();
-      startPolling();
-    } catch (err) {
-      if (err instanceof Error && 'status' in err && (err as any).status === 409) {
-        await fetchStatus();
-        startPolling();
-        if (mountedRef.current) setError(t('alreadyRunning'));
-      } else if (mountedRef.current) {
-        setError(t('refreshFailed'));
-      }
-    } finally {
-      if (mountedRef.current) setRefreshing(false);
-    }
-  };
+  }, [latestRun?.status, startPolling, stopPolling]);
 
   const handleDownload = async () => {
-    if (downloading || !status?.downloadAvailable) return;
+    if (downloading || !latestRun || !reportArtifact) return;
     setDownloading(true);
     try {
-      await systemReportApi.downloadReport();
+      await systemReportsApi.downloadArtifact(latestRun.id, reportArtifact.id, reportArtifact.fileName);
     } catch {
       if (mountedRef.current) setError(t('downloadFailed'));
     } finally {
@@ -158,9 +151,10 @@ export function SystemReportCard({ locale }: { locale: string }) {
     }
   };
 
-  const isGenerating = status?.state === 'queued' || status?.state === 'running';
-  const canDownload = status?.downloadAvailable ?? false;
-  const currentState: ReportState = status?.state ?? 'idle';
+  const canDownload = Boolean(reportArtifact);
+  const currentState: ReportState = latestRun?.status ?? 'idle';
+  const reportsHref = `/${locale}/admin/system-reports`;
+  const newReportHref = `/${locale}/admin/system-reports/new`;
 
   return (
     <Panel variant="elevated" className="sr-card">
@@ -170,7 +164,7 @@ export function SystemReportCard({ locale }: { locale: string }) {
           <p className="sr-subtitle">{t('subtitle')}</p>
         </div>
         <StatusBadge tone={stateTone(currentState)}>
-          {loading ? '…' : stateLabel(currentState, (key) => t(`states.${key}`))}
+          {loading ? '...' : stateLabel(currentState, (key) => t(`states.${key}`), locale)}
         </StatusBadge>
       </div>
 
@@ -179,13 +173,12 @@ export function SystemReportCard({ locale }: { locale: string }) {
       ) : (
         <>
           <div className="sr-actions">
-            <button
-              className="sr-btn sr-btn-primary"
-              disabled={isGenerating || refreshing}
-              onClick={handleRefresh}
-            >
-              {refreshing ? t('refreshing') : t('refresh')}
-            </button>
+            <Link className="sr-btn sr-btn-primary" href={newReportHref}>
+              {locale === 'ru' ? 'Создать отчет' : 'Create report'}
+            </Link>
+            <Link className="sr-btn sr-btn-secondary" href={reportsHref}>
+              {locale === 'ru' ? 'История' : 'History'}
+            </Link>
             <button
               className="sr-btn sr-btn-secondary"
               disabled={!canDownload || downloading}
@@ -200,18 +193,18 @@ export function SystemReportCard({ locale }: { locale: string }) {
           )}
 
           <div className="sr-info-grid">
-            <InfoRow label={t('fields.lastSuccess')} value={formatDate(status?.lastSuccessAt ?? null, locale)} />
-            <InfoRow label={t('fields.lastRequest')} value={formatDate(status?.requestedAt ?? null, locale)} />
-            <InfoRow label={t('fields.requestedBy')} value={status?.requestedByEmail ?? null} />
-            <InfoRow label={t('fields.fileSize')} value={formatBytes(status?.fileSizeBytes ?? null)} />
-            <InfoRow label={t('fields.generatedAt')} value={formatDate(status?.generatedAt ?? null, locale)} />
-            <InfoRow label={t('fields.sha256')} value={status?.sha256 ? `${status.sha256.slice(0, 12)}…` : null} />
+            <InfoRow label={t('fields.lastRequest')} value={formatDate(latestRun?.createdAt ?? null, locale)} />
+            <InfoRow label={t('fields.requestedBy')} value={latestRun?.requestedByEmail ?? null} />
+            <InfoRow label={t('fields.fileSize')} value={formatBytes(reportArtifact?.sizeBytes ?? null)} />
+            <InfoRow label={t('fields.generatedAt')} value={formatDate(latestRun?.finishedAt ?? latestRun?.startedAt ?? null, locale)} />
+            <InfoRow label={t('fields.sha256')} value={reportArtifact?.checksum ? `${reportArtifact.checksum.slice(0, 12)}...` : null} />
+            <InfoRow label={locale === 'ru' ? 'Прогресс' : 'Progress'} value={latestRun ? `${latestRun.progressPercent}%` : null} />
           </div>
 
-          {status?.lastError && (
+          {latestRun?.errorText && (
             <div className="sr-error-details">
               <span className="sr-error-label">{t('fields.error')}:</span>
-              <code>{status.lastError}</code>
+              <code>{latestRun.errorText}</code>
             </div>
           )}
         </>

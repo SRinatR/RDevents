@@ -6,11 +6,11 @@ import { createEventSchema, updateEventSchema } from '../events/events.schemas.j
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 import { notifyParticipantStatusChanged } from '../events/notifications.service.js';
 import { approveTeamChangeRequest, rejectTeamChangeRequest } from '../events/events.service.js';
+import { getActiveProfileRequirementFields } from '../profile-config/profile-field-values.js';
 
 export const adminEventsRouter = Router();
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
-const DEPRECATED_PROFILE_REQUIREMENT_FIELDS = new Set(['consentPersonalData', 'consentClientRules']);
 
 function normalizeStringArray(value: unknown) {
   if (Array.isArray(value)) {
@@ -23,7 +23,7 @@ function normalizeStringArray(value: unknown) {
 }
 
 function normalizeRequiredProfileFields(value: unknown) {
-  return normalizeStringArray(value).filter(field => !DEPRECATED_PROFILE_REQUIREMENT_FIELDS.has(field));
+  return getActiveProfileRequirementFields(normalizeStringArray(value));
 }
 
 function normalizeEventBody(body: any) {

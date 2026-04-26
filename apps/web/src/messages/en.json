@@ -351,6 +351,7 @@
       "notFound": "Profile not found",
       "idLabel": "ID",
       "profileHeader": "Admin profile view",
+      "revealSensitive": "Show full data",
       "avatar": "Avatar",
       "open": "Open",
       "active": "Active",

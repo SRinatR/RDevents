@@ -1,12 +1,10 @@
-import { PrismaClient } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import JSZip from 'jszip';
+import { prisma } from '../../db/prisma.js';
 import { getProvider } from './providers/index.js';
 import { addEvent, updateRunProgress, completeRun } from './system-reports.service.js';
-
-const prisma = new PrismaClient();
 
 const REPORTS_STORAGE_ROOT =
   process.env.SYSTEM_REPORTS_STORAGE_DIR ?? '/opt/rdevents/runtime/reports';

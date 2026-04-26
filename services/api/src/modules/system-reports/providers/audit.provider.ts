@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../../db/prisma.js';
 import { BaseReportProvider, ProviderContext, SectionResult } from './base.provider.js';
-
-const prisma = new PrismaClient();
 
 export class AuditProvider extends BaseReportProvider {
   readonly key = 'audit';

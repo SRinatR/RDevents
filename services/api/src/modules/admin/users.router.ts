@@ -1,11 +1,14 @@
 import { Router } from 'express';
 import type { User } from '@prisma/client';
 import { requirePlatformAdmin, requireSuperAdmin } from '../../common/middleware.js';
+import { logger } from '../../common/logger.js';
 import { prisma } from '../../db/prisma.js';
 
 export const adminUsersRouter = Router();
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
+const SENSITIVE_PROFILE_FIELDS = ['phone'] as const;
+const SENSITIVE_DOCUMENT_FIELDS = ['documentNumber', 'passportNumber', 'pinfl', 'snils', 'number'] as const;
 
 const USER_PROFILE_SELECT = {
   id: true,
@@ -58,6 +61,70 @@ async function getManagedEventIds(user: User): Promise<string[] | null> {
 
 function isPlatformScopeUser(user: User) {
   return user.role === 'PLATFORM_ADMIN' || user.role === 'SUPER_ADMIN';
+}
+
+function maskSensitiveValue(value: unknown): unknown {
+  if (typeof value !== 'string' && typeof value !== 'number') return value;
+  const raw = String(value).trim();
+  if (!raw) return value;
+  const tailLength = raw.replace(/\D/g, '').length >= 10 ? 4 : 2;
+  const tail = raw.slice(-tailLength);
+  return `${'*'.repeat(Math.max(4, Math.min(raw.length - tail.length, 8)))}${tail}`;
+}
+
+function maskObjectFields<T extends Record<string, any> | null>(
+  value: T,
+  fields: readonly string[],
+  revealSensitive: boolean
+): T {
+  if (!value || revealSensitive) return value;
+  const copy: Record<string, any> = { ...value };
+  for (const field of fields) {
+    if (field in copy) {
+      copy[field] = maskSensitiveValue(copy[field]);
+    }
+  }
+  return copy as T;
+}
+
+function sanitizeAsset<T extends Record<string, any> | null>(asset: T, revealSensitive: boolean): T {
+  if (!asset || revealSensitive) return asset;
+  return { ...asset, publicUrl: null } as T;
+}
+
+function sanitizeDocumentRecord<T extends Record<string, any> | null>(document: T, revealSensitive: boolean): T {
+  if (!document) return document;
+  const masked = maskObjectFields(document, SENSITIVE_DOCUMENT_FIELDS, revealSensitive) as Record<string, any>;
+  if ('scanAsset' in masked) {
+    masked.scanAsset = sanitizeAsset(masked.scanAsset, revealSensitive);
+  }
+  return masked as T;
+}
+
+function sanitizeEmergencyContact<T extends Record<string, any> | null>(contact: T, revealSensitive: boolean): T {
+  return maskObjectFields(contact, ['phone'], revealSensitive);
+}
+
+function auditAdminProfileView(params: {
+  actor: User;
+  targetUserId: string;
+  eventId?: string;
+  sensitiveRevealed: boolean;
+  documentsReturned: boolean;
+}) {
+  logger.info('Admin user profile viewed', {
+    module: 'admin-users',
+    action: params.sensitiveRevealed ? 'ADMIN_PROFILE_SENSITIVE_VIEWED' : 'ADMIN_PROFILE_VIEWED',
+    userId: params.actor.id,
+    eventId: params.eventId,
+    meta: {
+      targetUserId: params.targetUserId,
+      actorRole: params.actor.role,
+      eventId: params.eventId ?? null,
+      sensitiveRevealed: params.sensitiveRevealed,
+      documentsReturned: params.documentsReturned,
+    },
+  });
 }
 
 async function canAdminAccessUserProfile(actor: User, targetUserId: string, eventId?: string) {
@@ -418,8 +485,19 @@ adminUsersRouter.get('/admins', requireSuperAdmin, async (_req, res) => {
 // GET /api/admin/users/:id/profile - полный профиль пользователя
 adminUsersRouter.get('/:id/profile', async (req, res) => {
   const { id } = req.params;
-  const { eventId } = req.query as { eventId?: string };
+  const { eventId, revealSensitive } = req.query as { eventId?: string; revealSensitive?: string };
   const adminUser = (req as any).user as User;
+  const isSuperAdmin = adminUser.role === 'SUPER_ADMIN';
+  const scopedToEvent = !isPlatformScopeUser(adminUser);
+  const wantsSensitiveReveal = revealSensitive === 'true';
+
+  if (wantsSensitiveReveal && !isSuperAdmin) {
+    res.status(403).json({ error: 'Only SUPER_ADMIN can reveal sensitive profile fields' });
+    return;
+  }
+
+  const canRevealSensitive = isSuperAdmin;
+  const shouldRevealSensitive = canRevealSensitive && wantsSensitiveReveal;
 
   const existing = await prisma.user.findFirst({
     where: { OR: [{ id: id as string }, { email: id as string }] },
@@ -435,6 +513,8 @@ adminUsersRouter.get('/:id/profile', async (req, res) => {
     res.status(403).json({ error: 'Access denied' });
     return;
   }
+
+  const eventScopedWhere = scopedToEvent ? { eventId } : {};
 
   const [
     profile,
@@ -490,18 +570,18 @@ adminUsersRouter.get('/:id/profile', async (req, res) => {
       select: { sectionKey: true, status: true, updatedAt: true },
     }),
     prisma.eventMember.findMany({
-      where: { userId: existing.id },
+      where: { userId: existing.id, ...eventScopedWhere },
       include: {
         event: { select: { id: true, title: true, slug: true, status: true, startsAt: true, endsAt: true } },
       },
       orderBy: { assignedAt: 'desc' },
     }),
     prisma.eventRegistrationFormSubmission.findMany({
-      where: { userId: existing.id },
+      where: { userId: existing.id, ...eventScopedWhere },
       select: { id: true, eventId: true, answersJson: true, isComplete: true, createdAt: true },
     }),
     prisma.eventTeamMember.findMany({
-      where: { userId: existing.id },
+      where: scopedToEvent ? { userId: existing.id, team: { eventId } } : { userId: existing.id },
       include: {
         team: {
           include: {
@@ -523,19 +603,25 @@ adminUsersRouter.get('/:id/profile', async (req, res) => {
     : null;
 
   const result: Record<string, unknown> = {
-    profile,
+    access: {
+      scope: scopedToEvent ? 'event_admin' : isSuperAdmin ? 'super_admin' : 'platform_admin',
+      eventId: eventId ?? null,
+      sensitiveMasked: !shouldRevealSensitive,
+      canRevealSensitive,
+    },
+    profile: maskObjectFields(profile, SENSITIVE_PROFILE_FIELDS, shouldRevealSensitive),
     extendedProfile: normalizedExtendedProfile,
-    identityDocument,
-    internationalPassport,
+    identityDocument: sanitizeDocumentRecord(identityDocument, shouldRevealSensitive),
+    internationalPassport: sanitizeDocumentRecord(internationalPassport, shouldRevealSensitive),
     socialLinks,
     activityDirections: activityDirections.map(d => d.direction),
     additionalLanguages: additionalLanguages.map(l => l.languageName),
     additionalDocuments: additionalDocuments.map(doc => ({
       type: doc.type,
       notes: doc.notes,
-      asset: doc.asset,
+      asset: sanitizeAsset(doc.asset, shouldRevealSensitive),
     })),
-    emergencyContact,
+    emergencyContact: sanitizeEmergencyContact(emergencyContact, shouldRevealSensitive),
     accounts: profile?.accounts,
     profileSectionStates: profileSectionStates.map(s => ({
       sectionKey: s.sectionKey,
@@ -640,6 +726,14 @@ adminUsersRouter.get('/:id/profile', async (req, res) => {
       } : null,
     };
   }
+
+  auditAdminProfileView({
+    actor: adminUser,
+    targetUserId: existing.id,
+    eventId,
+    sensitiveRevealed: shouldRevealSensitive,
+    documentsReturned: Boolean(identityDocument || internationalPassport || additionalDocuments.length > 0),
+  });
 
   res.json(result);
 });

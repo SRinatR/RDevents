@@ -71,8 +71,6 @@ services:
     volumes:
       - api_uploads:/app/services/api/uploads
       - /opt/rdevents/runtime/reports:/opt/rdevents/runtime/reports:ro
-      - /opt/rdevents/runtime/admin:/opt/rdevents/runtime/admin:ro
-      - /opt/rdevents/runtime/control:/opt/rdevents/runtime/control:rw
     healthcheck:
       test:
         - CMD-SHELL
@@ -135,9 +133,7 @@ services:
       SYSTEM_REPORTS_MAX_ARTIFACT_BYTES: ${SYSTEM_REPORTS_MAX_ARTIFACT_BYTES:-104857600}
     volumes:
       - /opt/rdevents/runtime/reports:/opt/rdevents/runtime/reports:rw
-      - /opt/rdevents/runtime/admin:/opt/rdevents/runtime/admin:ro
-      - /opt/rdevents/runtime/control:/opt/rdevents/runtime/control:rw
-    command: ["node", "dist/report-worker.js"]
+    command: ["pnpm", "--filter", "@event-platform/api", "start:report-worker"]
 
 volumes:
   postgres_data:

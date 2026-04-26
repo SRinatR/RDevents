@@ -627,30 +627,13 @@ jobs:
             CURRENT_STAGE="host-install"
             set_stage "$CURRENT_STAGE"
 
-            run_privileged mkdir -p /opt/rdevents/bin
             run_privileged mkdir -p /opt/rdevents/runtime
-            run_privileged mkdir -p /opt/rdevents/runtime/admin
-            run_privileged mkdir -p /opt/rdevents/runtime/control
+            run_privileged mkdir -p /opt/rdevents/runtime/reports
             run_privileged mkdir -p /var/log/rdevents
-            run_privileged mkdir -p /var/lock/rdevents
 
-            run_privileged bash -c 'command -v jq >/dev/null 2>&1 || apt-get install -y jq'
-            run_privileged bash -c 'command -v flock >/dev/null 2>&1 || apt-get install -y flock'
             run_privileged bash -c 'command -v bash >/dev/null 2>&1 || apt-get install -y bash'
 
-            run_privileged install -m 0755 "$APP_DIR/host-scripts/build-system-report.sh" /opt/rdevents/bin/build-system-report.sh
-            run_privileged install -m 0644 "$APP_DIR/host-systemd/rdevents-system-report-refresh.service" /etc/systemd/system/rdevents-system-report-refresh.service
-            run_privileged install -m 0644 "$APP_DIR/host-systemd/rdevents-system-report-refresh.path" /etc/systemd/system/rdevents-system-report-refresh.path
-
-            run_privileged systemd-analyze verify /etc/systemd/system/rdevents-system-report-refresh.service
-            run_privileged systemd-analyze verify /etc/systemd/system/rdevents-system-report-refresh.path
-
             run_privileged systemctl daemon-reload
-            run_privileged systemctl reset-failed rdevents-system-report-refresh.service 2>/dev/null || true
-            run_privileged systemctl reset-failed rdevents-system-report-refresh.path 2>/dev/null || true
-            run_privileged systemctl enable --now rdevents-system-report-refresh.path
-            run_privileged systemctl is-enabled rdevents-system-report-refresh.path
-            run_privileged systemctl is-active rdevents-system-report-refresh.path
 
             CURRENT_STAGE="local-verification"
             set_stage "$CURRENT_STAGE"

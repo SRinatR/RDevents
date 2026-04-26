@@ -1,26 +1,8 @@
 import { prisma } from '../../db/prisma.js';
-import { getVisibleProfileFieldsForUser } from '../profile-config/profile-config.service.js';
 import { logger } from '../../common/logger.js';
+import { buildProfileSnapshot } from '../auth/profile.snapshot.js';
 import { getTeamCabinetPermissions, getTeamSubmissionState } from '../events/teams.service.js';
-
-const PROFILE_FIELD_REGISTRY: Array<{
-  key: string;
-  sectionKey: string;
-  type: string;
-  defaultVisibleInCabinet: boolean;
-  allowEventRequirement: boolean;
-  storageScope: string;
-}> = [
-  { key: 'lastNameCyrillic', sectionKey: 'registration_data', type: 'text', defaultVisibleInCabinet: true, allowEventRequirement: true, storageScope: 'user' },
-  { key: 'firstNameCyrillic', sectionKey: 'registration_data', type: 'text', defaultVisibleInCabinet: true, allowEventRequirement: true, storageScope: 'user' },
-  { key: 'birthDate', sectionKey: 'registration_data', type: 'date', defaultVisibleInCabinet: true, allowEventRequirement: true, storageScope: 'user' },
-  { key: 'phone', sectionKey: 'registration_data', type: 'phone', defaultVisibleInCabinet: true, allowEventRequirement: true, storageScope: 'user' },
-  { key: 'telegram', sectionKey: 'registration_data', type: 'text', defaultVisibleInCabinet: true, allowEventRequirement: true, storageScope: 'user' },
-];
-
-function getFieldByKey(key: string) {
-  return PROFILE_FIELD_REGISTRY.find((f) => f.key === key);
-}
+import { buildMissingProfileFieldsFromSnapshot } from '../profile-config/profile-field-values.js';
 
 const DASHBOARD_VISIBLE_MEMBER_STATUSES = ['ACTIVE', 'PENDING', 'RESERVE'] as const;
 
@@ -77,45 +59,12 @@ export interface DashboardData {
   events: DashboardEvent[];
 }
 
-function getUserProfileFields(userId: string): Set<string> {
-  const fields = new Set<string>();
-  fields.add('lastNameCyrillic');
-  fields.add('firstNameCyrillic');
-  fields.add('birthDate');
-  fields.add('phone');
-  fields.add('consentPersonalData');
-  return fields;
-}
-
 function getMissingProfileFields(
-  userId: string,
   requiredFields: string[],
   user: any
 ): string[] {
-  const missing: string[] = [];
-
-  for (const field of requiredFields) {
-    const fieldDef = getFieldByKey(field);
-    if (!fieldDef) continue;
-
-    let hasValue = false;
-    switch (fieldDef.storageScope) {
-      case 'user':
-        hasValue = user[field] !== null && user[field] !== undefined && user[field] !== '';
-        break;
-      case 'extended_profile':
-        hasValue = user.extendedProfile?.[field] !== null && user.extendedProfile?.[field] !== undefined;
-        break;
-      default:
-        hasValue = false;
-    }
-
-    if (!hasValue) {
-      missing.push(field);
-    }
-  }
-
-  return missing;
+  return buildMissingProfileFieldsFromSnapshot(buildProfileSnapshot(user), requiredFields, 'ru')
+    .map((field) => field.key);
 }
 
 function getMissingEventFields(
@@ -287,7 +236,6 @@ async function buildDashboardEvent(
   let missingProfileFields: string[] = [];
   try {
     missingProfileFields = getMissingProfileFields(
-      user.id,
       event.requiredProfileFields,
       user
     );
@@ -463,22 +411,16 @@ function calculateQuickActions(
 export async function getUserDashboard(userId: string): Promise<DashboardData> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: {
-      id: true,
-      lastNameCyrillic: true,
-      firstNameCyrillic: true,
-      middleNameCyrillic: true,
-      birthDate: true,
-      phone: true,
-      telegram: true,
-      consentPersonalData: true,
-      extendedProfile: {
-        select: {
-          gender: true,
-          citizenshipCountryCode: true,
-          residenceCountryCode: true,
-        },
-      },
+    include: {
+      avatarAsset: true,
+      extendedProfile: true,
+      identityDocument: true,
+      internationalPassport: true,
+      socialLinks: true,
+      activityDirections: true,
+      additionalLanguages: true,
+      additionalDocuments: { include: { asset: true } },
+      emergencyContact: true,
     },
   });
 
@@ -714,27 +656,21 @@ export async function getEventWorkspace(
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: {
-      id: true,
-      lastNameCyrillic: true,
-      firstNameCyrillic: true,
-      middleNameCyrillic: true,
-      birthDate: true,
-      phone: true,
-      telegram: true,
-      consentPersonalData: true,
-      extendedProfile: {
-        select: {
-          gender: true,
-          citizenshipCountryCode: true,
-          residenceCountryCode: true,
-        },
-      },
+    include: {
+      avatarAsset: true,
+      extendedProfile: true,
+      identityDocument: true,
+      internationalPassport: true,
+      socialLinks: true,
+      activityDirections: true,
+      additionalLanguages: true,
+      additionalDocuments: { include: { asset: true } },
+      emergencyContact: true,
     },
   });
 
   const missingProfileFields = user
-    ? getMissingProfileFields(userId, event.requiredProfileFields, user)
+    ? getMissingProfileFields(event.requiredProfileFields, user)
     : [];
 
   const missingEventFieldsResult = await getMissingEventFieldsReal(

@@ -1,3 +1,4 @@
+import { prisma } from '../../../db/prisma.js';
 import { BaseReportProvider, ProviderContext, SectionResult } from './base.provider.js';
 
 export class DatabaseProvider extends BaseReportProvider {
@@ -11,10 +12,7 @@ export class DatabaseProvider extends BaseReportProvider {
     lines.push('## Database');
 
     try {
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
-      
-      await prisma.$connect();
+      await prisma.$queryRaw`SELECT 1`;
       lines.push('**Status:** Connected');
       
       const detailLevel = context.options?.detailLevel as string || 'summary';
@@ -24,8 +22,6 @@ export class DatabaseProvider extends BaseReportProvider {
         lines.push('**Tables:** Check migration status for details');
       }
 
-      await prisma.$disconnect();
-      
       return {
         success: true,
         data: { content: lines.join('\n') },

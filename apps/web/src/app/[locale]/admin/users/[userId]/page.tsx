@@ -12,6 +12,12 @@ import { EmptyState, LoadingLines, MetricCard, PageHeader, Panel, SectionHeader,
 import styles from './page.module.css';
 
 interface UserFullProfile {
+  access?: {
+    scope: 'event_admin' | 'platform_admin' | 'super_admin';
+    eventId: string | null;
+    sensitiveMasked: boolean;
+    canRevealSensitive: boolean;
+  };
   profile: {
     id: string;
     email: string;
@@ -89,7 +95,7 @@ interface UserFullProfile {
     snils: string | null;
     hasSecondCitizenship: boolean;
     secondCitizenshipCountryCode: string | null;
-    scanAsset: { id: string; publicUrl: string } | null;
+    scanAsset: { id: string; publicUrl: string | null } | null;
   } | null;
   internationalPassport: {
     countryCode: string | null;
@@ -98,12 +104,12 @@ interface UserFullProfile {
     issueDate: string | null;
     expiryDate: string | null;
     issuedBy: string | null;
-    scanAsset: { id: string; publicUrl: string } | null;
+    scanAsset: { id: string; publicUrl: string | null } | null;
   } | null;
   additionalDocuments: Array<{
     type: string;
     notes: string | null;
-    asset: { id: string; publicUrl: string };
+    asset: { id: string; publicUrl: string | null };
   }>;
   socialLinks: {
     maxUrl: string | null;
@@ -294,6 +300,7 @@ export default function AdminUserFullProfilePage() {
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
+  const [revealSensitive, setRevealSensitive] = useState(false);
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) {
@@ -305,7 +312,7 @@ export default function AdminUserFullProfilePage() {
     if (!userId) return;
 
     setLoadingData(true);
-    adminApi.getUserFullProfile(userId, eventIdParam ?? undefined)
+    adminApi.getUserFullProfile(userId, eventIdParam ?? undefined, { revealSensitive })
       .then((data) => {
         setProfileData(data as UserFullProfile);
         setError(null);
@@ -315,7 +322,11 @@ export default function AdminUserFullProfilePage() {
         setProfileData(null);
       })
       .finally(() => setLoadingData(false));
-  }, [userId, eventIdParam, t]);
+  }, [userId, eventIdParam, revealSensitive, t]);
+
+  useEffect(() => {
+    setRevealSensitive(false);
+  }, [userId, eventIdParam]);
 
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return '—';
@@ -413,6 +424,7 @@ export default function AdminUserFullProfilePage() {
   const profileCompleteness = Math.round(
     (profileCompletenessItems.filter(Boolean).length / profileCompletenessItems.length) * 100
   );
+  const canRevealSensitive = profileData.access?.canRevealSensitive && profileData.access.sensitiveMasked;
 
   const tabItems: Array<{ key: ProfileTab; label: string }> = [
     { key: 'overview', label: t('tabs.overview') },
@@ -426,9 +438,16 @@ export default function AdminUserFullProfilePage() {
         title={displayName}
         subtitle={`${t('idLabel')}: ${p.id}`}
         actions={
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => router.push(`/${locale}/admin/users`)}>
-            ← {t('backToUsers')}
-          </button>
+          <div className={styles.headerActions}>
+            {canRevealSensitive ? (
+              <button type="button" className="btn btn-primary btn-sm" onClick={() => setRevealSensitive(true)}>
+                {t('revealSensitive')}
+              </button>
+            ) : null}
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => router.push(`/${locale}/admin/users`)}>
+              ← {t('backToUsers')}
+            </button>
+          </div>
         }
       />
 
@@ -723,9 +742,7 @@ export default function AdminUserFullProfilePage() {
                       <strong>{doc.type || t('document')}</strong>
                       {doc.notes ? <span>{doc.notes}</span> : null}
                     </div>
-                    <a href={doc.asset.publicUrl} target="_blank" rel="noopener noreferrer">
-                      {t('open')}
-                    </a>
+                    <LinkValue href={doc.asset.publicUrl} label={t('open')} />
                   </div>
                 ))}
               </div>
