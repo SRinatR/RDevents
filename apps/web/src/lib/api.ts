@@ -679,6 +679,13 @@ export const adminEmailApi = {
   retryBroadcastRecipient: (broadcastId: string, recipientId: string) =>
     request<{ data: any }>(`/api/admin/email/broadcasts/${broadcastId}/recipients/${recipientId}/retry`, { method: 'POST', auth: true }),
 
+  exportBroadcastRecipients: async (broadcastId: string) => {
+    await downloadWithAuth(
+      `/api/admin/email/broadcasts/${broadcastId}/recipients/export.csv`,
+      `broadcast-${broadcastId}-recipients.csv`,
+    );
+  },
+
   getBroadcastAnalytics: (broadcastId: string) =>
     request<any>(`/api/admin/email/broadcasts/${broadcastId}/analytics`, { auth: true }),
 
