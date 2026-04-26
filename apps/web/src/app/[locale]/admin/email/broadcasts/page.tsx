@@ -50,6 +50,17 @@ const toneByStatus: Record<string, 'success' | 'warning' | 'danger' | 'info' | '
   cancelled: 'neutral',
 };
 
+const broadcastStatusLabelRu: Record<string, string> = {
+  draft: 'Черновик',
+  scheduled: 'Запланирована',
+  queued: 'В очереди',
+  sending: 'Отправляется',
+  sent: 'Отправлена',
+  partial: 'Частично отправлена',
+  failed: 'Ошибка',
+  cancelled: 'Отменена',
+};
+
 const typeLabels: Record<string, { ru: string; en: string }> = {
   marketing: { ru: 'Маркетинг', en: 'Marketing' },
   event_announcement: { ru: 'Анонс', en: 'Event' },
@@ -278,7 +289,9 @@ export default function AdminEmailBroadcastsPage() {
                       {audienceLabels[bc.audienceKind]?.[locale === 'ru' ? 'ru' : 'en'] ?? bc.audienceKind}
                     </td>
                     <td>
-                      <StatusBadge tone={toneByStatus[bc.status] ?? 'neutral'}>{bc.status}</StatusBadge>
+                      <StatusBadge tone={toneByStatus[bc.status] ?? 'neutral'}>
+                        {locale === 'ru' ? (broadcastStatusLabelRu[bc.status] ?? bc.status) : bc.status}
+                      </StatusBadge>
                     </td>
                     <td style={{ fontSize: '0.8125rem' }}>
                       <span className="signal-muted">{bc.totalMatched}</span> /{' '}

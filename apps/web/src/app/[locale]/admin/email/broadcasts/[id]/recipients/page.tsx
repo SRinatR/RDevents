@@ -34,6 +34,28 @@ const toneByStatus = (status: string): 'success' | 'warning' | 'danger' | 'info'
   return 'neutral';
 };
 
+const recipientStatusLabelRu: Record<string, string> = {
+  MATCHED: 'Найден',
+  QUEUED: 'В очереди',
+  SENDING: 'Отправляется',
+  SENT: 'Отправлено',
+  DELIVERED: 'Доставлено',
+  OPENED: 'Открыто',
+  CLICKED: 'Клик',
+  FAILED: 'Ошибка',
+  BOUNCED: 'Bounce',
+  COMPLAINED: 'Жалоба',
+  SKIPPED_NO_CONSENT: 'Нет согласия',
+  SKIPPED_NO_EMAIL: 'Нет email',
+  SKIPPED_EMAIL_NOT_VERIFIED: 'Email не подтверждён',
+  SKIPPED_UNSUBSCRIBED: 'Отписан',
+  SKIPPED_BLOCKED: 'Заблокирован',
+  SKIPPED_DUPLICATE_EMAIL: 'Дубликат email',
+  SKIPPED_SUPPRESSED: 'В suppression list',
+  SKIPPED_INVALID_EMAIL: 'Некорректный email',
+  CANCELLED: 'Отменено',
+};
+
 export default function EmailBroadcastRecipientsPage() {
   const locale = useRouteLocale();
   const params = useParams<{ id: string }>();
@@ -213,7 +235,9 @@ export default function EmailBroadcastRecipientsPage() {
                     <td style={{ fontFamily: 'monospace', fontSize: '0.8125rem' }}>{row.email}</td>
                     <td>
                       <StatusBadge tone={toneByStatus(row.status ?? '')}>
-                        {(row.status ?? '').replace(/_/g, ' ')}
+                        {locale === 'ru'
+                          ? (recipientStatusLabelRu[row.status ?? ''] ?? (row.status ?? '').replace(/_/g, ' '))
+                          : (row.status ?? '').replace(/_/g, ' ')}
                       </StatusBadge>
                     </td>
                     <td className="signal-muted" style={{ fontSize: '0.8125rem', maxWidth: '200px' }}>

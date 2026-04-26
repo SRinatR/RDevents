@@ -1099,9 +1099,31 @@ export async function emailBroadcastWorkerTick() {
       await prisma.emailBroadcast.update({ where: { id: broadcast.id }, data: { status: 'SENDING' as any, startedAt: broadcast.startedAt ?? new Date(), errorText: null } });
       await addBroadcastEvent({ broadcastId: broadcast.id, type: 'SENDING_STARTED' });
     }
-    const recipients = await prisma.emailBroadcastRecipient.findMany({ where: { broadcastId: broadcast.id, status: 'QUEUED' as any }, orderBy: { queuedAt: 'asc' }, take: EMAIL_BROADCAST_BATCH_SIZE });
-    for (let index = 0; index < recipients.length; index += EMAIL_BROADCAST_CONCURRENCY) {
-      await Promise.all(recipients.slice(index, index + EMAIL_BROADCAST_CONCURRENCY).map(recipient => sendQueuedRecipient(broadcast, recipient)));
+    const claimedRecipients = await prisma.$transaction(async (tx) => {
+      const rows = await tx.emailBroadcastRecipient.findMany({
+        where: { broadcastId: broadcast.id, status: 'QUEUED' as any },
+        orderBy: { queuedAt: 'asc' },
+        take: EMAIL_BROADCAST_BATCH_SIZE,
+      });
+
+      if (rows.length === 0) return rows;
+
+      await tx.emailBroadcastRecipient.updateMany({
+        where: {
+          id: { in: rows.map(row => row.id) },
+          status: 'QUEUED' as any,
+        },
+        data: {
+          status: 'SENDING' as any,
+          sendingStartedAt: new Date(),
+        },
+      });
+
+      return rows;
+    });
+
+    for (let index = 0; index < claimedRecipients.length; index += EMAIL_BROADCAST_CONCURRENCY) {
+      await Promise.all(claimedRecipients.slice(index, index + EMAIL_BROADCAST_CONCURRENCY).map(recipient => sendQueuedRecipient(broadcast, recipient)));
     }
     await recalculateBroadcastCounters(broadcast.id);
     const remaining = await prisma.emailBroadcastRecipient.count({ where: { broadcastId: broadcast.id, status: { in: ['QUEUED', 'SENDING'] as any[] } } });

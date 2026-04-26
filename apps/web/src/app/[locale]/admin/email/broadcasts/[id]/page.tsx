@@ -34,6 +34,17 @@ const audienceSourceLabels: Record<string, { ru: string; en: string }> = {
   system: { ru: 'Системный', en: 'System' },
 };
 
+const broadcastStatusLabelRu: Record<string, string> = {
+  draft: 'Черновик',
+  scheduled: 'Запланирована',
+  queued: 'В очереди',
+  sending: 'Отправляется',
+  sent: 'Отправлена',
+  partial: 'Частично отправлена',
+  failed: 'Ошибка',
+  cancelled: 'Отменена',
+};
+
 export default function EmailBroadcastDetailPage() {
   const locale = useRouteLocale();
   const params = useParams<{ id: string }>();
@@ -148,7 +159,7 @@ export default function EmailBroadcastDetailPage() {
             broadcast.status === 'partial' ? 'warning' :
             broadcast.status === 'cancelled' ? 'neutral' : 'info'
           }>
-            {broadcast.status}
+            {locale === 'ru' ? (broadcastStatusLabelRu[broadcast.status] ?? broadcast.status) : broadcast.status}
           </StatusBadge>
         </div>
 

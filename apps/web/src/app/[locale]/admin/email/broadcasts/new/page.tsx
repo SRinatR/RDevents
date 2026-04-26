@@ -624,23 +624,39 @@ export default function NewEmailBroadcastPage() {
           </Panel>
 
           {emailPreview && (
-            <Panel variant="subtle" className="admin-command-panel" style={{ marginTop: '1rem' }}>
-              <h3>{locale === 'ru' ? 'Предпросмотр письма' : 'Email preview'}</h3>
-              <div style={{ border: '1px solid var(--signal-border)', borderRadius: '8px', padding: '1rem', background: '#fff' }}>
-                <p style={{ fontWeight: 600, fontSize: '1.125rem', marginBottom: '0.25rem' }}>{emailPreview.subjectPreview}</p>
-                {emailPreview.preheaderPreview && (
-                  <p style={{ color: '#666', fontSize: '0.875rem', marginBottom: '1rem' }}>{emailPreview.preheaderPreview}</p>
-                )}
-                <hr style={{ margin: '1rem 0', border: 'none', borderTop: '1px solid #eee' }} />
-                <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.9375rem' }}>{emailPreview.textPreview}</div>
-                {emailPreview.htmlPreview && (
-                  <>
-                    <hr style={{ margin: '1rem 0', border: 'none', borderTop: '1px solid #eee' }} />
-                    <div dangerouslySetInnerHTML={{ __html: emailPreview.htmlPreview }} />
-                  </>
-                )}
-              </div>
-            </Panel>
+            <>
+              {emailPreview.warnings && emailPreview.warnings.length > 0 && (
+                <div style={{ marginTop: '1rem' }}>
+                  <Notice tone="warning">
+                    <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>
+                      {locale === 'ru' ? 'Предупреждения' : 'Warnings'}:
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
+                      {emailPreview.warnings.map((warning: string, idx: number) => (
+                        <li key={idx}>{warning}</li>
+                      ))}
+                    </ul>
+                  </Notice>
+                </div>
+              )}
+              <Panel variant="subtle" className="admin-command-panel" style={{ marginTop: '1rem' }}>
+                <h3>{locale === 'ru' ? 'Предпросмотр письма' : 'Email preview'}</h3>
+                <div style={{ border: '1px solid var(--signal-border)', borderRadius: '8px', padding: '1rem', background: '#fff' }}>
+                  <p style={{ fontWeight: 600, fontSize: '1.125rem', marginBottom: '0.25rem' }}>{emailPreview.subjectPreview}</p>
+                  {emailPreview.preheaderPreview && (
+                    <p style={{ color: '#666', fontSize: '0.875rem', marginBottom: '1rem' }}>{emailPreview.preheaderPreview}</p>
+                  )}
+                  <hr style={{ margin: '1rem 0', border: 'none', borderTop: '1px solid #eee' }} />
+                  <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.9375rem' }}>{emailPreview.textPreview}</div>
+                  {emailPreview.htmlPreview && (
+                    <>
+                      <hr style={{ margin: '1rem 0', border: 'none', borderTop: '1px solid #eee' }} />
+                      <div dangerouslySetInnerHTML={{ __html: emailPreview.htmlPreview }} />
+                    </>
+                  )}
+                </div>
+              </Panel>
+            </>
           )}
 
           {!emailPreview && (

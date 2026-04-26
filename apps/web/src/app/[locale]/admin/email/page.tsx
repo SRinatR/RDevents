@@ -72,6 +72,33 @@ export default function AdminEmailPage() {
 
       {error ? <Notice tone="danger">{error}</Notice> : null}
 
+      {/* Warnings */}
+      {!loadingData && overview && (
+        <>
+          {overview.providerStatus !== 'connected' && (
+            <Notice tone="danger">
+              {locale === 'ru'
+                ? 'Email-провайдер не настроен. Рассылки не будут отправляться.'
+                : 'Email provider is not configured. Broadcasts will not be sent.'}
+            </Notice>
+          )}
+          {overview.providerStatus === 'connected' && overview.sendingDomainStatus !== 'verified' && (
+            <Notice tone="warning">
+              {locale === 'ru'
+                ? 'Sending domain не подтверждён. Возможны проблемы с доставкой.'
+                : 'Sending domain is not verified. There may be delivery issues.'}
+            </Notice>
+          )}
+          {overview.providerStatus === 'connected' && overview.webhookStatus !== 'active' && (
+            <Notice tone="warning">
+              {locale === 'ru'
+                ? 'Webhook не активен. Аналитика delivered/opened/clicked/bounced может не обновляться.'
+                : 'Webhook is not active. Analytics for delivered/opened/clicked/bounced may not update.'}
+            </Notice>
+          )}
+        </>
+      )}
+
       {/* KPI cards */}
       {loadingData ? (
         <div className="signal-kpi-grid"><LoadingLines rows={6} /></div>
