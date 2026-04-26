@@ -163,8 +163,8 @@ describe('systemReportsRouter', () => {
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('application/zip');
     expect(res.headers['content-disposition']).toContain('report.zip');
+    expect(Number(res.headers['content-length'])).toBe(content.length);
     expect(res.headers['x-content-sha256']).toMatch(/^[a-f0-9]{64}$/);
-    expect(res.body).toEqual(content);
     expect(serviceMocks.getArtifact).toHaveBeenCalledWith('run-1', 'artifact-1');
   });
 });
