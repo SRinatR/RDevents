@@ -3,50 +3,16 @@ import type { Prisma } from '@prisma/client';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 import { getProfileSnapshot } from '../auth/profile.snapshot.js';
 import {
+  buildMissingProfileFieldsFromSnapshot,
+  getActiveProfileRequirementFields,
+} from '../profile-config/profile-field-values.js';
+import {
   notifyParticipantAnswersUpdated,
   notifyParticipantApplicationSubmitted,
   notifyParticipantStatusChanged,
 } from './notifications.service.js';
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
-const DEPRECATED_PROFILE_REQUIREMENT_FIELDS = new Set(['consentPersonalData', 'consentClientRules']);
-
-const PROFILE_FIELD_LABELS: Record<string, string> = {
-  name: 'Full name',
-  phone: 'Phone',
-  city: 'City',
-  factualAddress: 'Factual address',
-  telegram: 'Telegram',
-  nativeLanguage: 'Native language',
-  communicationLanguage: 'Communication language',
-  birthDate: 'Date of birth',
-  avatarUrl: 'Avatar',
-  bio: 'Bio',
-  lastNameCyrillic: 'Last name (Cyrillic)',
-  firstNameCyrillic: 'First name (Cyrillic)',
-  middleNameCyrillic: 'Middle name (Cyrillic)',
-  lastNameLatin: 'Last name (Latin)',
-  firstNameLatin: 'First name (Latin)',
-  middleNameLatin: 'Middle name (Latin)',
-  gender: 'Gender',
-  citizenshipCountryCode: 'Citizenship',
-  residenceCountryCode: 'Residence country',
-  regionId: 'Region',
-  districtId: 'District',
-  settlementId: 'Settlement',
-  street: 'Street',
-  house: 'House',
-  postalCode: 'Postal code',
-  domesticDocumentComplete: 'Domestic document',
-  internationalPassportComplete: 'International passport',
-  personalDocumentsComplete: 'Personal documents',
-  contactDataComplete: 'Contact data',
-  activityStatus: 'Activity status',
-  organizationName: 'Organization',
-  activityDirections: 'Activity directions',
-  englishLevel: 'English level',
-  russianLevel: 'Russian level',
-};
 
 const EVENT_FIELD_LABELS: Record<string, string> = {
   motivation: 'Motivation',
@@ -82,22 +48,6 @@ function hasValue(value: unknown) {
 
 function normalizeAnswers(answers?: Record<string, unknown> | null) {
   return answers && typeof answers === 'object' ? answers : {};
-}
-
-function buildMissingProfileFields(user: Record<string, unknown>, requiredFields: string[]) {
-  return requiredFields
-    .filter(field => !DEPRECATED_PROFILE_REQUIREMENT_FIELDS.has(field))
-    .filter(field => !hasValue(user[field]))
-    .map(field => ({
-      key: field,
-      label: PROFILE_FIELD_LABELS[field] ?? field,
-      scope: 'PROFILE' as const,
-      action: 'PROFILE' as const,
-    }));
-}
-
-function activeProfileRequirementFields(requiredFields: string[]) {
-  return requiredFields.filter(field => !DEPRECATED_PROFILE_REQUIREMENT_FIELDS.has(field));
 }
 
 function buildMissingEventFields(answers: Record<string, unknown>, requiredFields: string[]) {
@@ -159,9 +109,9 @@ export async function getRegistrationPrecheck(
     ...normalizeAnswers(storedAnswers?.answersJson as Record<string, unknown> | undefined),
     ...normalizeAnswers(answersInput),
   };
-  const requiredProfileFields = activeProfileRequirementFields(event.requiredProfileFields);
+  const requiredProfileFields = getActiveProfileRequirementFields(event.requiredProfileFields);
   const missingFields = [
-    ...buildMissingProfileFields({ ...user, avatarUrl: user.avatarUrl ?? user.avatarAssetId }, requiredProfileFields),
+    ...buildMissingProfileFieldsFromSnapshot(user as Record<string, unknown>, requiredProfileFields, 'en'),
     ...buildMissingEventFields(answers, event.requiredEventFields),
   ];
 

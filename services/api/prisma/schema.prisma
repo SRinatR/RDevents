@@ -15,6 +15,36 @@ enum UserRole {
   SUPER_ADMIN
 }
 
+enum OrganizerWorkspaceKind {
+  ROOT_ORGANIZATION
+  DEPARTMENT
+  SUBDEPARTMENT
+  WORKING_GROUP
+  EXTERNAL_PARTNER
+}
+
+enum OrganizerWorkspaceStatus {
+  ACTIVE
+  ARCHIVED
+  DISABLED
+}
+
+enum OrganizerMemberRole {
+  OWNER
+  ADMIN
+  MANAGER
+  PR_MANAGER
+  CHECKIN_MANAGER
+  VIEWER
+}
+
+enum OrganizerMemberStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+  REMOVED
+}
+
 enum AuthProvider {
   EMAIL
   GOOGLE
@@ -42,6 +72,39 @@ enum EventMemberStatus {
   RESERVE
   REJECTED
   CANCELLED
+  REMOVED
+}
+
+enum EventStaffRole {
+  OWNER
+  ADMIN
+  MANAGER
+  PR_MANAGER
+  CHECKIN_OPERATOR
+  VIEWER
+}
+
+enum EventStaffGrantStatus {
+  ACTIVE
+  DISABLED
+  REMOVED
+}
+
+enum EventStaffGrantSource {
+  DIRECT
+  WORKSPACE_POLICY
+  SYSTEM
+  LEGACY_EVENT_ADMIN_MIGRATION
+}
+
+enum EventStaffAccessStatus {
+  ACTIVE
+  REMOVED
+}
+
+enum WorkspaceEventAccessPolicyStatus {
+  ACTIVE
+  DISABLED
   REMOVED
 }
 
@@ -212,6 +275,81 @@ enum MediaAssetStatus {
   DELETED
 }
 
+enum EmailMessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  COMPLAINED
+  FAILED
+}
+
+enum EmailMessageSource {
+  VERIFICATION
+  INVITATION
+  NOTIFICATION
+  BROADCAST
+  PASSWORD_RESET
+  SYSTEM
+}
+
+enum EmailTemplateStatus {
+  ACTIVE
+  DRAFT
+  ARCHIVED
+}
+
+enum EmailBroadcastStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  PARTIAL
+  FAILED
+}
+
+enum EmailAudienceKind {
+  MAILING_CONSENT
+  VERIFIED_USERS
+  ACTIVE_USERS
+  PLATFORM_ADMINS
+}
+
+enum EmailWebhookProcessingStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum AuditAction {
+  WORKSPACE_CREATED
+  WORKSPACE_UPDATED
+  WORKSPACE_ARCHIVED
+  WORKSPACE_RESTORED
+  WORKSPACE_PARENT_CHANGED
+
+  WORKSPACE_MEMBER_ADDED
+  WORKSPACE_MEMBER_UPDATED
+  WORKSPACE_MEMBER_REMOVED
+
+  WORKSPACE_ACCESS_POLICY_CREATED
+  WORKSPACE_ACCESS_POLICY_UPDATED
+  WORKSPACE_ACCESS_POLICY_REVOKED
+
+  EVENT_STAFF_GRANT_CREATED
+  EVENT_STAFF_GRANT_UPDATED
+  EVENT_STAFF_GRANT_REVOKED
+  EVENT_STAFF_ACCESS_RECALCULATED
+  EVENT_OWNER_TRANSFERRED
+
+  ORGANIZATION_MAP_VIEWED
+
+  LEGACY_EVENT_ADMIN_MIGRATED
+}
+
 model User {
   id                    String   @id @default(cuid())
   email                 String   @unique
@@ -257,6 +395,17 @@ model User {
 
   accounts              UserAccount[]
   createdEvents         Event[] @relation("CreatedBy")
+  createdOrganizerWorkspaces OrganizerWorkspace[] @relation("OrganizerWorkspaceCreatedBy")
+  organizerWorkspaceMemberships OrganizerWorkspaceMember[] @relation("OrganizerWorkspaceMemberUser")
+  invitedOrganizerWorkspaceMemberships OrganizerWorkspaceMember[] @relation("OrganizerWorkspaceMemberInvitedBy")
+  workspaceEventAccessPolicies WorkspaceEventAccessPolicy[] @relation("WorkspaceEventAccessPolicyUser")
+  createdWorkspaceEventAccessPolicies WorkspaceEventAccessPolicy[] @relation("WorkspaceEventAccessPolicyCreatedBy")
+  revokedWorkspaceEventAccessPolicies WorkspaceEventAccessPolicy[] @relation("WorkspaceEventAccessPolicyRevokedBy")
+  eventStaffGrants      EventStaffGrant[] @relation("EventStaffGrantUser")
+  assignedEventStaffGrants EventStaffGrant[] @relation("EventStaffGrantAssignedBy")
+  eventStaffAccesses    EventStaffAccess[] @relation("EventStaffAccessUser")
+  auditLogsAuthored     AuditLog[] @relation("AuditLogActor")
+  auditLogsTargeting    AuditLog[] @relation("AuditLogTargetUser")
   eventMemberships      EventMember[] @relation("EventMemberUser")
   assignedEventMembers  EventMember[] @relation("EventMemberAssignedBy")
   teamMemberships       EventTeamMember[]
@@ -290,6 +439,12 @@ model User {
   preferences          UserPreference[]
   updatedProfileFieldVisibility ProfileFieldVisibilitySetting[] @relation("ProfileFieldVisibilityUpdatedBy")
   createdExportPresets ExportPreset[] @relation("ExportPresetCreatedBy")
+  createdReportTemplates SystemReportTemplate[] @relation("SystemReportTemplateCreatedBy")
+  requestedReportRuns SystemReportRun[] @relation("SystemReportRunRequestedBy")
+  emailMessages       EmailMessage[] @relation("EmailMessageUser")
+  createdEmailTemplates EmailTemplate[] @relation("EmailTemplateCreatedBy")
+  updatedEmailTemplates EmailTemplate[] @relation("EmailTemplateUpdatedBy")
+  createdEmailBroadcasts EmailBroadcast[] @relation("EmailBroadcastCreatedBy")
 
   @@map("users")
 }
@@ -595,6 +750,61 @@ model RegistrationVerification {
   @@map("registration_verifications")
 }
 
+model OrganizerWorkspace {
+  id          String                   @id @default(cuid())
+  name        String
+  slug        String                   @unique
+  description String?
+  kind        OrganizerWorkspaceKind   @default(DEPARTMENT)
+  status      OrganizerWorkspaceStatus @default(ACTIVE)
+
+  parentId    String?
+  parent      OrganizerWorkspace?      @relation("WorkspaceTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children    OrganizerWorkspace[]     @relation("WorkspaceTree")
+
+  createdById String?
+  createdBy   User?                    @relation("OrganizerWorkspaceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  members     OrganizerWorkspaceMember[]
+  policies    WorkspaceEventAccessPolicy[]
+  events      Event[]
+
+  sortOrder   Int                      @default(0)
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  archivedAt  DateTime?
+
+  @@index([parentId])
+  @@index([kind, status])
+  @@index([status])
+  @@map("organizer_workspaces")
+}
+
+model OrganizerWorkspaceMember {
+  id          String                @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        OrganizerMemberRole
+  status      OrganizerMemberStatus @default(ACTIVE)
+
+  invitedByUserId String?
+  invitedAt       DateTime?
+  joinedAt        DateTime?
+  removedAt       DateTime?
+
+  workspace OrganizerWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User               @relation("OrganizerWorkspaceMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy User?              @relation("OrganizerWorkspaceMemberInvitedBy", fields: [invitedByUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workspaceId, userId])
+  @@index([userId, status])
+  @@index([workspaceId, role, status])
+  @@map("organizer_workspace_members")
+}
+
 model Event {
   id                               String                     @id @default(cuid())
   slug                             String                     @unique
@@ -645,11 +855,15 @@ model Event {
 
   publishedAt                      DateTime?
   createdById                      String?
+  organizerWorkspaceId             String?
   createdAt                        DateTime                   @default(now())
   updatedAt                        DateTime                   @updatedAt
 
   createdBy                        User?                      @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  organizerWorkspace               OrganizerWorkspace?        @relation(fields: [organizerWorkspaceId], references: [id], onDelete: SetNull)
   members                          EventMember[]
+  staffGrants                      EventStaffGrant[]
+  staffAccesses                    EventStaffAccess[]
   teams                            EventTeam[]
   teamInvitations                  EventTeamInvitation[]
   analyticsEvents                  AnalyticsEvent[]
@@ -657,6 +871,7 @@ model Event {
   milestones                       EventMilestone[]
   exportPresets                    ExportPreset[]
 
+  @@index([organizerWorkspaceId])
   @@map("events")
 }
 
@@ -700,6 +915,100 @@ model EventMember {
   @@index([userId, role, status])
   @@index([eventId, role, status])
   @@map("event_members")
+}
+
+model WorkspaceEventAccessPolicy {
+  id          String                           @id @default(cuid())
+  workspaceId String
+  userId      String
+
+  role        EventStaffRole
+  status      WorkspaceEventAccessPolicyStatus @default(ACTIVE)
+
+  includePastEvents      Boolean @default(false)
+  includeCurrentEvents   Boolean @default(false)
+  includeFutureEvents    Boolean @default(false)
+  includeCancelledEvents Boolean @default(false)
+
+  autoApplyToNewEvents   Boolean @default(false)
+  fullWorkspaceAccess    Boolean @default(false)
+
+  createdByUserId String?
+  revokedByUserId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  revokedAt DateTime?
+
+  workspace OrganizerWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User               @relation("WorkspaceEventAccessPolicyUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy User?              @relation("WorkspaceEventAccessPolicyCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  revokedBy User?              @relation("WorkspaceEventAccessPolicyRevokedBy", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+
+  grants    EventStaffGrant[]
+
+  @@index([workspaceId, status])
+  @@index([userId, status])
+  @@index([workspaceId, userId, status])
+  @@map("workspace_event_access_policies")
+}
+
+model EventStaffGrant {
+  id               String                @id @default(cuid())
+
+  eventId          String
+  userId           String
+  role             EventStaffRole
+  status           EventStaffGrantStatus @default(ACTIVE)
+
+  source           EventStaffGrantSource @default(DIRECT)
+  policyId         String?
+
+  assignedByUserId String?
+  assignedAt       DateTime              @default(now())
+  disabledAt       DateTime?
+  removedAt        DateTime?
+
+  reason           String?
+
+  event            Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user             User                  @relation("EventStaffGrantUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedBy       User?                 @relation("EventStaffGrantAssignedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+  policy           WorkspaceEventAccessPolicy? @relation(fields: [policyId], references: [id], onDelete: SetNull)
+
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@index([eventId, status])
+  @@index([userId, status])
+  @@index([eventId, userId, status])
+  @@index([policyId, status])
+  @@map("event_staff_grants")
+}
+
+model EventStaffAccess {
+  id              String                 @id @default(cuid())
+  eventId         String
+  userId          String
+
+  status          EventStaffAccessStatus @default(ACTIVE)
+
+  roles           String[]               @default([])
+  permissions     String[]               @default([])
+
+  isOwner         Boolean                @default(false)
+  recalculatedAt  DateTime               @default(now())
+
+  event           Event                  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user            User                   @relation("EventStaffAccessUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  @@unique([eventId, userId])
+  @@index([userId, status])
+  @@index([eventId, status])
+  @@map("event_staff_accesses")
 }
 
 model EventTeam {
@@ -1018,4 +1327,236 @@ model ExportPreset {
 
   @@index([eventId])
   @@map("export_presets")
+}
+
+// ─── Email Operations ────────────────────────────────────────────────────────
+
+model EmailTemplate {
+  id          String              @id @default(cuid())
+  name        String
+  key         String              @unique
+  subject     String
+  preheader   String?
+  htmlBody    String              @db.Text
+  textBody    String              @db.Text
+  status      EmailTemplateStatus @default(DRAFT)
+  createdById String?
+  updatedById String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  createdBy   User?               @relation("EmailTemplateCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?               @relation("EmailTemplateUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  broadcasts  EmailBroadcast[]
+  messages    EmailMessage[]
+
+  @@index([status])
+  @@index([createdById])
+  @@map("email_templates")
+}
+
+model EmailBroadcast {
+  id              String               @id @default(cuid())
+  title           String
+  subject         String
+  preheader       String?
+  htmlBody        String               @db.Text
+  textBody        String               @db.Text
+  audienceKind    EmailAudienceKind    @default(MAILING_CONSENT)
+  status          EmailBroadcastStatus @default(DRAFT)
+  scheduledAt     DateTime?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  totalRecipients Int                  @default(0)
+  sentCount       Int                  @default(0)
+  failedCount     Int                  @default(0)
+  errorText       String?              @db.Text
+  templateId      String?
+  createdById     String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  template        EmailTemplate?       @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  createdBy       User?                @relation("EmailBroadcastCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  messages        EmailMessage[]
+
+  @@index([status])
+  @@index([audienceKind])
+  @@index([templateId])
+  @@index([createdById])
+  @@index([createdAt])
+  @@map("email_broadcasts")
+}
+
+model EmailMessage {
+  id                String             @id @default(cuid())
+  toEmail           String
+  toUserId          String?
+  subject           String
+  source            EmailMessageSource
+  status            EmailMessageStatus @default(PENDING)
+  providerMessageId String?            @unique
+  errorText         String?            @db.Text
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  openedAt          DateTime?
+  clickedAt         DateTime?
+  bouncedAt         DateTime?
+  complainedAt      DateTime?
+  broadcastId       String?
+  templateId        String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  toUser            User?              @relation("EmailMessageUser", fields: [toUserId], references: [id], onDelete: SetNull)
+  broadcast         EmailBroadcast?    @relation(fields: [broadcastId], references: [id], onDelete: SetNull)
+  template          EmailTemplate?     @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  webhookEvents     EmailWebhookEvent[]
+
+  @@index([toEmail])
+  @@index([toUserId])
+  @@index([source])
+  @@index([status])
+  @@index([sentAt])
+  @@index([createdAt])
+  @@index([broadcastId])
+  @@map("email_messages")
+}
+
+model EmailWebhookEvent {
+  id                String                       @id @default(cuid())
+  eventType         String
+  providerEventId   String?                      @unique
+  providerMessageId String?
+  payloadJson       Json
+  processingStatus  EmailWebhookProcessingStatus @default(PENDING)
+  relatedMessageId  String?
+  errorMessage      String?                      @db.Text
+  receivedAt        DateTime                     @default(now())
+  processedAt       DateTime?
+
+  relatedMessage    EmailMessage?                @relation(fields: [relatedMessageId], references: [id], onDelete: SetNull)
+
+  @@index([eventType])
+  @@index([providerMessageId])
+  @@index([processingStatus])
+  @@index([receivedAt])
+  @@map("email_webhook_events")
+}
+
+// ─── System Report Module ────────────────────────────────────────────────────
+
+model SystemReportTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  isDefault   Boolean  @default(false)
+  configJson  Json     // Full report configuration
+  createdById String
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy   User     @relation("SystemReportTemplateCreatedBy", fields: [createdById], references: [id])
+  runs        SystemReportRun[]
+
+  @@index([createdById])
+  @@index([slug])
+  @@map("system_report_templates")
+}
+
+model SystemReportRun {
+  id              String    @id @default(cuid())
+  templateId      String?
+  title           String?
+  status          String    @default("queued") // queued, running, success, failed, partial_success, canceled, stale
+  stage           String?   // queued, collecting, assembling, writing_artifacts, finalizing
+  progressPercent Int       @default(0) // 0-100
+  configJson      Json      // Report configuration used
+  summaryJson     Json?     // Computed summary
+  errorText       String?
+  requestedByUserId String
+  requestedByEmail String
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  template        SystemReportTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  requestedBy     User                  @relation("SystemReportRunRequestedBy", fields: [requestedByUserId], references: [id])
+  artifacts      SystemReportArtifact[]
+  events         SystemReportEvent[]
+
+  @@index([templateId])
+  @@index([requestedByUserId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("system_report_runs")
+}
+
+model SystemReportArtifact {
+  id           String   @id @default(cuid())
+  runId        String
+  kind         String   // report, attachment, log, metadata
+  fileName     String
+  mimeType     String
+  storagePath  String
+  sizeBytes    Int
+  checksum     String?
+  createdAt    DateTime @default(now())
+
+  run          SystemReportRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@map("system_report_artifacts")
+}
+
+model SystemReportEvent {
+  id          String   @id @default(cuid())
+  runId       String
+  level       String   // info, warning, error
+  code        String
+  message     String
+  payloadJson Json?
+  createdAt   DateTime @default(now())
+
+  run         SystemReportRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([level])
+  @@index([createdAt])
+  @@map("system_report_events")
+}
+
+model AuditLog {
+  id           String      @id @default(cuid())
+
+  actorUserId  String?
+  action       AuditAction
+
+  workspaceId  String?
+  eventId      String?
+  targetUserId String?
+
+  beforeJson   Json?
+  afterJson    Json?
+  meta         Json?
+
+  requestId    String?
+  ipAddress    String?
+  userAgent    String?
+
+  createdAt    DateTime @default(now())
+
+  actor         User? @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  targetUser    User? @relation("AuditLogTargetUser", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId])
+  @@index([workspaceId])
+  @@index([eventId])
+  @@index([targetUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
 }

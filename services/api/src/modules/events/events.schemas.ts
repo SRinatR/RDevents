@@ -11,6 +11,7 @@ export const eventQuerySchema = z.object({
 });
 
 export const createEventSchema = z.object({
+  organizerWorkspaceId: z.string().min(1).optional().nullable(),
   slug: z.string().min(2).regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with hyphens'),
   title: z.string().min(3).max(200),
   shortDescription: z.string().min(10).max(500),

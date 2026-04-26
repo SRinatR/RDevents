@@ -4,8 +4,8 @@ import { z } from 'zod';
 
 export const emailMessagesQuerySchema = z.object({
   search: z.string().optional(),
-  status: z.enum(['ALL', 'delivered', 'sent', 'pending', 'failed', 'bounced']).optional(),
-  source: z.enum(['ALL', 'verification', 'invitation', 'notification', 'broadcast']).optional(),
+  status: z.enum(['ALL', 'pending', 'sent', 'delivered', 'opened', 'clicked', 'failed', 'bounced', 'complained']).optional(),
+  source: z.enum(['ALL', 'verification', 'invitation', 'notification', 'broadcast', 'password_reset', 'system']).optional(),
   timeRange: z.enum(['1h', '24h', '7d', '30d']).optional().default('24h'),
   page: z.coerce.number().int().positive().optional().default(1),
   limit: z.coerce.number().int().positive().max(100).optional().default(50),
@@ -19,7 +19,7 @@ export const emailTemplatesQuerySchema = z.object({
 });
 
 export const emailBroadcastsQuerySchema = z.object({
-  status: z.enum(['ALL', 'draft', 'scheduled', 'sent', 'failed']).optional(),
+  status: z.enum(['ALL', 'draft', 'scheduled', 'sending', 'sent', 'partial', 'failed']).optional(),
   page: z.coerce.number().int().positive().optional().default(1),
   limit: z.coerce.number().int().positive().max(100).optional().default(20),
 });
@@ -42,6 +42,30 @@ export const emailWebhooksQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).optional().default(50),
 });
 
+export const createEmailTemplateSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  key: z.string().trim().min(2).max(120).regex(/^[a-z0-9][a-z0-9._-]*$/).optional(),
+  subject: z.string().trim().min(2).max(200),
+  preheader: z.string().trim().max(220).optional().nullable(),
+  htmlBody: z.string().trim().min(1).max(200_000),
+  textBody: z.string().trim().min(1).max(100_000),
+  status: z.enum(['active', 'draft', 'archived']).optional().default('draft'),
+});
+
+export const updateEmailTemplateSchema = createEmailTemplateSchema.partial();
+
+export const createEmailBroadcastSchema = z.object({
+  title: z.string().trim().min(2).max(160),
+  subject: z.string().trim().min(2).max(200),
+  preheader: z.string().trim().max(220).optional().nullable(),
+  htmlBody: z.string().trim().min(1).max(200_000),
+  textBody: z.string().trim().min(1).max(100_000),
+  audienceKind: z.enum(['mailing_consent', 'verified_users', 'active_users', 'platform_admins']).optional().default('mailing_consent'),
+  templateId: z.string().trim().min(1).optional().nullable(),
+  scheduledAt: z.string().datetime().optional().nullable(),
+  sendNow: z.boolean().optional().default(false),
+});
+
 // ─── Response types ────────────────────────────────────────────────────────────
 
 export type EmailMessagesQuery = z.infer<typeof emailMessagesQuerySchema>;
@@ -50,14 +74,19 @@ export type EmailBroadcastsQuery = z.infer<typeof emailBroadcastsQuerySchema>;
 export type EmailAutomationsQuery = z.infer<typeof emailAutomationsQuerySchema>;
 export type EmailDomainsQuery = z.infer<typeof emailDomainsQuerySchema>;
 export type EmailWebhooksQuery = z.infer<typeof emailWebhooksQuerySchema>;
+export type CreateEmailTemplateInput = z.infer<typeof createEmailTemplateSchema>;
+export type UpdateEmailTemplateInput = z.infer<typeof updateEmailTemplateSchema>;
+export type CreateEmailBroadcastInput = z.infer<typeof createEmailBroadcastSchema>;
 
 export interface EmailMessage {
   id: string;
   to: string;
   subject: string;
-  status: 'delivered' | 'sent' | 'pending' | 'failed' | 'bounced';
-  source: 'verification' | 'invitation' | 'notification' | 'broadcast';
+  status: 'pending' | 'sent' | 'delivered' | 'opened' | 'clicked' | 'failed' | 'bounced' | 'complained';
+  source: 'verification' | 'invitation' | 'notification' | 'broadcast' | 'password_reset' | 'system';
   sentAt: string;
+  createdAt: string;
+  errorText: string | null;
   providerMessageId: string | null;
 }
 
@@ -66,6 +95,9 @@ export interface EmailTemplate {
   name: string;
   key: string;
   subject: string;
+  preheader: string | null;
+  htmlBody?: string;
+  textBody?: string;
   status: 'active' | 'draft' | 'archived';
   updatedAt: string;
 }
@@ -74,9 +106,16 @@ export interface EmailBroadcast {
   id: string;
   title: string;
   audience: string;
-  status: 'draft' | 'scheduled' | 'sent' | 'failed';
+  audienceKind: 'mailing_consent' | 'verified_users' | 'active_users' | 'platform_admins';
+  subject: string;
+  status: 'draft' | 'scheduled' | 'sending' | 'sent' | 'partial' | 'failed';
   scheduledAt: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  totalRecipients: number;
   sentCount: number;
+  failedCount: number;
+  errorText: string | null;
 }
 
 export interface EmailAutomation {

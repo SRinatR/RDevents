@@ -1,14 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, LoadingLines, Panel, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, Notice, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { AdminToolbarSearch } from '@/components/admin/AdminToolbar';
+
+const toneByVerification: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> = {
+  verified: 'success',
+  pending: 'warning',
+  failed: 'danger',
+};
 
 export default function AdminEmailDomainsPage() {
   const t = useTranslations();
@@ -18,6 +24,7 @@ export default function AdminEmailDomainsPage() {
 
   const [domains, setDomains] = useState<any[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
@@ -29,11 +36,17 @@ export default function AdminEmailDomainsPage() {
   useEffect(() => {
     if (!user || !isAdmin || !isPlatformAdmin) return;
 
-    adminEmailApi.listDomains({})
+    setLoadingData(true);
+    setError(null);
+    adminEmailApi.listDomains(search.trim() ? { search: search.trim() } : {})
       .then((res: { data: any[] }) => setDomains(res.data))
-      .catch(() => setDomains([]))
+      .catch((e) => {
+        console.error('Load email domains failed:', e);
+        setDomains([]);
+        setError(locale === 'ru' ? 'Не удалось загрузить домены.' : 'Failed to load domains.');
+      })
       .finally(() => setLoadingData(false));
-  }, [user, isAdmin, isPlatformAdmin]);
+  }, [user, isAdmin, isPlatformAdmin, locale, search]);
 
   if (loading || !user || !isAdmin) {
     return <div className="admin-loading-screen"><div className="spinner" /></div>;
@@ -50,25 +63,18 @@ export default function AdminEmailDomainsPage() {
     );
   }
 
-  const filteredDomains = domains.filter((d) => !search || d.domain?.toLowerCase().includes(search.toLowerCase()));
-
-  const toneByVerification: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> = {
-    verified: 'success',
-    pending: 'warning',
-    failed: 'danger',
-  };
+  const boolBadge = (value: boolean) => (
+    <StatusBadge tone={value ? 'success' : 'warning'}>{value ? 'OK' : '-'}</StatusBadge>
+  );
 
   return (
     <div className="signal-page-shell admin-control-page">
       <AdminPageHeader
         title={t('admin.domains') ?? 'Domains'}
-        subtitle={locale === 'ru' ? 'Управление sending доменами' : 'Sending domain management'}
-        actions={
-          <button className="btn btn-primary btn-sm">
-            {locale === 'ru' ? 'Добавить домен' : 'Add domain'}
-          </button>
-        }
+        subtitle={locale === 'ru' ? 'Состояние sending домена из env-конфигурации' : 'Sending domain status from env configuration'}
       />
+
+      {error ? <Notice tone="danger">{error}</Notice> : null}
 
       <Panel variant="elevated" className="admin-command-panel">
         <ToolbarRow>
@@ -77,20 +83,14 @@ export default function AdminEmailDomainsPage() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder={locale === 'ru' ? 'Поиск по домену...' : 'Search by domain...'}
           />
-          
         </ToolbarRow>
 
         {loadingData ? (
           <LoadingLines rows={6} />
-        ) : filteredDomains.length === 0 ? (
+        ) : domains.length === 0 ? (
           <EmptyState
-            title={locale === 'ru' ? 'Нет доменов' : 'No domains'}
-            description={locale === 'ru' ? 'Добавьте sending домен для отправки email.' : 'Add a sending domain for email delivery.'}
-            actions={
-              <button className="btn btn-secondary btn-sm">
-                {locale === 'ru' ? 'Добавить домен' : 'Add domain'}
-              </button>
-            }
+            title={locale === 'ru' ? 'Домен не настроен' : 'Domain is not configured'}
+            description={locale === 'ru' ? 'Укажите RESEND_FROM_EMAIL, чтобы API увидел sending домен.' : 'Set RESEND_FROM_EMAIL so the API can detect the sending domain.'}
           />
         ) : (
           <TableShell>
@@ -100,22 +100,22 @@ export default function AdminEmailDomainsPage() {
                   <th>{locale === 'ru' ? 'Домен' : 'Domain'}</th>
                   <th>{locale === 'ru' ? 'Провайдер' : 'Provider'}</th>
                   <th>{locale === 'ru' ? 'Верификация' : 'Verification'}</th>
-                  <th>{locale === 'ru' ? 'SPF' : 'SPF'}</th>
-                  <th>{locale === 'ru' ? 'DKIM' : 'DKIM'}</th>
-                  <th>{locale === 'ru' ? 'DMARC' : 'DMARC'}</th>
+                  <th>SPF</th>
+                  <th>DKIM</th>
+                  <th>DMARC</th>
                   <th>{locale === 'ru' ? 'По умолчанию' : 'Default'}</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredDomains.map((d) => (
+                {domains.map((d) => (
                   <tr key={d.id}>
                     <td><strong>{d.domain}</strong></td>
                     <td className="signal-muted">{d.provider}</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td>{d.isDefault ? '✓' : '—'}</td>
+                    <td><StatusBadge tone={toneByVerification[d.verificationStatus] ?? 'neutral'}>{d.verificationStatus}</StatusBadge></td>
+                    <td>{boolBadge(Boolean(d.spf))}</td>
+                    <td>{boolBadge(Boolean(d.dkim))}</td>
+                    <td>{boolBadge(Boolean(d.dmarc))}</td>
+                    <td>{boolBadge(Boolean(d.isDefault))}</td>
                   </tr>
                 ))}
               </tbody>

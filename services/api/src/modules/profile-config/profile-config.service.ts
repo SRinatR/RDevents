@@ -1,27 +1,6 @@
 import { prisma } from '../../db/prisma.js';
 import { logger } from '../../common/logger.js';
-
-const PROFILE_FIELD_REGISTRY: Array<{
-  key: string;
-  sectionKey: string;
-  type: string;
-  labelRu: string;
-  labelEn: string;
-  defaultVisibleInCabinet: boolean;
-  allowEventRequirement: boolean;
-  isCompositeRequirement: boolean;
-  storageScope: string;
-}> = [
-  { key: 'lastNameCyrillic', sectionKey: 'registration_data', type: 'text', labelRu: 'Фамилия (кириллица)', labelEn: 'Last Name (Cyrillic)', defaultVisibleInCabinet: true, allowEventRequirement: true, isCompositeRequirement: false, storageScope: 'user' },
-  { key: 'firstNameCyrillic', sectionKey: 'registration_data', type: 'text', labelRu: 'Имя (кириллица)', labelEn: 'First Name (Cyrillic)', defaultVisibleInCabinet: true, allowEventRequirement: true, isCompositeRequirement: false, storageScope: 'user' },
-  { key: 'birthDate', sectionKey: 'registration_data', type: 'date', labelRu: 'Дата рождения', labelEn: 'Date of Birth', defaultVisibleInCabinet: true, allowEventRequirement: true, isCompositeRequirement: false, storageScope: 'user' },
-  { key: 'phone', sectionKey: 'registration_data', type: 'phone', labelRu: 'Телефон', labelEn: 'Phone', defaultVisibleInCabinet: true, allowEventRequirement: true, isCompositeRequirement: false, storageScope: 'user' },
-  { key: 'telegram', sectionKey: 'registration_data', type: 'text', labelRu: 'Telegram', labelEn: 'Telegram', defaultVisibleInCabinet: true, allowEventRequirement: true, isCompositeRequirement: false, storageScope: 'user' },
-];
-
-function getFieldByKey(key: string) {
-  return PROFILE_FIELD_REGISTRY.find((f) => f.key === key);
-}
+import { PROFILE_FIELD_REGISTRY, getFieldByKey } from '@event-platform/shared';
 
 export interface ProfileFieldVisibilityRecord {
   key: string;

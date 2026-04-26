@@ -15,11 +15,21 @@ import {
   CabinetDeadlinesCard,
   CabinetInvitationsCard,
   CabinetOtherEventsList,
+  CabinetQuickActions,
+  CabinetQuickLinks,
   type DashboardResponse,
 } from '@/components/cabinet/dashboard';
 
 interface MyEventsResponse {
   events: Array<{ id: string; slug: string; title: string }>;
+}
+
+interface CabinetOverviewMetrics {
+  participantApplications: number;
+  pendingApplications: number;
+  approvedParticipations: number;
+  volunteerApplications: number;
+  teamInvitations: number;
 }
 
 export default function CabinetPage() {
@@ -29,6 +39,13 @@ export default function CabinetPage() {
 
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [myEvents, setMyEvents] = useState<MyEventsResponse['events']>([]);
+  const [overview, setOverview] = useState<CabinetOverviewMetrics>({
+    participantApplications: 0,
+    pendingApplications: 0,
+    approvedParticipations: 0,
+    volunteerApplications: 0,
+    teamInvitations: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSwitchingEvent, setIsSwitchingEvent] = useState(false);
@@ -56,12 +73,43 @@ export default function CabinetPage() {
     }
   }, []);
 
+  const fetchOverview = useCallback(async () => {
+    try {
+      const [applicationsResult, volunteerResult, invitationsResult] = await Promise.all([
+        eventsApi.myApplications(),
+        eventsApi.myVolunteerApplications(),
+        eventsApi.myTeamInvitations(),
+      ]);
+
+      const participantApplications = applicationsResult.applications ?? [];
+      const volunteerApplications = volunteerResult.applications ?? [];
+      const teamInvitations = invitationsResult.invitations ?? [];
+
+      setOverview({
+        participantApplications: participantApplications.length,
+        pendingApplications: participantApplications.filter((item: any) => item.status === 'PENDING').length,
+        approvedParticipations: participantApplications.filter((item: any) => item.status === 'ACTIVE').length,
+        volunteerApplications: volunteerApplications.length,
+        teamInvitations: teamInvitations.filter((item: any) => item.status === 'PENDING_RESPONSE' || item.status === 'PENDING_ACCOUNT').length,
+      });
+    } catch {
+      setOverview({
+        participantApplications: 0,
+        pendingApplications: 0,
+        approvedParticipations: 0,
+        volunteerApplications: 0,
+        teamInvitations: 0,
+      });
+    }
+  }, []);
+
   useEffect(() => {
     if (!authLoading && user) {
       fetchDashboard();
       fetchMyEvents();
+      fetchOverview();
     }
-  }, [authLoading, user, fetchDashboard, fetchMyEvents]);
+  }, [authLoading, user, fetchDashboard, fetchMyEvents, fetchOverview]);
 
   const handleEventSwitch = useCallback(async (eventId: string) => {
     setIsSwitchingEvent(true);
@@ -123,6 +171,9 @@ export default function CabinetPage() {
             {locale === 'ru' ? 'Обновить' : 'Refresh'}
           </button>
         </div>
+        <div className="cabinet-empty-quick-links">
+          <CabinetQuickLinks locale={locale} />
+        </div>
         <div style={{ marginTop: '32px' }}>
           <h3 style={{ marginBottom: '16px' }}>
             {locale === 'ru' ? 'Ваши мероприятия' : 'Your events'}
@@ -159,11 +210,14 @@ export default function CabinetPage() {
             ? 'Вы пока не участвуете ни в одном мероприятии. Присоединяйтесь к событиям!'
             : 'You are not participating in any events yet. Join events!'}
           actions={
-            <Link href={`/${locale}/events`} className="btn btn-primary">
+            <Link href={`/${locale}/cabinet/events`} className="btn btn-primary">
               {locale === 'ru' ? 'Каталог мероприятий' : 'Event catalog'}
             </Link>
           }
         />
+        <div className="cabinet-empty-quick-links">
+          <CabinetQuickLinks locale={locale} />
+        </div>
       </div>
     );
   }
@@ -186,10 +240,31 @@ export default function CabinetPage() {
         </Notice>
       )}
 
+      <div className="workspace-status-strip workspace-status-strip-v2 cabinet-overview-strip">
+        <Link href={`/${locale}/cabinet/my-events`} className="workspace-status-card cabinet-overview-link">
+          <small>{locale === 'ru' ? 'Активные участия' : 'Active participations'}</small>
+          <strong>{myEvents.length || overview.approvedParticipations}</strong>
+        </Link>
+        <Link href={`/${locale}/cabinet/applications`} className="workspace-status-card cabinet-overview-link">
+          <small>{locale === 'ru' ? 'Заявки на рассмотрении' : 'Pending applications'}</small>
+          <strong>{overview.pendingApplications}</strong>
+        </Link>
+        <Link href={`/${locale}/cabinet/volunteer`} className="workspace-status-card cabinet-overview-link">
+          <small>{locale === 'ru' ? 'Волонтёрские заявки' : 'Volunteer applications'}</small>
+          <strong>{overview.volunteerApplications}</strong>
+        </Link>
+        <Link href={`/${locale}/cabinet/team-invitations`} className="workspace-status-card cabinet-overview-link">
+          <small>{locale === 'ru' ? 'Приглашения в команды' : 'Team invitations'}</small>
+          <strong>{overview.teamInvitations}</strong>
+        </Link>
+      </div>
+
       <CabinetActiveEventCard event={activeEvent} locale={locale} />
 
       <div className="cabinet-workspace-grid">
         <div className="cabinet-workspace-main">
+          <CabinetQuickActions quickActions={activeEvent.quickActions} event={activeEvent} locale={locale} />
+
           {activeEvent.isTeamBased && (
             <CabinetTeamCard team={activeEvent.team} event={activeEvent} locale={locale} onTeamChanged={fetchDashboard} />
           )}
@@ -206,6 +281,7 @@ export default function CabinetPage() {
         </div>
 
         <div className="cabinet-workspace-sidebar">
+          <CabinetQuickLinks locale={locale} />
           <CabinetMissingDataCard missingFields={activeEvent.missingProfileFields} event={activeEvent} locale={locale} />
           <CabinetDeadlinesCard deadlines={activeEvent.deadlines} locale={locale} />
         </div>

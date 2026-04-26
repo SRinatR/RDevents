@@ -356,7 +356,7 @@ export const adminApi = {
     request<{ eventAdmins: any[] }>(`/api/admin/events/${eventId}/admins`, { auth: true }),
 
   assignEventAdmin: (eventId: string, body: { userId?: string; email?: string; notes?: string }) =>
-    request<{ membership: any }>(`/api/admin/events/${eventId}/admins`, { method: 'POST', auth: true, body }),
+    request<{ membership?: any; grant?: any }>(`/api/admin/events/${eventId}/admins`, { method: 'POST', auth: true, body }),
 
   removeEventAdmin: (eventId: string, userId: string) =>
     request<{ ok: boolean }>(`/api/admin/events/${eventId}/admins/${userId}`, { method: 'DELETE', auth: true }),
@@ -473,8 +473,11 @@ export const adminApi = {
   updateUserRole: (id: string, role: string) =>
     request<{ user: any }>(`/api/admin/users/${id}/role`, { method: 'PATCH', auth: true, body: { role } }),
 
-  getUserFullProfile: (userId: string, eventId?: string) => {
-    const qs = eventId ? `?eventId=${encodeURIComponent(eventId)}` : '';
+  getUserFullProfile: (userId: string, eventId?: string, options?: { revealSensitive?: boolean }) => {
+    const qp = new URLSearchParams();
+    if (eventId) qp.set('eventId', eventId);
+    if (options?.revealSensitive) qp.set('revealSensitive', 'true');
+    const qs = qp.toString() ? `?${qp.toString()}` : '';
     return request<any>(`/api/admin/users/${userId}/profile${qs}`, { auth: true });
   },
 
@@ -521,6 +524,63 @@ export const adminApi = {
 
   updateProfileField: (fieldKey: string, body: Record<string, unknown>) =>
     request<any>(`/api/admin/profile-fields/${fieldKey}`, { method: 'PATCH', auth: true, body }),
+
+  listWorkspaces: () =>
+    request<{ workspaces: any[] }>('/api/admin/workspaces', { auth: true }),
+
+  createWorkspace: (body: Record<string, unknown>) =>
+    request<{ workspace: any }>('/api/admin/workspaces', { method: 'POST', auth: true, body }),
+
+  getWorkspace: (workspaceId: string) =>
+    request<{ workspace: any }>(`/api/admin/workspaces/${workspaceId}`, { auth: true }),
+
+  updateWorkspace: (workspaceId: string, body: Record<string, unknown>) =>
+    request<{ workspace: any }>(`/api/admin/workspaces/${workspaceId}`, { method: 'PATCH', auth: true, body }),
+
+  archiveWorkspace: (workspaceId: string, force = false) =>
+    request<{ workspace: any }>(`/api/admin/workspaces/${workspaceId}/archive`, { method: 'POST', auth: true, body: { force } }),
+
+  restoreWorkspace: (workspaceId: string) =>
+    request<{ workspace: any }>(`/api/admin/workspaces/${workspaceId}/restore`, { method: 'POST', auth: true }),
+
+  listWorkspaceMembers: (workspaceId: string) =>
+    request<{ members: any[] }>(`/api/admin/workspaces/${workspaceId}/members`, { auth: true }),
+
+  addWorkspaceMember: (workspaceId: string, body: Record<string, unknown>) =>
+    request<{ member: any }>(`/api/admin/workspaces/${workspaceId}/members`, { method: 'POST', auth: true, body }),
+
+  updateWorkspaceMember: (workspaceId: string, memberId: string, body: Record<string, unknown>) =>
+    request<{ member: any }>(`/api/admin/workspaces/${workspaceId}/members/${memberId}`, { method: 'PATCH', auth: true, body }),
+
+  removeWorkspaceMember: (workspaceId: string, memberId: string) =>
+    request<{ member: any }>(`/api/admin/workspaces/${workspaceId}/members/${memberId}`, { method: 'DELETE', auth: true }),
+
+  previewWorkspacePolicy: (workspaceId: string, body: Record<string, unknown>) =>
+    request<any>(`/api/admin/workspaces/${workspaceId}/access-policies/preview`, { method: 'POST', auth: true, body }),
+
+  createWorkspacePolicy: (workspaceId: string, body: Record<string, unknown>) =>
+    request<any>(`/api/admin/workspaces/${workspaceId}/access-policies`, { method: 'POST', auth: true, body }),
+
+  revokeWorkspacePolicy: (workspaceId: string, policyId: string) =>
+    request<{ ok: boolean }>(`/api/admin/workspaces/${workspaceId}/access-policies/${policyId}/revoke`, { method: 'POST', auth: true }),
+
+  getOrganizationMap: () =>
+    request<any>('/api/admin/organization-map', { auth: true }),
+
+  getWorkspaceOrganizationMap: (workspaceId: string) =>
+    request<any>(`/api/admin/workspaces/${workspaceId}/organization-map`, { auth: true }),
+
+  listEventStaff: (eventId: string) =>
+    request<{ grants: any[]; accesses: any[] }>(`/api/admin/events/${eventId}/staff`, { auth: true }),
+
+  createEventStaffGrant: (eventId: string, body: Record<string, unknown>) =>
+    request<{ grant: any; access: any }>(`/api/admin/events/${eventId}/staff`, { method: 'POST', auth: true, body }),
+
+  updateEventStaffGrant: (eventId: string, grantId: string, body: Record<string, unknown>) =>
+    request<{ grant: any }>(`/api/admin/events/${eventId}/staff/grants/${grantId}`, { method: 'PATCH', auth: true, body }),
+
+  revokeEventStaffGrant: (eventId: string, grantId: string) =>
+    request<{ ok: boolean }>(`/api/admin/events/${eventId}/staff/grants/${grantId}`, { method: 'DELETE', auth: true }),
 };
 
 // ─── Admin Email ──────────────────────────────────────────────────────────────
@@ -539,10 +599,25 @@ export const adminEmailApi = {
     return request<{ data: any[]; meta: any }>(`/api/admin/email/templates${qs}`, { auth: true });
   },
 
+  createTemplate: (body: Record<string, unknown>) =>
+    request<{ data: any }>('/api/admin/email/templates', { method: 'POST', auth: true, body }),
+
+  updateTemplate: (templateId: string, body: Record<string, unknown>) =>
+    request<{ data: any }>(`/api/admin/email/templates/${templateId}`, { method: 'PATCH', auth: true, body }),
+
+  archiveTemplate: (templateId: string) =>
+    request<{ data: any }>(`/api/admin/email/templates/${templateId}/archive`, { method: 'POST', auth: true }),
+
   listBroadcasts: (params: Record<string, string | number> = {}) => {
     const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
     return request<{ data: any[]; meta: any }>(`/api/admin/email/broadcasts${qs}`, { auth: true });
   },
+
+  createBroadcast: (body: Record<string, unknown>) =>
+    request<{ data: any }>('/api/admin/email/broadcasts', { method: 'POST', auth: true, body }),
+
+  sendBroadcast: (broadcastId: string) =>
+    request<{ data: any }>(`/api/admin/email/broadcasts/${broadcastId}/send`, { method: 'POST', auth: true }),
 
   listAutomations: (params: Record<string, string | number> = {}) => {
     const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
@@ -557,8 +632,10 @@ export const adminEmailApi = {
     return request<{ data: any[]; meta: any }>(`/api/admin/email/domains${qs}`, { auth: true });
   },
 
-  getWebhooks: () =>
-    request<any>('/api/admin/email/webhooks', { auth: true }),
+  getWebhooks: (params: Record<string, string | number> = {}) => {
+    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<any>(`/api/admin/email/webhooks${qs}`, { auth: true });
+  },
 };
 
 // ─── Analytics ────────────────────────────────────────────────────────────────
@@ -656,36 +733,239 @@ export interface SystemReportStatus {
   generatedAt: string | null;
   fileSizeBytes: number | null;
   sha256: string | null;
+  reportExists: boolean;
   downloadAvailable: boolean;
 }
 
-export const systemReportApi = {
-  getStatus: () =>
-    request<SystemReportStatus>('/api/admin/system-report/status', { auth: true }),
+export interface ReportSectionConfig {
+  key: string;
+  enabled: boolean | null;
+  params: Record<string, unknown>;
+}
 
-  refresh: () =>
-    request<{ ok: boolean; requestId: string; state: string; requestedAt: string; requestedBy: string }>('/api/admin/system-report/refresh', { method: 'POST', auth: true }),
+export type ReportFormat = 'txt' | 'json' | 'md' | 'zip';
 
-  downloadReport: async () => {
-    const token = getAccessToken();
-    if (!token) throw new Error('No auth token');
-    const response = await fetch(`${BASE_URL}/api/admin/system-report/download`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ error: 'Download failed' }));
-      throw new Error(err.error ?? 'Download failed');
+export interface BuilderSectionConfig {
+  key: string;
+  enabled: boolean;
+  options: Record<string, unknown>;
+}
+
+export interface BuilderConfig {
+  format: ReportFormat;
+  sections: BuilderSectionConfig[];
+  redactionLevel?: 'strict' | 'standard' | 'off';
+  dateRange?: {
+    start?: string;
+    end?: string;
+  };
+}
+
+export interface ReportConfig {
+  sections: ReportSectionConfig[];
+  format: ReportFormat;
+  dateRange?: {
+    start?: string;
+    end?: string;
+  };
+  detailLevel?: 'basic' | 'detailed';
+  maskSensitiveData: boolean | null;
+  redactionLevel?: 'strict' | 'standard' | 'off';
+}
+
+export interface ReportSection {
+  key: string;
+  label: string;
+  description: string;
+  defaultParams: Record<string, unknown>;
+}
+
+export interface SystemReportTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  isDefault: boolean;
+  config: BuilderConfig;
+  createdAt: string;
+}
+
+export interface SystemReportGeneration {
+  id: string;
+  templateId?: string;
+  templateName?: string;
+  status: 'idle' | 'queued' | 'running' | 'success' | 'failed' | 'partial_success' | 'canceled' | 'stale';
+  stage?: 'queued' | 'collecting' | 'assembling' | 'writing_artifacts' | 'finalizing';
+  progress: number;
+  format: string;
+  outputPath?: string;
+  errorMessage?: string;
+  startedAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  sections?: Array<{
+    key: string;
+    label: string;
+    status: string;
+    message?: string;
+    startedAt?: string;
+    completedAt?: string;
+  }>;
+  attachments?: Array<{
+    id: string;
+    fileName: string;
+    fileSize: number;
+    contentType: string;
+  }>;
+}
+
+export interface ReportArtifact {
+  id: string;
+  kind: 'report' | 'attachment' | 'log' | 'metadata';
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  checksum?: string;
+  createdAt: string;
+}
+
+export interface ReportEvent {
+  id: string;
+  level: 'info' | 'warning' | 'error';
+  code: string;
+  message: string;
+  payload?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface ReportRun {
+  id: string;
+  templateId?: string;
+  templateName?: string;
+  title?: string;
+  status: 'queued' | 'running' | 'success' | 'failed' | 'partial_success' | 'canceled' | 'stale';
+  stage?: 'queued' | 'collecting' | 'assembling' | 'writing_artifacts' | 'finalizing';
+  progressPercent: number;
+  config: ReportConfig;
+  summary?: Record<string, unknown>;
+  errorText?: string;
+  requestedByEmail: string;
+  startedAt?: string;
+  finishedAt?: string;
+  createdAt: string;
+  artifacts: ReportArtifact[];
+  events: ReportEvent[];
+}
+
+export type ReportStage = 'queued' | 'collecting' | 'assembling' | 'writing_artifacts' | 'finalizing';
+
+export interface SystemReportPreview {
+  sections: Array<{
+    key: string;
+    label: string;
+    description: string;
+    included: boolean;
+  }>;
+  estimatedSize: string;
+  warnings: string[];
+}
+
+export interface SystemReportSectionOption {
+  key: string;
+  type: 'boolean' | 'number' | 'select' | 'multiselect' | 'text';
+  label: string;
+  default?: unknown;
+  required?: boolean;
+  options?: unknown[];
+}
+
+export interface SystemReportSectionDefinition {
+  key: string;
+  label: string;
+  description: string;
+  category: 'system' | 'application' | 'infrastructure' | 'security';
+  options: SystemReportSectionOption[];
+}
+
+export interface SystemReportConfigResponse {
+  sections: SystemReportSectionDefinition[];
+  formats: Array<{ value: 'txt' | 'json' | 'md' | 'zip'; label: string }>;
+  redactionLevels: Array<{ value: 'strict' | 'standard' | 'off'; label: string; description: string }>;
+  limits: {
+    maxArtifacts: number;
+    maxArtifactSize: number;
+    maxReportSize: number;
+  };
+}
+
+export const systemReportsApi = {
+  getConfig: () =>
+    request<SystemReportConfigResponse>('/api/admin/system-reports/config', { auth: true }),
+
+  preview: (body: {
+    format: 'txt' | 'json' | 'md' | 'zip';
+    sections: Array<{ key: string; enabled: boolean; options: Record<string, unknown> }>;
+    redactionLevel: 'strict' | 'standard' | 'off';
+    dateRange?: { start?: string; end?: string };
+  }) =>
+    request<SystemReportPreview>('/api/admin/system-reports/preview', {
+      method: 'POST',
+      auth: true,
+      body,
+    }),
+
+  getTemplates: () =>
+    request<SystemReportTemplate[]>('/api/admin/system-reports/templates', { auth: true }),
+
+  createTemplate: (data: { name: string; description?: string; config: BuilderConfig; isDefault?: boolean }) =>
+    request<SystemReportTemplate>('/api/admin/system-reports/templates', { method: 'POST', body: data, auth: true }),
+
+  updateTemplate: (templateId: string, data: Partial<{ name: string; description?: string; config: BuilderConfig; isDefault?: boolean }>) =>
+    request<SystemReportTemplate>(`/api/admin/system-reports/templates/${templateId}`, { method: 'PATCH', body: data, auth: true }),
+
+  deleteTemplate: (templateId: string) =>
+    request<void>(`/api/admin/system-reports/templates/${templateId}`, { method: 'DELETE', auth: true }),
+
+  createRun: (data: {
+    templateId?: string;
+    title?: string;
+    format: 'txt' | 'json' | 'md' | 'zip';
+    sections: Array<{ key: string; enabled: boolean; options: Record<string, unknown> }>;
+    redactionLevel: 'strict' | 'standard' | 'off';
+    dateRange?: { start?: string; end?: string };
+  }) =>
+    request<ReportRun>('/api/admin/system-reports/runs', { method: 'POST', body: data, auth: true }),
+
+  getRuns: (filters?: {
+    status?: string[];
+    templateId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }) => {
+    const params = new URLSearchParams();
+    if (filters?.status?.length) {
+      for (const status of filters.status) params.append('status', status);
     }
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'system-report.txt';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    if (filters?.templateId) params.set('templateId', filters.templateId);
+    if (filters?.dateFrom) params.set('dateFrom', filters.dateFrom);
+    if (filters?.dateTo) params.set('dateTo', filters.dateTo);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return request<ReportRun[]>(`/api/admin/system-reports/runs${qs}`, { auth: true });
   },
+
+  getRun: (runId: string) =>
+    request<ReportRun>(`/api/admin/system-reports/runs/${runId}`, { auth: true }),
+
+  cancelRun: (runId: string) =>
+    request<{ ok: true }>(`/api/admin/system-reports/runs/${runId}/cancel`, { method: 'POST', auth: true }),
+
+  retryRun: (runId: string) =>
+    request<ReportRun>(`/api/admin/system-reports/runs/${runId}/retry`, { method: 'POST', auth: true }),
+
+  downloadArtifact: (runId: string, artifactId: string, filenameFallback: string) =>
+    downloadWithAuth(
+      `/api/admin/system-reports/runs/${runId}/artifacts/${artifactId}/download`,
+      filenameFallback
+    ),
 };
 
 // ─── Admin Exports ─────────────────────────────────────────────────────────────

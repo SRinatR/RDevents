@@ -1,8 +1,26 @@
 import { Resend } from 'resend';
 import { env } from '../config/env.js';
 import { logger } from './logger.js';
+import { prisma } from '../db/prisma.js';
 
 let resendClient: Resend | null = null;
+
+export type EmailDeliverySource =
+  | 'verification'
+  | 'invitation'
+  | 'notification'
+  | 'broadcast'
+  | 'password_reset'
+  | 'system';
+
+const SOURCE_TO_DB: Record<EmailDeliverySource, string> = {
+  verification: 'VERIFICATION',
+  invitation: 'INVITATION',
+  notification: 'NOTIFICATION',
+  broadcast: 'BROADCAST',
+  password_reset: 'PASSWORD_RESET',
+  system: 'SYSTEM',
+};
 
 function getResendClient() {
   if (!env.RESEND_API_KEY) {
@@ -18,26 +36,16 @@ export async function sendRegistrationCodeEmail(input: {
   code: string;
   ttlMinutes: number;
 }) {
-  const client = getResendClient();
-  if (!client) {
-    throw new Error('EMAIL_DELIVERY_NOT_CONFIGURED');
-  }
-  if (!env.RESEND_FROM_EMAIL) {
-    throw new Error('EMAIL_SENDER_NOT_CONFIGURED');
-  }
-
-  const from = formatFromAddress(env.RESEND_FROM_NAME, env.RESEND_FROM_EMAIL);
   const subject = 'Код подтверждения для RDEvents';
   const text = buildRegistrationCodeText(input.code, input.ttlMinutes);
   const html = buildRegistrationCodeHtml(input.code, input.ttlMinutes);
 
-  await client.emails.send({
-    from,
-    to: [input.to],
+  await sendPlatformEmail({
+    to: input.to,
     subject,
     text,
     html,
-    ...(env.RESEND_REPLY_TO_EMAIL ? { replyTo: env.RESEND_REPLY_TO_EMAIL } : {}),
+    source: 'verification',
   });
 }
 
@@ -48,26 +56,19 @@ export async function sendEventNotificationEmail(input: {
   body: string[];
   actionUrl?: string | null;
   actionLabel?: string;
+  source?: Extract<EmailDeliverySource, 'invitation' | 'notification' | 'system'>;
+  toUserId?: string | null;
 }) {
-  const client = getResendClient();
-  if (!client) {
-    throw new Error('EMAIL_DELIVERY_NOT_CONFIGURED');
-  }
-  if (!env.RESEND_FROM_EMAIL) {
-    throw new Error('EMAIL_SENDER_NOT_CONFIGURED');
-  }
-
-  const from = formatFromAddress(env.RESEND_FROM_NAME, env.RESEND_FROM_EMAIL);
   const text = buildNotificationText(input);
   const html = buildNotificationHtml(input);
 
-  await client.emails.send({
-    from,
-    to: [input.to],
+  await sendPlatformEmail({
+    to: input.to,
     subject: input.subject,
     text,
     html,
-    ...(env.RESEND_REPLY_TO_EMAIL ? { replyTo: env.RESEND_REPLY_TO_EMAIL } : {}),
+    source: input.source ?? 'notification',
+    toUserId: input.toUserId ?? undefined,
   });
 }
 
@@ -76,7 +77,8 @@ export async function sendEventNotificationEmailSafe(
   context: { userId?: string; eventId?: string; action?: string } = {},
 ) {
   try {
-    await sendEventNotificationEmail(input);
+    const source = context.action?.includes('invitation') ? 'invitation' : 'notification';
+    await sendEventNotificationEmail({ ...input, source, toUserId: context.userId });
   } catch (error) {
     logger.warn('Event notification email was not sent', {
       module: 'email',
@@ -87,6 +89,118 @@ export async function sendEventNotificationEmailSafe(
         to: input.to,
         subject: input.subject,
         reason: error instanceof Error ? error.message : String(error),
+      },
+    });
+  }
+}
+
+export async function sendPlatformEmail(input: {
+  to: string;
+  subject: string;
+  text?: string;
+  html?: string;
+  source: EmailDeliverySource;
+  toUserId?: string | null;
+  broadcastId?: string | null;
+  templateId?: string | null;
+}) {
+  let messageId: string | null = null;
+
+  try {
+    const message = await prisma.emailMessage.create({
+      data: {
+        toEmail: input.to,
+        toUserId: input.toUserId ?? undefined,
+        subject: input.subject,
+        source: SOURCE_TO_DB[input.source] as any,
+        status: 'PENDING' as any,
+        broadcastId: input.broadcastId ?? undefined,
+        templateId: input.templateId ?? undefined,
+      },
+      select: { id: true },
+    });
+    messageId = message.id;
+  } catch (error) {
+    logger.warn('Email audit row was not created', {
+      module: 'email',
+      action: 'email_audit_create_failed',
+      meta: {
+        to: input.to,
+        subject: input.subject,
+        source: input.source,
+        reason: error instanceof Error ? error.message : String(error),
+      },
+    });
+  }
+
+  try {
+    const client = getResendClient();
+    if (!client) {
+      throw new Error('EMAIL_DELIVERY_NOT_CONFIGURED');
+    }
+    if (!env.RESEND_FROM_EMAIL) {
+      throw new Error('EMAIL_SENDER_NOT_CONFIGURED');
+    }
+
+    const payload: any = {
+      from: formatFromAddress(env.RESEND_FROM_NAME, env.RESEND_FROM_EMAIL),
+      to: [input.to],
+      subject: input.subject,
+      ...(env.RESEND_REPLY_TO_EMAIL ? { replyTo: env.RESEND_REPLY_TO_EMAIL } : {}),
+    };
+
+    if (input.text) payload.text = input.text;
+    if (input.html) payload.html = input.html;
+    if (!payload.text && !payload.html) {
+      throw new Error('EMAIL_CONTENT_REQUIRED');
+    }
+
+    const response = await client.emails.send(payload);
+
+    if (response.error) {
+      throw new Error(response.error.message ?? 'EMAIL_DELIVERY_FAILED');
+    }
+
+    const providerMessageId = response.data?.id ?? null;
+
+    if (messageId) {
+      await prisma.emailMessage.update({
+        where: { id: messageId },
+        data: {
+          status: 'SENT' as any,
+          sentAt: new Date(),
+          providerMessageId,
+          errorText: null,
+        },
+      });
+    }
+
+    return { messageId, providerMessageId };
+  } catch (error) {
+    if (messageId) {
+      await recordEmailFailure(messageId, error);
+    }
+    throw error;
+  }
+}
+
+async function recordEmailFailure(messageId: string, error: unknown) {
+  try {
+    await prisma.emailMessage.update({
+      where: { id: messageId },
+      data: {
+        status: 'FAILED' as any,
+        errorText: error instanceof Error ? error.message : String(error),
+      },
+    });
+  } catch (auditError) {
+    logger.warn('Email audit row was not updated after delivery failure', {
+      module: 'email',
+      action: 'email_audit_failure_update_failed',
+      meta: {
+        messageId,
+        deliveryReason: error instanceof Error ? error.message : String(error),
+        auditReason: auditError instanceof Error ? auditError.message : String(auditError),
       },
     });
   }
@@ -187,26 +301,16 @@ export async function sendPasswordResetEmail(input: {
   ipHint?: string;
   supportContact?: string;
 }) {
-  const client = getResendClient();
-  if (!client) {
-    throw new Error('EMAIL_DELIVERY_NOT_CONFIGURED');
-  }
-  if (!env.RESEND_FROM_EMAIL) {
-    throw new Error('EMAIL_SENDER_NOT_CONFIGURED');
-  }
-
-  const from = formatFromAddress(env.RESEND_FROM_NAME, env.RESEND_FROM_EMAIL);
   const subject = 'Восстановление пароля / Password Reset — RDEvents';
   const text = buildPasswordResetText(input);
   const html = buildPasswordResetHtml(input);
 
-  await client.emails.send({
-    from,
-    to: [input.to],
+  await sendPlatformEmail({
+    to: input.to,
     subject,
     text,
     html,
-    ...(env.RESEND_REPLY_TO_EMAIL ? { replyTo: env.RESEND_REPLY_TO_EMAIL } : {}),
+    source: 'password_reset',
   });
 }
 

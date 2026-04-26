@@ -4,9 +4,9 @@ import { randomUUID } from 'crypto';
 import { verifyAccessToken } from './jwt.js';
 import { prisma } from '../db/prisma.js';
 import { logger } from './logger.js';
+import { canAccessEvent } from '../modules/access-control/access-control.service.js';
 
 const PLATFORM_ADMIN_ROLES: UserRole[] = ['PLATFORM_ADMIN', 'SUPER_ADMIN'];
-const EVENT_ADMIN_STATUSES = ['ACTIVE'] as const;
 
 export type AuthenticatedRequest = Request & { user?: User };
 
@@ -99,19 +99,7 @@ export const requirePlatformAdmin = requireRole(...PLATFORM_ADMIN_ROLES);
 export const requireAdmin = requirePlatformAdmin;
 
 export async function canManageEvent(user: User, eventId: string) {
-  if (PLATFORM_ADMIN_ROLES.includes(user.role)) return true;
-
-  const membership = await prisma.eventMember.findFirst({
-    where: {
-      eventId,
-      userId: user.id,
-      role: 'EVENT_ADMIN',
-      status: { in: [...EVENT_ADMIN_STATUSES] },
-    },
-    select: { id: true },
-  });
-
-  return Boolean(membership);
+  return canAccessEvent(user, eventId, 'event.update');
 }
 
 export function requireEventAdmin(paramName = 'id') {

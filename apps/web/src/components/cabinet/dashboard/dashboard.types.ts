@@ -1,5 +1,5 @@
 export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'ARCHIVED';
-export type RegistrationStatus = 'DRAFT' | 'SUBMITTED' | 'UNDER_REVIEW' | 'CONFIRMED' | 'REJECTED' | 'RESERVE' | 'WITHDRAWN';
+export type RegistrationStatus = 'DRAFT' | 'SUBMITTED' | 'UNDER_REVIEW' | 'PENDING' | 'APPROVED' | 'CONFIRMED' | 'ACTIVE' | 'REJECTED' | 'RESERVE' | 'CANCELLED' | 'REMOVED' | 'WITHDRAWN';
 export type TeamStatus =
   | 'DRAFT'
   | 'ACTIVE'

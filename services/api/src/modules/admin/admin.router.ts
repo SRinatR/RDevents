@@ -9,9 +9,12 @@ import { adminApplicationsRouter } from './applications.router.js';
 import { adminUsersRouter } from './users.router.js';
 import { adminAnalyticsRouter } from './analytics.router.js';
 import { adminSupportRouter } from './support.router.js';
-import { systemReportRouter } from './system-report.router.js';
+import { systemReportsRouter } from '../system-reports/system-reports.router.js';
 import { profileConfigRouter } from '../profile-config/profile-config.router.js';
 import { exportsRouter } from '../exports/exports.router.js';
+import { workspacesRouter } from '../workspaces/workspaces.router.js';
+import { organizationMapRouter } from '../organization-map/organization-map.router.js';
+import { accessControlRouter } from '../access-control/access-control.router.js';
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
 
@@ -26,9 +29,12 @@ adminRouter.use('/applications', adminApplicationsRouter);
 adminRouter.use('/participants', adminParticipantsRouter);
 adminRouter.use('/teams', adminTeamsRouter);
 adminRouter.use('/support', adminSupportRouter);
-adminRouter.use('/system-report', systemReportRouter);
+adminRouter.use('/system-reports', systemReportsRouter);
 adminRouter.use('/profile-fields', profileConfigRouter);
 adminRouter.use('/exports', exportsRouter);
+adminRouter.use('/workspaces', workspacesRouter);
+adminRouter.use(organizationMapRouter);
+adminRouter.use(accessControlRouter);
 
 // Users routes on /users prefix
 adminRouter.use('/users', adminUsersRouter);
@@ -59,4 +65,4 @@ adminRouter.get('/admins', requireSuperAdmin, async (_req, res) => {
 });
 
 // Re-export for convenience
-export { adminEventsRouter, adminApplicationsRouter, adminParticipantsRouter, adminTeamsRouter, adminUsersRouter, adminAnalyticsRouter, adminSupportRouter, profileConfigRouter, exportsRouter };
+export { adminEventsRouter, adminApplicationsRouter, adminParticipantsRouter, adminTeamsRouter, adminUsersRouter, adminAnalyticsRouter, adminSupportRouter, profileConfigRouter, exportsRouter, systemReportsRouter };

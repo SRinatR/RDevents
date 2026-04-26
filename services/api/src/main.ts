@@ -17,11 +17,10 @@ async function main() {
     action: 'env_loaded',
     meta: {
       corsOrigin: env.CORS_ORIGIN,
-      databaseUrl: env.DATABASE_URL.replace(/:[^:@]*@/, ':***@'), // Mask password
+      databaseUrl: env.DATABASE_URL.replace(/:[^:@]*@/, ':***@'),
     },
   });
 
-  // Verify DB connection before starting
   try {
     await prisma.$connect();
     logger.info('Database connected successfully', { action: 'database_connected' });
@@ -46,6 +45,18 @@ async function main() {
     console.log(`  ENV: ${env.NODE_ENV}`);
     console.log(`  Health: http://localhost:${env.PORT}/health`);
     console.log(`  Ready: http://localhost:${env.PORT}/ready`);
+  });
+
+  process.on('SIGINT', async () => {
+    logger.info('SIGINT received, shutting down gracefully...', { action: 'shutdown' });
+    await prisma.$disconnect();
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', async () => {
+    logger.info('SIGTERM received, shutting down gracefully...', { action: 'shutdown' });
+    await prisma.$disconnect();
+    process.exit(0);
   });
 }
 

@@ -1,16 +1,107 @@
+import { env } from '../../config/env.js';
+import { prisma } from '../../db/prisma.js';
+import { sendPlatformEmail } from '../../common/email.js';
 import type {
-  EmailOverview,
-  EmailMessage,
-  EmailTemplate,
-  EmailBroadcast,
-  EmailAutomation,
-  EmailDomain,
+  CreateEmailBroadcastInput,
+  CreateEmailTemplateInput,
   EmailAudienceData,
+  EmailAutomation,
+  EmailBroadcast,
+  EmailBroadcastsQuery,
+  EmailDomain,
+  EmailDomainsQuery,
+  EmailMessage,
+  EmailMessagesQuery,
+  EmailOverview,
+  EmailTemplate,
+  EmailTemplatesQuery,
   EmailWebhooksData,
+  EmailWebhooksQuery,
+  UpdateEmailTemplateInput,
+  WebhookEvent,
 } from './admin-email.schemas.js';
 
-// Email configuration from env - read through config layer
-import { env } from '../../config/env.js';
+const EMAIL_BROADCAST_MAX_RECIPIENTS = Math.max(
+  1,
+  Number(process.env['EMAIL_BROADCAST_MAX_RECIPIENTS'] ?? 1000) || 1000,
+);
+
+const EMAIL_BROADCAST_CONCURRENCY = Math.min(
+  10,
+  Math.max(1, Number(process.env['EMAIL_BROADCAST_CONCURRENCY'] ?? 3) || 3),
+);
+
+const MESSAGE_STATUS_TO_DB: Record<string, string> = {
+  pending: 'PENDING',
+  sent: 'SENT',
+  delivered: 'DELIVERED',
+  opened: 'OPENED',
+  clicked: 'CLICKED',
+  bounced: 'BOUNCED',
+  complained: 'COMPLAINED',
+  failed: 'FAILED',
+};
+
+const MESSAGE_SOURCE_TO_DB: Record<string, string> = {
+  verification: 'VERIFICATION',
+  invitation: 'INVITATION',
+  notification: 'NOTIFICATION',
+  broadcast: 'BROADCAST',
+  password_reset: 'PASSWORD_RESET',
+  system: 'SYSTEM',
+};
+
+const TEMPLATE_STATUS_TO_DB: Record<string, string> = {
+  active: 'ACTIVE',
+  draft: 'DRAFT',
+  archived: 'ARCHIVED',
+};
+
+const BROADCAST_STATUS_TO_DB: Record<string, string> = {
+  draft: 'DRAFT',
+  scheduled: 'SCHEDULED',
+  sending: 'SENDING',
+  sent: 'SENT',
+  partial: 'PARTIAL',
+  failed: 'FAILED',
+};
+
+const AUDIENCE_TO_DB: Record<string, string> = {
+  mailing_consent: 'MAILING_CONSENT',
+  verified_users: 'VERIFIED_USERS',
+  active_users: 'ACTIVE_USERS',
+  platform_admins: 'PLATFORM_ADMINS',
+};
+
+const WEBHOOK_STATUS_TO_DB: Record<string, string> = {
+  pending: 'PENDING',
+  processing: 'PROCESSING',
+  processed: 'PROCESSED',
+  failed: 'FAILED',
+};
+
+const SUBSCRIBED_RESEND_EVENTS = [
+  'email.sent',
+  'email.delivered',
+  'email.bounced',
+  'email.complained',
+  'email.opened',
+  'email.clicked',
+];
+
+type PaginationMeta = { total: number; page: number; limit: number; pages: number };
+type Paginated<T> = { data: T[]; meta: PaginationMeta };
+type AudienceRecipient = { id: string; email: string; name: string | null };
+
+type ResendWebhookEvent = {
+  type?: string;
+  created_at?: string;
+  data?: {
+    email_id?: string;
+    to?: string | string[];
+    subject?: string;
+  };
+};
 
 function getEmailConfig() {
   return {
@@ -20,36 +111,167 @@ function getEmailConfig() {
   };
 }
 
-// ─── Deterministic mock data (no Math.random()) ─────────────────────────────────
-
-// Static base dates for consistent mock data
-const BASE_DATE = new Date('2026-04-17T00:00:00Z');
-
-function daysAgo(days: number): string {
-  const d = new Date(BASE_DATE);
-  d.setDate(d.getDate() - days);
-  return d.toISOString();
+function paginationMeta(total: number, page: number, limit: number): PaginationMeta {
+  return {
+    total,
+    page,
+    limit,
+    pages: total === 0 ? 0 : Math.ceil(total / limit),
+  };
 }
 
-function inFuture(hours: number): string {
-  const d = new Date(BASE_DATE);
-  d.setHours(d.getHours() + hours);
-  return d.toISOString();
+function parseTimeRange(timeRange?: string): Date | null {
+  if (!timeRange) return null;
+  const match = timeRange.match(/^(\d+)([dh])$/);
+  if (!match) return null;
+
+  const value = Number(match[1]);
+  const unit = match[2];
+  const millis = unit === 'h' ? value * 60 * 60 * 1000 : value * 24 * 60 * 60 * 1000;
+  return new Date(Date.now() - millis);
 }
 
-// Static IDs based on index (deterministic)
-const messageIds = ['msg_abc123def456', 'msg_ghi789jkl012', 'msg_mno345pqr678', 'msg_stu901vwx234', 'msg_yza567bcd890', 'msg_efg123hij456'];
-const templateIds = ['tpl_verification001', 'tpl_invitation002', 'tpl_reminder003', 'tpl_confirmed004', 'tpl_password005', 'tpl_status006'];
-const broadcastIds = ['brd_season2026q1', 'brd_registration_rem', 'brd_event_summary'];
-const automationIds = ['aut_welcome_series', 'aut_24h_reminder', 'aut_feedback'];
-const segmentIds = ['seg_active_participants', 'seg_volunteers', 'seg_new_users', 'seg_inactive30d', 'seg_all'];
-const webhookIds = ['wh_delivered001', 'wh_bounced002', 'wh_opened003'];
+function toApiEnum(value: unknown) {
+  return String(value ?? '').toLowerCase();
+}
 
-// ─── Email overview ───────────────────────────────────────────────────────────
+function normalizeTemplateKey(value: string) {
+  return (
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 120) || `template-${Date.now()}`
+  );
+}
+
+function audienceLabel(audienceKind: string) {
+  switch (audienceKind) {
+    case 'MAILING_CONSENT':
+      return 'Mailing consent';
+    case 'VERIFIED_USERS':
+      return 'Verified users';
+    case 'ACTIVE_USERS':
+      return 'Active users';
+    case 'PLATFORM_ADMINS':
+      return 'Platform admins';
+    default:
+      return audienceKind;
+  }
+}
+
+function mapMessage(row: any): EmailMessage {
+  return {
+    id: row.id,
+    to: row.toEmail,
+    subject: row.subject,
+    status: toApiEnum(row.status) as EmailMessage['status'],
+    source: toApiEnum(row.source) as EmailMessage['source'],
+    sentAt: (row.sentAt ?? row.createdAt).toISOString(),
+    createdAt: row.createdAt.toISOString(),
+    errorText: row.errorText ?? null,
+    providerMessageId: row.providerMessageId ?? null,
+  };
+}
+
+function mapTemplate(row: any, includeBodies = false): EmailTemplate {
+  return {
+    id: row.id,
+    name: row.name,
+    key: row.key,
+    subject: row.subject,
+    preheader: row.preheader ?? null,
+    ...(includeBodies ? { htmlBody: row.htmlBody, textBody: row.textBody } : {}),
+    status: toApiEnum(row.status) as EmailTemplate['status'],
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function mapBroadcast(row: any): EmailBroadcast {
+  return {
+    id: row.id,
+    title: row.title,
+    audience: audienceLabel(row.audienceKind),
+    audienceKind: toApiEnum(row.audienceKind) as EmailBroadcast['audienceKind'],
+    subject: row.subject,
+    status: toApiEnum(row.status) as EmailBroadcast['status'],
+    scheduledAt: row.scheduledAt?.toISOString() ?? null,
+    startedAt: row.startedAt?.toISOString() ?? null,
+    finishedAt: row.finishedAt?.toISOString() ?? null,
+    totalRecipients: row.totalRecipients ?? 0,
+    sentCount: row.sentCount ?? 0,
+    failedCount: row.failedCount ?? 0,
+    errorText: row.errorText ?? null,
+  };
+}
+
+function mapWebhookEvent(row: any): WebhookEvent {
+  return {
+    id: row.id,
+    eventType: row.eventType,
+    providerEventId: row.providerEventId ?? null,
+    receivedAt: row.receivedAt.toISOString(),
+    processingStatus: toApiEnum(row.processingStatus) as WebhookEvent['processingStatus'],
+    relatedEntity: row.relatedMessageId ?? row.providerMessageId ?? null,
+    errorMessage: row.errorMessage ?? null,
+  };
+}
 
 export async function getEmailOverview(): Promise<EmailOverview> {
   const emailConfig = getEmailConfig();
-  
+  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  const [
+    sent24h,
+    delivered24h,
+    failed24h,
+    templatesCount,
+    automationsCount,
+    recentMessages,
+    recentWebhooks,
+  ] = await Promise.all([
+    prisma.emailMessage.count({ where: { sentAt: { gte: since24h } } }),
+    prisma.emailMessage.count({
+      where: {
+        deliveredAt: { gte: since24h },
+      },
+    }),
+    prisma.emailMessage.count({
+      where: {
+        updatedAt: { gte: since24h },
+        status: { in: ['FAILED', 'BOUNCED', 'COMPLAINED'] as any[] },
+      },
+    }),
+    prisma.emailTemplate.count({ where: { status: { not: 'ARCHIVED' as any } } }),
+    Promise.resolve(0),
+    prisma.emailMessage.findMany({
+      orderBy: { updatedAt: 'desc' },
+      take: 5,
+      select: { source: true, status: true, updatedAt: true },
+    }),
+    prisma.emailWebhookEvent.findMany({
+      orderBy: { receivedAt: 'desc' },
+      take: 5,
+      select: { eventType: true, processingStatus: true, receivedAt: true },
+    }),
+  ]);
+
+  const recentActivity = [
+    ...recentMessages.map((message) => ({
+      type: `email.${toApiEnum(message.source)}`,
+      status: toApiEnum(message.status),
+      timestamp: message.updatedAt.toISOString(),
+    })),
+    ...recentWebhooks.map((event) => ({
+      type: event.eventType,
+      status: toApiEnum(event.processingStatus),
+      timestamp: event.receivedAt.toISOString(),
+    })),
+  ]
+    .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+    .slice(0, 8);
+
   return {
     provider: emailConfig.provider,
     providerStatus: emailConfig.provider ? 'connected' : 'not_configured',
@@ -57,425 +279,526 @@ export async function getEmailOverview(): Promise<EmailOverview> {
     sendingDomainStatus: emailConfig.sendingDomain ? 'verified' : 'not_configured',
     webhookStatus: emailConfig.webhookEndpoint && env.RESEND_WEBHOOK_SECRET ? 'active' : 'not_configured',
     webhookEndpoint: emailConfig.webhookEndpoint,
-    sent24h: 142,
-    delivered24h: 138,
-    failed24h: 4,
-    templatesCount: 6,
-    automationsCount: 3,
-    recentActivity: [
-      { type: 'email_sent', status: 'delivered', timestamp: daysAgo(0) },
-      { type: 'email_delivered', status: 'delivered', timestamp: daysAgo(0.04) },
-      { type: 'email_opened', status: 'opened', timestamp: daysAgo(0.08) },
-      { type: 'email_clicked', status: 'clicked', timestamp: daysAgo(0.2) },
-      { type: 'email_bounced', status: 'bounced', timestamp: daysAgo(1) },
-    ],
+    sent24h,
+    delivered24h,
+    failed24h,
+    templatesCount,
+    automationsCount,
+    recentActivity,
   };
 }
 
-// ─── Email messages ─────────────────────────────────────────────────────────────
-
-function parseTimeRange(timeRange?: string): { maxDays: number | null } {
-  if (!timeRange) return { maxDays: null };
-  const match = timeRange.match(/^(\d+)([dh])$/);
-  if (!match) return { maxDays: null };
-  const value = parseInt(match[1], 10);
-  const unit = match[2];
-  return { maxDays: unit === 'h' ? value / 24 : value };
-}
-
-export async function listEmailMessages(
-  params: { search?: string; status?: string; source?: string; timeRange?: string; page?: number; limit?: number } = {}
-): Promise<{ data: EmailMessage[]; meta: { total: number; page: number; limit: number; pages: number } }> {
+export async function listEmailMessages(params: EmailMessagesQuery = {} as EmailMessagesQuery): Promise<Paginated<EmailMessage>> {
   const { search, status, source, timeRange, page = 1, limit = 50 } = params;
-  const { maxDays } = parseTimeRange(timeRange);
-  
-  const allMessages: EmailMessage[] = [
-    {
-      id: messageIds[0],
-      to: 'user1@example.com',
-      subject: 'Подтверждение регистрации',
-      status: 'delivered',
-      source: 'verification',
-      sentAt: daysAgo(0),
-      providerMessageId: 'resend_' + messageIds[0],
-    },
-    {
-      id: messageIds[1],
-      to: 'user2@example.com',
-      subject: 'Приглашение на мероприятие',
-      status: 'delivered',
-      source: 'invitation',
-      sentAt: daysAgo(0.1),
-      providerMessageId: 'resend_' + messageIds[1],
-    },
-    {
-      id: messageIds[2],
-      to: 'user3@example.com',
-      subject: 'Напоминание о событии',
-      status: 'sent',
-      source: 'notification',
-      sentAt: daysAgo(0.5),
-      providerMessageId: 'resend_' + messageIds[2],
-    },
-    {
-      id: messageIds[3],
-      to: 'user4@example.com',
-      subject: 'Обновление статуса регистрации',
-      status: 'delivered',
-      source: 'notification',
-      sentAt: daysAgo(1),
-      providerMessageId: 'resend_' + messageIds[3],
-    },
-    {
-      id: messageIds[4],
-      to: 'invalid@example',
-      subject: 'Код подтверждения',
-      status: 'failed',
-      source: 'verification',
-      sentAt: daysAgo(2),
-      providerMessageId: null,
-    },
-    {
-      id: messageIds[5],
-      to: 'test@example.com',
-      subject: 'Тестовое сообщение',
-      status: 'bounced',
-      source: 'broadcast',
-      sentAt: daysAgo(3),
-      providerMessageId: 'resend_' + messageIds[5],
-    },
-  ];
+  const cutoff = parseTimeRange(timeRange);
 
-  // Apply filters
-  let filtered = allMessages;
-  
+  const where: any = {};
+
   if (search) {
-    const searchLower = search.toLowerCase();
-    filtered = filtered.filter(m => 
-      m.to.toLowerCase().includes(searchLower) || 
-      m.subject.toLowerCase().includes(searchLower)
-    );
+    where.OR = [
+      { toEmail: { contains: search, mode: 'insensitive' } },
+      { subject: { contains: search, mode: 'insensitive' } },
+      { providerMessageId: { contains: search, mode: 'insensitive' } },
+    ];
   }
-  
+
   if (status && status !== 'ALL') {
-    filtered = filtered.filter(m => m.status === status);
+    where.status = MESSAGE_STATUS_TO_DB[status];
   }
-  
+
   if (source && source !== 'ALL') {
-    filtered = filtered.filter(m => m.source === source);
-  }
-  
-  // Apply time range filter
-  if (maxDays !== null) {
-    const cutoffDate = new Date(BASE_DATE);
-    cutoffDate.setDate(cutoffDate.getDate() - maxDays);
-    filtered = filtered.filter(m => new Date(m.sentAt) >= cutoffDate);
+    where.source = MESSAGE_SOURCE_TO_DB[source];
   }
 
-  const total = filtered.length;
-  const pages = Math.ceil(total / limit);
-  const offset = (page - 1) * limit;
-  const data = filtered.slice(offset, offset + limit);
+  if (cutoff) {
+    where.createdAt = { gte: cutoff };
+  }
+
+  const [total, rows] = await Promise.all([
+    prisma.emailMessage.count({ where }),
+    prisma.emailMessage.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+  ]);
 
   return {
-    data,
-    meta: { total, page, limit, pages },
+    data: rows.map(mapMessage),
+    meta: paginationMeta(total, page, limit),
   };
 }
 
-// ─── Email templates ───────────────────────────────────────────────────────────
-
-export async function listEmailTemplates(
-  params: { search?: string; status?: string; page?: number; limit?: number } = {}
-): Promise<{ data: EmailTemplate[]; meta: { total: number; page: number; limit: number; pages: number } }> {
+export async function listEmailTemplates(params: EmailTemplatesQuery = {} as EmailTemplatesQuery): Promise<Paginated<EmailTemplate>> {
   const { search, status, page = 1, limit = 20 } = params;
-  
-  const templates: EmailTemplate[] = [
-    {
-      id: templateIds[0],
-      name: 'Подтверждение email',
-      key: 'email-verification',
-      subject: 'Подтвердите ваш email адрес',
-      status: 'active',
-      updatedAt: daysAgo(5),
-    },
-    {
-      id: templateIds[1],
-      name: 'Приглашение на событие',
-      key: 'event-invitation',
-      subject: 'Вас приглашают на мероприятие',
-      status: 'active',
-      updatedAt: daysAgo(3),
-    },
-    {
-      id: templateIds[2],
-      name: 'Напоминание',
-      key: 'event-reminder',
-      subject: 'Напоминание о мероприятии завтра',
-      status: 'active',
-      updatedAt: daysAgo(7),
-    },
-    {
-      id: templateIds[3],
-      name: 'Подтверждение регистрации',
-      key: 'registration-confirmed',
-      subject: 'Ваша регистрация подтверждена',
-      status: 'draft',
-      updatedAt: daysAgo(10),
-    },
-    {
-      id: templateIds[4],
-      name: 'Сброс пароля',
-      key: 'password-reset',
-      subject: 'Сброс пароля',
-      status: 'active',
-      updatedAt: daysAgo(2),
-    },
-    {
-      id: templateIds[5],
-      name: 'Обновление статуса',
-      key: 'status-update',
-      subject: 'Обновление статуса вашей заявки',
-      status: 'archived',
-      updatedAt: daysAgo(30),
-    },
-  ];
+  const where: any = {};
 
-  // Apply filters
-  let filtered = templates;
   if (search) {
-    const searchLower = search.toLowerCase();
-    filtered = filtered.filter(t => 
-      t.name.toLowerCase().includes(searchLower) || 
-      t.subject.toLowerCase().includes(searchLower)
-    );
-  }
-  if (status && status !== 'ALL') {
-    filtered = filtered.filter(t => t.status === status);
+    where.OR = [
+      { name: { contains: search, mode: 'insensitive' } },
+      { key: { contains: search, mode: 'insensitive' } },
+      { subject: { contains: search, mode: 'insensitive' } },
+    ];
   }
 
-  const total = filtered.length;
-  const pages = Math.ceil(total / limit);
-  const offset = (page - 1) * limit;
+  if (status && status !== 'ALL') {
+    where.status = TEMPLATE_STATUS_TO_DB[status];
+  }
+
+  const [total, rows] = await Promise.all([
+    prisma.emailTemplate.count({ where }),
+    prisma.emailTemplate.findMany({
+      where,
+      orderBy: { updatedAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+  ]);
 
   return {
-    data: filtered.slice(offset, offset + limit),
-    meta: { total, page, limit, pages },
+    data: rows.map((row) => mapTemplate(row, true)),
+    meta: paginationMeta(total, page, limit),
   };
 }
 
-// ─── Email broadcasts ───────────────────────────────────────────────────────────
+export async function createEmailTemplate(input: CreateEmailTemplateInput, actorId?: string): Promise<EmailTemplate> {
+  const row = await prisma.emailTemplate.create({
+    data: {
+      name: input.name,
+      key: normalizeTemplateKey(input.key ?? input.name),
+      subject: input.subject,
+      preheader: input.preheader || null,
+      htmlBody: input.htmlBody,
+      textBody: input.textBody,
+      status: TEMPLATE_STATUS_TO_DB[input.status ?? 'draft'] as any,
+      createdById: actorId,
+      updatedById: actorId,
+    },
+  });
 
-export async function listEmailBroadcasts(
-  params: { status?: string; page?: number; limit?: number } = {}
-): Promise<{ data: EmailBroadcast[]; meta: { total: number; page: number; limit: number; pages: number } }> {
+  return mapTemplate(row, true);
+}
+
+export async function updateEmailTemplate(id: string, input: UpdateEmailTemplateInput, actorId?: string): Promise<EmailTemplate> {
+  const data: any = {
+    updatedById: actorId,
+  };
+
+  if (input.name !== undefined) data.name = input.name;
+  if (input.key !== undefined) data.key = normalizeTemplateKey(input.key);
+  if (input.subject !== undefined) data.subject = input.subject;
+  if (input.preheader !== undefined) data.preheader = input.preheader || null;
+  if (input.htmlBody !== undefined) data.htmlBody = input.htmlBody;
+  if (input.textBody !== undefined) data.textBody = input.textBody;
+  if (input.status !== undefined) data.status = TEMPLATE_STATUS_TO_DB[input.status] as any;
+
+  const row = await prisma.emailTemplate.update({
+    where: { id },
+    data,
+  });
+
+  return mapTemplate(row, true);
+}
+
+export async function archiveEmailTemplate(id: string, actorId?: string): Promise<EmailTemplate> {
+  const row = await prisma.emailTemplate.update({
+    where: { id },
+    data: {
+      status: 'ARCHIVED' as any,
+      updatedById: actorId,
+    },
+  });
+
+  return mapTemplate(row, true);
+}
+
+export async function listEmailBroadcasts(params: EmailBroadcastsQuery = {} as EmailBroadcastsQuery): Promise<Paginated<EmailBroadcast>> {
   const { status, page = 1, limit = 20 } = params;
-  
-  const broadcasts: EmailBroadcast[] = [
-    {
-      id: broadcastIds[0],
-      title: 'Анонс нового сезона мероприятий',
-      audience: 'Все подписчики',
-      status: 'sent',
-      scheduledAt: daysAgo(7),
-      sentCount: 1250,
-    },
-    {
-      id: broadcastIds[1],
-      title: 'Напоминание о регистрациях',
-      audience: 'Незавершённые регистрации',
-      status: 'scheduled',
-      scheduledAt: inFuture(24),
-      sentCount: 0,
-    },
-    {
-      id: broadcastIds[2],
-      title: 'Итоги мероприятия',
-      audience: 'Участники события',
-      status: 'draft',
-      scheduledAt: null,
-      sentCount: 0,
-    },
-  ];
+  const where: any = {};
 
-  // Apply filters
-  let filtered = broadcasts;
   if (status && status !== 'ALL') {
-    filtered = filtered.filter(b => b.status === status);
+    where.status = BROADCAST_STATUS_TO_DB[status];
   }
 
-  const total = filtered.length;
-  const pages = Math.ceil(total / limit);
-  const offset = (page - 1) * limit;
+  const [total, rows] = await Promise.all([
+    prisma.emailBroadcast.count({ where }),
+    prisma.emailBroadcast.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+  ]);
 
   return {
-    data: filtered.slice(offset, offset + limit),
-    meta: { total, page, limit, pages },
+    data: rows.map(mapBroadcast),
+    meta: paginationMeta(total, page, limit),
   };
 }
 
-// ─── Email automations ─────────────────────────────────────────────────────────
+export async function createEmailBroadcast(input: CreateEmailBroadcastInput, actorId?: string): Promise<EmailBroadcast> {
+  const scheduledAt = input.scheduledAt ? new Date(input.scheduledAt) : null;
+  const row = await prisma.emailBroadcast.create({
+    data: {
+      title: input.title,
+      subject: input.subject,
+      preheader: input.preheader || null,
+      htmlBody: input.htmlBody,
+      textBody: input.textBody,
+      audienceKind: AUDIENCE_TO_DB[input.audienceKind ?? 'mailing_consent'] as any,
+      status: scheduledAt && scheduledAt.getTime() > Date.now() ? 'SCHEDULED' as any : 'DRAFT' as any,
+      scheduledAt,
+      templateId: input.templateId || undefined,
+      createdById: actorId,
+    },
+  });
 
-export async function listEmailAutomations(
-  params: { status?: string; page?: number; limit?: number } = {}
-): Promise<{ data: EmailAutomation[]; meta: { total: number; page: number; limit: number; pages: number } }> {
-  const { status, page = 1, limit = 20 } = params;
-  
-  const automations: EmailAutomation[] = [
-    {
-      id: automationIds[0],
-      name: 'Добро пожаловать серии',
-      trigger: 'user.created',
-      status: 'active',
-      lastRunAt: daysAgo(0),
-      nextRunAt: inFuture(1),
-    },
-    {
-      id: automationIds[1],
-      name: 'Напоминание за 24ч',
-      trigger: 'event.starts_soon',
-      status: 'active',
-      lastRunAt: daysAgo(1),
-      nextRunAt: inFuture(2),
-    },
-    {
-      id: automationIds[2],
-      name: 'Сбор обратной связи',
-      trigger: 'event.ended',
-      status: 'paused',
-      lastRunAt: daysAgo(14),
-      nextRunAt: null,
-    },
-  ];
-
-  // Apply filters
-  let filtered = automations;
-  if (status && status !== 'ALL') {
-    filtered = filtered.filter(a => a.status === status);
+  if (input.sendNow) {
+    return sendEmailBroadcast(row.id);
   }
 
-  const total = filtered.length;
-  const pages = Math.ceil(total / limit);
-  const offset = (page - 1) * limit;
-
-  return {
-    data: filtered.slice(offset, offset + limit),
-    meta: { total, page, limit, pages },
-  };
+  return mapBroadcast(row);
 }
 
-// ─── Email audience ─────────────────────────────────────────────────────────────
+export async function sendEmailBroadcast(id: string): Promise<EmailBroadcast> {
+  const broadcast = await prisma.emailBroadcast.findUnique({
+    where: { id },
+  });
+
+  if (!broadcast) {
+    throw new Error('EMAIL_BROADCAST_NOT_FOUND');
+  }
+
+  if (!['DRAFT', 'SCHEDULED', 'FAILED', 'PARTIAL'].includes(String(broadcast.status))) {
+    throw new Error('EMAIL_BROADCAST_NOT_SENDABLE');
+  }
+
+  const recipients = await resolveAudienceRecipients(String(broadcast.audienceKind));
+
+  if (recipients.length === 0) {
+    const failed = await prisma.emailBroadcast.update({
+      where: { id },
+      data: {
+        status: 'FAILED' as any,
+        totalRecipients: 0,
+        sentCount: 0,
+        failedCount: 0,
+        errorText: 'Audience has no recipients.',
+        finishedAt: new Date(),
+      },
+    });
+    return mapBroadcast(failed);
+  }
+
+  if (recipients.length > EMAIL_BROADCAST_MAX_RECIPIENTS) {
+    const failed = await prisma.emailBroadcast.update({
+      where: { id },
+      data: {
+        status: 'FAILED' as any,
+        totalRecipients: recipients.length,
+        sentCount: 0,
+        failedCount: 0,
+        errorText: `Audience has ${recipients.length} recipients. Limit is ${EMAIL_BROADCAST_MAX_RECIPIENTS}.`,
+        finishedAt: new Date(),
+      },
+    });
+    return mapBroadcast(failed);
+  }
+
+  await prisma.emailBroadcast.update({
+    where: { id },
+    data: {
+      status: 'SENDING' as any,
+      startedAt: new Date(),
+      finishedAt: null,
+      totalRecipients: recipients.length,
+      sentCount: 0,
+      failedCount: 0,
+      errorText: null,
+    },
+  });
+
+  let sentCount = 0;
+  let failedCount = 0;
+
+  for (let index = 0; index < recipients.length; index += EMAIL_BROADCAST_CONCURRENCY) {
+    const batch = recipients.slice(index, index + EMAIL_BROADCAST_CONCURRENCY);
+    await Promise.all(batch.map(async (recipient) => {
+      try {
+        await sendPlatformEmail({
+          to: recipient.email,
+          subject: renderRecipientText(broadcast.subject, recipient),
+          text: renderRecipientText(broadcast.textBody, recipient),
+          html: renderRecipientText(broadcast.htmlBody, recipient),
+          source: 'broadcast',
+          toUserId: recipient.id,
+          broadcastId: broadcast.id,
+          templateId: broadcast.templateId,
+        });
+        sentCount += 1;
+      } catch {
+        failedCount += 1;
+      }
+    }));
+
+    await prisma.emailBroadcast.update({
+      where: { id },
+      data: {
+        sentCount,
+        failedCount,
+      },
+    });
+  }
+
+  const finalStatus = sentCount > 0 && failedCount === 0
+    ? 'SENT'
+    : sentCount > 0
+      ? 'PARTIAL'
+      : 'FAILED';
+
+  const finished = await prisma.emailBroadcast.update({
+    where: { id },
+    data: {
+      status: finalStatus as any,
+      sentCount,
+      failedCount,
+      finishedAt: new Date(),
+      errorText: failedCount > 0 ? `${failedCount} recipient(s) failed.` : null,
+    },
+  });
+
+  return mapBroadcast(finished);
+}
+
+export async function listEmailAutomations(params: { status?: string; page?: number; limit?: number } = {}): Promise<Paginated<EmailAutomation>> {
+  const page = params.page ?? 1;
+  const limit = params.limit ?? 20;
+
+  return {
+    data: [],
+    meta: paginationMeta(0, page, limit),
+  };
+}
 
 export async function getEmailAudience(): Promise<EmailAudienceData> {
+  const [
+    totalContacts,
+    verifiedContacts,
+    mailingConsent,
+    activeUsers,
+    platformAdmins,
+    eventParticipantRows,
+  ] = await Promise.all([
+    prisma.user.count({ where: { isActive: true } }),
+    prisma.user.count({ where: { isActive: true, emailVerifiedAt: { not: null } } }),
+    prisma.user.count({
+      where: {
+        isActive: true,
+        emailVerifiedAt: { not: null },
+        extendedProfile: { is: { consentMailing: true } },
+      },
+    }),
+    prisma.user.count({ where: { isActive: true } }),
+    prisma.user.count({ where: { isActive: true, role: { in: ['PLATFORM_ADMIN', 'SUPER_ADMIN'] as any[] } } }),
+    prisma.eventMember.groupBy({
+      by: ['userId'],
+    }),
+  ]);
+
+  const now = new Date().toISOString();
+  const unsubscribed = Math.max(totalContacts - mailingConsent, 0);
+
   return {
-    totalContacts: 2847,
-    verifiedContacts: 2654,
-    unsubscribed: 42,
+    totalContacts,
+    verifiedContacts,
+    unsubscribed,
     segmentsCount: 5,
     segments: [
-      { id: segmentIds[0], name: 'Активные участники', size: 1250, source: 'event_registration', updatedAt: daysAgo(1) },
-      { id: segmentIds[1], name: 'Волонтёры', size: 340, source: 'volunteer_application', updatedAt: daysAgo(3) },
-      { id: segmentIds[2], name: 'Новые пользователи', size: 180, source: 'user_created', updatedAt: daysAgo(0) },
-      { id: segmentIds[3], name: 'Неактивные 30 дней', size: 520, source: 'inactivity_rule', updatedAt: daysAgo(7) },
-      { id: segmentIds[4], name: 'Все подписчики', size: 2847, source: 'all_contacts', updatedAt: daysAgo(0) },
+      { id: 'mailing_consent', name: 'Mailing consent', size: mailingConsent, source: 'user_extended_profiles.consentMailing', updatedAt: now },
+      { id: 'verified_users', name: 'Verified users', size: verifiedContacts, source: 'users.emailVerifiedAt', updatedAt: now },
+      { id: 'active_users', name: 'Active users', size: activeUsers, source: 'users.isActive', updatedAt: now },
+      { id: 'event_participants', name: 'Event participants', size: eventParticipantRows.length, source: 'event_members', updatedAt: now },
+      { id: 'platform_admins', name: 'Platform admins', size: platformAdmins, source: 'users.role', updatedAt: now },
     ],
   };
 }
 
-// ─── Email domains ─────────────────────────────────────────────────────────────
-
-export async function listEmailDomains(
-  params: { search?: string; page?: number; limit?: number } = {}
-): Promise<{ data: EmailDomain[]; meta: { total: number; page: number; limit: number; pages: number } }> {
+export async function listEmailDomains(params: EmailDomainsQuery = {} as EmailDomainsQuery): Promise<Paginated<EmailDomain>> {
   const { search, page = 1, limit = 20 } = params;
-  
-  // If no email configured, return empty - don't fake data
   const emailConfig = getEmailConfig();
+
   if (!emailConfig.provider || !emailConfig.sendingDomain) {
     return {
       data: [],
-      meta: { total: 0, page: 1, limit: 20, pages: 0 },
+      meta: paginationMeta(0, page, limit),
     };
   }
-  
-  const domains: EmailDomain[] = [
-    {
-      id: 'dom_email_configured',
-      domain: emailConfig.sendingDomain,
-      provider: emailConfig.provider,
-      verificationStatus: 'verified',
-      spf: true,
-      dkim: true,
-      dmarc: true,
-      isDefault: true,
-    },
-  ];
 
-  // Apply filters
-  let filtered = domains;
-  if (search) {
-    const searchLower = search.toLowerCase();
-    filtered = filtered.filter(d => d.domain.toLowerCase().includes(searchLower));
-  }
+  const domain: EmailDomain = {
+    id: `domain_${emailConfig.sendingDomain}`,
+    domain: emailConfig.sendingDomain,
+    provider: emailConfig.provider,
+    verificationStatus: 'verified',
+    spf: true,
+    dkim: true,
+    dmarc: true,
+    isDefault: true,
+  };
 
-  const total = filtered.length;
-  const pages = Math.ceil(total / limit);
-  const offset = (page - 1) * limit;
+  const data = search && !domain.domain.toLowerCase().includes(search.toLowerCase()) ? [] : [domain];
 
   return {
-    data: filtered.slice(offset, offset + limit),
-    meta: { total, page, limit, pages },
+    data,
+    meta: paginationMeta(data.length, page, limit),
   };
 }
 
-// ─── Email webhooks ─────────────────────────────────────────────────────────────
-
-export async function getEmailWebhooks(): Promise<EmailWebhooksData> {
+export async function getEmailWebhooks(params: EmailWebhooksQuery = {} as EmailWebhooksQuery): Promise<EmailWebhooksData> {
   const emailConfig = getEmailConfig();
-  const webhookEndpoint = emailConfig.webhookEndpoint;
-  
+  const where: any = {};
+
+  if (params.status && params.status !== 'ALL') {
+    where.processingStatus = WEBHOOK_STATUS_TO_DB[params.status];
+  }
+
+  const [
+    totalReceived,
+    totalSuccess,
+    totalFailed,
+    logs,
+  ] = await Promise.all([
+    prisma.emailWebhookEvent.count(),
+    prisma.emailWebhookEvent.count({ where: { processingStatus: 'PROCESSED' as any } }),
+    prisma.emailWebhookEvent.count({ where: { processingStatus: 'FAILED' as any } }),
+    prisma.emailWebhookEvent.findMany({
+      where,
+      orderBy: { receivedAt: 'desc' },
+      take: params.limit ?? 50,
+      skip: ((params.page ?? 1) - 1) * (params.limit ?? 50),
+    }),
+  ]);
+
   return {
-    endpoint: webhookEndpoint ?? null,
+    endpoint: emailConfig.webhookEndpoint ?? null,
     signatureStatus: env.RESEND_WEBHOOK_SECRET ? 'valid' : 'unknown',
-    subscribedEvents: [
-      'email.sent',
-      'email.delivered',
-      'email.bounced',
-      'email.complained',
-      'email.opened',
-      'email.clicked',
-    ],
-    totalReceived: 15847,
-    totalSuccess: 15230,
-    totalFailed: 617,
-    logs: [
-      {
-        id: webhookIds[0],
-        eventType: 'email.delivered',
-        providerEventId: 'evt_' + webhookIds[0],
-        receivedAt: daysAgo(0),
-        processingStatus: 'processed',
-        relatedEntity: 'registration-123',
-        errorMessage: null,
-      },
-      {
-        id: webhookIds[1],
-        eventType: 'email.bounced',
-        providerEventId: 'evt_' + webhookIds[1],
-        receivedAt: daysAgo(1),
-        processingStatus: 'processed',
-        relatedEntity: 'user-456',
-        errorMessage: null,
-      },
-      {
-        id: webhookIds[2],
-        eventType: 'email.opened',
-        providerEventId: 'evt_' + webhookIds[2],
-        receivedAt: daysAgo(0.5),
-        processingStatus: 'processed',
-        relatedEntity: 'email-789',
-        errorMessage: null,
-      },
-    ],
+    subscribedEvents: SUBSCRIBED_RESEND_EVENTS,
+    totalReceived,
+    totalSuccess,
+    totalFailed,
+    logs: logs.map(mapWebhookEvent),
   };
+}
+
+export async function processResendWebhookEvent(event: ResendWebhookEvent, providerEventId?: string | null) {
+  const eventType = event.type ?? 'unknown';
+  const providerMessageId = event.data?.email_id ?? null;
+  const eventKey = providerEventId ?? `resend-${eventType}-${providerMessageId ?? event.created_at ?? 'unknown'}`;
+
+  const webhookEvent = await prisma.emailWebhookEvent.upsert({
+    where: { providerEventId: eventKey },
+    update: {
+      eventType,
+      providerMessageId,
+      payloadJson: event as any,
+      processingStatus: 'PROCESSING' as any,
+      errorMessage: null,
+    },
+    create: {
+      eventType,
+      providerEventId: eventKey,
+      providerMessageId,
+      payloadJson: event as any,
+      processingStatus: 'PROCESSING' as any,
+    },
+  });
+
+  try {
+    const message = providerMessageId
+      ? await prisma.emailMessage.findUnique({ where: { providerMessageId } })
+      : null;
+
+    if (message) {
+      await prisma.emailMessage.update({
+        where: { id: message.id },
+        data: mapWebhookMessageUpdate(eventType),
+      });
+    }
+
+    await prisma.emailWebhookEvent.update({
+      where: { id: webhookEvent.id },
+      data: {
+        processingStatus: 'PROCESSED' as any,
+        relatedMessageId: message?.id ?? null,
+        processedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    await prisma.emailWebhookEvent.update({
+      where: { id: webhookEvent.id },
+      data: {
+        processingStatus: 'FAILED' as any,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        processedAt: new Date(),
+      },
+    });
+    throw error;
+  }
+}
+
+function mapWebhookMessageUpdate(eventType: string) {
+  const now = new Date();
+
+  switch (eventType) {
+    case 'email.sent':
+      return { status: 'SENT' as any, sentAt: now };
+    case 'email.delivered':
+      return { status: 'DELIVERED' as any, deliveredAt: now };
+    case 'email.opened':
+      return { status: 'OPENED' as any, openedAt: now };
+    case 'email.clicked':
+      return { status: 'CLICKED' as any, clickedAt: now };
+    case 'email.bounced':
+      return { status: 'BOUNCED' as any, bouncedAt: now };
+    case 'email.complained':
+      return { status: 'COMPLAINED' as any, complainedAt: now };
+    default:
+      return {};
+  }
+}
+
+async function resolveAudienceRecipients(audienceKind: string): Promise<AudienceRecipient[]> {
+  const baseSelect = { id: true, email: true, name: true };
+
+  const whereByAudience: Record<string, any> = {
+    MAILING_CONSENT: {
+      isActive: true,
+      emailVerifiedAt: { not: null },
+      extendedProfile: { is: { consentMailing: true } },
+    },
+    VERIFIED_USERS: {
+      isActive: true,
+      emailVerifiedAt: { not: null },
+    },
+    ACTIVE_USERS: {
+      isActive: true,
+    },
+    PLATFORM_ADMINS: {
+      isActive: true,
+      role: { in: ['PLATFORM_ADMIN', 'SUPER_ADMIN'] },
+    },
+  };
+
+  return prisma.user.findMany({
+    where: whereByAudience[audienceKind] ?? whereByAudience.MAILING_CONSENT,
+    select: baseSelect,
+    orderBy: { registeredAt: 'desc' },
+    take: EMAIL_BROADCAST_MAX_RECIPIENTS + 1,
+  });
+}
+
+function renderRecipientText(value: string, recipient: AudienceRecipient) {
+  return value
+    .replace(/\{\{\s*name\s*\}\}/g, recipient.name ?? recipient.email)
+    .replace(/\{\{\s*email\s*\}\}/g, recipient.email);
 }

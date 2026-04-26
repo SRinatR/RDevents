@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, LoadingLines, MetricCard, PageHeader, Panel } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, MetricCard, Notice, PageHeader, Panel, StatusBadge } from '@/components/ui/signal-primitives';
 
 export default function AdminEmailPage() {
   const t = useTranslations();
@@ -17,6 +17,7 @@ export default function AdminEmailPage() {
 
   const [overview, setOverview] = useState<any>(null);
   const [loadingData, setLoadingData] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) {
@@ -24,14 +25,27 @@ export default function AdminEmailPage() {
     }
   }, [user, loading, isAdmin, router, locale]);
 
-  useEffect(() => {
-    if (!user || !isAdmin) return;
+  const loadOverview = useCallback(async () => {
+    if (!user || !isAdmin || !isPlatformAdmin) return;
 
-    adminEmailApi.getOverview()
-      .then(setOverview)
-      .catch(() => setOverview(null))
-      .finally(() => setLoadingData(false));
-  }, [user, isAdmin]);
+    setLoadingData(true);
+    setError(null);
+
+    try {
+      const data = await adminEmailApi.getOverview();
+      setOverview(data);
+    } catch (e) {
+      console.error('Load email overview failed:', e);
+      setOverview(null);
+      setError(locale === 'ru' ? 'Не удалось загрузить состояние email-сервиса.' : 'Failed to load email service state.');
+    } finally {
+      setLoadingData(false);
+    }
+  }, [isAdmin, isPlatformAdmin, locale, user]);
+
+  useEffect(() => {
+    void loadOverview();
+  }, [loadOverview]);
 
   if (loading || !user || !isAdmin) {
     return <div className="admin-loading-screen"><div className="spinner" /></div>;
@@ -53,7 +67,10 @@ export default function AdminEmailPage() {
       <PageHeader
         title={t('admin.email') ?? 'Email'}
         subtitle={locale === 'ru' ? 'Центр управления коммуникациями' : 'Communication control center'}
+        actions={<button className="btn btn-secondary btn-sm" onClick={() => void loadOverview()} disabled={loadingData}>{locale === 'ru' ? 'Обновить' : 'Refresh'}</button>}
       />
+
+      {error ? <Notice tone="danger">{error}</Notice> : null}
 
       {/* KPI cards */}
       {loadingData ? (
@@ -118,15 +135,15 @@ export default function AdminEmailPage() {
           <div className="signal-stack">
             <div className="signal-ranked-item">
               <span>{locale === 'ru' ? 'Провайдер' : 'Provider'}</span>
-              
+              <StatusBadge tone={overview.providerStatus === 'connected' ? 'success' : 'warning'}>{overview.provider ?? overview.providerStatus}</StatusBadge>
             </div>
             <div className="signal-ranked-item">
               <span>{locale === 'ru' ? 'Отправляющий домен' : 'Sending domain'}</span>
-              
+              <span className="signal-muted">{overview.sendingDomain ?? '-'}</span>
             </div>
             <div className="signal-ranked-item">
               <span>{locale === 'ru' ? 'Вебхук endpoint' : 'Webhook endpoint'}</span>
-              
+              <span className="signal-muted signal-overflow-ellipsis">{overview.webhookEndpoint ?? '-'}</span>
             </div>
           </div>
         ) : (
@@ -150,7 +167,8 @@ export default function AdminEmailPage() {
               <div className="signal-ranked-item" key={index}>
                 <span className="signal-rank">{index + 1}</span>
                 <span className="signal-overflow-ellipsis">{event.type}</span>
-                
+                <StatusBadge tone={event.status === 'failed' || event.status === 'bounced' || event.status === 'complained' ? 'danger' : 'neutral'}>{event.status}</StatusBadge>
+                <span className="signal-muted">{new Date(event.timestamp).toLocaleString()}</span>
               </div>
             ))}
           </div>

@@ -81,6 +81,11 @@ export const env = {
   TELEGRAM_BOT_TOKEN: process.env['TELEGRAM_BOT_TOKEN'] ?? '',
   TELEGRAM_BOT_USERNAME: process.env['TELEGRAM_BOT_USERNAME'] ?? '',
 
+  RBAC_V2_ENABLED: optional_env('RBAC_V2_ENABLED', 'false') === 'true',
+  RBAC_V2_LEGACY_FALLBACK: optional_env('RBAC_V2_LEGACY_FALLBACK', 'true') === 'true',
+  RBAC_V2_DUAL_WRITE: optional_env('RBAC_V2_DUAL_WRITE', 'false') === 'true',
+  RBAC_V2_SHADOW_COMPARE: optional_env('RBAC_V2_SHADOW_COMPARE', 'false') === 'true',
+
   get isDev() { return this.NODE_ENV === 'development'; },
   get isProd() { return this.NODE_ENV === 'production'; },
 } as const;

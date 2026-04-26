@@ -1,16 +1,27 @@
 import { Router } from 'express';
-import type { EventMemberStatus, EventTeamStatus, User } from '@prisma/client';
+import type { EventMemberStatus, EventStaffRole, EventTeamStatus, User } from '@prisma/client';
 import { canManageEvent, requirePlatformAdmin } from '../../common/middleware.js';
 import { prisma } from '../../db/prisma.js';
 import { createEventSchema, updateEventSchema } from '../events/events.schemas.js';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 import { notifyParticipantStatusChanged } from '../events/notifications.service.js';
 import { approveTeamChangeRequest, rejectTeamChangeRequest } from '../events/events.service.js';
+import { getActiveProfileRequirementFields } from '../profile-config/profile-field-values.js';
+import {
+  applyActiveWorkspacePoliciesToEvent,
+  canAccessEvent,
+  canManageWorkspace,
+  createDirectEventStaffGrant,
+  getManagedEventIds,
+  recalculateEventStaffAccess,
+  revokeEventStaffGrant,
+} from '../access-control/access-control.service.js';
+import { buildAuditRequestContext, writeAuditLog } from '../access-control/access-control.audit.js';
+import { env } from '../../config/env.js';
 
 export const adminEventsRouter = Router();
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
-const DEPRECATED_PROFILE_REQUIREMENT_FIELDS = new Set(['consentPersonalData', 'consentClientRules']);
 
 function normalizeStringArray(value: unknown) {
   if (Array.isArray(value)) {
@@ -23,7 +34,7 @@ function normalizeStringArray(value: unknown) {
 }
 
 function normalizeRequiredProfileFields(value: unknown) {
-  return normalizeStringArray(value).filter(field => !DEPRECATED_PROFILE_REQUIREMENT_FIELDS.has(field));
+  return getActiveProfileRequirementFields(normalizeStringArray(value));
 }
 
 function normalizeEventBody(body: any) {
@@ -59,6 +70,41 @@ async function participantCounts(eventIds: string[]) {
   return new Map(rows.map(row => [row.eventId, row._count]));
 }
 
+const EVENT_STAFF_ROLES = new Set(['OWNER', 'ADMIN', 'MANAGER', 'PR_MANAGER', 'CHECKIN_OPERATOR', 'VIEWER']);
+
+async function resolveTargetUser(input: { userId?: unknown; email?: unknown }) {
+  if (input.userId) return prisma.user.findUnique({ where: { id: String(input.userId) } });
+  if (input.email) return prisma.user.findUnique({ where: { email: String(input.email) } });
+  return null;
+}
+
+async function dualWriteLegacyEventAdmin(eventId: string, actorId: string, targetUserId: string, notes?: unknown) {
+  if (!env.RBAC_V2_DUAL_WRITE) return null;
+
+  return prisma.eventMember.upsert({
+    where: { eventId_userId_role: { eventId, userId: targetUserId, role: 'EVENT_ADMIN' } },
+    create: {
+      eventId,
+      userId: targetUserId,
+      role: 'EVENT_ADMIN',
+      status: 'ACTIVE',
+      assignedByUserId: actorId,
+      approvedAt: new Date(),
+      notes: notes ? String(notes) : null,
+    },
+    update: {
+      status: 'ACTIVE',
+      assignedByUserId: actorId,
+      assignedAt: new Date(),
+      approvedAt: new Date(),
+      rejectedAt: null,
+      removedAt: null,
+      notes: notes ? String(notes) : null,
+    },
+    include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+  });
+}
+
 // GET /admin/events
 adminEventsRouter.get('/', async (req, res) => {
   const user = (req as any).user as User;
@@ -67,15 +113,12 @@ adminEventsRouter.get('/', async (req, res) => {
   const search = String(req.query['search'] ?? '');
   const status = req.query['status'] as string | undefined;
   const id = req.query['id'] as string | undefined;
+  const organizerWorkspaceId = req.query['organizerWorkspaceId'] as string | undefined;
 
   const isPlatformAdmin = ['PLATFORM_ADMIN', 'SUPER_ADMIN'].includes(user.role);
 
   if (!isPlatformAdmin) {
-    const memberships = await prisma.eventMember.findMany({
-      where: { userId: user.id, role: 'EVENT_ADMIN', status: { in: [...ACTIVE_MEMBER_STATUSES] } },
-      select: { eventId: true },
-    });
-    const managedEventIds = memberships.map(m => m.eventId);
+    const managedEventIds = await getManagedEventIds(user, 'event.read');
 
     if (managedEventIds.length === 0) {
       res.json({ data: [], meta: { total: 0, page, limit, pages: 0 } });
@@ -85,6 +128,7 @@ adminEventsRouter.get('/', async (req, res) => {
     const where: Record<string, unknown> = {};
     if (id) where['id'] = id;
     if (status) where['status'] = status;
+    if (organizerWorkspaceId) where['organizerWorkspaceId'] = organizerWorkspaceId;
     if (managedEventIds) where['id'] = { in: id ? managedEventIds.filter(eventId => eventId === id) : managedEventIds };
     if (search) {
       where['OR'] = [
@@ -115,6 +159,7 @@ adminEventsRouter.get('/', async (req, res) => {
   const where: Record<string, unknown> = {};
   if (id) where['id'] = id;
   if (status) where['status'] = status;
+  if (organizerWorkspaceId) where['organizerWorkspaceId'] = organizerWorkspaceId;
   if (search) {
     where['OR'] = [
       { title: { contains: search, mode: 'insensitive' } },
@@ -141,7 +186,7 @@ adminEventsRouter.get('/', async (req, res) => {
 });
 
 // POST /admin/events
-adminEventsRouter.post('/', requirePlatformAdmin, async (req, res) => {
+adminEventsRouter.post('/', async (req, res) => {
   const parsed = createEventSchema.safeParse(normalizeEventBody(req.body));
   if (!parsed.success) {
     res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
@@ -149,21 +194,68 @@ adminEventsRouter.post('/', requirePlatformAdmin, async (req, res) => {
   }
 
   const user = (req as any).user as User;
+  const organizerWorkspaceId = parsed.data.organizerWorkspaceId ?? null;
+  const isPlatformAdmin = ['PLATFORM_ADMIN', 'SUPER_ADMIN'].includes(user.role);
+
+  if (organizerWorkspaceId) {
+    const workspace = await prisma.organizerWorkspace.findUnique({
+      where: { id: organizerWorkspaceId },
+      select: { id: true, status: true },
+    });
+    if (!workspace || workspace.status !== 'ACTIVE') {
+      res.status(404).json({ error: 'Workspace not found', code: 'WORKSPACE_NOT_FOUND' });
+      return;
+    }
+    if (!(await canManageWorkspace(user, organizerWorkspaceId, 'workspace.events.create'))) {
+      res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+      return;
+    }
+  } else if (!isPlatformAdmin) {
+    res.status(400).json({ error: 'organizerWorkspaceId is required', code: 'WORKSPACE_REQUIRED' });
+    return;
+  }
+
   try {
-    const event = await prisma.event.create({
-      data: {
-        ...parsed.data,
-        startsAt: new Date(parsed.data.startsAt),
-        endsAt: new Date(parsed.data.endsAt),
-        registrationOpensAt: toDate(parsed.data.registrationOpensAt),
-        registrationDeadline: toDate(parsed.data.registrationDeadline),
-        coverImageUrl: parsed.data.coverImageUrl || null,
-        conditions: parsed.data.conditions || null,
-        contactEmail: parsed.data.contactEmail || null,
-        contactPhone: parsed.data.contactPhone || null,
-        createdById: user.id,
-        publishedAt: parsed.data.status === 'PUBLISHED' ? new Date() : null,
-      },
+    const event = await prisma.$transaction(async (tx) => {
+      const createdEvent = await tx.event.create({
+        data: {
+          ...parsed.data,
+          organizerWorkspaceId,
+          startsAt: new Date(parsed.data.startsAt),
+          endsAt: new Date(parsed.data.endsAt),
+          registrationOpensAt: toDate(parsed.data.registrationOpensAt),
+          registrationDeadline: toDate(parsed.data.registrationDeadline),
+          coverImageUrl: parsed.data.coverImageUrl || null,
+          conditions: parsed.data.conditions || null,
+          contactEmail: parsed.data.contactEmail || null,
+          contactPhone: parsed.data.contactPhone || null,
+          createdById: user.id,
+          publishedAt: parsed.data.status === 'PUBLISHED' ? new Date() : null,
+        },
+      });
+
+      const ownerGrant = await tx.eventStaffGrant.create({
+        data: {
+          eventId: createdEvent.id,
+          userId: user.id,
+          role: 'OWNER',
+          source: 'SYSTEM',
+          assignedByUserId: user.id,
+          reason: 'Event creator',
+        },
+      });
+      await recalculateEventStaffAccess(tx, createdEvent.id, user.id);
+      await applyActiveWorkspacePoliciesToEvent(tx, createdEvent.id);
+      await writeAuditLog(tx, {
+        ...buildAuditRequestContext(req),
+        action: 'EVENT_STAFF_GRANT_CREATED',
+        eventId: createdEvent.id,
+        targetUserId: user.id,
+        afterJson: ownerGrant as any,
+        meta: { reason: 'event_creator_owner_grant', organizerWorkspaceId },
+      });
+
+      return createdEvent;
     });
 
     res.status(201).json({ event });
@@ -393,7 +485,13 @@ adminEventsRouter.get('/:id/event-admins', async (req, res) => {
     include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
     orderBy: { assignedAt: 'desc' },
   });
-  res.json({ eventAdmins });
+  const staffGrants = await prisma.eventStaffGrant.findMany({
+    where: { eventId, status: 'ACTIVE', role: { in: ['OWNER', 'ADMIN'] } },
+    include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+    orderBy: { assignedAt: 'desc' },
+  });
+  res.setHeader('Deprecation', 'true');
+  res.json({ eventAdmins, staffGrants, deprecated: true });
 });
 
 // GET /admin/events/:id/admins (MVP spec - alias)
@@ -410,18 +508,28 @@ adminEventsRouter.get('/:id/admins', async (req, res) => {
     include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
     orderBy: { assignedAt: 'desc' },
   });
-  res.json({ eventAdmins, admins: eventAdmins });
+  const staffGrants = await prisma.eventStaffGrant.findMany({
+    where: { eventId, status: 'ACTIVE', role: { in: ['OWNER', 'ADMIN'] } },
+    include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+    orderBy: { assignedAt: 'desc' },
+  });
+  res.setHeader('Deprecation', 'true');
+  res.json({ eventAdmins, admins: eventAdmins, staffGrants, deprecated: true });
 });
 
 // POST /admin/events/:id/event-admins
-adminEventsRouter.post('/:id/event-admins', requirePlatformAdmin, async (req, res) => {
+adminEventsRouter.post('/:id/event-admins', async (req, res) => {
   const eventId = String(req.params['id']);
   const actor = (req as any).user as User;
-  const { userId, email, notes } = req.body;
+  const { notes } = req.body;
+  const role = String(req.body?.role ?? 'ADMIN');
 
-  const targetUser = userId
-    ? await prisma.user.findUnique({ where: { id: String(userId) } })
-    : await prisma.user.findUnique({ where: { email: String(email) } });
+  if (!EVENT_STAFF_ROLES.has(role) || role === 'OWNER') {
+    res.status(400).json({ error: 'Invalid event staff role', code: 'INVALID_EVENT_STAFF_ROLE' });
+    return;
+  }
+
+  const targetUser = await resolveTargetUser(req.body);
 
   if (!targetUser) {
     res.status(404).json({ error: 'User not found' });
@@ -429,45 +537,42 @@ adminEventsRouter.post('/:id/event-admins', requirePlatformAdmin, async (req, re
   }
 
   try {
-    const membership = await prisma.$transaction(async (tx: any) => {
-      const m = await tx.eventMember.upsert({
-        where: { eventId_userId_role: { eventId, userId: targetUser.id, role: 'EVENT_ADMIN' } },
-        create: {
-          eventId, userId: targetUser.id, role: 'EVENT_ADMIN', status: 'ACTIVE',
-          assignedByUserId: actor.id, approvedAt: new Date(), notes: notes ?? null,
-        },
-        update: {
-          status: 'ACTIVE', assignedByUserId: actor.id, assignedAt: new Date(),
-          approvedAt: new Date(), rejectedAt: null, removedAt: null, notes: notes ?? null,
-        },
-        include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
-      });
-
-      await trackAnalyticsEvent(tx, {
-        type: 'EVENT_ADMIN_ASSIGNED',
-        userId: targetUser.id,
-        eventId,
-        meta: { assignedByUserId: actor.id },
-      });
-
-      return m;
+    const grant = await createDirectEventStaffGrant(actor, {
+      eventId,
+      userId: targetUser.id,
+      role: role as EventStaffRole,
+      reason: notes ? String(notes) : null,
+      audit: buildAuditRequestContext(req),
+    });
+    const membership = await dualWriteLegacyEventAdmin(eventId, actor.id, targetUser.id, notes);
+    await trackAnalyticsEvent(prisma, {
+      type: 'EVENT_ADMIN_ASSIGNED',
+      userId: targetUser.id,
+      eventId,
+      meta: { assignedByUserId: actor.id, grantId: grant.id, deprecatedEndpoint: 'event-admins' },
     });
 
-    res.status(201).json({ membership });
+    res.setHeader('Deprecation', 'true');
+    res.status(201).json({ grant, membership, deprecated: true });
   } catch (error: any) {
-    throw error;
+    const code = error instanceof Error ? error.message : 'INTERNAL_ERROR';
+    res.status(code === 'FORBIDDEN' ? 403 : 500).json({ error: code, code });
   }
 });
 
 // POST /admin/events/:id/admins (MVP spec - alias)
-adminEventsRouter.post('/:id/admins', requirePlatformAdmin, async (req, res) => {
+adminEventsRouter.post('/:id/admins', async (req, res) => {
   const eventId = String(req.params['id']);
   const actor = (req as any).user as User;
-  const { userId, email, notes } = req.body;
+  const { notes } = req.body;
+  const role = String(req.body?.role ?? 'ADMIN');
 
-  const targetUser = userId
-    ? await prisma.user.findUnique({ where: { id: String(userId) } })
-    : await prisma.user.findUnique({ where: { email: String(email) } });
+  if (!EVENT_STAFF_ROLES.has(role) || role === 'OWNER') {
+    res.status(400).json({ error: 'Invalid event staff role', code: 'INVALID_EVENT_STAFF_ROLE' });
+    return;
+  }
+
+  const targetUser = await resolveTargetUser(req.body);
 
   if (!targetUser) {
     res.status(404).json({ error: 'User not found' });
@@ -475,78 +580,107 @@ adminEventsRouter.post('/:id/admins', requirePlatformAdmin, async (req, res) => 
   }
 
   try {
-    const membership = await prisma.$transaction(async (tx: any) => {
-      const m = await tx.eventMember.upsert({
-        where: { eventId_userId_role: { eventId, userId: targetUser.id, role: 'EVENT_ADMIN' } },
-        create: {
-          eventId, userId: targetUser.id, role: 'EVENT_ADMIN', status: 'ACTIVE',
-          assignedByUserId: actor.id, approvedAt: new Date(), notes: notes ?? null,
-        },
-        update: {
-          status: 'ACTIVE', assignedByUserId: actor.id, assignedAt: new Date(),
-          approvedAt: new Date(), rejectedAt: null, removedAt: null, notes: notes ?? null,
-        },
-        include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
-      });
-
-      await trackAnalyticsEvent(tx, {
-        type: 'EVENT_ADMIN_ASSIGNED',
-        userId: targetUser.id,
-        eventId,
-        meta: { assignedByUserId: actor.id },
-      });
-
-      return m;
+    const grant = await createDirectEventStaffGrant(actor, {
+      eventId,
+      userId: targetUser.id,
+      role: role as EventStaffRole,
+      reason: notes ? String(notes) : null,
+      audit: buildAuditRequestContext(req),
+    });
+    const membership = await dualWriteLegacyEventAdmin(eventId, actor.id, targetUser.id, notes);
+    await trackAnalyticsEvent(prisma, {
+      type: 'EVENT_ADMIN_ASSIGNED',
+      userId: targetUser.id,
+      eventId,
+      meta: { assignedByUserId: actor.id, grantId: grant.id, deprecatedEndpoint: 'admins' },
     });
 
-    res.status(201).json({ membership });
+    res.setHeader('Deprecation', 'true');
+    res.status(201).json({ grant, membership, deprecated: true });
   } catch (error: any) {
-    throw error;
+    const code = error instanceof Error ? error.message : 'INTERNAL_ERROR';
+    res.status(code === 'FORBIDDEN' ? 403 : 500).json({ error: code, code });
   }
 });
 
 // DELETE /admin/events/:id/event-admins/:userId
-adminEventsRouter.delete('/:id/event-admins/:userId', requirePlatformAdmin, async (req, res) => {
+adminEventsRouter.delete('/:id/event-admins/:userId', async (req, res) => {
   const eventId = String(req.params['id']);
   const userId = String(req.params['userId']);
+
+  const actor = (req as any).user as User;
+  if (!(await canAccessEvent(actor, eventId, 'event.manageStaff'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
 
   const membership = await prisma.eventMember.findUnique({
     where: { eventId_userId_role: { eventId, userId, role: 'EVENT_ADMIN' } }
   });
 
-  if (!membership) {
+  const grants = await prisma.eventStaffGrant.findMany({
+    where: { eventId, userId, role: 'ADMIN', status: 'ACTIVE', source: 'DIRECT' },
+    select: { id: true },
+  });
+
+  if (!membership && grants.length === 0) {
     res.status(404).json({ error: 'Event admin not found' });
     return;
   }
 
-  await prisma.eventMember.update({
-    where: { id: membership.id },
-    data: { status: 'REMOVED', removedAt: new Date() }
-  });
+  for (const grant of grants) {
+    await revokeEventStaffGrant(actor, grant.id, buildAuditRequestContext(req));
+  }
 
-  res.json({ ok: true });
+  if (membership) {
+    await prisma.eventMember.update({
+      where: { id: membership.id },
+      data: { status: 'REMOVED', removedAt: new Date() }
+    });
+  }
+
+  res.setHeader('Deprecation', 'true');
+  res.json({ ok: true, deprecated: true });
 });
 
 // DELETE /admin/events/:id/admins/:userId (MVP spec - alias)
-adminEventsRouter.delete('/:id/admins/:userId', requirePlatformAdmin, async (req, res) => {
+adminEventsRouter.delete('/:id/admins/:userId', async (req, res) => {
   const eventId = String(req.params['id']);
   const userId = String(req.params['userId']);
+
+  const actor = (req as any).user as User;
+  if (!(await canAccessEvent(actor, eventId, 'event.manageStaff'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
 
   const membership = await prisma.eventMember.findUnique({
     where: { eventId_userId_role: { eventId, userId, role: 'EVENT_ADMIN' } }
   });
 
-  if (!membership) {
+  const grants = await prisma.eventStaffGrant.findMany({
+    where: { eventId, userId, role: 'ADMIN', status: 'ACTIVE', source: 'DIRECT' },
+    select: { id: true },
+  });
+
+  if (!membership && grants.length === 0) {
     res.status(404).json({ error: 'Event admin not found' });
     return;
   }
 
-  await prisma.eventMember.update({
-    where: { id: membership.id },
-    data: { status: 'REMOVED', removedAt: new Date() }
-  });
+  for (const grant of grants) {
+    await revokeEventStaffGrant(actor, grant.id, buildAuditRequestContext(req));
+  }
 
-  res.json({ ok: true });
+  if (membership) {
+    await prisma.eventMember.update({
+      where: { id: membership.id },
+      data: { status: 'REMOVED', removedAt: new Date() }
+    });
+  }
+
+  res.setHeader('Deprecation', 'true');
+  res.json({ ok: true, deprecated: true });
 });
 
 // GET /admin/events/:id/volunteers

@@ -6,7 +6,18 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../../hooks/useAuth';
 import { eventsApi } from '../../../../lib/api';
 import { useRouteLocale } from '../../../../hooks/useRouteParams';
-import { EmptyState, LoadingLines, Notice, PageHeader, Panel, SectionHeader } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, Notice, PageHeader, Panel, SectionHeader, StatusBadge } from '@/components/ui/signal-primitives';
+
+type StatusTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
+
+function statusTone(status?: string): StatusTone {
+  if (!status) return 'neutral';
+  if (['ACTIVE', 'APPROVED', 'CONFIRMED'].includes(status)) return 'success';
+  if (['PENDING', 'UNDER_REVIEW', 'SUBMITTED', 'CHANGES_PENDING'].includes(status)) return 'warning';
+  if (['RESERVE'].includes(status)) return 'info';
+  if (['REJECTED', 'CANCELLED', 'REMOVED', 'WITHDRAWN'].includes(status)) return 'danger';
+  return 'neutral';
+}
 
 export default function CabinetApplicationsPage() {
   const { user, loading } = useAuth();
@@ -43,19 +54,29 @@ export default function CabinetApplicationsPage() {
   const statusLabel = (status: string) => {
     const ru: Record<string, string> = {
       PENDING: 'На рассмотрении',
+      APPROVED: 'Одобрено',
       ACTIVE: 'Одобрено',
       RESERVE: 'В резерве',
       REJECTED: 'Отклонено',
       CANCELLED: 'Отменено',
       REMOVED: 'Удалено',
+      CHANGES_PENDING: 'Изменения на проверке',
+      SUBMITTED: 'Подано',
+      UNDER_REVIEW: 'На рассмотрении',
+      WITHDRAWN: 'Отозвано',
     };
     const en: Record<string, string> = {
       PENDING: 'Pending',
+      APPROVED: 'Approved',
       ACTIVE: 'Approved',
       RESERVE: 'Reserve',
       REJECTED: 'Rejected',
       CANCELLED: 'Cancelled',
       REMOVED: 'Removed',
+      CHANGES_PENDING: 'Changes pending',
+      SUBMITTED: 'Submitted',
+      UNDER_REVIEW: 'Under review',
+      WITHDRAWN: 'Withdrawn',
     };
     return (locale === 'ru' ? ru : en)[status] ?? status;
   };
@@ -67,6 +88,7 @@ export default function CabinetApplicationsPage() {
       <div className="workspace-command-row">
         <Link href={`/${locale}/cabinet/events`} className="signal-chip-link">{locale === 'ru' ? 'Открыть каталог событий' : 'Open event catalog'}</Link>
         <Link href={`/${locale}/cabinet/my-events`} className="signal-chip-link">{locale === 'ru' ? 'Перейти к моим событиям' : 'Go to my events'}</Link>
+        <Link href={`/${locale}/cabinet/volunteer`} className="signal-chip-link">{locale === 'ru' ? 'Волонтёрство' : 'Volunteer center'}</Link>
       </div>
 
       <div className="workspace-status-strip workspace-status-strip-v2">
@@ -89,7 +111,7 @@ export default function CabinetApplicationsPage() {
                 {participantApplications.map((application: any) => {
                   const href = application.status === 'ACTIVE'
                     ? `/${locale}/cabinet/my-events/${application.event?.slug || ''}`
-                    : `/${locale}/events/${application.event?.slug || ''}`;
+                    : `/${locale}/cabinet/events/${application.event?.slug || ''}`;
                   return (
                     <Link key={application.id} href={href} className="signal-ranked-item cabinet-list-item">
                       <div>
@@ -98,11 +120,14 @@ export default function CabinetApplicationsPage() {
                           {statusLabel(application.status)} · {application.assignedAt ? formatDate(application.assignedAt) : ''}
                         </div>
                       </div>
-                      <span className="signal-chip-link">
-                        {application.status === 'ACTIVE'
-                          ? (locale === 'ru' ? 'Workspace' : 'Workspace')
-                          : (locale === 'ru' ? 'Страница события' : 'Event page')}
-                      </span>
+                      <div className="cabinet-list-item-actions">
+                        <StatusBadge tone={statusTone(application.status)}>{statusLabel(application.status)}</StatusBadge>
+                        <span className="signal-chip-link">
+                          {application.status === 'ACTIVE'
+                            ? (locale === 'ru' ? 'Workspace' : 'Workspace')
+                            : (locale === 'ru' ? 'Открыть' : 'Open')}
+                        </span>
+                      </div>
                     </Link>
                   );
                 })}
@@ -115,12 +140,15 @@ export default function CabinetApplicationsPage() {
             {teams.length === 0 ? <EmptyState title={locale === 'ru' ? 'Команд пока нет' : 'No teams yet'} description={locale === 'ru' ? 'После вступления в команду статус появится здесь.' : 'After joining a team, status will appear here.'} /> : (
               <div className="signal-stack cabinet-list-stack cabinet-list-stack-premium">
                 {teams.map((membership: any) => (
-                  <Link key={membership.id} href={`/${locale}/events/${membership.team?.event?.slug || ''}`} className="signal-ranked-item cabinet-list-item">
+                  <Link key={membership.id} href={`/${locale}/cabinet/events/${membership.team?.event?.slug || ''}?team=edit`} className="signal-ranked-item cabinet-list-item">
                     <div>
                       <strong>{membership.team?.name || 'Team'}</strong>
                       <div className="signal-muted">{membership.team?.event?.title || 'Event'} · {membership.role || 'Member'}</div>
                     </div>
-                    
+                    <div className="cabinet-list-item-actions">
+                      <StatusBadge tone={statusTone(membership.status)}>{statusLabel(membership.status || 'ACTIVE')}</StatusBadge>
+                      <span className="signal-chip-link">{locale === 'ru' ? 'Команда' : 'Team'}</span>
+                    </div>
                   </Link>
                 ))}
               </div>
@@ -132,12 +160,15 @@ export default function CabinetApplicationsPage() {
             {volunteerApplications.length === 0 ? <EmptyState title={locale === 'ru' ? 'Заявки отсутствуют' : 'No applications'} description={locale === 'ru' ? 'Статусы волонтёрства появятся здесь после подачи.' : 'Volunteer statuses appear here after applying.'} /> : (
               <div className="signal-stack cabinet-list-stack cabinet-list-stack-premium">
                 {volunteerApplications.map((application: any) => (
-                  <Link key={application.id} href={`/${locale}/events/${application.event?.slug || ''}`} className="signal-ranked-item cabinet-list-item">
+                  <Link key={application.id} href={`/${locale}/cabinet/volunteer`} className="signal-ranked-item cabinet-list-item">
                     <div>
                       <strong>{application.event?.title || 'Event'}</strong>
                       <div className="signal-muted">{application.event?.location || 'Location'} · {formatDate(application.assignedAt || new Date().toISOString())}</div>
                     </div>
-                    
+                    <div className="cabinet-list-item-actions">
+                      <StatusBadge tone={statusTone(application.status)}>{statusLabel(application.status)}</StatusBadge>
+                      <span className="signal-chip-link">{locale === 'ru' ? 'Открыть' : 'Open'}</span>
+                    </div>
                   </Link>
                 ))}
               </div>

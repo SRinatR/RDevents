@@ -2,6 +2,7 @@ import { Router, raw } from 'express';
 import { Webhook } from 'svix';
 import { env } from '../../config/env.js';
 import { logger } from '../../common/logger.js';
+import { processResendWebhookEvent } from '../admin-email/admin-email.service.js';
 
 type ResendWebhookEvent = {
   type?: string;
@@ -15,7 +16,7 @@ type ResendWebhookEvent = {
 
 export const resendWebhookRouter = Router();
 
-resendWebhookRouter.post('/', raw({ type: 'application/json', limit: '1mb' }), (req, res) => {
+resendWebhookRouter.post('/', raw({ type: 'application/json', limit: '1mb' }), async (req, res) => {
   const payload = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : '';
 
   if (!payload) {
@@ -68,6 +69,21 @@ resendWebhookRouter.post('/', raw({ type: 'application/json', limit: '1mb' }), (
       emailId: event.data?.email_id ?? null,
     },
   });
+
+  try {
+    await processResendWebhookEvent(event, svixId);
+  } catch (error) {
+    logger.error('Resend webhook processing failed', error, {
+      action: 'resend_webhook_processing_failed',
+      meta: {
+        svixId,
+        type: event.type ?? 'unknown',
+        emailId: event.data?.email_id ?? null,
+      },
+    });
+    res.status(500).json({ error: 'Webhook processing failed' });
+    return;
+  }
 
   res.status(202).json({ received: true });
 });

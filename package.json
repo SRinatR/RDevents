@@ -2,7 +2,7 @@
   "name": "event-platform-mvp",
   "private": true,
   "version": "0.1.0",
-  "packageManager": "pnpm@10.33.1",
+  "packageManager": "pnpm@10.33.2",
   "engines": {
     "node": ">=24.0.0",
     "pnpm": ">=10.33.0"
@@ -16,7 +16,7 @@
     "build:api": "corepack pnpm --filter @event-platform/api run build",
     "typecheck": "corepack pnpm --filter @event-platform/shared run typecheck && corepack pnpm --filter @event-platform/ui run typecheck && corepack pnpm --filter @event-platform/api run typecheck && corepack pnpm --filter @event-platform/web run typecheck",
     "lint": "corepack pnpm --filter @event-platform/shared run lint && corepack pnpm --filter @event-platform/ui run lint && corepack pnpm --filter @event-platform/api run lint && corepack pnpm --filter @event-platform/web run lint",
-    "test": "corepack pnpm --filter @event-platform/shared run test && corepack pnpm --filter @event-platform/ui run test && corepack pnpm --filter @event-platform/api run test && corepack pnpm --filter @event-platform/web run test",
+    "test": "corepack pnpm --filter @event-platform/shared run build && corepack pnpm --filter @event-platform/shared run test && corepack pnpm --filter @event-platform/ui run test && corepack pnpm --filter @event-platform/api run test && corepack pnpm --filter @event-platform/web run test",
     "clean": "corepack pnpm --filter @event-platform/shared run clean && corepack pnpm --filter @event-platform/ui run clean && corepack pnpm --filter @event-platform/api run clean && corepack pnpm --filter @event-platform/web run clean && node -e \"const fs=require('fs'); ['node_modules','.turbo'].forEach(p=>fs.rmSync(p,{recursive:true,force:true}))\"",
     "db:generate": "corepack pnpm --filter @event-platform/api prisma generate",
     "db:migrate": "corepack pnpm --filter @event-platform/api prisma migrate dev",
@@ -45,8 +45,8 @@
     "@next/eslint-plugin-next": "^16.2.3",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
-    "@types/supertest": "^6.0.3",
-    "@types/node": "^24.0.0",
+    "@types/supertest": "^7.2.0",
+    "@types/node": "^25.6.0",
     "eslint": "^9.25.0",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.2.0",
@@ -54,8 +54,8 @@
     "jsdom": "^26.1.0",
     "supertest": "^7.1.1",
     "turbo": "2.9.6",
-    "typescript": "6.0.2",
-    "typescript-eslint": "^8.30.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.0",
     "vitest": "^3.2.4"
   }
 }

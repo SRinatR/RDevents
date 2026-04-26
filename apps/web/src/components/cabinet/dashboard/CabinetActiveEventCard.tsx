@@ -61,8 +61,8 @@ export function CabinetActiveEventCard({ event, locale }: CabinetActiveEventCard
       </div>
 
       <div className="active-event-actions">
-        <Link href={`/${locale}/events/${event.slug}`} className="btn btn-secondary">
-          {locale === 'ru' ? 'Страница события' : 'Event page'}
+        <Link href={`/${locale}/cabinet/events/${event.slug}`} className="btn btn-secondary">
+          {locale === 'ru' ? 'Кабинет события' : 'Event cabinet'}
         </Link>
         <a href={`/api/events/${event.slug}/ics`} className="btn btn-ghost" download>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
