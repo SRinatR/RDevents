@@ -369,7 +369,7 @@ export async function resolveAudience(input: ResolveAudienceInput): Promise<Audi
   }, {});
 
   const offset = Math.max(0, Number(input.offset ?? 0));
-  const limit = Math.max(1, Number(input.resultLimit ?? items.length || 50));
+  const limit = Math.max(1, Number(input.resultLimit ?? (items.length || 50)));
   const visibleItems = (input.includeSkipped ? items : items.filter(item => item.eligible)).slice(offset, offset + limit);
 
   return {

@@ -13,6 +13,7 @@
     "build": "corepack pnpm --filter @event-platform/shared build && tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "start:report-worker": "node dist/report-worker.js",
+    "start:email-broadcast-worker": "node dist/email-broadcast-worker.js",
     "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "corepack pnpm --filter @event-platform/shared build && tsc -p tsconfig.json --noEmit",
     "test": "corepack pnpm --filter @event-platform/shared run build && vitest run",
