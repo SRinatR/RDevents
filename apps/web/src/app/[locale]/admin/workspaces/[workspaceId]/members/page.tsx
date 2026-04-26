@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { adminApi } from '@/lib/api';
 import { useRouteLocale, useRouteParam } from '@/hooks/useRouteParams';
 import { EmptyState, FieldInput, FieldSelect, LoadingLines, Notice, PageHeader, Panel, StatusBadge, TableShell } from '@/components/ui/signal-primitives';
@@ -16,16 +16,25 @@ export default function WorkspaceMembersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!workspaceId) return;
-    setLoading(true);
-    adminApi.listWorkspaceMembers(workspaceId)
-      .then((result) => setMembers(result.members ?? []))
-      .catch((err) => setError(err?.message || (isRu ? 'Не удалось загрузить сотрудников.' : 'Failed to load members.')))
-      .finally(() => setLoading(false));
-  }
 
-  useEffect(() => { void load(); }, [workspaceId]);
+    setLoading(true);
+    setError('');
+
+    try {
+      const result = await adminApi.listWorkspaceMembers(workspaceId);
+      setMembers(result.members ?? []);
+    } catch (err: any) {
+      setError(err?.message || (isRu ? 'Не удалось загрузить сотрудников.' : 'Failed to load members.'));
+    } finally {
+      setLoading(false);
+    }
+  }, [workspaceId, isRu]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();

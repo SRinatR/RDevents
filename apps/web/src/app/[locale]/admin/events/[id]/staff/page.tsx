@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { adminApi } from '@/lib/api';
 import { useRouteLocale, useRouteParam } from '@/hooks/useRouteParams';
 import { EmptyState, FieldInput, FieldSelect, LoadingLines, Notice, PageHeader, Panel, StatusBadge, TableShell } from '@/components/ui/signal-primitives';
@@ -17,19 +17,26 @@ export default function EventStaffPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!eventId) return;
-    setLoading(true);
-    adminApi.listEventStaff(eventId)
-      .then((result) => {
-        setGrants(result.grants ?? []);
-        setAccesses(result.accesses ?? []);
-      })
-      .catch((err) => setError(err?.message || (isRu ? 'Не удалось загрузить staff.' : 'Failed to load staff.')))
-      .finally(() => setLoading(false));
-  }
 
-  useEffect(() => { void load(); }, [eventId]);
+    setLoading(true);
+    setError('');
+
+    try {
+      const result = await adminApi.listEventStaff(eventId);
+      setGrants(result.grants ?? []);
+      setAccesses(result.accesses ?? []);
+    } catch (err: any) {
+      setError(err?.message || (isRu ? 'Не удалось загрузить staff.' : 'Failed to load staff.'));
+    } finally {
+      setLoading(false);
+    }
+  }, [eventId, isRu]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
