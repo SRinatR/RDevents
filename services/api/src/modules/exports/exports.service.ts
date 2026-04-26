@@ -14,6 +14,10 @@ export interface ExportConfig {
     status?: string[];
     hasTeam?: boolean;
     hasPhoto?: boolean;
+    includeArchived?: boolean;
+    includeRejected?: boolean;
+    includeCancelled?: boolean;
+    includeRemoved?: boolean;
   };
 }
 
@@ -399,16 +403,20 @@ export async function exportTeamMembers(eventId: string, config: { filters?: Ext
     throw new Error('Event not found');
   }
 
+  const explicitTeamStatuses = config.filters?.status;
   const includeArchived = config.filters?.includeArchived ?? false;
   const includeRejected = config.filters?.includeRejected ?? false;
+  const includeRemoved = config.filters?.includeRemoved ?? false;
 
-  const teamStatusList: string[] = [];
-  if (!includeArchived) teamStatusList.push('ACTIVE', 'PENDING', 'SUBMITTED', 'DRAFT');
-  if (includeRejected) teamStatusList.push('REJECTED', 'CHANGES_PENDING');
+  const teamStatusList: string[] = explicitTeamStatuses?.length
+    ? [...explicitTeamStatuses]
+    : ['ACTIVE', 'PENDING', 'SUBMITTED', 'DRAFT', 'CHANGES_PENDING'];
+  if (!explicitTeamStatuses?.length && includeRejected) teamStatusList.push('REJECTED');
+  if (!explicitTeamStatuses?.length && includeArchived) teamStatusList.push('ARCHIVED');
 
-  const memberStatusList: string[] = [];
-  if (!includeArchived) memberStatusList.push('ACTIVE', 'PENDING');
+  const memberStatusList: string[] = ['ACTIVE', 'PENDING'];
   if (includeRejected) memberStatusList.push('REJECTED');
+  if (includeRemoved) memberStatusList.push('REMOVED', 'LEFT');
 
   const whereCondition: Record<string, unknown> = {
     team: {

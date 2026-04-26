@@ -448,6 +448,35 @@ export const adminApi = {
   getTeam: (teamId: string) =>
     request<{ data: any }>(`/api/admin/teams/${teamId}`, { auth: true }),
 
+  updateTeam: (teamId: string, body: {
+    name?: string;
+    description?: string | null;
+    maxSize?: number;
+    status?: string;
+    captainUserId?: string;
+  }) =>
+    request<{ data: any }>(`/api/admin/teams/${teamId}`, { method: 'PATCH', auth: true, body }),
+
+  addTeamMember: (teamId: string, body: {
+    userId?: string;
+    email?: string;
+    role?: 'CAPTAIN' | 'MEMBER';
+    status?: 'PENDING' | 'ACTIVE' | 'REJECTED' | 'REMOVED' | 'LEFT';
+  }) =>
+    request<{ data: any }>(`/api/admin/teams/${teamId}/members`, { method: 'POST', auth: true, body }),
+
+  updateTeamMember: (teamId: string, userId: string, body: {
+    role?: 'CAPTAIN' | 'MEMBER';
+    status?: 'PENDING' | 'ACTIVE' | 'REJECTED' | 'REMOVED' | 'LEFT';
+  }) =>
+    request<{ data: any }>(`/api/admin/teams/${teamId}/members/${userId}`, { method: 'PATCH', auth: true, body }),
+
+  removeTeamMember: (teamId: string, userId: string) =>
+    request<{ data: any }>(`/api/admin/teams/${teamId}/members/${userId}`, { method: 'DELETE', auth: true }),
+
+  transferTeamCaptain: (teamId: string, userId: string) =>
+    request<{ data: any }>(`/api/admin/teams/${teamId}/captain`, { method: 'POST', auth: true, body: { userId } }),
+
   getUserStats: () =>
     request<any>('/api/admin/users/stats', { auth: true }),
 

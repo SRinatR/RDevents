@@ -61,6 +61,13 @@ jobs:
         with:
           ref: ${{ needs.validate-ref.outputs.release_ref }}
 
+      - name: Validate deploy scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n ops/deploy-production.sh
+          bash -n ops/verify-production-release.sh
+
       - name: Confirm deployment commit
         shell: bash
         run: |
@@ -108,7 +115,7 @@ jobs:
           set -euo pipefail
           ARCHIVE_PATH="$RUNNER_TEMP/$ARCHIVE_NAME"
 
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "mkdir -p $DEPLOY_ROOT"
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "mkdir -p '$DEPLOY_ROOT'"
           scp -P "$PROD_PORT" -i ~/.ssh/id_ed25519 "$ARCHIVE_PATH" "$PROD_USER@$PROD_HOST:$DEPLOY_ROOT/$ARCHIVE_NAME"
 
       - name: Write env file on server
@@ -120,10 +127,28 @@ jobs:
           PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
         run: |
           set -euo pipefail
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "mkdir -p $DEPLOY_ROOT"
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "cat > $DEPLOY_ROOT/.env" <<< "$PROD_ENV_FILE"
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "mkdir -p '$DEPLOY_ROOT'"
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "cat > '$DEPLOY_ROOT/.env'" <<< "$PROD_ENV_FILE"
+
+      - name: Upload deploy scripts
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          set -euo pipefail
+          scp -P "$PROD_PORT" -i ~/.ssh/id_ed25519 \
+            ops/deploy-production.sh \
+            "$PROD_USER@$PROD_HOST:/tmp/rdevents-deploy-production.sh"
+          scp -P "$PROD_PORT" -i ~/.ssh/id_ed25519 \
+            ops/verify-production-release.sh \
+            "$PROD_USER@$PROD_HOST:/tmp/rdevents-verify-production-release.sh"
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
+            "chmod 700 /tmp/rdevents-deploy-production.sh /tmp/rdevents-verify-production-release.sh"
 
       - name: Deploy on server
+        id: deploy_server
         shell: bash
         env:
           PROD_HOST: ${{ secrets.PROD_HOST }}
@@ -133,622 +158,9 @@ jobs:
           set -euo pipefail
 
           ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
-            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' ARCHIVE_NAME='$ARCHIVE_NAME' RELEASE_SHA='$RELEASE_SHA' bash -se" << 'EOF'
-            set -euo pipefail
+            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' ARCHIVE_NAME='$ARCHIVE_NAME' RELEASE_SHA='$RELEASE_SHA' bash /tmp/rdevents-deploy-production.sh"
 
-            LOG_DIR="$DEPLOY_ROOT/deploy-logs"
-            mkdir -p "$LOG_DIR"
-            LOG_FILE="$LOG_DIR/deploy-$RELEASE_SHA-$(date +%Y%m%d-%H%M%S).log"
-            exec > >(tee -a "$LOG_FILE") 2>&1
-
-            RUNTIME_DIR="$DEPLOY_ROOT/runtime"
-            mkdir -p "$RUNTIME_DIR"
-
-            STATE_FILE="$RUNTIME_DIR/deploy-state.json"
-            CURRENT_STAGE="init"
-
-            set_stage() {
-              stage="$1"
-              status="${2:-running}"
-              printf '{"releaseSha":"%s","status":"%s","stage":"%s","ts":"%s"}\n' \
-                "$RELEASE_SHA" \
-                "$status" \
-                "$stage" \
-                "$(date -u +%FT%TZ)" > "$STATE_FILE"
-              echo "[STAGE] $stage -> $status"
-            }
-
-            get_last_deploy_log() {
-              ls -t "$LOG_DIR"/deploy-*.log 2>/dev/null | head -1
-            }
-
-            dump_diagnostics() {
-              local last_log
-              last_log=$(get_last_deploy_log)
-
-              echo
-              echo "========== DEPLOY DIAGNOSTICS =========="
-              echo "TIMESTAMP=$(date -u +%FT%TZ)"
-              echo "CURRENT_STAGE=$CURRENT_STAGE"
-              echo "RELEASE_SHA=$RELEASE_SHA"
-              echo "LAST_LOG_FILE=$last_log"
-              echo ""
-              echo "--- Docker Compose PS ---"
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps 2>&1 || true
-              echo ""
-              echo "--- Docker Images (rdevents) ---"
-              docker images 'app-*' --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.CreatedAt}}' 2>&1 || true
-              echo ""
-              echo "--- Postgres Logs (last 40) ---"
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=40 postgres 2>&1 || true
-              echo ""
-              echo "--- API Logs (last 40) ---"
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=40 api 2>&1 || true
-              echo ""
-              echo "--- Web Logs (last 40) ---"
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=40 web 2>&1 || true
-              echo ""
-              if [ -n "$last_log" ] && [ -f "$last_log" ]; then
-                echo "--- Last 120 lines of deploy log ($last_log) ---"
-                tail -120 "$last_log" 2>&1 || true
-              fi
-              echo ""
-              echo "--- Nginx Error Log (last 30) ---"
-              tail -30 /var/log/nginx/error.log 2>/dev/null || echo "(no nginx error log)"
-              echo ""
-              echo "--- Runtime state ---"
-              cat "$STATE_FILE" 2>/dev/null || echo "(no state file)"
-              echo ""
-              echo "--- Embedded release markers ---"
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml exec -T api sh -lc 'cat /app/services/api/release.txt' 2>/dev/null || echo "(cannot read api release.txt)"
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml exec -T web sh -lc 'cat /app/apps/web/public/version.txt' 2>/dev/null || echo "(cannot read web version.txt)"
-              echo ""
-              echo "========================================"
-            }
-
-            on_error() {
-              rc=${1:-$?}
-              set_stage "$CURRENT_STAGE" "failed"
-              echo ""
-              echo "========== DEPLOY FAILED =========="
-              echo "Exit code: $rc"
-              echo "Failed at stage: $CURRENT_STAGE"
-              echo "==================================="
-              dump_diagnostics
-              exit "$rc"
-            }
-
-            trap 'rc=$?; on_error $rc' ERR
-
-            set_stage "$CURRENT_STAGE"
-
-            mkdir -p "$APP_DIR"
-            find "$APP_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-
-            tar -xzf "$DEPLOY_ROOT/$ARCHIVE_NAME" -C "$APP_DIR"
-            rm -f "$DEPLOY_ROOT/$ARCHIVE_NAME"
-
-            cd "$APP_DIR"
-
-            echo "Release SHA: $RELEASE_SHA"
-            export RELEASE_SHA
-
-            CURRENT_STAGE="build-images"
-            set_stage "$CURRENT_STAGE"
-
-            SKIP_BUILD=false
-            if [ -f "$RUNTIME_DIR/images-built-$RELEASE_SHA.json" ]; then
-              echo "Found images-built marker for $RELEASE_SHA"
-              STORED_SHA=$(sed -n 's/.*"releaseSha":"\([^"]*\)".*/\1/p' "$RUNTIME_DIR/images-built-$RELEASE_SHA.json" | head -1)
-              if [ "$STORED_SHA" = "$RELEASE_SHA" ]; then
-                echo "Images already built for this release SHA. Checking if images exist locally..."
-                if docker image inspect app-api:latest >/dev/null 2>&1 && \
-                   docker image inspect app-web:latest >/dev/null 2>&1; then
-                  echo "Images found locally. Skipping build phase."
-                  SKIP_BUILD=true
-                else
-                  echo "Images not found locally. Proceeding with build."
-                fi
-              fi
-            fi
-
-            if [ "$SKIP_BUILD" = "true" ]; then
-              echo "Skipping docker compose build (recovery mode)"
-              EXPECTED_API_IMAGE_ID=$(sed -n 's/.*"api":"\([^"]*\)".*/\1/p' "$RUNTIME_DIR/images-built-$RELEASE_SHA.json" | head -1)
-              EXPECTED_WEB_IMAGE_ID=$(sed -n 's/.*"web":"\([^"]*\)".*/\1/p' "$RUNTIME_DIR/images-built-$RELEASE_SHA.json" | head -1)
-              echo "Recovered EXPECTED_API_IMAGE_ID=$EXPECTED_API_IMAGE_ID"
-              echo "Recovered EXPECTED_WEB_IMAGE_ID=$EXPECTED_WEB_IMAGE_ID"
-              if [ -z "$EXPECTED_API_IMAGE_ID" ] || [ -z "$EXPECTED_WEB_IMAGE_ID" ]; then
-                echo "ERROR: cannot recover image IDs from $RUNTIME_DIR/images-built-$RELEASE_SHA.json"
-                exit 1
-              fi
-            else
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml build api web
-
-              CURRENT_STAGE="capture-built-image-ids"
-              set_stage "$CURRENT_STAGE"
-
-              EXPECTED_API_IMAGE_ID="$(docker image inspect app-api:latest --format '{{.Id}}')"
-              EXPECTED_WEB_IMAGE_ID="$(docker image inspect app-web:latest --format '{{.Id}}')"
-
-              echo "EXPECTED_API_IMAGE_ID=$EXPECTED_API_IMAGE_ID"
-              echo "EXPECTED_WEB_IMAGE_ID=$EXPECTED_WEB_IMAGE_ID"
-
-              test -n "$EXPECTED_API_IMAGE_ID"
-              test -n "$EXPECTED_WEB_IMAGE_ID"
-
-              # Write marker for recovery: this release's images have been built
-              printf '{"releaseSha":"%s","imagesBuilt":true,"imageIds":{"api":"%s","web":"%s"},"builtAt":"%s"}\n' \
-                "$RELEASE_SHA" \
-                "$EXPECTED_API_IMAGE_ID" \
-                "$EXPECTED_WEB_IMAGE_ID" \
-                "$(date -u +%FT%TZ)" > "$RUNTIME_DIR/images-built-$RELEASE_SHA.json"
-
-              echo "Image build marker written for recovery"
-            fi
-
-            echo "Images built for release SHA=$RELEASE_SHA"
-
-            CURRENT_STAGE="images-ready"
-            set_stage "$CURRENT_STAGE"
-
-            # Ensure postgres is up, without touching running api/web yet.
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml up -d postgres
-
-            echo "Waiting for postgres to be healthy..."
-            POSTGRES_CID=$(docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps -q postgres 2>/dev/null || true)
-            if [ -z "$POSTGRES_CID" ]; then
-              echo "Could not find postgres container ID."
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
-              exit 1
-            fi
-
-            for i in $(seq 1 30); do
-              HEALTH=$(docker inspect -f '{{.State.Health.Status}}' "$POSTGRES_CID" 2>/dev/null || echo "unknown")
-              if [ "$HEALTH" = "healthy" ]; then
-                echo "Postgres is healthy."
-                break
-              fi
-              if [ "$i" -eq 30 ]; then
-                echo "Postgres did not become healthy in time (last status: $HEALTH)."
-                docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
-                docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=40 postgres
-                exit 1
-              fi
-              echo "Waiting for postgres... ($i/30, status: $HEALTH)"
-              sleep 2
-            done
-
-            wait_for_service_healthy() {
-              service="$1"
-              timeout="${2:-180}"
-
-              cid="$(docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps -q "$service" 2>/dev/null || true)"
-              if [ -z "$cid" ]; then
-                echo "Could not find container ID for service '$service'"
-                return 1
-              fi
-
-              elapsed=0
-              while [ "$elapsed" -lt "$timeout" ]; do
-                status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' "$cid" 2>/dev/null || echo unknown)"
-                if [ "$status" = "healthy" ]; then
-                  echo "Service '$service' is healthy"
-                  return 0
-                fi
-
-                echo "Waiting for '$service' to become healthy... elapsed=${elapsed}s status=$status"
-                sleep 3
-                elapsed=$((elapsed + 3))
-              done
-
-              echo "Service '$service' did not become healthy in ${timeout}s"
-              return 1
-            }
-
-            CURRENT_STAGE="backup-before-migrate"
-            set_stage "$CURRENT_STAGE"
-
-            BACKUP_DIR="$DEPLOY_ROOT/backups"
-            mkdir -p "$BACKUP_DIR"
-            BACKUP_FILE="$BACKUP_DIR/pre-migrate-$(date +%Y%m%d-%H%M%S).sql.gz"
-
-            BACKUP_START=$(date +%s)
-            BACKUP_TIMEOUT=120
-
-            echo "Starting postgres backup with ${BACKUP_TIMEOUT}s timeout..."
-
-            backup_status=0
-            timeout "$BACKUP_TIMEOUT"s docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
-              exec -T postgres sh -lc 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
-              | gzip > "$BACKUP_FILE" || backup_status=$?
-
-            BACKUP_END=$(date +%s)
-            BACKUP_DURATION=$((BACKUP_END - BACKUP_START))
-
-            if [ $backup_status -eq 124 ]; then
-              echo "WARNING: Backup timed out after ${BACKUP_TIMEOUT}s"
-              rm -f "$BACKUP_FILE"
-            elif [ $backup_status -ne 0 ]; then
-              echo "WARNING: Backup failed with exit code $backup_status"
-              rm -f "$BACKUP_FILE"
-            elif [ ! -s "$BACKUP_FILE" ]; then
-              echo "WARNING: Backup file is empty or missing"
-              rm -f "$BACKUP_FILE"
-            else
-              echo "Backup written to $BACKUP_FILE ($(du -sh "$BACKUP_FILE" | cut -f1)) in ${BACKUP_DURATION}s"
-            fi
-
-            echo "Checking DATABASE_URL in production env..."
-            if ! grep -Eq '^DATABASE_URL=.*@postgres:5432/' "$DEPLOY_ROOT/.env" 2>/dev/null; then
-              echo "ERROR: production DATABASE_URL must use host 'postgres:5432' inside docker-compose network."
-              echo "This is required because Prisma connects from inside the api container, where 'postgres' resolves to the DB service."
-              echo "Current DATABASE_URL:"
-              grep '^DATABASE_URL=' "$DEPLOY_ROOT/.env" || true
-              echo "Example of correct production DATABASE_URL:"
-              echo "  postgresql://event_platform_user:event_platform_password@postgres:5432/event_platform?schema=public"
-              exit 1
-            fi
-
-            CURRENT_STAGE="migrate"
-            set_stage "$CURRENT_STAGE"
-
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
-              run --rm --no-deps --entrypoint sh api -lc 'cd /app/services/api && pnpm exec prisma migrate deploy'
-
-            CURRENT_STAGE="recreate-api-web"
-            set_stage "$CURRENT_STAGE"
-
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
-              up -d --force-recreate --remove-orphans api web
-
-            CURRENT_STAGE="wait-api-healthy"
-            set_stage "$CURRENT_STAGE"
-            wait_for_service_healthy api 180
-
-            CURRENT_STAGE="wait-web-healthy"
-            set_stage "$CURRENT_STAGE"
-            wait_for_service_healthy web 240
-
-            CURRENT_STAGE="verify-running-image-ids"
-            set_stage "$CURRENT_STAGE"
-
-            RUNNING_API_CID="$(docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps -q api)"
-            RUNNING_WEB_CID="$(docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps -q web)"
-
-            RUNNING_API_IMAGE_ID="$(docker inspect "$RUNNING_API_CID" --format '{{.Image}}')"
-            RUNNING_WEB_IMAGE_ID="$(docker inspect "$RUNNING_WEB_CID" --format '{{.Image}}')"
-
-            echo "RUNNING_API_IMAGE_ID=$RUNNING_API_IMAGE_ID"
-            echo "RUNNING_WEB_IMAGE_ID=$RUNNING_WEB_IMAGE_ID"
-
-            if [ "$RUNNING_API_IMAGE_ID" != "$EXPECTED_API_IMAGE_ID" ]; then
-              echo "FAIL: api container is not running the freshly built image"
-              echo "expected=$EXPECTED_API_IMAGE_ID actual=$RUNNING_API_IMAGE_ID"
-              exit 1
-            fi
-
-            if [ "$RUNNING_WEB_IMAGE_ID" != "$EXPECTED_WEB_IMAGE_ID" ]; then
-              echo "FAIL: web container is not running the freshly built image"
-              echo "expected=$EXPECTED_WEB_IMAGE_ID actual=$RUNNING_WEB_IMAGE_ID"
-              exit 1
-            fi
-
-            verify_container_sha() {
-              service="$1"
-              path="$2"
-              label="$3"
-
-              actual=$(docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml \
-                exec -T "$service" sh -lc "cat '$path'" 2>/dev/null | tr -d '\r\n')
-
-              if [ -z "$actual" ]; then
-                echo "FAIL: $label release file is empty or unreadable: $path"
-                return 1
-              fi
-
-              if [ "$actual" != "$RELEASE_SHA" ]; then
-                echo "FAIL: $label container release is '$actual', expected '$RELEASE_SHA'."
-                return 1
-              fi
-
-              echo "$actual"
-              return 0
-            }
-
-            verify_http_sha_plain() {
-              url="$1"
-              label="$2"
-
-              body_file=$(mktemp)
-              err_file=$(mktemp)
-              ret=1
-
-              for attempt in $(seq 1 30); do
-                code=$(curl -sS -o "$body_file" -w "%{http_code}" "$url?ts=$(date +%s)" 2>"$err_file" || true)
-                body=$(cat "$body_file" 2>/dev/null | tr -d '\r\n' || true)
-
-                if [ "$code" = "200" ] && [ "$body" = "$RELEASE_SHA" ]; then
-                  echo "OK: $label returned correct SHA: $body"
-                  ret=0
-                  break
-                fi
-
-                echo "Attempt $attempt/30: $label returned code=$code body='$body'"
-                if [ "$attempt" -lt 30 ]; then
-                  sleep 2
-                fi
-              done
-
-              if [ $ret -ne 0 ]; then
-                echo "FAIL: $label did not return expected SHA '$RELEASE_SHA'."
-                echo "Last code=$code body='$(cat "$body_file" 2>/dev/null | tr -d '\r\n' || true)'"
-                echo "Last curl error: $(cat "$err_file" 2>/dev/null || true)"
-              fi
-
-              rm -f "$body_file" "$err_file"
-              return $ret
-            }
-
-            verify_http_sha_json() {
-              url="$1"
-              label="$2"
-
-              body_file=$(mktemp)
-              err_file=$(mktemp)
-              ret=1
-
-              for attempt in $(seq 1 30); do
-                code=$(curl -sS -o "$body_file" -w "%{http_code}" "$url?ts=$(date +%s)" 2>"$err_file" || true)
-                body=$(cat "$body_file" 2>/dev/null || true)
-                extracted=$(printf '%s' "$body" | sed -n 's/.*"releaseSha":"\([^"]*\)".*/\1/p' | tr -d '\r\n')
-
-                if [ "$code" = "200" ] && [ "$extracted" = "$RELEASE_SHA" ]; then
-                  echo "OK: $label returned correct releaseSha: $extracted"
-                  ret=0
-                  break
-                fi
-
-                echo "Attempt $attempt/30: $label returned code=$code releaseSha='$extracted'"
-                if [ "$attempt" -lt 30 ]; then
-                  sleep 2
-                fi
-              done
-
-              if [ $ret -ne 0 ]; then
-                echo "FAIL: $label did not return expected releaseSha '$RELEASE_SHA'."
-                echo "Last body: $(cat "$body_file" 2>/dev/null || true)"
-                echo "Last curl error: $(cat "$err_file" 2>/dev/null || true)"
-              fi
-
-              rm -f "$body_file" "$err_file"
-              return $ret
-            }
-
-            verify_html_release_meta() {
-              url="$1"
-              label="$2"
-
-              body_file=$(mktemp)
-              err_file=$(mktemp)
-              ret=1
-
-              for attempt in $(seq 1 30); do
-                code=$(curl -sS -o "$body_file" -w "%{http_code}" "$url?ts=$(date +%s)" 2>"$err_file" || true)
-                extracted=$(sed -n 's/.*app-release-sha" content="\([^"]*\)".*/\1/p' "$body_file" | tr -d '\r\n')
-
-                if [ "$code" = "200" ] && [ "$extracted" = "$RELEASE_SHA" ]; then
-                  echo "OK: $label HTML release marker = $extracted"
-                  ret=0
-                  break
-                fi
-
-                echo "Attempt $attempt/30: $label code=$code htmlRelease='$extracted'"
-                if [ "$attempt" -lt 30 ]; then
-                  sleep 2
-                fi
-              done
-
-              if [ $ret -ne 0 ]; then
-                echo "FAIL: $label did not return expected HTML release marker '$RELEASE_SHA'."
-                echo "Last body:"
-                cat "$body_file" || true
-                echo "Last curl error:"
-                cat "$err_file" || true
-              fi
-
-              rm -f "$body_file" "$err_file"
-              return $ret
-            }
-
-            check_ingress_status() {
-              url="$1"
-              expected="$2"
-              label="$3"
-
-              body_file=$(mktemp)
-              err_file=$(mktemp)
-              ret=1
-
-              for attempt in $(seq 1 30); do
-                code=$(curl -sS -I -o "$body_file" -w "%{http_code}" "$url?ts=$(date +%s)" 2>"$err_file" || true)
-
-                if [ "$code" = "$expected" ]; then
-                  echo "OK: $label returned expected status $code"
-                  ret=0
-                  break
-                fi
-
-                echo "Attempt $attempt/30: $label returned code=$code, expected=$expected"
-                if [ "$attempt" -lt 30 ]; then
-                  sleep 2
-                fi
-              done
-
-              if [ $ret -ne 0 ]; then
-                echo "FAIL: $label did not return expected status $expected"
-                echo "Last response headers:"
-                cat "$body_file" 2>/dev/null || true
-                echo "Last curl error:"
-                cat "$err_file" 2>/dev/null || true
-              fi
-
-              rm -f "$body_file" "$err_file"
-              return $ret
-            }
-
-            verify_runtime_file() {
-              path="$1"
-              label="$2"
-
-              if [ ! -f "$path" ]; then
-                echo "FAIL: $label is missing: $path"
-                return 1
-              fi
-
-              actual=$(tr -d '\r\n' < "$path")
-              if [ "$actual" != "$RELEASE_SHA" ]; then
-                echo "FAIL: $label contains '$actual', expected '$RELEASE_SHA'."
-                return 1
-              fi
-
-              echo "OK: $label updated to $actual"
-              return 0
-            }
-
-            run_privileged() {
-              if [ "$(id -u)" -eq 0 ]; then
-                "$@"
-              else
-                sudo "$@"
-              fi
-            }
-
-            CURRENT_STAGE="host-install"
-            set_stage "$CURRENT_STAGE"
-
-            run_privileged mkdir -p /opt/rdevents/runtime
-            run_privileged mkdir -p /opt/rdevents/runtime/reports
-            run_privileged mkdir -p /var/log/rdevents
-
-            run_privileged bash -c 'command -v bash >/dev/null 2>&1 || apt-get install -y bash'
-
-            run_privileged systemctl daemon-reload
-
-            CURRENT_STAGE="local-verification"
-            set_stage "$CURRENT_STAGE"
-
-            FAILED=0
-
-            API_CONTAINER_SHA=$(verify_container_sha api "/app/services/api/release.txt" "API") || FAILED=1
-            WEB_CONTAINER_SHA=$(verify_container_sha web "/app/apps/web/public/version.txt" "Web") || FAILED=1
-
-            if [ "$FAILED" -eq 0 ] && [ "$API_CONTAINER_SHA" != "$WEB_CONTAINER_SHA" ]; then
-              echo "FAIL: API and Web container SHAs differ: api='$API_CONTAINER_SHA', web='$WEB_CONTAINER_SHA'"
-              FAILED=1
-            fi
-
-            verify_http_sha_plain "http://127.0.0.1:4000/version" "API local /version" || FAILED=1
-            verify_http_sha_plain "http://127.0.0.1:4000/api/version" "API local /api/version" || FAILED=1
-            verify_http_sha_plain "http://127.0.0.1:3000/version.txt" "Web local /version.txt" || FAILED=1
-            verify_http_sha_json "http://127.0.0.1:4000/release.json" "API local /release.json" || FAILED=1
-            verify_http_sha_json "http://127.0.0.1:3000/release.json" "Web local /release.json" || FAILED=1
-            verify_html_release_meta "http://127.0.0.1:3000/ru" "Web local /ru" || FAILED=1
-
-            if [ $FAILED -ne 0 ]; then
-              echo ""
-              echo "=========================================="
-              echo "DEPLOYMENT FAILED: Local SHA verification failed."
-              echo "Expected RELEASE_SHA: $RELEASE_SHA"
-              echo "=========================================="
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=80 api
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=80 web
-              exit 1
-            fi
-
-            CURRENT_STAGE="sync-runtime-fallback"
-            set_stage "$CURRENT_STAGE"
-
-            # Sync nginx runtime fallback only after local app verification passed.
-            RUNTIME_DIR="$DEPLOY_ROOT/runtime"
-            mkdir -p "$RUNTIME_DIR"
-            printf '%s\n' "$RELEASE_SHA" > "$RUNTIME_DIR/version.txt"
-            printf '%s\n' "$RELEASE_SHA" > "$RUNTIME_DIR/version"
-            printf '{"service":"event-platform-web","releaseSha":"%s"}\n' "$RELEASE_SHA" > "$RUNTIME_DIR/release.json"
-
-            verify_runtime_file "$RUNTIME_DIR/version.txt" "Runtime version.txt" || FAILED=1
-            verify_runtime_file "$RUNTIME_DIR/version" "Runtime version" || FAILED=1
-            RELEASE_JSON_SHA=$(sed -n 's/.*"releaseSha":"\([^"]*\)".*/\1/p' "$RUNTIME_DIR/release.json" | tr -d '\r\n')
-            if [ "$RELEASE_JSON_SHA" != "$RELEASE_SHA" ]; then
-              echo "FAIL: Runtime release.json contains releaseSha='$RELEASE_JSON_SHA', expected '$RELEASE_SHA'."
-              FAILED=1
-            else
-              echo "OK: Runtime release.json updated to $RELEASE_JSON_SHA"
-            fi
-
-            CURRENT_STAGE="reload-nginx"
-            set_stage "$CURRENT_STAGE"
-
-            run_privileged nginx -t || FAILED=1
-            run_privileged systemctl reload nginx || FAILED=1
-
-            CURRENT_STAGE="public-verification"
-            set_stage "$CURRENT_STAGE"
-
-            check_ingress_status "https://rdevents.uz/" "307" "Public root" || FAILED=1
-            check_ingress_status "https://rdevents.uz/ru" "200" "Public /ru" || FAILED=1
-            check_ingress_status "https://rdevents.uz/ru/events" "200" "Public /ru/events" || FAILED=1
-            check_ingress_status "https://api.rdevents.uz/health" "200" "Public API /health" || FAILED=1
-            verify_http_sha_json "https://api.rdevents.uz/release.json" "API public /release.json" || FAILED=1
-            verify_http_sha_json "https://rdevents.uz/release.json" "Web public /release.json" || FAILED=1
-            verify_html_release_meta "https://rdevents.uz/ru" "Web public /ru" || FAILED=1
-            verify_http_sha_plain "http://127.0.0.1:3000/version.txt" "Required check: Web local /version.txt" || FAILED=1
-            verify_http_sha_plain "http://127.0.0.1:4000/version" "Required check: API local /version" || FAILED=1
-            verify_http_sha_plain "https://rdevents.uz/version.txt" "Required check: Web public /version.txt" || FAILED=1
-            verify_http_sha_plain "https://api.rdevents.uz/version" "Required check: API public /version" || FAILED=1
-
-            if [ $FAILED -ne 0 ]; then
-              echo ""
-              echo "=========================================="
-              echo "DEPLOYMENT FAILED: Release marker verification failed."
-              echo "Expected RELEASE_SHA: $RELEASE_SHA"
-              echo "=========================================="
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=80 api
-              docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml logs --tail=80 web
-              tail -80 /var/log/nginx/error.log 2>/dev/null || true
-              exit 1
-            fi
-
-            CURRENT_STAGE="finalize-success"
-            set_stage "$CURRENT_STAGE"
-
-            # Mark release as successful only after all checks passed.
-            printf '%s\n' "$RELEASE_SHA" > "$APP_DIR/.release-commit"
-
-            # Mark that this release's images have been built and deployed successfully.
-            printf '{"releaseSha":"%s","imagesBuilt":true,"deployedAt":"%s"}\n' \
-              "$RELEASE_SHA" \
-              "$(date -u +%FT%TZ)" > "$RUNTIME_DIR/release-$RELEASE_SHA.json"
-
-            printf '{"releaseSha":"%s","completedAt":"%s"}\n' \
-              "$RELEASE_SHA" \
-              "$(date -u +%FT%TZ)" > "$APP_DIR/.release-completed"
-
-            set_stage "success" "success"
-
-            echo ""
-            echo "=========================================="
-            echo "DEPLOYMENT SUCCESS: All containers and public endpoints are on the correct release."
-            echo "Release SHA: $RELEASE_SHA"
-            echo "=========================================="
-
-            docker image prune -f
-            docker compose --env-file "$DEPLOY_ROOT/.env" -f docker-compose.prod.yml ps
-          EOF
-
-      - name: Read deploy result from server
+      - name: Verify deployed release on server
         shell: bash
         env:
           PROD_HOST: ${{ secrets.PROD_HOST }}
@@ -757,24 +169,40 @@ jobs:
         run: |
           set -euo pipefail
 
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" << 'EOF'
-            set -euo pipefail
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
+            "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' RELEASE_SHA='$RELEASE_SHA' bash /tmp/rdevents-verify-production-release.sh"
 
+      - name: Read deploy result from server
+        if: always()
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          set +e
+
+          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" << 'EOF'
             echo "=== deploy-state.json ==="
             cat /opt/rdevents/runtime/deploy-state.json 2>/dev/null || echo "(no state file)"
             echo
 
             echo "=== .release-commit ==="
-            cat /opt/rdevents/app/.release-commit 2>/dev/null || echo "NO .release-commit (deploy may have failed or not reached finalize)"
+            cat /opt/rdevents/app/.release-commit 2>/dev/null || echo "NO .release-commit"
             echo
 
-            echo "=== running image ids ==="
-            docker inspect app-api-1 --format 'api={{.Image}}' 2>/dev/null || echo "api container not running"
-            docker inspect app-web-1 --format 'web={{.Image}}' 2>/dev/null || echo "web container not running"
+            echo "=== .release-completed ==="
+            cat /opt/rdevents/app/.release-completed 2>/dev/null || echo "NO .release-completed"
             echo
 
             echo "=== docker compose ps ==="
-            docker compose --env-file /opt/rdevents/.env -f /opt/rdevents/docker-compose.prod.yml ps 2>&1 || true
+            docker compose --env-file /opt/rdevents/.env -f /opt/rdevents/app/docker-compose.prod.yml ps 2>&1 || true
+            echo
+
+            echo "=== container release markers ==="
+            docker compose --env-file /opt/rdevents/.env -f /opt/rdevents/app/docker-compose.prod.yml exec -T api sh -lc 'cat /app/services/api/release.txt' 2>/dev/null || echo "(cannot read api release.txt)"
+            docker compose --env-file /opt/rdevents/.env -f /opt/rdevents/app/docker-compose.prod.yml exec -T web sh -lc 'cat /app/apps/web/public/version.txt' 2>/dev/null || echo "(cannot read web version.txt)"
+            docker compose --env-file /opt/rdevents/.env -f /opt/rdevents/app/docker-compose.prod.yml exec -T report-worker sh -lc 'cat /app/services/api/release.txt' 2>/dev/null || echo "(cannot read report-worker release.txt)"
             echo
 
             echo "=== public releases ==="
@@ -782,10 +210,14 @@ jobs:
             echo
             curl -fsS "https://api.rdevents.uz/release.json?ts=$(date +%s)" 2>/dev/null || echo "(cannot fetch api release.json)"
             echo
+            curl -fsS "https://rdevents.uz/version.txt?ts=$(date +%s)" 2>/dev/null || echo "(cannot fetch web version.txt)"
+            echo
           EOF
+
+          exit 0
 
       - name: Deployment complete
         shell: bash
         run: |
           set -euo pipefail
-          echo "Deploy production completed successfully for SHA ${RELEASE_SHA}"
+          echo "Deploy production completed and verified for SHA ${RELEASE_SHA}"

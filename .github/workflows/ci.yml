@@ -41,6 +41,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate ops scripts
+        run: |
+          bash -n ops/deploy-production.sh
+          bash -n ops/verify-production-release.sh
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -226,7 +231,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Docker compose build
-        run: docker compose -f docker-compose.prod.yml build api web
+        run: docker compose -f docker-compose.prod.yml build api web report-worker
 
   container-smoke:
     name: Container Smoke
@@ -275,13 +280,13 @@ jobs:
           docker compose -f docker-compose.prod.yml run --rm --no-deps --entrypoint sh api -lc \
             'echo "Effective DATABASE_URL: $DATABASE_URL" && cd /app/services/api && pnpm exec prisma migrate deploy'
 
-      - name: Start api and web
-        run: docker compose -f docker-compose.prod.yml up -d api web
+      - name: Start api, web, and report worker
+        run: docker compose -f docker-compose.prod.yml up -d api web report-worker
 
-      - name: Wait for api and web
+      - name: Wait for api, web, and report worker
         run: |
           set -euo pipefail
-          for service in api web; do
+          for service in api web report-worker; do
             CID=$(docker compose -f docker-compose.prod.yml ps -q "$service")
             for i in $(seq 1 40); do
               STATUS=$(docker inspect -f '{{.State.Status}}' "$CID")
@@ -309,6 +314,9 @@ jobs:
           curl -fsS http://127.0.0.1:4000/ready > /dev/null
           curl -fsS http://127.0.0.1:3000/ru > /dev/null
           curl -fsS http://127.0.0.1:3000/ru/events > /dev/null
+
+          docker compose -f docker-compose.prod.yml exec -T report-worker sh -lc \
+            'test "$(cat /app/services/api/release.txt)" = "$RELEASE_SHA"'
 
   required-checks:
     name: Required Checks

@@ -295,6 +295,7 @@ function escapeHtml(value: string) {
 
 export async function sendPasswordResetEmail(input: {
   to: string;
+  toUserId?: string | null;
   userName: string;
   resetUrl: string;
   expiresAt: string;
@@ -311,6 +312,7 @@ export async function sendPasswordResetEmail(input: {
     text,
     html,
     source: 'password_reset',
+    toUserId: input.toUserId ?? undefined,
   });
 }
 
