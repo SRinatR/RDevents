@@ -34,6 +34,13 @@ BEGIN
   END IF;
 END $$;
 
+-- Drop legacy FK if it exists. Current Prisma schema does not define
+-- registration_verifications.email as a relation to users.email.
+-- Keeping it during type conversion breaks citext migration because
+-- PostgreSQL sees text and citext as incompatible FK column types.
+ALTER TABLE registration_verifications
+  DROP CONSTRAINT IF EXISTS registration_verifications_email_fkey;
+
 UPDATE users
 SET email = lower(trim(email::text))
 WHERE email::text <> lower(trim(email::text));
