@@ -162,6 +162,7 @@ jobs:
           PORT: 4000
         run: |
           pnpm --filter @event-platform/api prisma:generate
+          pnpm --filter @event-platform/api prisma:deploy
           pnpm test
 
   build:
