@@ -3,7 +3,8 @@ import { prisma } from '../../db/prisma.js';
 import { sendPlatformEmail } from '../../common/email.js';
 import type { User } from '@prisma/client';
 import { canAccessEvent, getManagedEventIds } from '../access-control/access-control.service.js';
-import { resolveAudience, extractAudienceEventId, normalizeEmail } from '../email-audience/audience-resolver.service.js';
+import { resolveAudience, extractAudienceEventId } from '../email-audience/audience-resolver.service.js';
+import { normalizeEmail } from '@event-platform/shared';
 import { renderEmailContent, hasUnsubscribeVariable, requiresUnsubscribeVariable } from '../email/email-renderer.service.js';
 import { sanitizeEmailHtml } from '../email/email-sanitizer.service.js';
 import { getEmailProvider } from '../email/resend.provider.js';
@@ -691,6 +692,7 @@ export async function createEmailBroadcastSnapshot(id: string, actor?: User): Pr
   if (!broadcast) throw new Error('EMAIL_BROADCAST_NOT_FOUND');
   await ensureBroadcastAccess(actor, broadcast);
   const result = await resolveAudience({
+    broadcastId: id,
     broadcastType: toApiEnum(broadcast.type),
     audienceKind: toApiEnum(broadcast.audienceKind),
     audienceSource: toApiEnum(broadcast.audienceSource),
@@ -1091,15 +1093,56 @@ export async function emailBroadcastWorkerTick() {
     await prisma.emailBroadcast.update({ where: { id: broadcast.id }, data: { status: 'QUEUED' as any, sendMode: 'SEND_NOW' as any } });
     await addBroadcastEvent({ broadcastId: broadcast.id, type: 'QUEUED', payloadJson: { reason: 'scheduled_due' } });
   }
+
+  await prisma.emailBroadcastRecipient.updateMany({
+    where: {
+      status: 'SENDING' as any,
+      sendingStartedAt: {
+        lt: new Date(Date.now() - 15 * 60 * 1000),
+      },
+      retryCount: { lt: 3 },
+    },
+    data: {
+      status: 'QUEUED' as any,
+      failureReason: null,
+    },
+  });
+
   const broadcasts = await prisma.emailBroadcast.findMany({ where: { status: { in: ['QUEUED', 'SENDING'] as any[] } }, orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'asc' }], take: 5 });
   for (const broadcast of broadcasts) {
     if (broadcast.status === 'QUEUED') {
       await prisma.emailBroadcast.update({ where: { id: broadcast.id }, data: { status: 'SENDING' as any, startedAt: broadcast.startedAt ?? new Date(), errorText: null } });
       await addBroadcastEvent({ broadcastId: broadcast.id, type: 'SENDING_STARTED' });
     }
-    const recipients = await prisma.emailBroadcastRecipient.findMany({ where: { broadcastId: broadcast.id, status: 'QUEUED' as any }, orderBy: { queuedAt: 'asc' }, take: EMAIL_BROADCAST_BATCH_SIZE });
-    for (let index = 0; index < recipients.length; index += EMAIL_BROADCAST_CONCURRENCY) {
-      await Promise.all(recipients.slice(index, index + EMAIL_BROADCAST_CONCURRENCY).map(recipient => sendQueuedRecipient(broadcast, recipient)));
+    const claimedRecipients = await prisma.$transaction(async (tx) => {
+      const rows = await tx.emailBroadcastRecipient.findMany({
+        where: { broadcastId: broadcast.id, status: 'QUEUED' as any },
+        orderBy: { queuedAt: 'asc' },
+        take: EMAIL_BROADCAST_BATCH_SIZE,
+      });
+
+      if (rows.length === 0) return rows;
+
+      const updated = await tx.emailBroadcastRecipient.updateMany({
+        where: {
+          id: { in: rows.map(row => row.id) },
+          status: 'QUEUED' as any,
+        },
+        data: {
+          status: 'SENDING' as any,
+          sendingStartedAt: new Date(),
+        },
+      });
+
+      if (updated.count !== rows.length) {
+        return [];
+      }
+
+      return rows;
+    });
+
+    for (let index = 0; index < claimedRecipients.length; index += EMAIL_BROADCAST_CONCURRENCY) {
+      await Promise.all(claimedRecipients.slice(index, index + EMAIL_BROADCAST_CONCURRENCY).map(recipient => sendQueuedRecipient(broadcast, recipient)));
     }
     await recalculateBroadcastCounters(broadcast.id);
     const remaining = await prisma.emailBroadcastRecipient.count({ where: { broadcastId: broadcast.id, status: { in: ['QUEUED', 'SENDING'] as any[] } } });

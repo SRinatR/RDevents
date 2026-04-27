@@ -7,6 +7,7 @@ import { logger } from '../../common/logger.js';
 import { buildPublicMediaUrl } from '../../common/storage.js';
 import { env } from '../../config/env.js';
 import { prisma } from '../../db/prisma.js';
+import { normalizeEmail, normalizeOptionalEmail } from '../../common/email-normalization.js';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 import { bindPendingInvitationsToUser } from '../events/team-invitations.service.js';
 import { createSession } from './auth.sessions.js';
@@ -51,11 +52,13 @@ export function sanitizeUser(user: Record<string, unknown>) {
 }
 
 export async function startEmailRegistration(input: StartRegistrationInput) {
-  const existing = await prisma.user.findUnique({ where: { email: input.email } });
+  const email = normalizeEmail(input.email);
+
+  const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) throw new Error('EMAIL_TAKEN');
 
   const existingVerification = await prisma.registrationVerification.findUnique({
-    where: { email: input.email },
+    where: { email },
   });
   const now = Date.now();
   const lastCodeSentAt = existingVerification?.codeSentAt?.getTime() ?? 0;
@@ -72,7 +75,7 @@ export async function startEmailRegistration(input: StartRegistrationInput) {
   const codeExpiresAt = new Date(now + env.REGISTRATION_CODE_TTL * 1000);
 
   await prisma.registrationVerification.upsert({
-    where: { email: input.email },
+    where: { email },
     update: {
       codeHash: hashOpaqueValue(code),
       codeSentAt,
@@ -83,7 +86,7 @@ export async function startEmailRegistration(input: StartRegistrationInput) {
       attempts: 0,
     },
     create: {
-      email: input.email,
+      email,
       codeHash: hashOpaqueValue(code),
       codeSentAt,
       codeExpiresAt,
@@ -92,7 +95,7 @@ export async function startEmailRegistration(input: StartRegistrationInput) {
 
   try {
     await sendRegistrationCodeEmail({
-      to: input.email,
+      to: email,
       code,
       ttlMinutes: Math.ceil(env.REGISTRATION_CODE_TTL / 60),
     });
@@ -106,7 +109,7 @@ export async function startEmailRegistration(input: StartRegistrationInput) {
     module: 'auth',
     action: 'registration_code_generated',
     meta: {
-      email: input.email,
+      email,
       code,
       expiresAt: codeExpiresAt.toISOString(),
       delivery: env.RESEND_API_KEY ? 'resend' : 'dev_log_only',
@@ -121,8 +124,10 @@ export async function startEmailRegistration(input: StartRegistrationInput) {
 }
 
 export async function verifyEmailRegistrationCode(input: VerifyRegistrationCodeInput) {
+  const email = normalizeEmail(input.email);
+
   const verification = await prisma.registrationVerification.findUnique({
-    where: { email: input.email },
+    where: { email },
   });
 
   if (!verification || verification.codeExpiresAt.getTime() <= Date.now()) {
@@ -137,7 +142,7 @@ export async function verifyEmailRegistrationCode(input: VerifyRegistrationCodeI
     const attempts = verification.attempts + 1;
 
     await prisma.registrationVerification.update({
-      where: { email: input.email },
+      where: { email },
       data: { attempts },
     });
 
@@ -152,7 +157,7 @@ export async function verifyEmailRegistrationCode(input: VerifyRegistrationCodeI
   const completionTokenExpiresAt = new Date(Date.now() + env.REGISTRATION_COMPLETION_TTL * 1000);
 
   await prisma.registrationVerification.update({
-    where: { email: input.email },
+    where: { email },
     data: {
       attempts: 0,
       verifiedAt: new Date(),
@@ -171,11 +176,13 @@ export async function completeEmailRegistration(
   input: CompleteRegistrationInput,
   context: { ipAddress?: string; userAgent?: string; deviceInfo?: string } = {}
 ) {
-  const existing = await prisma.user.findUnique({ where: { email: input.email } });
+  const email = normalizeEmail(input.email);
+
+  const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) throw new Error('EMAIL_TAKEN');
 
   const verification = await prisma.registrationVerification.findUnique({
-    where: { email: input.email },
+    where: { email },
   });
 
   const isCompletionExpired = !verification?.completionTokenExpiresAt
@@ -195,12 +202,10 @@ export async function completeEmailRegistration(
   }
 
   const passwordHash = await hashPassword(input.password);
-  // Cast tx to 'any' to bypass Prisma's TransactionClient type limitation
-  // At runtime, tx has full model access but TypeScript definitions are incomplete
   const user = await prisma.$transaction(async (tx: any) => {
     const created = await tx.user.create({
       data: {
-        email: input.email,
+        email,
         passwordHash,
         name: input.name ?? null,
         emailVerifiedAt: verification.verifiedAt,
@@ -213,13 +218,13 @@ export async function completeEmailRegistration(
       data: {
         userId: created.id,
         provider: 'EMAIL',
-        providerAccountId: input.email,
-        providerEmail: input.email,
+        providerAccountId: email,
+        providerEmail: email,
       },
     });
 
     await tx.registrationVerification.delete({
-      where: { email: input.email },
+      where: { email },
     });
 
     await trackAnalyticsEvent(tx, {
@@ -233,7 +238,7 @@ export async function completeEmailRegistration(
   });
 
   const tokens = await issueTokens(user, context);
-  await bindPendingInvitationsToUser(user.id, user.email);
+  await bindPendingInvitationsToUser(user.id, email);
   return { user: sanitizeUser(user as any), ...tokens };
 }
 
@@ -241,7 +246,9 @@ export async function loginWithEmail(
   input: LoginInput,
   context: { ipAddress?: string; userAgent?: string; deviceInfo?: string } = {}
 ) {
-  const user = await prisma.user.findUnique({ where: { email: input.email } });
+  const email = normalizeEmail(input.email);
+
+  const user = await prisma.user.findUnique({ where: { email } });
   if (!user || !user.passwordHash) throw new Error('WRONG_CREDENTIALS');
 
   const valid = await verifyPassword(user.passwordHash, input.password);
@@ -308,8 +315,9 @@ export async function loginWithProvider(
   }
 
   // Try to find user by email (link accounts)
-  let user = providerData.email
-    ? await prisma.user.findUnique({ where: { email: providerData.email } })
+  const providerEmail = normalizeOptionalEmail(providerData.email);
+  let user = providerEmail
+    ? await prisma.user.findUnique({ where: { email: providerEmail } })
     : null;
 
   const isNewUser = !user;
@@ -317,7 +325,7 @@ export async function loginWithProvider(
     // Create new user
     user = await prisma.user.create({
       data: {
-        email: providerData.email ?? `${provider.toLowerCase()}_${providerAccountId}@noemail.local`,
+        email: providerEmail ?? `${provider.toLowerCase()}_${providerAccountId}@noemail.local`,
         name: providerData.username ?? null,
         avatarUrl: providerData.avatarUrl,
         registeredAt: new Date(),
@@ -332,7 +340,7 @@ export async function loginWithProvider(
       userId: user.id,
       provider,
       providerAccountId,
-      providerEmail: providerData.email,
+      providerEmail,
       providerUsername: providerData.username,
       providerAvatarUrl: providerData.avatarUrl,
       linkedAt: new Date(),

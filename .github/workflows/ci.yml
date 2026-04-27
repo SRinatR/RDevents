@@ -162,6 +162,7 @@ jobs:
           PORT: 4000
         run: |
           pnpm --filter @event-platform/api prisma:generate
+          pnpm --filter @event-platform/api prisma:deploy
           pnpm test
 
   build:
@@ -231,7 +232,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Docker compose build
-        run: docker compose -f docker-compose.prod.yml build api web report-worker
+        run: docker compose -f docker-compose.prod.yml build api web report-worker email-broadcast-worker
 
   container-smoke:
     name: Container Smoke
@@ -281,12 +282,12 @@ jobs:
             'echo "Effective DATABASE_URL: $DATABASE_URL" && cd /app/services/api && pnpm exec prisma migrate deploy'
 
       - name: Start api, web, and report worker
-        run: docker compose -f docker-compose.prod.yml up -d api web report-worker
+        run: docker compose -f docker-compose.prod.yml up -d api web report-worker email-broadcast-worker
 
       - name: Wait for api, web, and report worker
         run: |
           set -euo pipefail
-          for service in api web report-worker; do
+          for service in api web report-worker email-broadcast-worker; do
             CID=$(docker compose -f docker-compose.prod.yml ps -q "$service")
             for i in $(seq 1 40); do
               STATUS=$(docker inspect -f '{{.State.Status}}' "$CID")
@@ -316,6 +317,9 @@ jobs:
           curl -fsS http://127.0.0.1:3000/ru/events > /dev/null
 
           docker compose -f docker-compose.prod.yml exec -T report-worker sh -lc \
+            'test "$(cat /app/services/api/release.txt)" = "$RELEASE_SHA"'
+
+          docker compose -f docker-compose.prod.yml exec -T email-broadcast-worker sh -lc \
             'test "$(cat /app/services/api/release.txt)" = "$RELEASE_SHA"'
 
   required-checks:

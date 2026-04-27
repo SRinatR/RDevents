@@ -446,7 +446,7 @@ enum AuditAction {
 
 model User {
   id           String  @id @default(cuid())
-  email        String  @unique
+  email        String  @unique @db.Citext
   passwordHash String?
   name         String?
 
@@ -816,7 +816,7 @@ model UserAccount {
   userId            String
   provider          AuthProvider
   providerAccountId String
-  providerEmail     String?
+  providerEmail     String?      @db.Citext
   providerUsername  String?
   providerAvatarUrl String?
   linkedAt          DateTime     @default(now())
@@ -832,7 +832,7 @@ model UserAccount {
 
 model RegistrationVerification {
   id                       String    @id @default(cuid())
-  email                    String    @unique
+  email                    String    @unique @db.Citext
   codeHash                 String
   codeSentAt               DateTime
   codeExpiresAt            DateTime
@@ -1515,8 +1515,8 @@ model EmailBroadcastRecipient {
   id                    String               @id @default(cuid())
   broadcastId           String
   userId                String?
-  email                 String
-  normalizedEmail       String
+  email                 String               @db.Citext
+  normalizedEmail       String               @db.Citext
   name                  String?
   status                EmailRecipientStatus @default(MATCHED)
   skipReason            String?              @db.Text
@@ -1560,7 +1560,7 @@ model EmailBroadcastRecipient {
 
 model EmailMessage {
   id                String             @id @default(cuid())
-  toEmail           String
+  toEmail           String              @db.Citext
   toUserId          String?
   subject           String
   source            EmailMessageSource
@@ -1619,7 +1619,7 @@ model UserCommunicationConsent {
 
 model EmailSuppression {
   id              String   @id @default(cuid())
-  normalizedEmail String   @unique
+  normalizedEmail String   @unique @db.Citext
   reason          String
   provider        String?
   providerEventId String?

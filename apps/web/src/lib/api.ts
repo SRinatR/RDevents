@@ -614,17 +614,24 @@ export const adminApi = {
 
 // ─── Admin Email ──────────────────────────────────────────────────────────────
 
+function toQuery(params: Record<string, string | number | boolean | undefined | null>) {
+  const entries = Object.entries(params)
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .map(([key, value]) => [key, String(value)]);
+  return entries.length ? `?${new URLSearchParams(entries).toString()}` : '';
+}
+
 export const adminEmailApi = {
   getOverview: () =>
     request<any>('/api/admin/email/overview', { auth: true }),
 
   listMessages: (params: Record<string, string | number> = {}) => {
-    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    const qs = toQuery(params);
     return request<{ data: any[]; meta: any }>(`/api/admin/email/messages${qs}`, { auth: true });
   },
 
   listTemplates: (params: Record<string, string | number> = {}) => {
-    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    const qs = toQuery(params);
     return request<{ data: any[]; meta: any }>(`/api/admin/email/templates${qs}`, { auth: true });
   },
 
@@ -638,7 +645,7 @@ export const adminEmailApi = {
     request<{ data: any }>(`/api/admin/email/templates/${templateId}/archive`, { method: 'POST', auth: true }),
 
   listBroadcasts: (params: Record<string, string | number> = {}) => {
-    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    const qs = toQuery(params);
     return request<{ data: any[]; meta: any }>(`/api/admin/email/broadcasts${qs}`, { auth: true });
   },
 
@@ -667,17 +674,24 @@ export const adminEmailApi = {
     request<any>('/api/admin/email/audience/estimate', { method: 'POST', auth: true, body }),
 
   previewAudience: (body: Record<string, unknown>, params: Record<string, string | number> = {}) => {
-    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    const qs = toQuery(params);
     return request<any>(`/api/admin/email/audience/preview${qs}`, { method: 'POST', auth: true, body });
   },
 
   listBroadcastRecipients: (broadcastId: string, params: Record<string, string | number> = {}) => {
-    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    const qs = toQuery(params);
     return request<{ data: any[]; meta: any }>(`/api/admin/email/broadcasts/${broadcastId}/recipients${qs}`, { auth: true });
   },
 
   retryBroadcastRecipient: (broadcastId: string, recipientId: string) =>
     request<{ data: any }>(`/api/admin/email/broadcasts/${broadcastId}/recipients/${recipientId}/retry`, { method: 'POST', auth: true }),
+
+  exportBroadcastRecipients: async (broadcastId: string) => {
+    await downloadWithAuth(
+      `/api/admin/email/broadcasts/${broadcastId}/recipients/export.csv`,
+      `broadcast-${broadcastId}-recipients.csv`,
+    );
+  },
 
   getBroadcastAnalytics: (broadcastId: string) =>
     request<any>(`/api/admin/email/broadcasts/${broadcastId}/analytics`, { auth: true }),
@@ -689,7 +703,7 @@ export const adminEmailApi = {
     request<any>('/api/admin/email/test-send', { method: 'POST', auth: true, body }),
 
   listAutomations: (params: Record<string, string | number> = {}) => {
-    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    const qs = toQuery(params);
     return request<{ data: any[]; meta: any }>(`/api/admin/email/automations${qs}`, { auth: true });
   },
 
@@ -697,12 +711,12 @@ export const adminEmailApi = {
     request<any>('/api/admin/email/audience', { auth: true }),
 
   listDomains: (params: Record<string, string | number> = {}) => {
-    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    const qs = toQuery(params);
     return request<{ data: any[]; meta: any }>(`/api/admin/email/domains${qs}`, { auth: true });
   },
 
   getWebhooks: (params: Record<string, string | number> = {}) => {
-    const qs = Object.keys(params).length ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    const qs = toQuery(params);
     return request<any>(`/api/admin/email/webhooks${qs}`, { auth: true });
   },
 };

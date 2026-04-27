@@ -1,7 +1,9 @@
 import { prisma } from '../../db/prisma.js';
 import { buildDefaultRecipientVariables } from '../email/email-renderer.service.js';
+import { normalizeEmail } from '@event-platform/shared';
 
 export type ResolveAudienceInput = {
+  broadcastId?: string | null;
   broadcastType: string;
   audienceKind?: string;
   audienceSource: string;
@@ -47,10 +49,6 @@ type CandidateUser = {
 };
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-export function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
 
 function toDbEnum(value: unknown, fallback: string) {
   return String(value ?? fallback).trim().toUpperCase();
@@ -311,6 +309,8 @@ export async function resolveAudience(input: ResolveAudienceInput): Promise<Audi
       userId: user.id,
       email,
       name: user.name,
+      broadcastId: input.broadcastId ?? null,
+      topic: type,
     }) as Record<string, string>;
 
     let status = 'QUEUED';

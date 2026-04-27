@@ -19,6 +19,7 @@ import { uploadsRouter } from './modules/uploads/uploads.router.js';
 import { referenceRouter } from './modules/reference/reference.router.js';
 import { supportRouter } from './modules/support/support.router.js';
 import { resendWebhookRouter } from './modules/webhooks/resend.router.js';
+import { emailPublicRouter } from './modules/email-public/email-public.router.js';
 import { passwordResetRouter } from './modules/password-reset/password-reset.router.js';
 import { dashboardRouter } from './modules/dashboard/dashboard.router.js';
 import { calendarRouter } from './modules/calendar/calendar.router.js';
@@ -95,6 +96,7 @@ export function createApp() {
   app.use('/api/uploads', uploadsRouter);
   app.use('/api/reference', referenceRouter);
   app.use('/api/support', supportRouter);
+  app.use('/api/email', emailPublicRouter);
 
   // ─── 404 ──────────────────────────────────────────────────────────────────
   app.use((_req, res) => {

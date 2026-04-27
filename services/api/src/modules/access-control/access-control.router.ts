@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { EventStaffRole, User } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
+import { normalizeEmail } from '@event-platform/shared';
 import { buildAuditRequestContext } from './access-control.audit.js';
 import {
   assertNotRemovingLastEventOwner,
@@ -125,7 +126,7 @@ accessControlRouter.post('/events/:eventId/staff', async (req, res) => {
 
   const targetUser = parsed.data.userId
     ? await prisma.user.findUnique({ where: { id: parsed.data.userId } })
-    : await prisma.user.findUnique({ where: { email: parsed.data.email! } });
+    : await prisma.user.findUnique({ where: { email: normalizeEmail(parsed.data.email!) } });
 
   if (!targetUser) {
     res.status(404).json({ error: 'User not found', code: 'USER_NOT_FOUND' });

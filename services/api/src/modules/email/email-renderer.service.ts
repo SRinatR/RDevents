@@ -1,3 +1,5 @@
+import { createUnsubscribeToken } from './unsubscribe-token.service.js';
+
 const KNOWN_VARIABLES = new Set([
   'name',
   'email',
@@ -101,17 +103,27 @@ export function buildDefaultRecipientVariables(input: {
   email: string;
   name?: string | null;
   broadcastId?: string | null;
+  topic?: string | null;
 }) {
+  const appUrl = (process.env['APP_URL'] ?? 'http://localhost:3000').replace(/\/$/, '');
   const name = input.name?.trim() || input.email;
   const parts = name.split(/\s+/).filter(Boolean);
-  const unsubscribeUrl = `${process.env['APP_URL'] ?? 'http://localhost:3000'}/ru/unsubscribe?token=preview`;
+
+  const token = createUnsubscribeToken({
+    email: input.email,
+    userId: input.userId ?? null,
+    broadcastId: input.broadcastId ?? null,
+    topic: input.topic ?? 'MARKETING',
+  });
+
+  const unsubscribeUrl = `${appUrl}/ru/unsubscribe?token=${encodeURIComponent(token)}`;
 
   return {
     name,
     email: input.email,
     firstName: parts[0] ?? name,
     lastName: parts.slice(1).join(' '),
-    profileUrl: input.userId ? `${process.env['APP_URL'] ?? 'http://localhost:3000'}/ru/admin/users/${input.userId}` : '',
+    profileUrl: input.userId ? `${appUrl}/ru/admin/users/${input.userId}` : '',
     unsubscribeUrl,
   };
 }

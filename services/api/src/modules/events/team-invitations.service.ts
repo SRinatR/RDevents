@@ -5,16 +5,12 @@ import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 import { assertRegistrationRequirements, registerForEvent } from './registration.service.js';
 import { notifyTeamMemberChanged, notifyTeamUpdated } from './notifications.service.js';
 import { getTeamCabinetPermissions, getTeamSubmissionState } from './teams.service.js';
+import { normalizeEmail } from '@event-platform/shared';
 
 const OPEN_INVITATION_STATUSES = ['PENDING_ACCOUNT', 'PENDING_RESPONSE'] as const;
 const OCCUPIED_INVITATION_STATUSES = ['PENDING_ACCOUNT', 'PENDING_RESPONSE', 'ACCEPTED'] as const;
 const ACTIVE_TEAM_MEMBER_STATUSES = ['ACTIVE', 'PENDING'] as const;
 const EDITABLE_TEAM_STATUSES = ['DRAFT', 'REJECTED'] as const;
-
-function normalizeEmail(email: unknown) {
-  if (typeof email !== 'string') return '';
-  return email.trim().toLowerCase();
-}
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
