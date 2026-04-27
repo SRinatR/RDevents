@@ -1,8 +1,19 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { prisma } from '../../db/prisma.js';
 import { hashPassword } from '../../common/password.js';
 import { loginWithEmail, startEmailRegistration } from './auth.service.js';
 import { requestPasswordReset } from '../password-reset/password-reset.service.js';
+
+vi.mock('../../common/email.js', () => ({
+  sendRegistrationCodeEmail: vi.fn().mockResolvedValue(undefined),
+  sendEventNotificationEmail: vi.fn().mockResolvedValue(undefined),
+  sendEventNotificationEmailSafe: vi.fn().mockResolvedValue(undefined),
+  sendPlatformEmail: vi.fn().mockResolvedValue({
+    messageId: 'test-message-id',
+    providerMessageId: 'test-provider-message-id',
+  }),
+  sendPasswordResetEmail: vi.fn().mockResolvedValue(undefined),
+}));
 
 describe('email identity is case-insensitive', () => {
   beforeEach(async () => {

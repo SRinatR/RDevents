@@ -1,7 +1,7 @@
 'use client';
 
+import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useState } from 'react';
 import { useRouteLocale } from '@/hooks/useRouteParams';
 import { Notice, Panel } from '@/components/ui/signal-primitives';
 
@@ -9,7 +9,7 @@ const API_BASE_URL =
   process.env['NEXT_PUBLIC_API_BASE_URL'] ??
   (process.env['NODE_ENV'] === 'development' ? 'http://localhost:4000' : 'https://api.rdevents.uz');
 
-export default function UnsubscribePage() {
+function UnsubscribePageContent() {
   const locale = useRouteLocale();
   const searchParams = useSearchParams();
   const token = searchParams.get('token') ?? '';
@@ -78,5 +78,21 @@ export default function UnsubscribePage() {
         ) : null}
       </Panel>
     </div>
+  );
+}
+
+export default function UnsubscribePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="signal-page-shell">
+          <Panel variant="elevated" className="admin-command-panel">
+            <h1>Unsubscribe</h1>
+          </Panel>
+        </div>
+      }
+    >
+      <UnsubscribePageContent />
+    </Suspense>
   );
 }
