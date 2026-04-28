@@ -1059,3 +1059,96 @@ adminUsersRouter.patch('/:userId/role', requireSuperAdmin, async (req, res) => {
   });
   res.json({ user });
 });
+
+// GET /api/admin/users/search - поиск пользователей для выбора получателей email
+adminUsersRouter.get('/search', requirePlatformAdmin, async (req, res) => {
+  const q = String(req.query['q'] ?? '').trim();
+  const eventId = req.query['eventId'] as string | undefined;
+  const eventRole = req.query['eventRole'] as string | undefined;
+  const eventMemberStatus = req.query['eventMemberStatus'] as string | undefined;
+  const hasEmail = req.query['hasEmail'] !== 'false';
+  const emailVerified = req.query['emailVerified'] === 'true';
+  const limit = Math.min(100, Math.max(1, parseInt(String(req.query['limit'] ?? '20'))));
+  const cursor = req.query['cursor'] as string | undefined;
+
+  const where: Record<string, unknown> = { isActive: true };
+
+  if (hasEmail) {
+    where['email'] = { not: null };
+  }
+
+  if (emailVerified) {
+    where['emailVerifiedAt'] = { not: null };
+  }
+
+  if (q) {
+    where['OR'] = [
+      { email: { contains: q, mode: 'insensitive' } },
+      { name: { contains: q, mode: 'insensitive' } },
+      { phone: { contains: q, mode: 'insensitive' } },
+      { firstNameCyrillic: { contains: q, mode: 'insensitive' } },
+      { lastNameCyrillic: { contains: q, mode: 'insensitive' } },
+      { fullNameCyrillic: { contains: q, mode: 'insensitive' } },
+      { fullNameLatin: { contains: q, mode: 'insensitive' } },
+    ];
+  }
+
+  if (eventId) {
+    where['eventMemberships'] = {
+      some: {
+        eventId,
+        ...(eventRole ? { role: eventRole as any } : {}),
+        ...(eventMemberStatus ? { status: eventMemberStatus as any } : {}),
+      },
+    };
+  }
+
+  const users = await prisma.user.findMany({
+    where: where as any,
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      phone: true,
+      isActive: true,
+      emailVerifiedAt: true,
+      eventMemberships: eventId ? {
+        where: {
+          eventId,
+          ...(eventRole ? { role: eventRole as any } : {}),
+        },
+        select: {
+          role: true,
+          status: true,
+        },
+        take: 1,
+      } : false,
+    },
+    orderBy: { registeredAt: 'desc' },
+    take: limit + 1,
+    ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+  });
+
+  const hasMore = users.length > limit;
+  const results = hasMore ? users.slice(0, -1) : users;
+  const nextCursor = hasMore ? results[results.length - 1]?.id : null;
+
+  const mappedUsers = results.map(user => ({
+    id: user.id,
+    email: user.email ?? '',
+    name: user.name ?? '',
+    phone: user.phone ?? '',
+    isActive: user.isActive,
+    emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
+    eventMembership: eventId && user.eventMemberships?.length ? {
+      eventId,
+      role: user.eventMemberships[0].role,
+      status: user.eventMemberships[0].status,
+    } : null,
+  }));
+
+  res.json({
+    users: mappedUsers,
+    nextCursor,
+  });
+});

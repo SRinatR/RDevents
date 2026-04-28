@@ -681,6 +681,31 @@ export const adminApi = {
 
   revokeEventStaffGrant: (eventId: string, grantId: string) =>
     request<{ ok: boolean }>(`/api/admin/events/${eventId}/staff/grants/${grantId}`, { method: 'DELETE', auth: true }),
+
+  searchUsers: (params: {
+    q?: string;
+    eventId?: string;
+    eventRole?: string;
+    eventMemberStatus?: string;
+    hasEmail?: boolean;
+    emailVerified?: boolean;
+    limit?: number;
+    cursor?: string;
+  }) => {
+    const qs = toQuery(params);
+    return request<{
+      users: Array<{
+        id: string;
+        email: string;
+        name: string;
+        phone: string;
+        isActive: boolean;
+        emailVerifiedAt: string | null;
+        eventMembership: { eventId: string; role: string; status: string } | null;
+      }>;
+      nextCursor: string | null;
+    }>(`/api/admin/users/search${qs}`, { auth: true });
+  },
 };
 
 // ─── Admin Email ──────────────────────────────────────────────────────────────
@@ -790,6 +815,42 @@ export const adminEmailApi = {
     const qs = toQuery(params);
     return request<any>(`/api/admin/email/webhooks${qs}`, { auth: true });
   },
+
+  previewManualRecipients: (payload: {
+    selectedUserIds: string[];
+    excludedUserIds?: string[];
+    emailType: 'ADMIN_DIRECT' | 'SYSTEM_NOTIFICATION' | 'MARKETING';
+    respectConsent: boolean;
+    eventId?: string;
+  }) =>
+    request<{
+      totalSelected: number;
+      willSend: number;
+      willSkip: number;
+      recipients: Array<{ userId: string; email: string; name: string; status: string }>;
+      skipped: Array<{ userId: string; email: string; name: string; status: string; reason?: string }>;
+    }>('/api/admin/email/recipients/preview', { method: 'POST', auth: true, body: payload }),
+
+  sendDirectEmail: (payload: {
+    selectedUserIds: string[];
+    excludedUserIds?: string[];
+    subject: string;
+    preheader?: string;
+    text?: string;
+    html?: string;
+    emailType: 'ADMIN_DIRECT' | 'SYSTEM_NOTIFICATION' | 'MARKETING';
+    reason: string;
+    respectConsent: boolean;
+    eventId?: string;
+  }) =>
+    request<{
+      status: string;
+      totalSelected: number;
+      sent: number;
+      skipped: number;
+      messages: Array<{ userId: string; email: string; messageId: string | null; status: string }>;
+      skippedRecipients: Array<{ userId: string; email: string; name: string; status: string; reason?: string }>;
+    }>('/api/admin/email/direct', { method: 'POST', auth: true, body: payload }),
 };
 
 // ─── Analytics ────────────────────────────────────────────────────────────────

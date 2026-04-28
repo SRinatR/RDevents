@@ -73,6 +73,7 @@ const MESSAGE_SOURCE_TO_DB: Record<string, string> = {
   notification: 'NOTIFICATION',
   broadcast: 'BROADCAST',
   admin_test: 'ADMIN_TEST',
+  admin_direct: 'ADMIN_DIRECT',
   password_reset: 'PASSWORD_RESET',
   system: 'SYSTEM',
 };

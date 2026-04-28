@@ -14,7 +14,7 @@ const jsonObjectSchema = z.record(z.string(), z.unknown()).optional().nullable()
 export const emailMessagesQuerySchema = z.object({
   search: z.string().optional(),
   status: z.enum(['ALL', 'pending', 'sent', 'delivered', 'opened', 'clicked', 'failed', 'bounced', 'complained']).optional(),
-  source: z.enum(['ALL', 'verification', 'invitation', 'notification', 'broadcast', 'admin_test', 'password_reset', 'system']).optional(),
+  source: z.enum(['ALL', 'verification', 'invitation', 'notification', 'broadcast', 'admin_test', 'admin_direct', 'password_reset', 'system']).optional(),
   timeRange: z.enum(['1h', '24h', '7d', '30d']).optional().default('24h'),
   page: z.coerce.number().int().positive().optional().default(1),
   limit: z.coerce.number().int().positive().max(100).optional().default(50),
@@ -160,7 +160,7 @@ export interface EmailMessage {
   to: string;
   subject: string;
   status: 'pending' | 'sent' | 'delivered' | 'opened' | 'clicked' | 'failed' | 'bounced' | 'complained';
-  source: 'verification' | 'invitation' | 'notification' | 'broadcast' | 'admin_test' | 'password_reset' | 'system';
+  source: 'verification' | 'invitation' | 'notification' | 'broadcast' | 'admin_test' | 'admin_direct' | 'password_reset' | 'system';
   sentAt: string;
   createdAt: string;
   errorText: string | null;
