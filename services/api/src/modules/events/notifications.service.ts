@@ -445,7 +445,8 @@ export async function notifyAdminMemberAdded(eventId: string, teamId: string, us
   const data = await getTeamEmailData(eventId, teamId);
   if (!data) return;
 
-  const member = data.team.members.find(m => m.user.id === userId)?.user;
+  const usersById = await getUsersByIds([userId]);
+  const member = usersById.get(userId);
   if (!member) return;
 
   await sendToRecipients({
