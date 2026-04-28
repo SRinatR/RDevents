@@ -1,8 +1,11 @@
 import { prisma } from '../../db/prisma.js';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 import {
+  notifyTeamApproved,
   notifyTeamCreated,
   notifyTeamMemberChanged,
+  notifyTeamRejected,
+  notifyTeamSubmitted,
   notifyTeamUpdated,
 } from './notifications.service.js';
 import { assertEmailInviteTeamReady, markMemberInvitationRemoved } from './team-invitations.service.js';
@@ -790,6 +793,7 @@ export async function submitTeamForApproval(eventId: string, teamId: string, use
     return changeRequest;
   });
 
+  await notifyTeamSubmitted(eventId, teamId);
   await notifyTeamUpdated(eventId, teamId);
   return { ...team, status: 'SUBMITTED', changeRequests: [changeRequest] };
 }
@@ -1152,6 +1156,7 @@ export async function approveTeamChangeRequest(eventId: string, teamId: string, 
     return team;
   });
 
+  await notifyTeamApproved(eventId, teamId, notes);
   await notifyTeamUpdated(eventId, teamId);
   return updated;
 }
@@ -1210,6 +1215,7 @@ export async function rejectTeamChangeRequest(eventId: string, teamId: string, r
     return team;
   });
 
+  await notifyTeamRejected(eventId, teamId, notes);
   await notifyTeamUpdated(eventId, teamId);
   return updated;
 }

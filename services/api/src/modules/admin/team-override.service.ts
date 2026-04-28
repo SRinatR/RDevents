@@ -2,6 +2,11 @@ import type { Prisma, User } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
 import { canManageEvent } from '../../common/middleware.js';
 import { OPEN_CHANGE_REQUEST_STATUSES } from '../events/team-governance.js';
+import {
+  notifyAdminCaptainChanged,
+  notifyAdminMemberReplaced,
+  notifyAdminRosterReplaced,
+} from '../events/notifications.service.js';
 
 const OPEN_INVITATION_STATUSES = ['PENDING_ACCOUNT', 'PENDING_RESPONSE'];
 const LIVE_TEAM_MEMBER_STATUSES = ['ACTIVE', 'PENDING'];
@@ -623,6 +628,7 @@ export async function adminAddTeamMember(
     });
   });
 
+  await notifyAdminCaptainChanged(team.eventId, team.id, team.captainUserId, user.id);
   return getActiveManagedTeamDetails(team.id);
 }
 
@@ -752,6 +758,7 @@ export async function adminReplaceTeamMember(
     });
   });
 
+  await notifyAdminMemberReplaced(team.eventId, team.id, input.oldUserId, replacementUser.id);
   return getActiveManagedTeamDetails(team.id);
 }
 
@@ -922,6 +929,7 @@ export async function adminReplaceTeamRoster(
     });
   });
 
+  await notifyAdminRosterReplaced(team.eventId, team.id, memberUserIds);
   return getActiveManagedTeamDetails(team.id);
 }
 
