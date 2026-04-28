@@ -23,6 +23,8 @@ export const adminTeamMemberSchema = z.object({
   role: z.enum(['CAPTAIN', 'MEMBER']).optional().default('MEMBER'),
   status: z.enum(['PENDING', 'ACTIVE', 'REJECTED', 'REMOVED', 'LEFT']).optional().default('ACTIVE'),
   reason: z.string().trim().max(500).optional(),
+  forceMoveFromOtherTeam: z.boolean().optional().default(false),
+  allowOverCapacity: z.boolean().optional().default(false),
 }).refine((value) => Boolean(value.userId || value.email), {
   message: 'userId or email is required',
   path: ['userId'],
@@ -38,6 +40,8 @@ export const updateAdminTeamMemberSchema = z.object({
 export const transferAdminTeamCaptainSchema = z.object({
   userId: z.string().trim().min(1),
   reason: z.string().trim().max(500).optional(),
+  forceMoveFromOtherTeam: z.boolean().optional().default(false),
+  allowOverCapacity: z.boolean().optional().default(false),
 });
 
 export const replaceAdminTeamMemberSchema = z.object({
@@ -45,6 +49,8 @@ export const replaceAdminTeamMemberSchema = z.object({
   newUserId: z.string().trim().min(1).optional(),
   newUserEmail: z.string().trim().email().optional(),
   reason: z.string().trim().min(1).max(500),
+  forceMoveFromOtherTeam: z.boolean().optional().default(false),
+  allowOverCapacity: z.boolean().optional().default(false),
 }).refine((value) => Boolean(value.newUserId || value.newUserEmail), {
   message: 'newUserId or newUserEmail is required',
   path: ['newUserId'],
@@ -57,6 +63,8 @@ export const replaceAdminTeamRosterSchema = z.object({
   description: z.string().trim().max(2000).nullable().optional(),
   status: z.enum(['DRAFT', 'ACTIVE', 'APPROVED', 'PENDING', 'CHANGES_PENDING', 'NEEDS_ATTENTION', 'REJECTED', 'SUBMITTED', 'ARCHIVED']).optional(),
   reason: z.string().trim().min(1).max(500),
+  forceMoveFromOtherTeam: z.boolean().optional().default(false),
+  allowOverCapacity: z.boolean().optional().default(false),
 });
 
 export type ListTeamsQuery = z.infer<typeof listTeamsQuerySchema>;

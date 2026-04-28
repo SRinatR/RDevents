@@ -330,31 +330,23 @@ adminTeamsRouter.post('/:teamId/members', async (req, res) => {
       role: parsed.data.role,
       status: parsed.data.status,
       reason: parsed.data.reason,
+      forceMoveFromOtherTeam: parsed.data.forceMoveFromOtherTeam,
+      allowOverCapacity: parsed.data.allowOverCapacity,
     });
 
     res.status(201).json({ data });
   } catch (err: any) {
-    if (err.message === 'TEAM_NOT_FOUND') {
-      res.status(404).json({ error: 'Team not found' });
-      return;
-    }
-    if (err.message === 'ACCESS_DENIED') {
-      res.status(403).json({ error: 'Access denied' });
-      return;
-    }
-    if (err.message === 'USER_NOT_FOUND') {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
-    if (err.message === 'USER_DISABLED') {
-      res.status(409).json({ error: 'User is disabled' });
-      return;
-    }
-    if (err.message === 'USER_ALREADY_IN_OTHER_TEAM') {
-      res.status(409).json({ error: 'User is already in another team for this event' });
-      return;
-    }
-    throw err;
+    const map: Record<string, [number, string]> = {
+      TEAM_NOT_FOUND: [404, 'Team not found'],
+      ACCESS_DENIED: [403, 'Access denied'],
+      USER_NOT_FOUND: [404, 'User not found'],
+      USER_DISABLED: [409, 'User is disabled'],
+      USER_ALREADY_IN_OTHER_TEAM: [409, 'User is already in another team for this event'],
+      TEAM_FULL: [409, 'Team is full'],
+      ACTOR_REQUIRED_FOR_FORCE_MOVE: [500, 'Actor is required for force move'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
   }
 });
 
@@ -441,31 +433,23 @@ adminTeamsRouter.post('/:teamId/captain', async (req, res) => {
       teamId,
       userId: parsed.data.userId,
       reason: parsed.data.reason,
+      forceMoveFromOtherTeam: parsed.data.forceMoveFromOtherTeam,
+      allowOverCapacity: parsed.data.allowOverCapacity,
     });
 
     res.json({ data });
   } catch (err: any) {
-    if (err.message === 'TEAM_NOT_FOUND') {
-      res.status(404).json({ error: 'Team not found' });
-      return;
-    }
-    if (err.message === 'ACCESS_DENIED') {
-      res.status(403).json({ error: 'Access denied' });
-      return;
-    }
-    if (err.message === 'USER_NOT_FOUND') {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
-    if (err.message === 'USER_DISABLED') {
-      res.status(409).json({ error: 'User is disabled' });
-      return;
-    }
-    if (err.message === 'USER_ALREADY_IN_OTHER_TEAM') {
-      res.status(409).json({ error: 'User is already in another team for this event' });
-      return;
-    }
-    throw err;
+    const map: Record<string, [number, string]> = {
+      TEAM_NOT_FOUND: [404, 'Team not found'],
+      ACCESS_DENIED: [403, 'Access denied'],
+      USER_NOT_FOUND: [404, 'User not found'],
+      USER_DISABLED: [409, 'User is disabled'],
+      USER_ALREADY_IN_OTHER_TEAM: [409, 'User is already in another team for this event'],
+      TEAM_FULL: [409, 'Team is full'],
+      ACTOR_REQUIRED_FOR_FORCE_MOVE: [500, 'Actor is required for force move'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
   }
 });
 
@@ -523,6 +507,8 @@ adminTeamsRouter.post('/:teamId/members/replace', async (req, res) => {
       newUserId: parsed.data.newUserId,
       newUserEmail: parsed.data.newUserEmail,
       reason: parsed.data.reason,
+      forceMoveFromOtherTeam: parsed.data.forceMoveFromOtherTeam,
+      allowOverCapacity: parsed.data.allowOverCapacity,
     });
 
     res.json({ data });
@@ -536,6 +522,8 @@ adminTeamsRouter.post('/:teamId/members/replace', async (req, res) => {
       USER_ALREADY_IN_OTHER_TEAM: [409, 'Replacement user is already in another team for this event'],
       CANNOT_REMOVE_CAPTAIN: [400, 'Captain replacement must use the captain transfer flow'],
       USER_ALREADY_IN_TEAM: [409, 'Replacement user is already in this team'],
+      TEAM_FULL: [409, 'Team is full'],
+      ACTOR_REQUIRED_FOR_FORCE_MOVE: [500, 'Actor is required for force move'],
     };
     const [status, message] = map[err.message] ?? [500, 'Internal error'];
     res.status(status).json({ error: message, code: err.message });
@@ -563,6 +551,8 @@ adminTeamsRouter.put('/:teamId/roster', async (req, res) => {
       description: parsed.data.description,
       status: parsed.data.status,
       reason: parsed.data.reason,
+      forceMoveFromOtherTeam: parsed.data.forceMoveFromOtherTeam,
+      allowOverCapacity: parsed.data.allowOverCapacity,
     });
 
     res.json({ data });
@@ -574,6 +564,8 @@ adminTeamsRouter.put('/:teamId/roster', async (req, res) => {
       USER_DISABLED: [409, 'Roster contains a disabled user'],
       USER_ALREADY_IN_OTHER_TEAM: [409, 'Roster contains a user from another team in this event'],
       TEAM_EMPTY: [400, 'Roster cannot be empty'],
+      TEAM_FULL: [409, 'Team is full'],
+      ACTOR_REQUIRED_FOR_FORCE_MOVE: [500, 'Actor is required for force move'],
     };
     const [status, message] = map[err.message] ?? [500, 'Internal error'];
     res.status(status).json({ error: message, code: err.message });

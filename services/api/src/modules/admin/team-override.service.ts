@@ -243,8 +243,85 @@ async function cancelOpenRequests(tx: any, input: { teamId: string; eventId: str
   }
 }
 
-async function ensureUsersCanJoinTeam(tx: any, eventId: string, teamId: string, userIds: string[]) {
+async function removeUserFromOtherTeamsForAdmin(
+  tx: any,
+  input: {
+    eventId: string;
+    targetTeamId: string;
+    userIds: string[];
+    actorUserId: string;
+    reason: string;
+  }
+) {
+  const memberships = await tx.eventTeamMember.findMany({
+    where: {
+      userId: { in: input.userIds },
+      teamId: { not: input.targetTeamId },
+      status: { in: [...LIVE_TEAM_MEMBER_STATUSES] },
+      team: { eventId: input.eventId },
+    },
+    include: {
+      team: {
+        select: {
+          id: true,
+          name: true,
+          eventId: true,
+        },
+      },
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+  });
+
+  for (const membership of memberships) {
+    const beforeJson = await buildTeamSnapshot(tx, membership.teamId);
+
+    await tx.eventTeamMember.update({
+      where: { id: membership.id },
+      data: {
+        status: 'REMOVED',
+        role: 'MEMBER',
+        removedAt: new Date(),
+      },
+    });
+
+    const afterJson = await buildTeamSnapshot(tx, membership.teamId);
+
+    await writeTeamHistory(tx, {
+      eventId: input.eventId,
+      teamId: membership.teamId,
+      actorUserId: input.actorUserId,
+      targetUserId: membership.userId,
+      action: 'ADMIN_MEMBER_REMOVED',
+      beforeJson,
+      afterJson,
+      metaJson: {
+        reason: 'forceMoveFromOtherTeam',
+        movedToTeamId: input.targetTeamId,
+      },
+      reason: input.reason,
+    });
+  }
+}
+
+async function ensureUsersCanJoinTeam(
+  tx: any,
+  eventId: string,
+  teamId: string,
+  userIds: string[],
+  options?: {
+    forceMoveFromOtherTeam?: boolean;
+    actorUserId?: string;
+    reason?: string;
+  }
+) {
   const uniqueUserIds = [...new Set(userIds)];
+
   const [users, otherTeamMembers] = await Promise.all([
     tx.user.findMany({
       where: { id: { in: uniqueUserIds } },
@@ -262,13 +339,66 @@ async function ensureUsersCanJoinTeam(tx: any, eventId: string, teamId: string, 
   ]);
 
   const activeUserIds = new Set(users.filter((user: any) => user.isActive).map((user: any) => user.id));
+
   for (const userId of uniqueUserIds) {
     if (!activeUserIds.has(userId)) {
       throw new Error(users.some((user: any) => user.id === userId) ? 'USER_DISABLED' : 'USER_NOT_FOUND');
     }
   }
 
-  if (otherTeamMembers.length > 0) throw new Error('USER_ALREADY_IN_OTHER_TEAM');
+  if (otherTeamMembers.length > 0) {
+    if (!options?.forceMoveFromOtherTeam) {
+      throw new Error('USER_ALREADY_IN_OTHER_TEAM');
+    }
+
+    if (!options.actorUserId) {
+      throw new Error('ACTOR_REQUIRED_FOR_FORCE_MOVE');
+    }
+
+    await removeUserFromOtherTeamsForAdmin(tx, {
+      eventId,
+      targetTeamId: teamId,
+      userIds: uniqueUserIds,
+      actorUserId: options.actorUserId,
+      reason: options.reason || 'Moved from another team by admin override.',
+    });
+  }
+}
+
+async function assertTeamCapacityForAdmin(
+  tx: any,
+  input: {
+    teamId: string;
+    maxSize: number;
+    addingUserIds: string[];
+    allowOverCapacity?: boolean;
+  }
+) {
+  const activeMembers = await tx.eventTeamMember.findMany({
+    where: {
+      teamId: input.teamId,
+      status: 'ACTIVE',
+    },
+    select: {
+      userId: true,
+    },
+  });
+
+  const currentUserIds = new Set(activeMembers.map((member: any) => member.userId));
+  const newUserIds = input.addingUserIds.filter(userId => !currentUserIds.has(userId));
+
+  const nextCount = currentUserIds.size + newUserIds.length;
+
+  if (nextCount > input.maxSize && !input.allowOverCapacity) {
+    throw new Error('TEAM_FULL');
+  }
+
+  return {
+    currentCount: currentUserIds.size,
+    nextCount,
+    maxSize: input.maxSize,
+    overCapacity: nextCount > input.maxSize,
+  };
 }
 
 async function setTeamCaptain(tx: any, teamId: string, newCaptainUserId: string) {
@@ -425,6 +555,8 @@ export async function adminAddTeamMember(
     role?: 'CAPTAIN' | 'MEMBER';
     status?: 'PENDING' | 'ACTIVE' | 'REJECTED' | 'REMOVED' | 'LEFT';
     reason?: string | null;
+    forceMoveFromOtherTeam?: boolean;
+    allowOverCapacity?: boolean;
   }
 ) {
   const team = await findManagedTeam(input.teamId, input.actor, input.eventId);
@@ -432,7 +564,19 @@ export async function adminAddTeamMember(
 
   await prisma.$transaction(async (tx: any) => {
     const beforeJson = await buildTeamSnapshot(tx, team.id);
-    await ensureUsersCanJoinTeam(tx, team.eventId, team.id, [user.id]);
+    await ensureUsersCanJoinTeam(tx, team.eventId, team.id, [user.id], {
+      forceMoveFromOtherTeam: input.forceMoveFromOtherTeam,
+      actorUserId: input.actor.id,
+      reason: input.reason ?? null,
+    });
+
+    const capacity = await assertTeamCapacityForAdmin(tx, {
+      teamId: team.id,
+      maxSize: team.maxSize,
+      addingUserIds: [user.id],
+      allowOverCapacity: input.allowOverCapacity,
+    });
+
     await ensureActiveEventParticipant(tx, team.eventId, user.id, input.actor.id);
     await cancelOpenRequests(tx, {
       teamId: team.id,
@@ -471,6 +615,10 @@ export async function adminAddTeamMember(
       action: (input.role ?? 'MEMBER') === 'CAPTAIN' ? 'ADMIN_CAPTAIN_CHANGED' : 'ADMIN_MEMBER_ADDED',
       beforeJson,
       afterJson,
+      metaJson: {
+        allowOverCapacity: Boolean(input.allowOverCapacity),
+        capacity,
+      },
       reason: input.reason ?? null,
     });
   });
@@ -532,6 +680,8 @@ export async function adminReplaceTeamMember(
     newUserId?: string;
     newUserEmail?: string;
     reason?: string | null;
+    forceMoveFromOtherTeam?: boolean;
+    allowOverCapacity?: boolean;
   }
 ) {
   const team = await findManagedTeam(input.teamId, input.actor, input.eventId);
@@ -545,7 +695,19 @@ export async function adminReplaceTeamMember(
 
   await prisma.$transaction(async (tx: any) => {
     const beforeJson = await buildTeamSnapshot(tx, team.id);
-    await ensureUsersCanJoinTeam(tx, team.eventId, team.id, [replacementUser.id]);
+    await ensureUsersCanJoinTeam(tx, team.eventId, team.id, [replacementUser.id], {
+      forceMoveFromOtherTeam: input.forceMoveFromOtherTeam,
+      actorUserId: input.actor.id,
+      reason: input.reason ?? null,
+    });
+
+    const capacity = await assertTeamCapacityForAdmin(tx, {
+      teamId: team.id,
+      maxSize: team.maxSize,
+      addingUserIds: [replacementUser.id],
+      allowOverCapacity: input.allowOverCapacity,
+    });
+
     await ensureActiveEventParticipant(tx, team.eventId, replacementUser.id, input.actor.id);
     await cancelOpenRequests(tx, {
       teamId: team.id,
@@ -585,7 +747,7 @@ export async function adminReplaceTeamMember(
       action: 'ADMIN_MEMBER_REPLACED',
       beforeJson,
       afterJson,
-      metaJson: { oldUserId: input.oldUserId, newUserId: replacementUser.id },
+      metaJson: { oldUserId: input.oldUserId, newUserId: replacementUser.id, allowOverCapacity: Boolean(input.allowOverCapacity), capacity },
       reason: input.reason ?? null,
     });
   });
@@ -600,6 +762,8 @@ export async function adminTransferTeamCaptain(
     eventId?: string;
     userId: string;
     reason?: string | null;
+    forceMoveFromOtherTeam?: boolean;
+    allowOverCapacity?: boolean;
   }
 ) {
   const team = await findManagedTeam(input.teamId, input.actor, input.eventId);
@@ -607,7 +771,19 @@ export async function adminTransferTeamCaptain(
 
   await prisma.$transaction(async (tx: any) => {
     const beforeJson = await buildTeamSnapshot(tx, team.id);
-    await ensureUsersCanJoinTeam(tx, team.eventId, team.id, [user.id]);
+    await ensureUsersCanJoinTeam(tx, team.eventId, team.id, [user.id], {
+      forceMoveFromOtherTeam: input.forceMoveFromOtherTeam,
+      actorUserId: input.actor.id,
+      reason: input.reason ?? null,
+    });
+
+    const capacity = await assertTeamCapacityForAdmin(tx, {
+      teamId: team.id,
+      maxSize: team.maxSize,
+      addingUserIds: [user.id],
+      allowOverCapacity: input.allowOverCapacity,
+    });
+
     await ensureActiveEventParticipant(tx, team.eventId, user.id, input.actor.id);
     await cancelOpenRequests(tx, {
       teamId: team.id,
@@ -625,6 +801,10 @@ export async function adminTransferTeamCaptain(
       action: 'ADMIN_CAPTAIN_CHANGED',
       beforeJson,
       afterJson,
+      metaJson: {
+        allowOverCapacity: Boolean(input.allowOverCapacity),
+        capacity,
+      },
       reason: input.reason ?? null,
     });
   });
@@ -643,6 +823,8 @@ export async function adminReplaceTeamRoster(
     description?: string | null;
     status?: string;
     reason: string;
+    forceMoveFromOtherTeam?: boolean;
+    allowOverCapacity?: boolean;
   }
 ) {
   const team = await findManagedTeam(input.teamId, input.actor, input.eventId);
@@ -655,9 +837,18 @@ export async function adminReplaceTeamRoster(
 
   await resolveActiveUser({ userId: captainUserId });
 
+  if (memberUserIds.length > team.maxSize && !input.allowOverCapacity) {
+    throw new Error('TEAM_FULL');
+  }
+
   await prisma.$transaction(async (tx: any) => {
     const beforeJson = await buildTeamSnapshot(tx, team.id);
-    await ensureUsersCanJoinTeam(tx, team.eventId, team.id, memberUserIds);
+    await ensureUsersCanJoinTeam(tx, team.eventId, team.id, memberUserIds, {
+      forceMoveFromOtherTeam: input.forceMoveFromOtherTeam,
+      actorUserId: input.actor.id,
+      reason: input.reason,
+    });
+
     for (const userId of memberUserIds) {
       await ensureActiveEventParticipant(tx, team.eventId, userId, input.actor.id);
     }
@@ -720,7 +911,13 @@ export async function adminReplaceTeamRoster(
       action: 'ADMIN_ROSTER_REPLACED',
       beforeJson,
       afterJson,
-      metaJson: { memberUserIds, captainUserId },
+      metaJson: {
+        memberUserIds,
+        captainUserId,
+        allowOverCapacity: Boolean(input.allowOverCapacity),
+        previousMaxSize: team.maxSize,
+        nextSize: memberUserIds.length,
+      },
       reason: input.reason,
     });
   });
