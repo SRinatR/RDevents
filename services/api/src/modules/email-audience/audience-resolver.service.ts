@@ -177,7 +177,7 @@ async function activeTeamUserIds(eventId: string, filter: any) {
     where: {
       team: {
         eventId,
-        ...(teamStatuses.length ? { status: { in: teamStatuses as any[] } } : { status: { in: ['ACTIVE', 'PENDING', 'SUBMITTED', 'CHANGES_PENDING'] as any[] } }),
+        ...(teamStatuses.length ? { status: { in: teamStatuses as any[] } } : { status: { in: ['ACTIVE', 'APPROVED', 'PENDING', 'SUBMITTED', 'CHANGES_PENDING', 'NEEDS_ATTENTION'] as any[] } }),
       },
       ...(memberStatuses.length ? { status: { in: memberStatuses as any[] } } : { status: { in: ['ACTIVE', 'PENDING'] as any[] } }),
     },

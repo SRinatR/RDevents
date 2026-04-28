@@ -402,7 +402,7 @@ adminEventsRouter.get('/:id/teams', async (req, res) => {
         orderBy: { joinedAt: 'desc' },
       },
       changeRequests: {
-        where: { status: 'PENDING' },
+        where: { status: { in: ['DRAFT', 'WAITING_INVITEE', 'PENDING'] as any[] } },
         include: {
           requestedByUser: { select: { id: true, name: true, email: true } },
         },
@@ -438,6 +438,8 @@ adminEventsRouter.post('/:id/teams/:teamId/change-requests/:requestId/approve', 
     const map: Record<string, [number, string]> = {
       TEAM_CHANGE_REQUEST_NOT_FOUND: [404, 'Team change request not found'],
       TEAM_CHANGE_REQUEST_CLOSED: [409, 'Team change request is already closed'],
+      STALE_CHANGE_REQUEST: [409, 'Team change request is stale and cannot be approved'],
+      MEMBER_NOT_FOUND: [404, 'Team member not found'],
     };
     const [status, message] = map[err.message] ?? [500, 'Internal error'];
     res.status(status).json({ error: message, code: err.message });
@@ -466,6 +468,7 @@ adminEventsRouter.post('/:id/teams/:teamId/change-requests/:requestId/reject', a
     const map: Record<string, [number, string]> = {
       TEAM_CHANGE_REQUEST_NOT_FOUND: [404, 'Team change request not found'],
       TEAM_CHANGE_REQUEST_CLOSED: [409, 'Team change request is already closed'],
+      DECISION_REASON_REQUIRED: [400, 'Decision reason is required'],
     };
     const [status, message] = map[err.message] ?? [500, 'Internal error'];
     res.status(status).json({ error: message, code: err.message });
@@ -988,7 +991,7 @@ adminEventsRouter.post('/:id/participants/:memberId/remove', async (req, res) =>
     return;
   }
 
-  const activeTeamStatuses: EventTeamStatus[] = ['ACTIVE', 'PENDING', 'SUBMITTED', 'CHANGES_PENDING'];
+  const activeTeamStatuses: EventTeamStatus[] = ['ACTIVE', 'APPROVED', 'PENDING', 'SUBMITTED', 'CHANGES_PENDING', 'NEEDS_ATTENTION'];
   const isTeamCaptain = await prisma.eventTeam.findFirst({
     where: {
       eventId,
@@ -1046,7 +1049,7 @@ adminEventsRouter.post('/:id/participants/:memberId/reject', async (req, res) =>
     return;
   }
 
-  const activeTeamStatuses: EventTeamStatus[] = ['ACTIVE', 'PENDING', 'SUBMITTED', 'CHANGES_PENDING'];
+  const activeTeamStatuses: EventTeamStatus[] = ['ACTIVE', 'APPROVED', 'PENDING', 'SUBMITTED', 'CHANGES_PENDING', 'NEEDS_ATTENTION'];
   const isTeamCaptain = await prisma.eventTeam.findFirst({
     where: {
       eventId,
@@ -1113,7 +1116,7 @@ adminEventsRouter.patch('/:id/participations/:memberId', async (req, res) => {
     return;
   }
 
-  const activeTeamStatuses: EventTeamStatus[] = ['ACTIVE', 'PENDING', 'SUBMITTED', 'CHANGES_PENDING'];
+  const activeTeamStatuses: EventTeamStatus[] = ['ACTIVE', 'APPROVED', 'PENDING', 'SUBMITTED', 'CHANGES_PENDING', 'NEEDS_ATTENTION'];
   const isTeamCaptain = await prisma.eventTeam.findFirst({
     where: {
       eventId,

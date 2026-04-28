@@ -39,7 +39,7 @@ const teamDetailsInclude = {
     select: { id: true, inviteeEmail: true, status: true },
   },
   changeRequests: {
-    where: { status: { in: ['PENDING'] as any[] } },
+    where: { status: { in: ['DRAFT', 'WAITING_INVITEE', 'PENDING'] as any[] } },
     orderBy: { createdAt: 'desc' },
   },
 } satisfies Prisma.EventTeamInclude;
@@ -572,7 +572,7 @@ adminTeamsRouter.patch('/:teamId/status', async (req, res) => {
     return;
   }
 
-  const allowedStatuses = ['DRAFT', 'SUBMITTED', 'REJECTED', 'ARCHIVED', 'CHANGES_PENDING', 'ACTIVE', 'PENDING'];
+  const allowedStatuses = ['DRAFT', 'SUBMITTED', 'REJECTED', 'ARCHIVED', 'CHANGES_PENDING', 'ACTIVE', 'APPROVED', 'PENDING', 'NEEDS_ATTENTION'];
   if (!allowedStatuses.includes(status)) {
     res.status(400).json({ error: 'Invalid status' });
     return;

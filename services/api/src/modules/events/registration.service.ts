@@ -11,6 +11,7 @@ import {
   notifyParticipantApplicationSubmitted,
   notifyParticipantStatusChanged,
 } from './notifications.service.js';
+import { leaveTeam } from './teams.service.js';
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
 
@@ -350,6 +351,7 @@ export async function unregisterFromEvent(eventId: string, userId: string) {
     include: { team: { select: { id: true, captainUserId: true } } },
   });
 
+  let leaveResult: any = null;
   if (teamMembership) {
     if (teamMembership.team.captainUserId === userId) {
       throw {
@@ -357,12 +359,17 @@ export async function unregisterFromEvent(eventId: string, userId: string) {
         message: 'сначала передайте капитанство или решите вопрос с командой',
       };
     }
+
+    leaveResult = await leaveTeam(eventId, teamMembership.team.id, userId);
+    if (leaveResult?.status === 'WITHDRAWAL_REQUEST_CREATED') {
+      return leaveResult;
+    }
   }
 
   const shouldDecrement = ACTIVE_MEMBER_STATUSES.includes(membership.status as any);
 
   const updated = await prisma.$transaction(async (tx: any) => {
-    if (teamMembership) {
+    if (teamMembership && leaveResult?.status !== 'LEFT') {
       await tx.eventTeamMember.update({
         where: { id: teamMembership.id },
         data: { status: 'LEFT', removedAt: new Date() },

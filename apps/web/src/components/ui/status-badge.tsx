@@ -14,6 +14,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
   ACTIVE: { label: 'Активна', color: 'text-green-800', bg: 'bg-green-50', border: 'border-green-200' },
   PENDING: { label: 'На проверке', color: 'text-amber-800', bg: 'bg-amber-50', border: 'border-amber-200' },
   CHANGES_PENDING: { label: 'Изменения на проверке', color: 'text-amber-800', bg: 'bg-amber-50', border: 'border-amber-200' },
+  NEEDS_ATTENTION: { label: 'Требует внимания', color: 'text-sky-800', bg: 'bg-sky-50', border: 'border-sky-200' },
   APPROVED: { label: 'Одобрена', color: 'text-green-800', bg: 'bg-green-50', border: 'border-green-200' },
   
   OPEN: { label: 'Открыта', color: 'text-green-800', bg: 'bg-green-50', border: 'border-green-200' },
