@@ -37,7 +37,7 @@ export type AudiencePreviewResult = {
 };
 
 type CandidateUser = {
-  id: string;
+  id?: string;
   email: string | null;
   name: string | null;
   city?: string | null;
@@ -58,6 +58,45 @@ function toArray(value: unknown): string[] {
   if (Array.isArray(value)) return value.map(String).filter(Boolean);
   if (typeof value === 'string' && value.trim()) return value.split(',').map(item => item.trim()).filter(Boolean);
   return [];
+}
+
+function uniqueStrings(values: string[]) {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const value of values) {
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    result.push(value);
+  }
+
+  return result;
+}
+
+function extractEmailAddress(value: string) {
+  const trimmed = value.trim();
+  const angleMatch = trimmed.match(/<([^>]+)>/);
+  return (angleMatch?.[1] ?? trimmed).trim();
+}
+
+function extractManualSelection(filter: any) {
+  const manual = filter?.manualSelection ?? {};
+  const emails = uniqueStrings(
+    [...toArray(filter?.emails), ...toArray(manual?.emails)]
+      .map(extractEmailAddress)
+      .filter((value) => EMAIL_REGEX.test(value)),
+  );
+  const userIds = uniqueStrings(
+    [...toArray(filter?.userIds), ...toArray(manual?.userIds)]
+      .map((value) => value.replace(/^(user|id):/i, '').trim())
+      .filter(Boolean),
+  );
+
+  return {
+    eventId: filter?.eventId ? String(filter.eventId) : null,
+    emails,
+    userIds,
+  };
 }
 
 function isSuppressionEnforced(type: string) {
@@ -270,6 +309,126 @@ async function resolveEventTeamCandidates(filter: any, limit: number): Promise<C
   }));
 }
 
+async function manualSelectionScopedUserIds(eventId: string) {
+  const [eventMembers, teamMembers] = await Promise.all([
+    prisma.eventMember.findMany({
+      where: { eventId },
+      select: { userId: true },
+    }),
+    prisma.eventTeamMember.findMany({
+      where: { team: { eventId } },
+      select: { userId: true },
+    }),
+  ]);
+
+  return new Set([
+    ...eventMembers.map((row) => row.userId),
+    ...teamMembers.map((row) => row.userId),
+  ]);
+}
+
+async function resolveManualSelectionCandidates(filter: any, limit: number): Promise<CandidateUser[]> {
+  const selection = extractManualSelection(filter);
+  if (selection.emails.length === 0 && selection.userIds.length === 0) {
+    return [];
+  }
+
+  const users = await prisma.user.findMany({
+    where: {
+      OR: [
+        ...(selection.userIds.length ? [{ id: { in: selection.userIds } }] : []),
+        ...(selection.emails.length ? [{ email: { in: selection.emails } }] : []),
+      ],
+    },
+    select: userSelect() as any,
+    take: Math.min(Math.max(limit, selection.emails.length + selection.userIds.length), 10000),
+  });
+
+  const scopedUserIds = selection.eventId
+    ? await manualSelectionScopedUserIds(selection.eventId)
+    : null;
+  const eligibleUsers = scopedUserIds
+    ? users.filter((user: any) => scopedUserIds.has(user.id))
+    : users;
+
+  const usersById = new Map(eligibleUsers.map((user: any) => [user.id, user]));
+  const usersByEmail = new Map(
+    eligibleUsers
+      .filter((user: any) => user.email)
+      .map((user: any) => [normalizeEmail(String(user.email)), user]),
+  );
+  const orderedCandidates: CandidateUser[] = [];
+  const addedKeys = new Set<string>();
+
+  const pushCandidate = (candidate: CandidateUser, key: string) => {
+    if (addedKeys.has(key) || orderedCandidates.length >= limit) return;
+    addedKeys.add(key);
+    orderedCandidates.push(candidate);
+  };
+
+  for (const userId of selection.userIds) {
+    const user = usersById.get(userId);
+    if (!user) continue;
+    pushCandidate(
+      {
+        ...(user as any),
+        audienceReason: {
+          matchedBy: 'manualSelection',
+          via: 'userId',
+          value: userId,
+          eventId: selection.eventId,
+        },
+      },
+      `user:${user.id}`,
+    );
+  }
+
+  for (const email of selection.emails) {
+    const normalized = normalizeEmail(email);
+    const user = usersByEmail.get(normalized);
+    if (user) {
+      pushCandidate(
+        {
+          ...(user as any),
+          audienceReason: {
+            matchedBy: 'manualSelection',
+            via: 'email',
+            value: email,
+            eventId: selection.eventId,
+          },
+        },
+        `user:${user.id}`,
+      );
+      continue;
+    }
+
+    if (selection.eventId) {
+      continue;
+    }
+
+    pushCandidate(
+      {
+        email,
+        name: null,
+        isActive: true,
+        emailVerifiedAt: null,
+        extendedProfile: null,
+        communicationConsents: [],
+        audienceReason: {
+          matchedBy: 'manualSelection',
+          via: 'email',
+          value: email,
+          eventId: null,
+          resolved: 'rawEmail',
+        },
+      },
+      `email:${normalized}`,
+    );
+  }
+
+  return orderedCandidates;
+}
+
 async function resolveCandidates(input: ResolveAudienceInput) {
   const filter = input.audienceFilterJson ?? {};
   const limit = Math.max(1, Math.min(Number(input.limit ?? 5000), 10000));
@@ -281,6 +440,9 @@ async function resolveCandidates(input: ResolveAudienceInput) {
   }
   if (source === 'EVENT_TEAMS') {
     return resolveEventTeamCandidates(filter, limit);
+  }
+  if (source === 'MANUAL_SELECTION') {
+    return resolveManualSelectionCandidates(filter, limit);
   }
   return resolveStaticCandidates(audienceKind, filter, limit);
 }
@@ -347,7 +509,7 @@ export async function resolveAudience(input: ResolveAudienceInput): Promise<Audi
     }
 
     return {
-      userId: user.id,
+      userId: user.id ?? undefined,
       email: email || undefined,
       normalizedEmail: normalizedEmail || undefined,
       name: user.name ?? undefined,
@@ -384,7 +546,7 @@ export async function resolveAudience(input: ResolveAudienceInput): Promise<Audi
 export function extractAudienceEventId(input: { audienceSource?: unknown; audienceFilterJson?: any }) {
   const source = toDbEnum(input.audienceSource, 'STATIC_FILTER');
   const eventId = input.audienceFilterJson?.eventId;
-  if (eventId && ['STATIC_FILTER', 'EVENT_PARTICIPANTS', 'EVENT_TEAMS'].includes(source)) {
+  if (eventId && ['STATIC_FILTER', 'EVENT_PARTICIPANTS', 'EVENT_TEAMS', 'MANUAL_SELECTION'].includes(source)) {
     return String(eventId);
   }
   return null;

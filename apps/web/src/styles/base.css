@@ -1,0 +1,82 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+html {
+  min-width: 320px;
+  max-width: 100%;
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-width: 320px;
+  max-width: 100%;
+  overflow-x: clip;
+  margin: 0;
+}
+
+img, svg, video, canvas {
+  max-width: 100%;
+}
+
+button, input, textarea, select {
+  font: inherit;
+  max-width: 100%;
+}
+
+a {
+  color: inherit;
+}
+
+:root {
+  --workspace-max-width: 1440px;
+  --workspace-gutter: clamp(12px, 2vw, 32px);
+  --workspace-gap: clamp(14px, 1.8vw, 24px);
+  --shell-topbar-height: 64px;
+  --admin-sidebar-width: 280px;
+  --cabinet-sidebar-width: 260px;
+}
+
+.overflow-guard {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.text-truncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.text-wrap-safe {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.responsive-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+}
+
+.responsive-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.responsive-grid {
+  display: grid;
+  gap: var(--workspace-gap);
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+}
+
+.page-scroll-safe {
+  min-width: 0;
+  max-width: 100%;
+}

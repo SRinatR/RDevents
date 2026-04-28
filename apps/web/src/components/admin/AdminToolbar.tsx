@@ -1,14 +1,17 @@
 import type { ReactNode } from 'react';
+import { cn } from '@/lib/utils';
 
 interface AdminToolbarProps {
   children: ReactNode;
+  actions?: ReactNode;
   className?: string;
 }
 
-export function AdminToolbar({ children, className }: AdminToolbarProps) {
+export function AdminToolbar({ children, actions, className }: AdminToolbarProps) {
   return (
-    <div className={`signal-toolbar-row admin-toolbar ${className ?? ''}`}>
+    <div className={cn('admin-toolbar', className)}>
       {children}
+      {actions ? <div className="admin-toolbar-actions">{actions}</div> : null}
     </div>
   );
 }
@@ -29,7 +32,7 @@ export function AdminToolbarSearch({
       value={value}
       onChange={onChange}
       placeholder={placeholder}
-      className="signal-field admin-toolbar-search"
+      className="signal-field admin-toolbar-search admin-filter-search"
     />
   );
 }
@@ -49,7 +52,7 @@ export function AdminToolbarSelect({
     <select
       value={value}
       onChange={onChange}
-      className={`signal-field signal-select admin-toolbar-select ${className ?? ''}`}
+      className={cn('signal-field signal-select admin-toolbar-select admin-filter-select', className)}
     >
       {children}
     </select>

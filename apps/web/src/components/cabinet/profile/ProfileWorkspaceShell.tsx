@@ -24,7 +24,7 @@ export function ProfileWorkspaceShell({
   const percent = Math.round((completed / total) * 100);
 
   return (
-    <div className="profile-workspace">
+    <div className="profile-workspace cabinet-workspace-page">
       <div className="profile-canvas">
         <header className="profile-workspace-topbar">
           <div>
@@ -60,8 +60,8 @@ export function ProfileWorkspaceShell({
           onSectionChange={onSectionChange}
         />
 
-        <div className="profile-workspace-grid">
-          <div className="profile-section-content">
+        <div className="profile-workspace-grid cabinet-workspace-grid">
+          <div className="profile-section-content cabinet-workspace-main">
             {children}
           </div>
         </div>

@@ -2,7 +2,6 @@ import { NextIntlClientProvider, hasLocale } from 'next-intl';
 import { getMessages, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { AuthProvider } from '../../hooks/useAuth';
-import { Navbar } from '../../components/layout/Navbar';
 
 const SUPPORTED_LOCALES = ['en', 'ru'] as const;
 
@@ -25,12 +24,7 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>
-      <AuthProvider>
-        <div className="app-shell app-shell-public" data-shell="public">
-          <Navbar locale={locale} />
-          <div className="app-shell-main app-shell-main-public">{children}</div>
-        </div>
-      </AuthProvider>
+      <AuthProvider>{children}</AuthProvider>
     </NextIntlClientProvider>
   );
 }

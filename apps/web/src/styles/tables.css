@@ -1,0 +1,203 @@
+.signal-table-shell,
+.admin-data-table,
+.admin-table-scroll {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 16px;
+  border: 1px solid rgba(209, 218, 234, 0.82);
+  background: var(--color-surface);
+}
+
+.signal-table,
+.admin-table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.signal-table th,
+.signal-table td,
+.admin-table th,
+.admin-table td {
+  min-width: 0;
+  padding: 12px 14px;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(209, 218, 234, 0.72);
+}
+
+.signal-table th,
+.admin-table th {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  background: var(--color-surface-table);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.signal-table td,
+.admin-table td {
+  color: var(--color-text-primary);
+}
+
+.signal-table .right,
+.admin-table .right,
+.align-right {
+  text-align: right;
+}
+
+.align-center {
+  text-align: center;
+}
+
+.signal-overflow-ellipsis,
+.admin-table-truncate {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-table-cell-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.admin-table-cell-title {
+  min-width: 0;
+  font-weight: 750;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-table-cell-subtitle {
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.signal-row-actions,
+.admin-table-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.admin-table-actions .btn,
+.signal-row-actions .btn {
+  flex: 0 0 auto;
+}
+
+.admin-mobile-list {
+  display: none;
+}
+
+.admin-mobile-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(209, 218, 234, 0.82);
+  border-radius: 16px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.admin-mobile-card-header {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-mobile-card-title {
+  min-width: 0;
+  font-weight: 760;
+  overflow-wrap: anywhere;
+}
+
+.admin-mobile-card-subtitle {
+  margin-top: 3px;
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.admin-mobile-card-meta {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.admin-mobile-card-meta-row {
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid rgba(209, 218, 234, 0.62);
+  padding-top: 8px;
+}
+
+.admin-mobile-card-meta-label {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.admin-mobile-card-meta-value {
+  min-width: 0;
+  text-align: right;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.admin-mobile-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.admin-mobile-card-actions .btn {
+  flex: 1 1 auto;
+}
+
+@media (max-width: 767px) {
+  .admin-table-mobile-cards .signal-table-shell,
+  .admin-table-mobile-cards .admin-data-table,
+  .admin-table-mobile-cards .admin-table-scroll {
+    display: none;
+  }
+
+  .admin-table-mobile-cards .admin-mobile-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .signal-table,
+  .admin-table {
+    min-width: 760px;
+  }
+
+  .signal-table th,
+  .signal-table td,
+  .admin-table th,
+  .admin-table td {
+    padding: 10px 12px;
+  }
+}

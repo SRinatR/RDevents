@@ -1,0 +1,227 @@
+'use client';
+
+import { useMemo, useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useAuth } from '@/hooks/useAuth';
+import { adminApi } from '@/lib/api';
+import { useRouteLocale } from '@/hooks/useRouteParams';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, Notice, Panel, SectionHeader, StatusBadge } from '@/components/ui/signal-primitives';
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
+import { AdminToolbar } from '@/components/admin/AdminToolbar';
+import {
+  AdminDataTable,
+  AdminDataTableBody,
+  AdminDataTableCell,
+  AdminDataTableHeader,
+  AdminDataTableRow,
+  AdminTableActions,
+  AdminTableCellMain,
+} from '@/components/admin/AdminDataTable';
+import { AdminMobileCard, AdminMobileList } from '@/components/admin/AdminMobileCard';
+
+export default function AdminEventsPage() {
+  const t = useTranslations();
+  const { user, loading, isAdmin, isPlatformAdmin } = useAuth();
+  const router = useRouter();
+  const locale = useRouteLocale();
+
+  const [events, setEvents] = useState<any[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [sortMode, setSortMode] = useState<'date_desc' | 'date_asc' | 'title'>('date_desc');
+  const [pendingDeleteEvent, setPendingDeleteEvent] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (!loading && (!user || !isAdmin)) router.push(`/${locale}`);
+  }, [user, loading, isAdmin, router, locale]);
+
+  const loadEvents = () => {
+    setEventsLoading(true);
+    adminApi.listEvents({ limit: 100 })
+      .then((r) => setEvents(r.data))
+      .catch(() => {})
+      .finally(() => setEventsLoading(false));
+  };
+
+  useEffect(() => {
+    if (user && isAdmin) loadEvents();
+  }, [user, isAdmin]);
+
+  const filteredEvents = useMemo(() => {
+    const normalized = search.trim().toLowerCase();
+    const filtered = events.filter((event) => {
+      const statusPass = statusFilter === 'ALL' || event.status === statusFilter;
+      const searchPass = !normalized
+        || event.title?.toLowerCase().includes(normalized)
+        || event.category?.toLowerCase().includes(normalized)
+        || event.slug?.toLowerCase().includes(normalized);
+      return statusPass && searchPass;
+    });
+
+    return filtered.sort((left, right) => {
+      if (sortMode === 'title') return (left.title ?? '').localeCompare(right.title ?? '');
+      const leftDate = new Date(left.startsAt).getTime();
+      const rightDate = new Date(right.startsAt).getTime();
+      return sortMode === 'date_asc' ? leftDate - rightDate : rightDate - leftDate;
+    });
+  }, [events, search, statusFilter, sortMode]);
+
+  const handleDelete = async () => {
+    if (!isPlatformAdmin || !pendingDeleteEvent) return;
+    setDeletingId(pendingDeleteEvent.id);
+    try {
+      await adminApi.deleteEvent(pendingDeleteEvent.id);
+      setEvents((prev) => prev.filter((event) => event.id !== pendingDeleteEvent.id));
+      setPendingDeleteEvent(null);
+    } catch {
+      alert('Failed to delete event');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const toneByStatus: Record<string, 'success' | 'warning' | 'danger' | 'info'> = {
+    PUBLISHED: 'success',
+    DRAFT: 'warning',
+    CANCELLED: 'danger',
+    COMPLETED: 'info',
+  };
+
+  if (loading || !user || !isAdmin) return <div className="admin-loading-screen"><div className="spinner" /></div>;
+
+  return (
+    <div className="signal-page-shell admin-control-page">
+      <AdminPageHeader
+        title={t('admin.events')}
+        subtitle={isPlatformAdmin ? `${events.length} events total` : `${events.length} managed events`}
+        actions={isPlatformAdmin ? <Link href={`/${locale}/admin/events/new`} className="btn btn-primary">{t('admin.createEvent')}</Link> : null}
+      />
+
+      <div className="admin-control-strip">
+        <div className="admin-control-card"><small>{locale === 'ru' ? 'Реестр' : 'Registry'}</small><strong>{locale === 'ru' ? 'Управление событиями' : 'Event command list'}</strong></div>
+        <div className="admin-control-card"><small>{locale === 'ru' ? 'Видимость' : 'Visibility'}</small><strong>{filteredEvents.length} {locale === 'ru' ? 'строк' : 'rows'}</strong></div>
+      </div>
+
+      <Panel variant="elevated" className="admin-command-panel admin-data-panel">
+        <SectionHeader title={locale === 'ru' ? 'Управление мероприятиями' : 'Event management workspace'} subtitle={locale === 'ru' ? 'Поиск, фильтрация и действия в едином реестре' : 'Search, filtering, and actions in one registry'} />
+
+        <AdminToolbar>
+          <FieldInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder={locale === 'ru' ? 'Поиск по названию, категории или slug' : 'Search by title, category, or slug'} className="admin-filter-search" />
+          <FieldSelect value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="admin-filter-select admin-toolbar-select">
+            <option value="ALL">All statuses</option>
+            <option value="PUBLISHED">Published</option>
+            <option value="DRAFT">Draft</option>
+            <option value="CANCELLED">Cancelled</option>
+            <option value="COMPLETED">Completed</option>
+          </FieldSelect>
+          <FieldSelect value={sortMode} onChange={(event) => setSortMode(event.target.value as 'date_desc' | 'date_asc' | 'title')} className="admin-filter-sort admin-toolbar-select">
+            <option value="date_desc">Newest first</option>
+            <option value="date_asc">Oldest first</option>
+            <option value="title">Title A-Z</option>
+          </FieldSelect>
+        </AdminToolbar>
+
+        {eventsLoading ? (
+          <LoadingLines rows={6} />
+        ) : filteredEvents.length === 0 ? (
+          <EmptyState
+            title={locale === 'ru' ? 'События не найдены' : 'No events found'}
+            description={locale === 'ru' ? 'Измените фильтры или создайте новое событие.' : 'Adjust filters or create a new event.'}
+            actions={isPlatformAdmin ? <Link href={`/${locale}/admin/events/new`} className="btn btn-secondary btn-sm">{t('admin.createEvent')}</Link> : undefined}
+          />
+        ) : (
+          <div className="admin-table-mobile-cards">
+            <AdminDataTable minWidth={980}>
+              <AdminDataTableHeader
+                columns={[
+                  { label: 'Title', width: '28%' },
+                  { label: 'Category', width: '16%' },
+                  { label: 'Status', width: '14%' },
+                  { label: 'Date', width: '14%' },
+                  { label: 'Registered', width: '10%' },
+                  { label: 'Actions', align: 'right', width: '18%' },
+                ]}
+              />
+              <AdminDataTableBody>
+                {filteredEvents.map((event: any) => (
+                  <AdminDataTableRow key={event.id}>
+                    <AdminDataTableCell>
+                      <AdminTableCellMain
+                        title={<Link href={`/${locale}/admin/events/${event.id}/overview`}>{event.title}</Link>}
+                        subtitle={`/${event.slug}`}
+                      />
+                    </AdminDataTableCell>
+                    <AdminDataTableCell>{event.category}</AdminDataTableCell>
+                    <AdminDataTableCell>
+                      <StatusBadge tone={toneByStatus[event.status] ?? 'neutral'}>{event.status}</StatusBadge>
+                    </AdminDataTableCell>
+                    <AdminDataTableCell>{new Date(event.startsAt).toLocaleDateString()}</AdminDataTableCell>
+                    <AdminDataTableCell>{event._count?.registrations ?? 0}</AdminDataTableCell>
+                    <AdminDataTableCell align="right">
+                      <AdminTableActions>
+                        <Link href={`/${locale}/admin/events/${event.id}/overview`} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Открыть' : 'Open'}</Link>
+                        <Link href={`/${locale}/events/${event.slug}`} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Публичная' : 'Public'}</Link>
+                        <Link href={`/${locale}/admin/events/${event.id}/edit`} className="btn btn-secondary btn-sm">{t('common.edit')}</Link>
+                        {isPlatformAdmin ? (
+                          <button onClick={() => setPendingDeleteEvent(event)} className="btn btn-danger btn-sm" disabled={deletingId === event.id}>
+                            {deletingId === event.id ? '...' : t('common.delete')}
+                          </button>
+                        ) : null}
+                      </AdminTableActions>
+                    </AdminDataTableCell>
+                  </AdminDataTableRow>
+                ))}
+              </AdminDataTableBody>
+            </AdminDataTable>
+
+            <AdminMobileList>
+              {filteredEvents.map((event: any) => (
+                <AdminMobileCard
+                  key={event.id}
+                  title={event.title}
+                  subtitle={`/${event.slug}`}
+                  badge={<StatusBadge tone={toneByStatus[event.status] ?? 'neutral'}>{event.status}</StatusBadge>}
+                  meta={[
+                    { label: 'Category', value: event.category || '—' },
+                    { label: 'Date', value: new Date(event.startsAt).toLocaleDateString() },
+                    { label: 'Registered', value: event._count?.registrations ?? 0 },
+                  ]}
+                  actions={
+                    <>
+                      <Link href={`/${locale}/admin/events/${event.id}/overview`} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Открыть' : 'Open'}</Link>
+                      <Link href={`/${locale}/events/${event.slug}`} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Публичная' : 'Public'}</Link>
+                      <Link href={`/${locale}/admin/events/${event.id}/edit`} className="btn btn-secondary btn-sm">{t('common.edit')}</Link>
+                      {isPlatformAdmin ? (
+                        <button onClick={() => setPendingDeleteEvent(event)} className="btn btn-danger btn-sm" disabled={deletingId === event.id}>
+                          {deletingId === event.id ? '...' : t('common.delete')}
+                        </button>
+                      ) : null}
+                    </>
+                  }
+                />
+              ))}
+            </AdminMobileList>
+          </div>
+        )}
+      </Panel>
+
+      {pendingDeleteEvent && (
+        <Panel variant="elevated" className="signal-danger-zone admin-danger-panel">
+          <SectionHeader title={locale === 'ru' ? 'Подтверждение удаления' : 'Deletion confirmation'} subtitle={pendingDeleteEvent.title} />
+          <div className="responsive-row">
+            <button onClick={handleDelete} className="btn btn-danger btn-sm" disabled={Boolean(deletingId)}>{locale === 'ru' ? 'Подтвердить удаление' : 'Confirm delete'}</button>
+            <button onClick={() => setPendingDeleteEvent(null)} className="btn btn-secondary btn-sm">{t('common.cancel')}</button>
+          </div>
+        </Panel>
+      )}
+
+      <Notice tone="info">
+        {locale === 'ru' ? 'Фильтры и сортировка выполняются в клиенте поверх текущего набора данных API без изменения серверной логики.' : 'Filters and sorting run client-side on the current API dataset without changing backend logic.'}
+      </Notice>
+    </div>
+  );
+}

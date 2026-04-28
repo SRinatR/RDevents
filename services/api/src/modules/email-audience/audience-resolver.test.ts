@@ -359,4 +359,107 @@ describe('audience-resolver skip reasons', () => {
       expect(result.skippedByReason['SKIPPED_SUPPRESSED']).toBe(1);
     });
   });
+
+  describe('manual selection', () => {
+    it('matches existing users by email and user id without duplicates', async () => {
+      vi.mocked(prisma.user.findMany).mockResolvedValue([
+        {
+          id: 'user-1',
+          email: 'user@example.com',
+          name: 'Selected User',
+          isActive: true,
+          emailVerifiedAt: new Date(),
+          extendedProfile: { consentMailing: true },
+          communicationConsents: [],
+        },
+      ] as any);
+
+      vi.mocked(prisma.emailSuppression.findMany).mockResolvedValue([]);
+
+      const { resolveAudience } = await import('./audience-resolver.service.js');
+      const result = await resolveAudience({
+        broadcastType: 'ADMIN_TEST',
+        audienceKind: 'ACTIVE_USERS',
+        audienceSource: 'MANUAL_SELECTION',
+        audienceFilterJson: {
+          emails: ['User <user@example.com>'],
+          userIds: ['user-1'],
+        },
+        includeSkipped: true,
+      });
+
+      expect(result.totalMatched).toBe(1);
+      expect(result.totalEligible).toBe(1);
+      expect(result.items[0].userId).toBe('user-1');
+      expect(result.items[0].status).toBe('QUEUED');
+      expect(result.items[0].audienceReason).toMatchObject({
+        matchedBy: 'manualSelection',
+      });
+    });
+
+    it('keeps raw manual emails for platform-wide operational sends', async () => {
+      vi.mocked(prisma.user.findMany).mockResolvedValue([]);
+      vi.mocked(prisma.emailSuppression.findMany).mockResolvedValue([]);
+
+      const { resolveAudience } = await import('./audience-resolver.service.js');
+      const result = await resolveAudience({
+        broadcastType: 'ADMIN_TEST',
+        audienceKind: 'ACTIVE_USERS',
+        audienceSource: 'MANUAL_SELECTION',
+        audienceFilterJson: {
+          emails: ['external@example.com'],
+        },
+        includeSkipped: true,
+      });
+
+      expect(result.totalMatched).toBe(1);
+      expect(result.items[0].userId).toBeUndefined();
+      expect(result.items[0].email).toBe('external@example.com');
+      expect(result.items[0].status).toBe('QUEUED');
+    });
+
+    it('restricts event-scoped manual selection to users from that event', async () => {
+      vi.mocked(prisma.user.findMany).mockResolvedValue([
+        {
+          id: 'user-1',
+          email: 'inside@example.com',
+          name: 'Inside User',
+          isActive: true,
+          emailVerifiedAt: new Date(),
+          extendedProfile: { consentMailing: true },
+          communicationConsents: [],
+        },
+        {
+          id: 'user-2',
+          email: 'outside@example.com',
+          name: 'Outside User',
+          isActive: true,
+          emailVerifiedAt: new Date(),
+          extendedProfile: { consentMailing: true },
+          communicationConsents: [],
+        },
+      ] as any);
+      vi.mocked(prisma.eventMember.findMany).mockResolvedValue([{ userId: 'user-1' }] as any);
+      vi.mocked(prisma.eventTeamMember.findMany).mockResolvedValue([] as any);
+      vi.mocked(prisma.emailSuppression.findMany).mockResolvedValue([]);
+
+      const { resolveAudience } = await import('./audience-resolver.service.js');
+      const result = await resolveAudience({
+        broadcastType: 'ADMIN_TEST',
+        audienceKind: 'ACTIVE_USERS',
+        audienceSource: 'MANUAL_SELECTION',
+        audienceFilterJson: {
+          eventId: 'event-1',
+          userIds: ['user-1', 'user-2'],
+          emails: ['outside@example.com', 'raw@example.com'],
+        },
+        includeSkipped: true,
+      });
+
+      expect(result.totalMatched).toBe(1);
+      expect(result.totalEligible).toBe(1);
+      expect(result.items[0].userId).toBe('user-1');
+      expect(result.items[0].email).toBe('inside@example.com');
+    });
+  });
 });
