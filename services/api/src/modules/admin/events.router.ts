@@ -1,31 +1,11 @@
 import { Router } from 'express';
-import multer from 'multer';
 import type { EventMemberStatus, EventStaffRole, EventTeamStatus, User } from '@prisma/client';
 import { canManageEvent, requirePlatformAdmin } from '../../common/middleware.js';
 import { prisma } from '../../db/prisma.js';
-import { env } from '../../config/env.js';
-import {
-  createEventSchema,
-  eventGalleryQuerySchema,
-  eventGalleryUpdateSchema,
-  eventGalleryUploadSchema,
-  updateEventSchema,
-} from '../events/events.schemas.js';
+import { createEventSchema, updateEventSchema } from '../events/events.schemas.js';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 import { notifyParticipantStatusChanged } from '../events/notifications.service.js';
 import { approveTeamChangeRequest, rejectTeamChangeRequest } from '../events/events.service.js';
-import {
-  createOfficialEventGalleryAsset,
-  deleteAdminEventGalleryAsset,
-  EventGalleryError,
-  listAdminEventGallery,
-  updateAdminEventGalleryAsset,
-} from '../events/event-gallery.service.js';
-import {
-  removeVolunteerCertificate,
-  uploadVolunteerCertificate,
-  VolunteerCertificateError,
-} from '../events/volunteer-certificates.service.js';
 import { getActiveProfileRequirementFields } from '../profile-config/profile-field-values.js';
 import { normalizeEmail } from '@event-platform/shared';
 import {
@@ -38,24 +18,11 @@ import {
   revokeEventStaffGrant,
 } from '../access-control/access-control.service.js';
 import { buildAuditRequestContext, writeAuditLog } from '../access-control/access-control.audit.js';
+import { env } from '../../config/env.js';
 
 export const adminEventsRouter = Router();
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
-const galleryUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: Math.max(env.MAX_EVENT_GALLERY_PHOTO_MB, env.MAX_EVENT_GALLERY_VIDEO_MB) * 1024 * 1024,
-    files: 1,
-  },
-});
-const volunteerCertificateUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: env.MAX_VOLUNTEER_CERTIFICATE_UPLOAD_MB * 1024 * 1024,
-    files: 1,
-  },
-});
 
 function normalizeStringArray(value: unknown) {
   if (Array.isArray(value)) {
@@ -803,76 +770,6 @@ adminEventsRouter.patch('/:id/volunteers/:memberId', async (req, res) => {
   res.json({ membership });
 });
 
-// POST /admin/events/:id/volunteers/:memberId/certificate
-adminEventsRouter.post('/:id/volunteers/:memberId/certificate', volunteerCertificateUpload.single('file'), async (req, res) => {
-  const user = (req as any).user as User;
-  const eventId = String(req.params['id']);
-  const memberId = String(req.params['memberId']);
-  if (!(await canManageEvent(user, eventId))) {
-    res.status(403).json({ error: 'Forbidden' });
-    return;
-  }
-
-  if (!req.file) {
-    res.status(400).json({ error: 'File is required', code: 'VOLUNTEER_CERTIFICATE_FILE_REQUIRED' });
-    return;
-  }
-
-  try {
-    const membership = await uploadVolunteerCertificate(eventId, memberId, req.file);
-    res.status(201).json({ membership });
-  } catch (err: any) {
-    if (err instanceof VolunteerCertificateError) {
-      if (err.message === 'VOLUNTEER_CERTIFICATE_MEMBER_NOT_FOUND') {
-        res.status(404).json({ error: 'Active volunteer not found', code: err.message });
-        return;
-      }
-      if (err.message === 'VOLUNTEER_CERTIFICATE_FILE_EMPTY') {
-        res.status(400).json({ error: 'File is empty', code: err.message });
-        return;
-      }
-      if (err.message === 'VOLUNTEER_CERTIFICATE_FILE_TYPE_NOT_ALLOWED') {
-        res.status(400).json({ error: 'Accepted formats: PDF, JPG, PNG, WebP', code: err.message });
-        return;
-      }
-      if (err.message === 'VOLUNTEER_CERTIFICATE_FILE_TOO_LARGE') {
-        res.status(400).json({
-          error: `Certificate must be ${env.MAX_VOLUNTEER_CERTIFICATE_UPLOAD_MB} MB or smaller`,
-          code: err.message,
-        });
-        return;
-      }
-    }
-
-    res.status(500).json({ error: 'Internal error' });
-  }
-});
-
-// DELETE /admin/events/:id/volunteers/:memberId/certificate
-adminEventsRouter.delete('/:id/volunteers/:memberId/certificate', async (req, res) => {
-  const user = (req as any).user as User;
-  const eventId = String(req.params['id']);
-  const memberId = String(req.params['memberId']);
-  if (!(await canManageEvent(user, eventId))) {
-    res.status(403).json({ error: 'Forbidden' });
-    return;
-  }
-
-  try {
-    const result = await removeVolunteerCertificate(eventId, memberId);
-    res.json(result);
-  } catch (err: any) {
-    if (err instanceof VolunteerCertificateError) {
-      if (err.message === 'VOLUNTEER_CERTIFICATE_MEMBER_NOT_FOUND' || err.message === 'VOLUNTEER_CERTIFICATE_NOT_FOUND') {
-        res.status(404).json({ error: 'Volunteer certificate not found', code: err.message });
-        return;
-      }
-    }
-
-    res.status(500).json({ error: 'Internal error' });
-  }
-});
-
 // POST /admin/events/:id/volunteer-applications/:userId/approve
 adminEventsRouter.post('/:id/volunteer-applications/:userId/approve', async (req, res) => {
   const user = (req as any).user as User;
@@ -1067,144 +964,6 @@ adminEventsRouter.get('/:id/overview', async (req, res) => {
       teamMembersActive,
     },
   });
-});
-
-// GET /api/admin/events/:id/gallery
-adminEventsRouter.get('/:id/gallery', async (req, res) => {
-  const user = (req as any).user as User;
-  const eventId = String(req.params['id']);
-  if (!(await canManageEvent(user, eventId))) {
-    res.status(403).json({ error: 'Forbidden' });
-    return;
-  }
-
-  const parsed = eventGalleryQuerySchema.safeParse(req.query);
-  if (!parsed.success) {
-    res.status(400).json({ error: 'Invalid query', details: parsed.error.flatten() });
-    return;
-  }
-
-  try {
-    const gallery = await listAdminEventGallery(eventId, parsed.data);
-    res.json(gallery);
-  } catch (err: any) {
-    if (err instanceof EventGalleryError && err.message === 'EVENT_NOT_FOUND') {
-      res.status(404).json({ error: 'Event not found', code: err.message });
-      return;
-    }
-
-    res.status(500).json({ error: 'Internal error' });
-  }
-});
-
-// POST /api/admin/events/:id/gallery
-adminEventsRouter.post('/:id/gallery', galleryUpload.single('file'), async (req, res) => {
-  const user = (req as any).user as User;
-  const eventId = String(req.params['id']);
-  if (!(await canManageEvent(user, eventId))) {
-    res.status(403).json({ error: 'Forbidden' });
-    return;
-  }
-
-  const parsed = eventGalleryUploadSchema.safeParse(req.body ?? {});
-  if (!parsed.success) {
-    res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
-    return;
-  }
-
-  if (!req.file) {
-    res.status(400).json({ error: 'File is required', code: 'EVENT_GALLERY_FILE_REQUIRED' });
-    return;
-  }
-
-  try {
-    const result = await createOfficialEventGalleryAsset(
-      eventId,
-      user.id,
-      req.file,
-      parsed.data.caption,
-    );
-    res.status(201).json(result);
-  } catch (err: any) {
-    if (err instanceof EventGalleryError) {
-      if (err.message === 'EVENT_NOT_FOUND') {
-        res.status(404).json({ error: 'Event not found', code: err.message });
-        return;
-      }
-      if (err.message === 'EVENT_GALLERY_FILE_EMPTY') {
-        res.status(400).json({ error: 'File is empty', code: err.message });
-        return;
-      }
-      if (err.message === 'EVENT_GALLERY_FILE_TYPE_NOT_ALLOWED') {
-        res.status(400).json({ error: 'Accepted formats: JPG, PNG, WebP, MP4, WebM, MOV', code: err.message });
-        return;
-      }
-      if (err.message === 'EVENT_GALLERY_FILE_TOO_LARGE') {
-        res.status(400).json({
-          error: `Photo files must be ${env.MAX_EVENT_GALLERY_PHOTO_MB} MB or smaller, videos must be ${env.MAX_EVENT_GALLERY_VIDEO_MB} MB or smaller`,
-          code: err.message,
-        });
-        return;
-      }
-    }
-
-    res.status(500).json({ error: 'Internal error' });
-  }
-});
-
-// PATCH /api/admin/events/:id/gallery/:assetId
-adminEventsRouter.patch('/:id/gallery/:assetId', async (req, res) => {
-  const user = (req as any).user as User;
-  const eventId = String(req.params['id']);
-  if (!(await canManageEvent(user, eventId))) {
-    res.status(403).json({ error: 'Forbidden' });
-    return;
-  }
-
-  const parsed = eventGalleryUpdateSchema.safeParse(req.body ?? {});
-  if (!parsed.success) {
-    res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
-    return;
-  }
-
-  try {
-    const result = await updateAdminEventGalleryAsset(
-      eventId,
-      String(req.params['assetId']),
-      user.id,
-      parsed.data,
-    );
-    res.json(result);
-  } catch (err: any) {
-    if (err instanceof EventGalleryError && err.message === 'EVENT_GALLERY_ASSET_NOT_FOUND') {
-      res.status(404).json({ error: 'Gallery item not found', code: err.message });
-      return;
-    }
-
-    res.status(500).json({ error: 'Internal error' });
-  }
-});
-
-// DELETE /api/admin/events/:id/gallery/:assetId
-adminEventsRouter.delete('/:id/gallery/:assetId', async (req, res) => {
-  const user = (req as any).user as User;
-  const eventId = String(req.params['id']);
-  if (!(await canManageEvent(user, eventId))) {
-    res.status(403).json({ error: 'Forbidden' });
-    return;
-  }
-
-  try {
-    const result = await deleteAdminEventGalleryAsset(eventId, String(req.params['assetId']));
-    res.json(result);
-  } catch (err: any) {
-    if (err instanceof EventGalleryError && err.message === 'EVENT_GALLERY_ASSET_NOT_FOUND') {
-      res.status(404).json({ error: 'Gallery item not found', code: err.message });
-      return;
-    }
-
-    res.status(500).json({ error: 'Internal error' });
-  }
 });
 
 const PARTICIPANT_DECISION_STATUSES: EventMemberStatus[] = ['ACTIVE', 'RESERVE', 'REJECTED', 'CANCELLED'];

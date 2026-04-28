@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate, optionalAuth } from '../../common/middleware.js';
-import { eventGalleryQuerySchema, eventQuerySchema, registrationAnswersSchema } from './events.schemas.js';
+import { eventQuerySchema, registrationAnswersSchema } from './events.schemas.js';
 import {
   applyForVolunteer,
   cancelTeamInvitation,
@@ -27,7 +27,6 @@ import {
   unregisterFromEvent,
   updateTeam,
 } from './events.service.js';
-import { EventGalleryError, listPublicEventGalleryBySlug } from './event-gallery.service.js';
 
 export const eventsRouter = Router();
 
@@ -99,27 +98,6 @@ eventsRouter.get('/:slug', optionalAuth, async (req, res) => {
   const event = await getEventBySlug(String(req.params['slug']), userId);
   if (!event) { res.status(404).json({ error: 'Event not found' }); return; }
   res.json({ event });
-});
-
-// GET /api/events/:slug/gallery — public photobank feed with filters and pagination
-eventsRouter.get('/:slug/gallery', async (req, res) => {
-  const parsed = eventGalleryQuerySchema.safeParse(req.query);
-  if (!parsed.success) {
-    res.status(400).json({ error: 'Invalid query', details: parsed.error.flatten() });
-    return;
-  }
-
-  try {
-    const gallery = await listPublicEventGalleryBySlug(String(req.params['slug']), parsed.data);
-    res.json(gallery);
-  } catch (err: any) {
-    if (err instanceof EventGalleryError && err.message === 'EVENT_NOT_FOUND') {
-      res.status(404).json({ error: 'Event not found', code: err.message });
-      return;
-    }
-
-    res.status(500).json({ error: 'Internal error' });
-  }
 });
 
 // POST /api/events/:id/register — requires auth

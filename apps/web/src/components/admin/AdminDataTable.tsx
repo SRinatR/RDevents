@@ -1,16 +1,14 @@
 import type { ReactNode } from 'react';
-import { cn } from '@/lib/utils';
 
 interface AdminDataTableProps {
   children: ReactNode;
   className?: string;
-  minWidth?: number;
 }
 
-export function AdminDataTable({ children, className, minWidth = 860 }: AdminDataTableProps) {
+export function AdminDataTable({ children, className }: AdminDataTableProps) {
   return (
-    <div className={cn('admin-data-table admin-table-scroll', className)}>
-      <table className="signal-table admin-table" style={{ minWidth }}>
+    <div className={`signal-table-shell admin-data-table ${className ?? ''}`}>
+      <table className="signal-table admin-table">
         {children}
       </table>
     </div>
@@ -18,7 +16,7 @@ export function AdminDataTable({ children, className, minWidth = 860 }: AdminDat
 }
 
 interface AdminDataTableHeaderProps {
-  columns: Array<{ label: string; align?: 'left' | 'right' | 'center'; width?: string }>;
+  columns: Array<{ label: string; align?: 'left' | 'right' | 'center' }>;
 }
 
 export function AdminDataTableHeader({ columns }: AdminDataTableHeaderProps) {
@@ -26,11 +24,7 @@ export function AdminDataTableHeader({ columns }: AdminDataTableHeaderProps) {
     <thead>
       <tr>
         {columns.map((col, index) => (
-          <th
-            key={`${col.label}-${index}`}
-            className={col.align ? `align-${col.align}` : undefined}
-            style={col.width ? { width: col.width } : undefined}
-          >
+          <th key={index} className={col.align ? `align-${col.align}` : undefined}>
             {col.label}
           </th>
         ))}
@@ -64,38 +58,12 @@ interface AdminDataTableCellProps {
   children: ReactNode;
   align?: 'left' | 'right' | 'center';
   truncate?: boolean;
-  className?: string;
 }
 
-export function AdminDataTableCell({ children, align, truncate, className }: AdminDataTableCellProps) {
+export function AdminDataTableCell({ children, align, truncate }: AdminDataTableCellProps) {
   return (
-    <td
-      className={cn(
-        truncate && 'admin-table-truncate',
-        align && `align-${align}`,
-        className,
-      )}
-    >
+    <td className={`${truncate ? 'signal-overflow-ellipsis' : ''} ${align ? `align-${align}` : ''}`}>
       {children}
     </td>
   );
-}
-
-export function AdminTableCellMain({
-  title,
-  subtitle,
-}: {
-  title: ReactNode;
-  subtitle?: ReactNode;
-}) {
-  return (
-    <div className="admin-table-cell-main">
-      <div className="admin-table-cell-title">{title}</div>
-      {subtitle ? <div className="admin-table-cell-subtitle">{subtitle}</div> : null}
-    </div>
-  );
-}
-
-export function AdminTableActions({ children }: { children: ReactNode }) {
-  return <div className="admin-table-actions">{children}</div>;
 }
