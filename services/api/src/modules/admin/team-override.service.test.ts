@@ -1,4 +1,5 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import {
   adminAddTeamMember,
   adminRemoveTeamMember,
@@ -10,6 +11,9 @@ import {
 import { prisma } from '../../db/prisma.js';
 
 describe('admin team override service', () => {
+  let testRunId: string;
+  let createdUserIds: string[] = [];
+  let createdEventIds: string[] = [];
   let eventAdminId: string;
   let testEventId: string;
   let testTeamId: string;
@@ -19,21 +23,20 @@ describe('admin team override service', () => {
   let externalUserId: string;
 
   beforeEach(async () => {
-    await prisma.eventTeamMember.deleteMany({ where: {} });
-    await prisma.eventMember.deleteMany({ where: {} });
-    await prisma.eventTeam.deleteMany({ where: {} });
-    await prisma.event.deleteMany({ where: {} });
-    await prisma.user.deleteMany({ where: {} });
+    testRunId = randomUUID();
+    createdUserIds = [];
+    createdEventIds = [];
 
     const eventAdmin = await prisma.user.create({
-      data: { email: 'admin@test.com', name: 'Admin', isActive: true, role: 'USER' },
+      data: { email: `admin-${testRunId}@test.local`, name: 'Admin', isActive: true, role: 'USER' },
     });
     eventAdminId = eventAdmin.id;
+    createdUserIds.push(eventAdmin.id);
 
     const testEvent = await prisma.event.create({
       data: {
         title: 'Test Event',
-        slug: 'test-event-' + Date.now(),
+        slug: `test-event-${testRunId}`,
         shortDescription: 'Test',
         fullDescription: 'Test',
         category: 'OTHER',
@@ -45,6 +48,7 @@ describe('admin team override service', () => {
       },
     });
     testEventId = testEvent.id;
+    createdEventIds.push(testEvent.id);
 
     await prisma.eventMember.create({
       data: {
@@ -56,24 +60,28 @@ describe('admin team override service', () => {
     });
 
     const captain = await prisma.user.create({
-      data: { email: 'captain@test.com', name: 'Captain', isActive: true, role: 'USER' },
+      data: { email: `captain-${testRunId}@test.local`, name: 'Captain', isActive: true, role: 'USER' },
     });
     captainId = captain.id;
+    createdUserIds.push(captain.id);
 
     const member1 = await prisma.user.create({
-      data: { email: 'member1@test.com', name: 'Member 1', isActive: true, role: 'USER' },
+      data: { email: `member1-${testRunId}@test.local`, name: 'Member 1', isActive: true, role: 'USER' },
     });
     member1Id = member1.id;
+    createdUserIds.push(member1.id);
 
     const member2 = await prisma.user.create({
-      data: { email: 'member2@test.com', name: 'Member 2', isActive: true, role: 'USER' },
+      data: { email: `member2-${testRunId}@test.local`, name: 'Member 2', isActive: true, role: 'USER' },
     });
     member2Id = member2.id;
+    createdUserIds.push(member2.id);
 
     const externalUser = await prisma.user.create({
-      data: { email: 'external@test.com', name: 'External', isActive: true, role: 'USER' },
+      data: { email: `external-${testRunId}@test.local`, name: 'External', isActive: true, role: 'USER' },
     });
     externalUserId = externalUser.id;
+    createdUserIds.push(externalUser.id);
 
     await prisma.eventMember.createMany({
       data: [
@@ -88,7 +96,7 @@ describe('admin team override service', () => {
       data: {
         eventId: testEventId,
         name: 'Test Team',
-        slug: 'test-team-' + Date.now(),
+        slug: `test-team-${testRunId}`,
         status: 'APPROVED',
         maxSize: 5,
         captainUserId: captainId,
@@ -103,6 +111,27 @@ describe('admin team override service', () => {
         { teamId: testTeamId, userId: member2Id, role: 'MEMBER', status: 'ACTIVE' },
       ],
     });
+  });
+
+  afterEach(async () => {
+    if (!testRunId) return;
+
+    const teams = await prisma.eventTeam.findMany({
+      where: { eventId: { in: createdEventIds } },
+      select: { id: true },
+    });
+    const teamIds = teams.map(t => t.id);
+
+    await prisma.eventTeamHistory.deleteMany({ where: { teamId: { in: teamIds } } });
+    await prisma.eventTeamChangeRequestItem.deleteMany({
+      where: { request: { teamId: { in: teamIds } } },
+    });
+    await prisma.eventTeamChangeRequest.deleteMany({ where: { teamId: { in: teamIds } } });
+    await prisma.eventTeamMember.deleteMany({ where: { teamId: { in: teamIds } } });
+    await prisma.eventMember.deleteMany({ where: { eventId: { in: createdEventIds } } });
+    await prisma.eventTeam.deleteMany({ where: { id: { in: teamIds } } });
+    await prisma.event.deleteMany({ where: { id: { in: createdEventIds } } });
+    await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
   });
 
   it('admin can update team details', async () => {
@@ -157,6 +186,7 @@ describe('admin team override service', () => {
     const disabledUser = await prisma.user.create({
       data: { email: 'disabled@test.com', name: 'Disabled', isActive: false, role: 'USER' },
     });
+    createdUserIds.push(disabledUser.id);
 
     await expect(
       adminAddTeamMember({
@@ -247,6 +277,7 @@ describe('admin team override service', () => {
     const newUser = await prisma.user.create({
       data: { email: 'extra@test.com', name: 'Extra', isActive: true, role: 'USER' },
     });
+    createdUserIds.push(newUser.id);
 
     await expect(
       adminAddTeamMember({
@@ -267,6 +298,7 @@ describe('admin team override service', () => {
     const newUser = await prisma.user.create({
       data: { email: 'extra@test.com', name: 'Extra', isActive: true, role: 'USER' },
     });
+    createdUserIds.push(newUser.id);
 
     const result = await adminAddTeamMember({
       actor: { id: eventAdminId } as any,
@@ -284,6 +316,7 @@ describe('admin team override service', () => {
     const newUser = await prisma.user.create({
       data: { email: 'newmember@test.com', name: 'New Member', isActive: true, role: 'USER' },
     });
+    createdUserIds.push(newUser.id);
 
     const result = await adminReplaceTeamMember({
       actor: { id: eventAdminId } as any,
@@ -340,6 +373,7 @@ describe('admin team override service', () => {
     const newUser2 = await prisma.user.create({
       data: { email: 'newuser2@test.com', name: 'New User 2', isActive: true, role: 'USER' },
     });
+    createdUserIds.push(newUser1.id, newUser2.id);
 
     await prisma.eventMember.createMany({
       data: [
@@ -356,15 +390,19 @@ describe('admin team override service', () => {
       reason: 'Full roster replacement test',
     });
 
-    expect(result.members.length).toBe(2);
-    expect(result.members.find((m: any) => m.userId === newUser1.id).role).toBe('CAPTAIN');
-    expect(result.members.find((m: any) => m.userId === newUser2.id).role).toBe('MEMBER');
+    const activeMembers = result.members.filter((m: any) => m.status === 'ACTIVE');
+    const removedMembers = result.members.filter((m: any) => m.status === 'REMOVED');
+
+    expect(activeMembers.length).toBe(2);
+    expect(activeMembers.find((m: any) => m.userId === newUser1.id)?.role).toBe('CAPTAIN');
+    expect(activeMembers.find((m: any) => m.userId === newUser2.id)?.role).toBe('MEMBER');
+
+    expect(removedMembers.length).toBeGreaterThanOrEqual(3);
   });
 
   it('every override cancels open change requests', async () => {
     await prisma.eventTeamChangeRequest.create({
       data: {
-        eventId: testEventId,
         teamId: testTeamId,
         requestedByUserId: captainId,
         type: 'DETAILS_UPDATE',
