@@ -1,6 +1,3 @@
-ALTER TYPE "EventTeamStatus" ADD VALUE IF NOT EXISTS 'APPROVED';
-ALTER TYPE "EventTeamStatus" ADD VALUE IF NOT EXISTS 'NEEDS_ATTENTION';
-
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'EventTeamChangeRequestType') THEN
@@ -16,10 +13,6 @@ BEGIN
     );
   END IF;
 END $$;
-
-ALTER TYPE "EventTeamChangeRequestStatus" ADD VALUE IF NOT EXISTS 'DRAFT';
-ALTER TYPE "EventTeamChangeRequestStatus" ADD VALUE IF NOT EXISTS 'WAITING_INVITEE';
-ALTER TYPE "EventTeamChangeRequestStatus" ADD VALUE IF NOT EXISTS 'EXPIRED';
 
 DO $$
 BEGIN
