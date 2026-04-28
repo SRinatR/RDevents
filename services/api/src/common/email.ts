@@ -11,6 +11,7 @@ export type EmailDeliverySource =
   | 'notification'
   | 'broadcast'
   | 'admin_test'
+  | 'admin_direct'
   | 'password_reset'
   | 'system';
 
@@ -20,6 +21,7 @@ const SOURCE_TO_DB: Record<EmailDeliverySource, string> = {
   notification: 'NOTIFICATION',
   broadcast: 'BROADCAST',
   admin_test: 'ADMIN_TEST',
+  admin_direct: 'ADMIN_DIRECT',
   password_reset: 'PASSWORD_RESET',
   system: 'SYSTEM',
 };

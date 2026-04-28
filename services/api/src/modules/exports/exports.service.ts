@@ -335,7 +335,7 @@ export async function exportTeams(eventId: string, config: { filters?: ExtendedE
   const includeArchived = config.filters?.includeArchived ?? false;
   const includeRejected = config.filters?.includeRejected ?? false;
 
-  const statusList: EventTeamStatus[] = ['ACTIVE', 'PENDING', 'SUBMITTED', 'DRAFT', 'CHANGES_PENDING'];
+  const statusList: EventTeamStatus[] = ['ACTIVE', 'APPROVED', 'PENDING', 'SUBMITTED', 'DRAFT', 'CHANGES_PENDING', 'NEEDS_ATTENTION'];
   if (includeRejected) statusList.push('REJECTED');
   if (includeArchived) statusList.push('ARCHIVED');
 
@@ -410,7 +410,7 @@ export async function exportTeamMembers(eventId: string, config: { filters?: Ext
 
   const teamStatusList: string[] = explicitTeamStatuses?.length
     ? [...explicitTeamStatuses]
-    : ['ACTIVE', 'PENDING', 'SUBMITTED', 'DRAFT', 'CHANGES_PENDING'];
+    : ['ACTIVE', 'APPROVED', 'PENDING', 'SUBMITTED', 'DRAFT', 'CHANGES_PENDING', 'NEEDS_ATTENTION'];
   if (!explicitTeamStatuses?.length && includeRejected) teamStatusList.push('REJECTED');
   if (!explicitTeamStatuses?.length && includeArchived) teamStatusList.push('ARCHIVED');
 

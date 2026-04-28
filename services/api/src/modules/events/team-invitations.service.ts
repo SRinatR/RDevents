@@ -6,11 +6,15 @@ import { assertRegistrationRequirements, registerForEvent } from './registration
 import { notifyTeamMemberChanged, notifyTeamUpdated } from './notifications.service.js';
 import { getTeamCabinetPermissions, getTeamSubmissionState } from './teams.service.js';
 import { normalizeEmail } from '@event-platform/shared';
+import {
+  isTeamApprovedStatus,
+  LIVE_TEAM_MEMBER_STATUSES,
+  OPEN_CHANGE_REQUEST_STATUSES,
+  TEAM_STATUSES_EDITABLE_BY_CAPTAIN,
+} from './team-governance.js';
 
 const OPEN_INVITATION_STATUSES = ['PENDING_ACCOUNT', 'PENDING_RESPONSE'] as const;
 const OCCUPIED_INVITATION_STATUSES = ['PENDING_ACCOUNT', 'PENDING_RESPONSE', 'ACCEPTED'] as const;
-const ACTIVE_TEAM_MEMBER_STATUSES = ['ACTIVE', 'PENDING'] as const;
-const EDITABLE_TEAM_STATUSES = ['DRAFT', 'REJECTED'] as const;
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -22,8 +26,8 @@ function isOpenInvitation(status: string) {
 
 function assertTeamEditableForInvites(team: { status: string; event: { requireAdminApprovalForTeams: boolean } }) {
   if (team.status === 'ARCHIVED') throw new Error('TEAM_NOT_ACTIVE');
-  if (team.event.requireAdminApprovalForTeams && !EDITABLE_TEAM_STATUSES.includes(team.status as any)) {
-    if (team.status === 'PENDING' || team.status === 'CHANGES_PENDING') throw new Error('TEAM_APPROVAL_PENDING');
+  if (team.event.requireAdminApprovalForTeams && !TEAM_STATUSES_EDITABLE_BY_CAPTAIN.includes(team.status as any)) {
+    if (team.status === 'PENDING' || team.status === 'CHANGES_PENDING' || team.status === 'NEEDS_ATTENTION') throw new Error('TEAM_APPROVAL_PENDING');
     throw new Error('TEAM_APPROVED_LOCKED');
   }
 }
@@ -164,7 +168,7 @@ export async function inviteToTeamByEmail(
     include: {
       event: true,
       members: {
-        where: { status: { in: [...ACTIVE_TEAM_MEMBER_STATUSES] } },
+        where: { status: { in: [...LIVE_TEAM_MEMBER_STATUSES] } },
         include: { user: { select: { id: true, email: true } } },
       },
       invitations: {
@@ -204,7 +208,7 @@ export async function inviteToTeamByEmail(
       where: {
         userId: invitee.id,
         team: { eventId },
-        status: { in: [...ACTIVE_TEAM_MEMBER_STATUSES] },
+        status: { in: [...LIVE_TEAM_MEMBER_STATUSES] },
       },
       select: { id: true },
     });
@@ -261,7 +265,7 @@ export async function acceptTeamInvitation(invitationId: string, userId: string)
     include: {
       event: true,
       members: {
-        where: { status: { in: [...ACTIVE_TEAM_MEMBER_STATUSES] } },
+        where: { status: { in: [...LIVE_TEAM_MEMBER_STATUSES] } },
         select: { id: true, userId: true },
       },
       invitations: {
@@ -273,13 +277,16 @@ export async function acceptTeamInvitation(invitationId: string, userId: string)
 
   if (!team || team.eventId !== invitation.eventId) throw new Error('TEAM_NOT_FOUND');
   if (team.status === 'ARCHIVED') throw new Error('TEAM_NOT_ACTIVE');
+  if (team.event.requireAdminApprovalForTeams && (isTeamApprovedStatus(team.status) || team.status === 'SUBMITTED' || team.status === 'CHANGES_PENDING' || team.status === 'NEEDS_ATTENTION')) {
+    throw new Error('TEAM_LOCKED_CONTACT_ORGANIZER');
+  }
   if (team.members.some(member => member.userId !== userId) && team.members.length >= team.maxSize) throw new Error('TEAM_FULL');
 
   const otherTeamMember = await prisma.eventTeamMember.findFirst({
     where: {
       userId,
       team: { eventId: invitation.eventId },
-      status: { in: [...ACTIVE_TEAM_MEMBER_STATUSES] },
+      status: { in: [...LIVE_TEAM_MEMBER_STATUSES] },
       NOT: { teamId: invitation.teamId },
     },
     select: { id: true },
@@ -410,7 +417,7 @@ export async function getTeamSlots(teamId: string) {
         include: { invitee: { select: { id: true, name: true, email: true, avatarUrl: true } } },
       },
       changeRequests: {
-        where: { status: 'PENDING' },
+        where: { status: { in: [...OPEN_CHANGE_REQUEST_STATUSES] } },
         orderBy: { createdAt: 'desc' },
         take: 1,
       },

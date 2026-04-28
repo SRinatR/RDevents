@@ -444,6 +444,13 @@ export default function AdminUserFullProfilePage() {
                 {t('revealSensitive')}
               </button>
             ) : null}
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => router.push(`/${locale}/admin/email/direct?to=${encodeURIComponent(p.email)}&name=${encodeURIComponent(displayName || '')}`)}
+            >
+              {locale === 'ru' ? 'Отправить письмо' : 'Send email'}
+            </button>
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => router.push(`/${locale}/admin/users`)}>
               ← {t('backToUsers')}
             </button>

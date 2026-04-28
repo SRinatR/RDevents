@@ -189,8 +189,12 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
     setSuccess('');
 
     try {
-      await eventsApi.unregister(event.id);
-      setSuccess(isRu ? 'Участие отменено.' : 'Participation cancelled.');
+      const result = await eventsApi.unregister(event.id);
+      setSuccess(
+        (result as any)?.status === 'WITHDRAWAL_REQUEST_CREATED'
+          ? (isRu ? 'Запрос на отказ отправлен организатору. Состав команды пока не изменён.' : 'Withdrawal request was sent to the organizer. The team roster stays unchanged for now.')
+          : (isRu ? 'Участие отменено.' : 'Participation cancelled.')
+      );
       await loadWorkspace();
     } catch (err: any) {
       setError(err.message || (isRu ? 'Не удалось отменить участие' : 'Failed to cancel participation'));
@@ -244,7 +248,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
         description: nextDescription || undefined,
       });
 
-      const teamRequiresApproval = event.requireAdminApprovalForTeams && myTeam.status === 'ACTIVE';
+      const teamRequiresApproval = event.requireAdminApprovalForTeams && ['ACTIVE', 'APPROVED'].includes(myTeam.status);
       setSuccess(
         teamRequiresApproval
           ? (isRu ? 'Изменения команды отправлены на согласование организатору.' : 'Team changes were sent for organizer approval.')
@@ -668,9 +672,9 @@ function TeamSlotsWorkspace({
   const permissions = teamSlots?.permissions ?? {
     canManageMembers: isCaptain && (['DRAFT', 'REJECTED'].includes(team?.status) || (!event.requireAdminApprovalForTeams && team?.status === 'ACTIVE')),
     canSubmitForApproval: isCaptain && event.requireAdminApprovalForTeams && ['DRAFT', 'REJECTED'].includes(team?.status),
-    canEditDetails: isCaptain && ['DRAFT', 'REJECTED', 'ACTIVE'].includes(team?.status),
-    requiresApprovalAfterEdit: isCaptain && team?.status === 'ACTIVE' && event.requireAdminApprovalForTeams,
-    isPendingReview: ['PENDING', 'CHANGES_PENDING', 'SUBMITTED'].includes(team?.status),
+    canEditDetails: isCaptain && ['DRAFT', 'REJECTED', 'ACTIVE', 'APPROVED'].includes(team?.status),
+    requiresApprovalAfterEdit: isCaptain && ['ACTIVE', 'APPROVED'].includes(team?.status) && event.requireAdminApprovalForTeams,
+    isPendingReview: ['PENDING', 'CHANGES_PENDING', 'SUBMITTED', 'NEEDS_ATTENTION'].includes(team?.status),
   };
   const submission = teamSlots?.submission ?? {
     canSubmit: Boolean(teamSlots?.canSubmit),
@@ -680,7 +684,7 @@ function TeamSlotsWorkspace({
   const editable = Boolean(permissions.canManageMembers);
   const canSubmit = Boolean(permissions.canSubmitForApproval) && Boolean(submission.canSubmit);
   const canEditTeamDetails = Boolean(permissions.canEditDetails);
-  const editButtonLabel = team?.status === 'ACTIVE' && event.requireAdminApprovalForTeams
+  const editButtonLabel = ['ACTIVE', 'APPROVED'].includes(team?.status) && event.requireAdminApprovalForTeams
     ? (isRu ? 'Отправить изменения' : 'Submit changes')
     : (isRu ? 'Сохранить изменения' : 'Save changes');
 
@@ -977,16 +981,22 @@ function formatTeamStatus(status: string | null | undefined, locale: string) {
   const ru: Record<string, string> = {
     DRAFT: 'Черновик',
     PENDING: 'На утверждении',
+    SUBMITTED: 'Состав на утверждении',
     CHANGES_PENDING: 'Изменения на утверждении',
     ACTIVE: 'Утверждена',
+    APPROVED: 'Утверждена',
+    NEEDS_ATTENTION: 'Требует внимания',
     REJECTED: 'Нужны правки',
     ARCHIVED: 'Архив',
   };
   const en: Record<string, string> = {
     DRAFT: 'Draft',
     PENDING: 'Pending approval',
+    SUBMITTED: 'Roster submitted',
     CHANGES_PENDING: 'Changes pending',
     ACTIVE: 'Approved',
+    APPROVED: 'Approved',
+    NEEDS_ATTENTION: 'Needs attention',
     REJECTED: 'Needs changes',
     ARCHIVED: 'Archived',
   };

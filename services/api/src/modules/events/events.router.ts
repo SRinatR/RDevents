@@ -46,7 +46,9 @@ const registrationFlowErrors: Record<string, [number, string]> = {
   ALREADY_IN_TEAM: [409, 'You are already in a team for this event'],
   PARTICIPANT_APPROVAL_REQUIRED: [403, 'Approved participant status is required before team actions'],
   TEAM_APPROVAL_PENDING: [409, 'Team is waiting for admin approval'],
+  TEAM_CHANGE_REQUEST_ALREADY_OPEN: [409, 'Team already has an open change request'],
   TEAM_APPROVED_LOCKED: [409, 'Approved team is locked. Submit a change request to edit it'],
+  TEAM_LOCKED_CONTACT_ORGANIZER: [409, 'Team is locked. Contact the organizer or submit a controlled change request'],
   TEAM_SUBMITTED_LOCKED: [409, 'Team is submitted and locked for editing'],
   TEAM_EMPTY: [400, 'Team has no members'],
   TEAM_MIN_SIZE: [400, 'Team does not meet minimum size'],
@@ -62,6 +64,8 @@ const registrationFlowErrors: Record<string, [number, string]> = {
   INVITATION_CLOSED: [409, 'Invitation is already closed'],
   INVITATION_EXPIRED: [410, 'Invitation expired'],
   INVITATION_FORBIDDEN: [403, 'Invitation does not belong to this user'],
+  DECISION_REASON_REQUIRED: [400, 'Decision reason is required'],
+  STALE_CHANGE_REQUEST: [409, 'Team change request is stale and can no longer be approved'],
   USER_NOT_FOUND: [404, 'User not found'],
 };
 
@@ -166,6 +170,10 @@ eventsRouter.delete('/:id/register', authenticate, async (req, res) => {
   const user = (req as any).user;
   try {
     const membership = await unregisterFromEvent(String(req.params['id']), user.id);
+    if (membership?.status === 'WITHDRAWAL_REQUEST_CREATED') {
+      res.status(202).json(membership);
+      return;
+    }
     res.json({ membership });
   } catch (err: any) {
     if (err.code === 'CAPTAIN_CANNOT_CANCEL_EVENT_PARTICIPATION') {
@@ -179,7 +187,7 @@ eventsRouter.delete('/:id/register', authenticate, async (req, res) => {
       REGISTRATION_NOT_FOUND: [404, 'Registration not found'],
     };
     const [status, message] = map[err.message] ?? [500, 'Internal error'];
-    res.status(status).json({ error: message });
+    res.status(status).json({ error: message, code: err.message });
   }
 });
 
@@ -373,11 +381,15 @@ eventsRouter.post('/:id/teams/:teamId/submit', authenticate, async (req, res) =>
 eventsRouter.post('/:id/teams/:teamId/leave', authenticate, async (req, res) => {
   const user = (req as any).user;
   try {
-    await leaveTeam(
+    const result = await leaveTeam(
       String(req.params['id']),
       String(req.params['teamId']),
       user.id
     );
+    if (result?.status === 'WITHDRAWAL_REQUEST_CREATED') {
+      res.status(202).json(result);
+      return;
+    }
     res.json({ ok: true });
   } catch (err: any) {
     sendMappedError(res, err, {
@@ -386,6 +398,7 @@ eventsRouter.post('/:id/teams/:teamId/leave', authenticate, async (req, res) => 
       NOT_IN_TEAM: [400, 'You are not in this team'],
       CAPTAIN_CANNOT_LEAVE: [400, 'Captain cannot leave team. Transfer captainship or delete team'],
       TEAM_SUBMITTED_LOCKED: [409, 'Team is submitted and locked for editing'],
+      TEAM_CHANGE_REQUEST_ALREADY_OPEN: [409, 'Team already has an open change request'],
     });
   }
 });

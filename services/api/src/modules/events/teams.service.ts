@@ -1,28 +1,111 @@
 import { prisma } from '../../db/prisma.js';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 import {
+  notifyTeamApproved,
   notifyTeamCreated,
   notifyTeamMemberChanged,
+  notifyTeamRejected,
+  notifyTeamSubmitted,
   notifyTeamUpdated,
 } from './notifications.service.js';
 import { assertEmailInviteTeamReady, markMemberInvitationRemoved } from './team-invitations.service.js';
+import {
+  ACTIVE_EVENT_MEMBER_STATUSES,
+  getTeamStatusAfterReject,
+  isApprovalTeam,
+  isInitialApprovalRequest,
+  isOpenChangeRequestStatus,
+  isTeamApprovedStatus,
+  isTeamEditableByCaptain,
+  isTeamLockedForUserActions,
+  LIVE_TEAM_MEMBER_STATUSES,
+  OPEN_CHANGE_REQUEST_STATUSES,
+  TEAM_STATUSES_EDITABLE_BY_CAPTAIN,
+} from './team-governance.js';
 
-const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
-const ACTIVE_TEAM_MEMBER_STATUSES = ['ACTIVE', 'PENDING'] as const;
 const PLATFORM_ADMIN_ROLES = ['PLATFORM_ADMIN', 'SUPER_ADMIN'] as const;
-const EDITABLE_TEAM_STATUSES = ['DRAFT', 'REJECTED'] as const;
-const FROZEN_TEAM_STATUSES = ['SUBMITTED', 'APPROVED'] as const;
 
-function isTeamFrozen(status: string): boolean {
-  return (FROZEN_TEAM_STATUSES as readonly string[]).includes(status);
+function isCaptainEditableStatus(status: string) {
+  return TEAM_STATUSES_EDITABLE_BY_CAPTAIN.includes(status as any);
 }
 
-function isDraftTeamStatus(status: string): boolean {
-  return (EDITABLE_TEAM_STATUSES as readonly string[]).includes(status);
-}
-
-function isPendingReviewTeamStatus(status: string): boolean {
+function isPendingReviewTeamStatus(status: string) {
   return ['PENDING', 'CHANGES_PENDING', 'SUBMITTED'].includes(status);
+}
+
+function buildSnapshotFromTeam(team: any) {
+  return {
+    id: team.id,
+    eventId: team.eventId,
+    name: team.name,
+    description: team.description,
+    status: team.status,
+    captainUserId: team.captainUserId,
+    maxSize: team.maxSize,
+    members: (team.members ?? []).map((member: any) => ({
+      id: member.id,
+      userId: member.userId,
+      role: member.role,
+      status: member.status,
+      joinedAt: member.joinedAt,
+      approvedAt: member.approvedAt,
+      removedAt: member.removedAt,
+      user: member.user
+        ? {
+            id: member.user.id,
+            name: member.user.name,
+            email: member.user.email,
+          }
+        : undefined,
+    })),
+  };
+}
+
+async function buildTeamSnapshot(tx: any, teamId: string) {
+  const team = await tx.eventTeam.findUnique({
+    where: { id: teamId },
+    include: {
+      captainUser: { select: { id: true, name: true, email: true } },
+      members: {
+        include: { user: { select: { id: true, name: true, email: true } } },
+        orderBy: { joinedAt: 'asc' },
+      },
+    },
+  });
+
+  if (!team) throw new Error('TEAM_NOT_FOUND');
+  return buildSnapshotFromTeam(team);
+}
+
+async function writeTeamHistory(
+  tx: any,
+  input: {
+    eventId: string;
+    teamId: string;
+    requestId?: string | null;
+    actorUserId?: string | null;
+    targetUserId?: string | null;
+    action: string;
+    beforeJson?: unknown;
+    afterJson?: unknown;
+    metaJson?: unknown;
+    reason?: string | null;
+  }
+) {
+  await tx.eventTeamHistory.create({
+    data: {
+      eventId: input.eventId,
+      teamId: input.teamId,
+      requestId: input.requestId ?? null,
+      actorUserId: input.actorUserId ?? null,
+      targetUserId: input.targetUserId ?? null,
+      action: input.action as any,
+      beforeJson: input.beforeJson ?? undefined,
+      afterJson: input.afterJson ?? undefined,
+      metaJson: input.metaJson ?? undefined,
+      reason: input.reason ?? null,
+    },
+  });
 }
 
 export interface TeamCabinetPermissions {
@@ -47,12 +130,13 @@ export function getTeamCabinetPermissions(input: {
   requireAdminApprovalForTeams: boolean;
 }): TeamCabinetPermissions {
   const { status, isCaptain, requireAdminApprovalForTeams } = input;
-  const isDraft = isDraftTeamStatus(status);
+  const event = { requireAdminApprovalForTeams };
+  const isDraft = isCaptainEditableStatus(status);
   const isPendingReview = isPendingReviewTeamStatus(status);
-  const isActive = status === 'ACTIVE';
-  const isLocked = isPendingReview || status === 'APPROVED' || status === 'ARCHIVED';
-  const canEditDetails = isCaptain && (isDraft || isActive);
-  const canManageMembers = isCaptain && (isDraft || (!requireAdminApprovalForTeams && isActive));
+  const isActive = !requireAdminApprovalForTeams && status === 'ACTIVE';
+  const isLocked = isTeamLockedForUserActions({ status, event });
+  const canEditDetails = isCaptain && (isDraft || isActive || (isApprovalTeam(event) && isTeamApprovedStatus(status)));
+  const canManageMembers = isCaptain && (isDraft || isActive);
   const canSubmitForApproval = isCaptain && requireAdminApprovalForTeams && isDraft;
 
   return {
@@ -60,7 +144,7 @@ export function getTeamCabinetPermissions(input: {
     canEditDetails,
     canManageMembers,
     canSubmitForApproval,
-    requiresApprovalAfterEdit: canEditDetails && requireAdminApprovalForTeams && isActive,
+    requiresApprovalAfterEdit: isCaptain && isApprovalTeam(event) && isTeamApprovedStatus(status),
     isPendingReview,
     isLocked,
   };
@@ -97,7 +181,7 @@ export function getTeamSubmissionState(input: {
     canSubmit:
       isCaptain &&
       requireAdminApprovalForTeams &&
-      isDraftTeamStatus(status) &&
+      isCaptainEditableStatus(status) &&
       hasRequiredMembers &&
       !hasBlockingInvites,
     requiredActiveMembers,
@@ -119,7 +203,7 @@ async function canManageTeamMembers(eventId: string, teamCaptainUserId: string, 
       eventId,
       userId: actorUserId,
       role: 'EVENT_ADMIN',
-      status: { in: [...ACTIVE_MEMBER_STATUSES] },
+      status: { in: [...ACTIVE_EVENT_MEMBER_STATUSES] },
     },
     select: { id: true },
   });
@@ -133,7 +217,7 @@ async function assertApprovedParticipant(eventId: string, userId: string) {
     select: { id: true, status: true },
   });
 
-  if (!membership || !ACTIVE_MEMBER_STATUSES.includes(membership.status as any)) {
+  if (!membership || !ACTIVE_EVENT_MEMBER_STATUSES.includes(membership.status as any)) {
     throw new Error('PARTICIPANT_APPROVAL_REQUIRED');
   }
 
@@ -142,37 +226,198 @@ async function assertApprovedParticipant(eventId: string, userId: string) {
 
 async function getProposedMemberUserIds(teamId: string, extraUserIds: string[] = []) {
   const members = await prisma.eventTeamMember.findMany({
-    where: { teamId, status: { in: ['ACTIVE', 'PENDING'] } },
+    where: { teamId, status: { in: [...LIVE_TEAM_MEMBER_STATUSES] } },
     select: { userId: true },
   });
   return [...new Set([...members.map(member => member.userId), ...extraUserIds])];
 }
 
-async function upsertPendingTeamChangeRequest(
-  tx: any,
-  team: { id: string; name: string; description: string | null; status: string; captainUserId: string },
-  requestedByUserId: string,
-  data: { name?: string; description?: string | null; memberUserIds?: string[] }
-) {
-  const proposedMemberUserIds = data.memberUserIds ?? await getProposedMemberUserIds(team.id);
-  const existing = await tx.eventTeamChangeRequest.findFirst({
-    where: { teamId: team.id, status: 'PENDING' },
+async function getOpenChangeRequest(tx: any, teamId: string) {
+  return tx.eventTeamChangeRequest.findFirst({
+    where: { teamId, status: { in: [...OPEN_CHANGE_REQUEST_STATUSES] } },
     orderBy: { createdAt: 'desc' },
   });
+}
+
+async function ensureNoOpenChangeRequest(tx: any, teamId: string, excludeRequestId?: string) {
+  const openRequest = await tx.eventTeamChangeRequest.findFirst({
+    where: {
+      teamId,
+      status: { in: [...OPEN_CHANGE_REQUEST_STATUSES] },
+      ...(excludeRequestId ? { id: { not: excludeRequestId } } : {}),
+    },
+    select: { id: true },
+  });
+
+  if (openRequest) throw new Error('TEAM_CHANGE_REQUEST_ALREADY_OPEN');
+}
+
+async function validateProposedTeamMembers(
+  tx: any,
+  input: { eventId: string; teamId: string; memberUserIds: string[]; maxSize?: number | null }
+) {
+  const memberUserIds = [...new Set(input.memberUserIds)];
+  if (memberUserIds.length === 0) throw new Error('TEAM_EMPTY');
+  if (input.maxSize && memberUserIds.length > input.maxSize) throw new Error('TEAM_FULL');
+
+  const [participants, existingTeamMembers, otherTeamMembers] = await Promise.all([
+    tx.eventMember.findMany({
+      where: {
+        eventId: input.eventId,
+        role: 'PARTICIPANT',
+        userId: { in: memberUserIds },
+      },
+      select: { userId: true, status: true },
+    }),
+    tx.eventTeamMember.findMany({
+      where: { teamId: input.teamId, userId: { in: memberUserIds } },
+      select: { userId: true, status: true },
+    }),
+    tx.eventTeamMember.findMany({
+      where: {
+        userId: { in: memberUserIds },
+        teamId: { not: input.teamId },
+        status: { in: [...LIVE_TEAM_MEMBER_STATUSES] },
+        team: { eventId: input.eventId },
+      },
+      select: { userId: true },
+    }),
+  ]);
+
+  const participantByUserId = new Map(participants.map((item: any) => [item.userId, item]));
+  for (const userId of memberUserIds) {
+    const participant = participantByUserId.get(userId) as any;
+    if (!participant || !ACTIVE_EVENT_MEMBER_STATUSES.includes(participant.status as any)) {
+      throw new Error('STALE_CHANGE_REQUEST');
+    }
+  }
+
+  if (existingTeamMembers.some((member: any) => ['LEFT', 'REMOVED'].includes(member.status))) {
+    throw new Error('STALE_CHANGE_REQUEST');
+  }
+
+  if (otherTeamMembers.length > 0) {
+    throw new Error('USER_ALREADY_IN_OTHER_TEAM');
+  }
+}
+
+async function setTeamCaptain(tx: any, teamId: string, newCaptainUserId: string) {
+  await tx.eventTeamMember.updateMany({
+    where: { teamId, role: 'CAPTAIN' },
+    data: { role: 'MEMBER' },
+  });
+
+  await tx.eventTeamMember.upsert({
+    where: { teamId_userId: { teamId, userId: newCaptainUserId } },
+    create: {
+      teamId,
+      userId: newCaptainUserId,
+      role: 'CAPTAIN',
+      status: 'ACTIVE',
+      approvedAt: new Date(),
+    },
+    update: {
+      role: 'CAPTAIN',
+      status: 'ACTIVE',
+      approvedAt: new Date(),
+      removedAt: null,
+    },
+  });
+
+  await tx.eventTeam.update({
+    where: { id: teamId },
+    data: { captainUserId: newCaptainUserId },
+  });
+}
+
+async function cancelOpenChangeRequests(
+  tx: any,
+  input: { eventId: string; teamId: string; actorUserId: string; reason: string; excludeRequestId?: string }
+) {
+  const openRequests = await tx.eventTeamChangeRequest.findMany({
+    where: {
+      teamId: input.teamId,
+      status: { in: [...OPEN_CHANGE_REQUEST_STATUSES] },
+      ...(input.excludeRequestId ? { id: { not: input.excludeRequestId } } : {}),
+    },
+    select: { id: true },
+  });
+
+  if (openRequests.length === 0) return;
+
+  const now = new Date();
+  await tx.eventTeamChangeRequest.updateMany({
+    where: { id: { in: openRequests.map((request: any) => request.id) } },
+    data: {
+      status: 'CANCELLED',
+      decidedByUserId: input.actorUserId,
+      decisionReason: input.reason,
+      decidedAt: now,
+      cancelledAt: now,
+    },
+  });
+
+  for (const request of openRequests) {
+    await writeTeamHistory(tx, {
+      eventId: input.eventId,
+      teamId: input.teamId,
+      requestId: request.id,
+      actorUserId: input.actorUserId,
+      action: 'ADMIN_OPEN_REQUEST_CANCELLED',
+      reason: input.reason,
+    });
+  }
+}
+
+async function upsertPendingTeamChangeRequest(
+  tx: any,
+  team: { id: string; eventId: string; name: string; description: string | null; status: string; captainUserId: string; maxSize: number },
+  requestedByUserId: string,
+  data: {
+    requestType: string;
+    name?: string | null;
+    description?: string | null;
+    memberUserIds?: string[];
+    proposedCaptainUserId?: string | null;
+    reason?: string | null;
+    notes?: string | null;
+    targetStatus?: string;
+  }
+) {
+  const proposedMemberUserIds = data.memberUserIds ?? await getProposedMemberUserIds(team.id);
+  await validateProposedTeamMembers(tx, {
+    eventId: team.eventId,
+    teamId: team.id,
+    memberUserIds: proposedMemberUserIds,
+    maxSize: team.maxSize,
+  });
+
+  const existing = await getOpenChangeRequest(tx, team.id);
+  if (existing) throw new Error('TEAM_CHANGE_REQUEST_ALREADY_OPEN');
+
+  const beforeSnapshotJson = await buildTeamSnapshot(tx, team.id);
+  const afterSnapshotJson = {
+    ...beforeSnapshotJson,
+    name: data.name ?? team.name,
+    description: data.description !== undefined ? data.description : team.description,
+    captainUserId: data.proposedCaptainUserId ?? team.captainUserId,
+    members: beforeSnapshotJson.members.filter((member: any) => proposedMemberUserIds.includes(member.userId)),
+  };
 
   const payload = {
+    type: data.requestType as any,
+    status: 'PENDING' as any,
     requestedByUserId,
+    submittedAt: new Date(),
+    reason: data.reason ?? null,
+    notes: data.notes ?? null,
     proposedName: data.name ?? team.name,
     proposedDescription: data.description !== undefined ? data.description : team.description,
     proposedMemberUserIds,
+    proposedCaptainUserId: data.proposedCaptainUserId ?? team.captainUserId,
+    beforeSnapshotJson,
+    afterSnapshotJson,
   };
-
-  if (existing) {
-    return tx.eventTeamChangeRequest.update({
-      where: { id: existing.id },
-      data: payload,
-    });
-  }
 
   return tx.eventTeamChangeRequest.create({
     data: {
@@ -185,7 +430,7 @@ async function upsertPendingTeamChangeRequest(
 async function syncApprovedTeamMembers(tx: any, teamId: string, memberUserIds: string[]) {
   const proposed = new Set(memberUserIds);
   const existing = await tx.eventTeamMember.findMany({
-    where: { teamId, status: { in: ['ACTIVE', 'PENDING'] } },
+    where: { teamId, status: { in: [...LIVE_TEAM_MEMBER_STATUSES] } },
   });
 
   for (const member of existing) {
@@ -231,7 +476,7 @@ export async function getTeamsByEvent(eventId: string) {
     include: {
       captainUser: { select: { id: true, name: true, avatarUrl: true } },
       changeRequests: {
-        where: { status: 'PENDING' },
+        where: { status: { in: [...OPEN_CHANGE_REQUEST_STATUSES] } },
         orderBy: { createdAt: 'desc' },
         take: 1,
       },
@@ -252,7 +497,7 @@ export async function getTeamById(eventId: string, teamId: string) {
         orderBy: { joinedAt: 'desc' },
       },
       changeRequests: {
-        where: { status: 'PENDING' },
+        where: { status: { in: [...OPEN_CHANGE_REQUEST_STATUSES] } },
         orderBy: { createdAt: 'desc' },
         take: 1,
       },
@@ -261,7 +506,11 @@ export async function getTeamById(eventId: string, teamId: string) {
   });
 
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
-  return team;
+  const latestRejectedRequest = await prisma.eventTeamChangeRequest.findFirst({
+    where: { teamId, status: 'REJECTED' },
+    orderBy: { decidedAt: 'desc' },
+  });
+  return { ...team, latestRejectedRequest };
 }
 
 export async function createTeam(
@@ -282,7 +531,7 @@ export async function createTeam(
 
   // Check if user is already in a team for this event
   const existingMembership = await prisma.eventTeamMember.findFirst({
-    where: { team: { eventId }, userId, status: { in: [...ACTIVE_TEAM_MEMBER_STATUSES] } }
+    where: { team: { eventId }, userId, status: { in: [...LIVE_TEAM_MEMBER_STATUSES] } }
   });
   if (existingMembership) throw new Error('ALREADY_IN_TEAM');
 
@@ -323,6 +572,14 @@ export async function createTeam(
       meta: { teamId: team.id, teamName: team.name, status: team.status },
     });
 
+    await writeTeamHistory(tx, {
+      eventId,
+      teamId: team.id,
+      actorUserId: userId,
+      action: 'TEAM_CREATED',
+      afterJson: buildSnapshotFromTeam(team),
+    });
+
     return team;
   });
 
@@ -353,38 +610,20 @@ export async function joinTeam(
     include: { _count: { select: { members: { where: { status: 'ACTIVE' } } } } }
   });
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
-  if (isTeamFrozen(team.status)) throw new Error('TEAM_SUBMITTED_LOCKED');
+  if (team.status === 'SUBMITTED') throw new Error('TEAM_SUBMITTED_LOCKED');
+  if (team.status === 'CHANGES_PENDING' || team.status === 'NEEDS_ATTENTION') throw new Error('TEAM_CHANGE_REQUEST_ALREADY_OPEN');
+  if (event.requireAdminApprovalForTeams && isTeamApprovedStatus(team.status)) {
+    throw new Error('TEAM_LOCKED_CONTACT_ORGANIZER');
+  }
   if (!['ACTIVE', 'DRAFT', 'REJECTED'].includes(team.status)) throw new Error('TEAM_NOT_ACTIVE');
   if (team._count.members >= team.maxSize) throw new Error('TEAM_FULL');
 
   if (event.teamJoinMode === 'BY_CODE' && team.joinCode !== code) throw new Error('INVALID_JOIN_CODE');
 
   const existingTeamMember = await prisma.eventTeamMember.findFirst({
-    where: { team: { eventId }, userId, status: { in: [...ACTIVE_TEAM_MEMBER_STATUSES] } }
+    where: { team: { eventId }, userId, status: { in: [...LIVE_TEAM_MEMBER_STATUSES] } }
   });
   if (existingTeamMember) throw new Error('ALREADY_IN_TEAM');
-
-  if (event.requireAdminApprovalForTeams && team.status === 'ACTIVE') {
-    const changeRequest = await prisma.$transaction(async (tx: any) => {
-      const proposedMemberUserIds = await getProposedMemberUserIds(teamId, [userId]);
-      const changeRequest = await upsertPendingTeamChangeRequest(tx, team, userId, { memberUserIds: proposedMemberUserIds });
-      await tx.eventTeam.update({
-        where: { id: teamId },
-        data: { status: 'CHANGES_PENDING' },
-      });
-      return changeRequest;
-    });
-
-    await notifyTeamMemberChanged(eventId, teamId, userId, 'PENDING');
-    return {
-      id: changeRequest.id,
-      teamId,
-      userId,
-      role: 'MEMBER',
-      status: 'PENDING',
-      isChangeRequest: true,
-    };
-  }
 
   const member = await prisma.$transaction(async (tx: any) => {
     const isPending = event.teamJoinMode === 'BY_REQUEST';
@@ -437,15 +676,29 @@ export async function updateTeam(eventId: string, teamId: string, userId: string
   });
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
   if (team.captainUserId !== userId) throw new Error('NOT_TEAM_CAPTAIN');
-  if (isTeamFrozen(team.status)) throw new Error('TEAM_SUBMITTED_LOCKED');
+  if (team.status === 'SUBMITTED') throw new Error('TEAM_SUBMITTED_LOCKED');
+  if (team.status === 'CHANGES_PENDING' || team.status === 'NEEDS_ATTENTION') throw new Error('TEAM_CHANGE_REQUEST_ALREADY_OPEN');
 
-  if (team.event.requireAdminApprovalForTeams && !EDITABLE_TEAM_STATUSES.includes(team.status as any)) {
-    if (team.status === 'PENDING' || team.status === 'CHANGES_PENDING') throw new Error('TEAM_APPROVAL_PENDING');
+  if (team.event.requireAdminApprovalForTeams && isTeamApprovedStatus(team.status)) {
     const changeRequest = await prisma.$transaction(async (tx: any) => {
-      const changeRequest = await upsertPendingTeamChangeRequest(tx, team, userId, data);
+      const changeRequest = await upsertPendingTeamChangeRequest(tx, team as any, userId, {
+        requestType: 'DETAILS_UPDATE',
+        name: data.name,
+        description: data.description,
+      });
       await tx.eventTeam.update({
         where: { id: teamId },
         data: { status: 'CHANGES_PENDING' },
+      });
+      await writeTeamHistory(tx, {
+        eventId,
+        teamId,
+        requestId: changeRequest.id,
+        actorUserId: userId,
+        action: 'CHANGE_REQUEST_CREATED',
+        reason: changeRequest.reason ?? null,
+        beforeJson: changeRequest.beforeSnapshotJson,
+        afterJson: changeRequest.afterSnapshotJson,
       });
       return changeRequest;
     });
@@ -453,12 +706,27 @@ export async function updateTeam(eventId: string, teamId: string, userId: string
     return { ...team, changeRequests: [changeRequest], status: 'CHANGES_PENDING' };
   }
 
-  const updated = await prisma.eventTeam.update({
-    where: { id: teamId },
-    data: {
-      name: data.name ?? undefined,
-      description: data.description !== undefined ? data.description : undefined,
-    }
+  if (!isTeamEditableByCaptain(team)) throw new Error('TEAM_APPROVED_LOCKED');
+
+  const updated = await prisma.$transaction(async (tx: any) => {
+    const beforeJson = await buildTeamSnapshot(tx, teamId);
+    const updated = await tx.eventTeam.update({
+      where: { id: teamId },
+      data: {
+        name: data.name ?? undefined,
+        description: data.description !== undefined ? data.description : undefined,
+      }
+    });
+    const afterJson = await buildTeamSnapshot(tx, teamId);
+    await writeTeamHistory(tx, {
+      eventId,
+      teamId,
+      actorUserId: userId,
+      action: 'TEAM_DETAILS_UPDATED',
+      beforeJson,
+      afterJson,
+    });
+    return updated;
   });
 
   await notifyTeamUpdated(eventId, teamId);
@@ -468,31 +736,64 @@ export async function updateTeam(eventId: string, teamId: string, userId: string
 export async function submitTeamForApproval(eventId: string, teamId: string, userId: string) {
   const team = await prisma.eventTeam.findUnique({
     where: { id: teamId },
-    include: { event: { select: { requireAdminApprovalForTeams: true, minTeamSize: true, teamJoinMode: true } } },
+    include: {
+      event: { select: { requireAdminApprovalForTeams: true, minTeamSize: true, teamJoinMode: true } },
+      members: {
+        where: { status: { in: [...LIVE_TEAM_MEMBER_STATUSES] } },
+        include: { user: { select: { id: true, name: true, email: true } } },
+        orderBy: { joinedAt: 'asc' },
+      },
+    },
   });
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
   if (team.captainUserId !== userId) throw new Error('NOT_TEAM_CAPTAIN');
   if (!team.event.requireAdminApprovalForTeams) return team;
-  if (isTeamFrozen(team.status)) throw new Error('TEAM_SUBMITTED_LOCKED');
-  if (team.status === 'PENDING' || team.status === 'CHANGES_PENDING') throw new Error('TEAM_APPROVAL_PENDING');
-  if (!EDITABLE_TEAM_STATUSES.includes(team.status as any)) throw new Error('TEAM_APPROVED_LOCKED');
+  if (team.status === 'SUBMITTED') throw new Error('TEAM_SUBMITTED_LOCKED');
+  if (team.status === 'CHANGES_PENDING' || team.status === 'NEEDS_ATTENTION') throw new Error('TEAM_CHANGE_REQUEST_ALREADY_OPEN');
+  if (!isCaptainEditableStatus(team.status)) throw new Error('TEAM_APPROVED_LOCKED');
 
   if (team.event.teamJoinMode === 'EMAIL_INVITE') {
     await assertEmailInviteTeamReady(teamId);
   }
 
   const changeRequest = await prisma.$transaction(async (tx: any) => {
+    await ensureNoOpenChangeRequest(tx, teamId);
     const proposedMemberUserIds = await getProposedMemberUserIds(teamId);
     if (proposedMemberUserIds.length === 0) throw new Error('TEAM_EMPTY');
     if (proposedMemberUserIds.length < team.event.minTeamSize) throw new Error('TEAM_MIN_SIZE');
-    const changeRequest = await upsertPendingTeamChangeRequest(tx, team, userId, { memberUserIds: proposedMemberUserIds });
+    const changeRequest = await upsertPendingTeamChangeRequest(tx, team as any, userId, {
+      requestType: 'INITIAL_APPROVAL',
+      memberUserIds: proposedMemberUserIds,
+      name: team.name,
+      description: team.description,
+      proposedCaptainUserId: team.captainUserId,
+    });
     await tx.eventTeam.update({
       where: { id: teamId },
       data: { status: 'SUBMITTED' },
     });
+    await writeTeamHistory(tx, {
+      eventId,
+      teamId,
+      requestId: changeRequest.id,
+      actorUserId: userId,
+      action: 'TEAM_SUBMITTED',
+      beforeJson: null,
+      afterJson: changeRequest.afterSnapshotJson,
+    });
+    await writeTeamHistory(tx, {
+      eventId,
+      teamId,
+      requestId: changeRequest.id,
+      actorUserId: userId,
+      action: 'CHANGE_REQUEST_CREATED',
+      beforeJson: changeRequest.beforeSnapshotJson,
+      afterJson: changeRequest.afterSnapshotJson,
+    });
     return changeRequest;
   });
 
+  await notifyTeamSubmitted(eventId, teamId);
   await notifyTeamUpdated(eventId, teamId);
   return { ...team, status: 'SUBMITTED', changeRequests: [changeRequest] };
 }
@@ -504,21 +805,61 @@ export async function leaveTeam(eventId: string, teamId: string, userId: string)
   });
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
   if (team.captainUserId === userId) throw new Error('CAPTAIN_CANNOT_LEAVE');
-  if (isTeamFrozen(team.status)) throw new Error('TEAM_SUBMITTED_LOCKED');
-  if (team.event.requireAdminApprovalForTeams && !EDITABLE_TEAM_STATUSES.includes(team.status as any)) {
-    throw new Error('TEAM_APPROVED_LOCKED');
-  }
 
   const member = await prisma.eventTeamMember.findUnique({
     where: { teamId_userId: { teamId, userId } }
   });
   if (!member) throw new Error('NOT_IN_TEAM');
 
+  if (team.status === 'CHANGES_PENDING') throw new Error('TEAM_CHANGE_REQUEST_ALREADY_OPEN');
+  if (team.event.requireAdminApprovalForTeams && isTeamLockedForUserActions(team)) {
+    const request = await prisma.$transaction(async (tx: any) => {
+      await ensureNoOpenChangeRequest(tx, teamId);
+      const beforeJson = await buildTeamSnapshot(tx, teamId);
+      const request = await tx.eventTeamChangeRequest.create({
+        data: {
+          teamId,
+          type: 'WITHDRAWAL_REQUEST',
+          status: 'PENDING',
+          requestedByUserId: userId,
+          reason: 'Participant requested withdrawal after roster lock.',
+          proposedName: team.name,
+          proposedDescription: team.description,
+          proposedCaptainUserId: team.captainUserId,
+          proposedMemberUserIds: beforeJson.members.map((item: any) => item.userId),
+          beforeSnapshotJson: beforeJson,
+          afterSnapshotJson: beforeJson,
+          submittedAt: new Date(),
+        },
+      });
+      await tx.eventTeam.update({
+        where: { id: teamId },
+        data: { status: 'NEEDS_ATTENTION' },
+      });
+      await writeTeamHistory(tx, {
+        eventId,
+        teamId,
+        requestId: request.id,
+        actorUserId: userId,
+        targetUserId: userId,
+        action: 'MEMBER_WITHDRAWAL_REQUESTED',
+        beforeJson,
+        afterJson: beforeJson,
+        reason: request.reason,
+      });
+      return request;
+    });
+
+    await notifyTeamUpdated(eventId, teamId);
+    return { status: 'WITHDRAWAL_REQUEST_CREATED', request };
+  }
+
   await prisma.eventTeamMember.update({
     where: { id: member.id },
     data: { status: 'LEFT', removedAt: new Date() }
   });
   await notifyTeamMemberChanged(eventId, teamId, userId, 'LEFT');
+  return { status: 'LEFT' };
 }
 
 export async function approveTeamMember(eventId: string, teamId: string, captainId: string, memberUserId: string) {
@@ -530,7 +871,7 @@ export async function approveTeamMember(eventId: string, teamId: string, captain
     }
   });
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
-  if (team.event.requireAdminApprovalForTeams && !EDITABLE_TEAM_STATUSES.includes(team.status as any)) {
+  if (team.event.requireAdminApprovalForTeams && !isCaptainEditableStatus(team.status)) {
     throw new Error('TEAM_APPROVED_LOCKED');
   }
   if (!(await canManageTeamMembers(eventId, team.captainUserId, captainId))) throw new Error('NOT_TEAM_CAPTAIN');
@@ -587,15 +928,47 @@ export async function removeTeamMember(eventId: string, teamId: string, captainI
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
   if (team.captainUserId !== captainId) throw new Error('NOT_TEAM_CAPTAIN');
   if (team.captainUserId === memberUserId) throw new Error('CANNOT_REMOVE_CAPTAIN');
-  if (isTeamFrozen(team.status)) throw new Error('TEAM_SUBMITTED_LOCKED');
-  if (team.event.requireAdminApprovalForTeams && !EDITABLE_TEAM_STATUSES.includes(team.status as any)) {
-    throw new Error('TEAM_APPROVED_LOCKED');
-  }
 
   const member = await prisma.eventTeamMember.findUnique({
     where: { teamId_userId: { teamId, userId: memberUserId } }
   });
   if (!member) throw new Error('MEMBER_NOT_FOUND');
+
+  if (team.status === 'SUBMITTED') throw new Error('TEAM_SUBMITTED_LOCKED');
+  if (team.status === 'CHANGES_PENDING' || team.status === 'NEEDS_ATTENTION') throw new Error('TEAM_CHANGE_REQUEST_ALREADY_OPEN');
+
+  if (team.event.requireAdminApprovalForTeams && isTeamApprovedStatus(team.status)) {
+    const changeRequest = await prisma.$transaction(async (tx: any) => {
+      const proposedMemberUserIds = (await getProposedMemberUserIds(teamId)).filter((userId) => userId !== memberUserId);
+      if (proposedMemberUserIds.length === 0) throw new Error('TEAM_EMPTY');
+      const changeRequest = await upsertPendingTeamChangeRequest(tx, team as any, captainId, {
+        requestType: 'MEMBER_REMOVE',
+        memberUserIds: proposedMemberUserIds,
+        name: team.name,
+        description: team.description,
+      });
+      await tx.eventTeam.update({
+        where: { id: teamId },
+        data: { status: 'CHANGES_PENDING' },
+      });
+      await writeTeamHistory(tx, {
+        eventId,
+        teamId,
+        requestId: changeRequest.id,
+        actorUserId: captainId,
+        targetUserId: memberUserId,
+        action: 'CHANGE_REQUEST_CREATED',
+        beforeJson: changeRequest.beforeSnapshotJson,
+        afterJson: changeRequest.afterSnapshotJson,
+      });
+      return changeRequest;
+    });
+
+    await notifyTeamUpdated(eventId, teamId);
+    return { ...team, changeRequests: [changeRequest], status: 'CHANGES_PENDING' };
+  }
+
+  if (!isTeamEditableByCaptain(team)) throw new Error('TEAM_APPROVED_LOCKED');
 
   await prisma.eventTeamMember.update({
     where: { id: member.id },
@@ -614,10 +987,6 @@ export async function transferTeamCaptain(eventId: string, teamId: string, capta
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
   if (team.captainUserId !== captainId) throw new Error('NOT_TEAM_CAPTAIN');
   if (captainId === memberUserId) throw new Error('CANNOT_TRANSFER_TO_SELF');
-  if (isTeamFrozen(team.status)) throw new Error('TEAM_SUBMITTED_LOCKED');
-  if (team.event.requireAdminApprovalForTeams && !EDITABLE_TEAM_STATUSES.includes(team.status as any)) {
-    throw new Error('TEAM_APPROVED_LOCKED');
-  }
 
   const [targetMember, currentCaptainMember] = await Promise.all([
     prisma.eventTeamMember.findUnique({
@@ -630,6 +999,41 @@ export async function transferTeamCaptain(eventId: string, teamId: string, capta
 
   if (!targetMember || targetMember.status !== 'ACTIVE') throw new Error('TARGET_MEMBER_NOT_ACTIVE');
   if (!currentCaptainMember) throw new Error('MEMBER_NOT_FOUND');
+
+  if (team.status === 'SUBMITTED') throw new Error('TEAM_SUBMITTED_LOCKED');
+  if (team.status === 'CHANGES_PENDING' || team.status === 'NEEDS_ATTENTION') throw new Error('TEAM_CHANGE_REQUEST_ALREADY_OPEN');
+
+  if (team.event.requireAdminApprovalForTeams && isTeamApprovedStatus(team.status)) {
+    const changeRequest = await prisma.$transaction(async (tx: any) => {
+      const changeRequest = await upsertPendingTeamChangeRequest(tx, team as any, captainId, {
+        requestType: 'CAPTAIN_TRANSFER',
+        memberUserIds: await getProposedMemberUserIds(teamId),
+        name: team.name,
+        description: team.description,
+        proposedCaptainUserId: memberUserId,
+      });
+      await tx.eventTeam.update({
+        where: { id: teamId },
+        data: { status: 'CHANGES_PENDING' },
+      });
+      await writeTeamHistory(tx, {
+        eventId,
+        teamId,
+        requestId: changeRequest.id,
+        actorUserId: captainId,
+        targetUserId: memberUserId,
+        action: 'CHANGE_REQUEST_CREATED',
+        beforeJson: changeRequest.beforeSnapshotJson,
+        afterJson: changeRequest.afterSnapshotJson,
+      });
+      return changeRequest;
+    });
+
+    await notifyTeamUpdated(eventId, teamId);
+    return { ...team, changeRequests: [changeRequest], status: 'CHANGES_PENDING' };
+  }
+
+  if (!isTeamEditableByCaptain(team)) throw new Error('TEAM_APPROVED_LOCKED');
 
   await prisma.$transaction(async (tx: any) => {
     await tx.eventTeam.update({
@@ -644,6 +1048,13 @@ export async function transferTeamCaptain(eventId: string, teamId: string, capta
       where: { id: targetMember.id },
       data: { role: 'CAPTAIN' },
     });
+    await writeTeamHistory(tx, {
+      eventId,
+      teamId,
+      actorUserId: captainId,
+      targetUserId: memberUserId,
+      action: 'CAPTAIN_TRANSFERRED',
+    });
   });
 
   await notifyTeamUpdated(eventId, teamId);
@@ -653,31 +1064,90 @@ export async function transferTeamCaptain(eventId: string, teamId: string, capta
 export async function approveTeamChangeRequest(eventId: string, teamId: string, requestId: string, adminUserId: string, notes?: string) {
   const request = await prisma.eventTeamChangeRequest.findUnique({
     where: { id: requestId },
-    include: { team: true },
+    include: { team: { include: { event: { select: { requireAdminApprovalForTeams: true } } } } },
   });
   if (!request || request.teamId !== teamId || request.team.eventId !== eventId) throw new Error('TEAM_CHANGE_REQUEST_NOT_FOUND');
   if (request.status !== 'PENDING') throw new Error('TEAM_CHANGE_REQUEST_CLOSED');
 
   const updated = await prisma.$transaction(async (tx: any) => {
-    await syncApprovedTeamMembers(tx, teamId, request.proposedMemberUserIds);
+    const beforeJson = await buildTeamSnapshot(tx, teamId);
+    await cancelOpenChangeRequests(tx, {
+      eventId,
+      teamId,
+      actorUserId: adminUserId,
+      reason: 'Cancelled after approving a newer team change request.',
+      excludeRequestId: requestId,
+    });
+
+    if (request.type === 'WITHDRAWAL_REQUEST') {
+      const member = await tx.eventTeamMember.findUnique({
+        where: { teamId_userId: { teamId, userId: request.requestedByUserId } },
+      });
+      if (!member) throw new Error('MEMBER_NOT_FOUND');
+      await tx.eventTeamMember.update({
+        where: { id: member.id },
+        data: { status: 'LEFT', removedAt: new Date() },
+      });
+      await tx.eventMember.updateMany({
+        where: { eventId, userId: request.requestedByUserId, role: 'PARTICIPANT' },
+        data: { status: 'CANCELLED', removedAt: new Date() },
+      });
+      await tx.eventTeam.update({
+        where: { id: teamId },
+        data: { status: 'NEEDS_ATTENTION' },
+      });
+    } else {
+      await validateProposedTeamMembers(tx, {
+        eventId,
+        teamId,
+        memberUserIds: request.proposedMemberUserIds,
+        maxSize: request.team.maxSize,
+      });
+      await syncApprovedTeamMembers(tx, teamId, request.proposedMemberUserIds);
+      if (request.proposedCaptainUserId) {
+        await setTeamCaptain(tx, teamId, request.proposedCaptainUserId);
+      }
+      await tx.eventTeam.update({
+        where: { id: teamId },
+        data: {
+          name: request.proposedName ?? request.team.name,
+          description: request.proposedDescription,
+          status: request.team.event.requireAdminApprovalForTeams ? 'APPROVED' : 'ACTIVE',
+        },
+      });
+    }
+
     await tx.eventTeamChangeRequest.update({
       where: { id: requestId },
-      data: { status: 'APPROVED', decidedByUserId: adminUserId, decidedAt: new Date(), notes },
-    });
-    const team = await tx.eventTeam.update({
-      where: { id: teamId },
       data: {
-        name: request.proposedName,
-        description: request.proposedDescription,
-        status: 'ACTIVE',
+        status: 'APPROVED',
+        decidedByUserId: adminUserId,
+        decidedAt: new Date(),
+        decisionReason: notes?.trim() || null,
+        notes: notes?.trim() || null,
       },
+    });
+    const afterJson = await buildTeamSnapshot(tx, teamId);
+    await writeTeamHistory(tx, {
+      eventId,
+      teamId,
+      requestId,
+      actorUserId: adminUserId,
+      targetUserId: request.type === 'WITHDRAWAL_REQUEST' ? request.requestedByUserId : request.proposedCaptainUserId,
+      action: isInitialApprovalRequest(request, request.team.status) ? 'TEAM_APPROVED' : 'CHANGE_REQUEST_APPROVED',
+      beforeJson,
+      afterJson,
+      reason: notes?.trim() || null,
+    });
+    const team = await tx.eventTeam.findUnique({
+      where: { id: teamId },
       include: {
         members: {
           include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
           orderBy: { joinedAt: 'desc' },
         },
         changeRequests: {
-          where: { status: 'PENDING' },
+          where: { status: { in: [...OPEN_CHANGE_REQUEST_STATUSES] } },
           orderBy: { createdAt: 'desc' },
           take: 1,
         },
@@ -686,6 +1156,7 @@ export async function approveTeamChangeRequest(eventId: string, teamId: string, 
     return team;
   });
 
+  await notifyTeamApproved(eventId, teamId, notes);
   await notifyTeamUpdated(eventId, teamId);
   return updated;
 }
@@ -693,18 +1164,29 @@ export async function approveTeamChangeRequest(eventId: string, teamId: string, 
 export async function rejectTeamChangeRequest(eventId: string, teamId: string, requestId: string, adminUserId: string, notes?: string) {
   const request = await prisma.eventTeamChangeRequest.findUnique({
     where: { id: requestId },
-    include: { team: true },
+    include: { team: { include: { event: { select: { requireAdminApprovalForTeams: true } } } } },
   });
   if (!request || request.teamId !== teamId || request.team.eventId !== eventId) throw new Error('TEAM_CHANGE_REQUEST_NOT_FOUND');
   if (request.status !== 'PENDING') throw new Error('TEAM_CHANGE_REQUEST_CLOSED');
+  if (!notes?.trim()) throw new Error('DECISION_REASON_REQUIRED');
 
-  const nextTeamStatus = request.team.status === 'PENDING' ? 'REJECTED' : 'ACTIVE';
+  const nextTeamStatus = getTeamStatusAfterReject({
+    requestType: request.type,
+    requireAdminApprovalForTeams: request.team.event.requireAdminApprovalForTeams,
+  });
   const updated = await prisma.$transaction(async (tx: any) => {
+    const beforeJson = await buildTeamSnapshot(tx, teamId);
     await tx.eventTeamChangeRequest.update({
       where: { id: requestId },
-      data: { status: 'REJECTED', decidedByUserId: adminUserId, decidedAt: new Date(), notes },
+      data: {
+        status: 'REJECTED',
+        decidedByUserId: adminUserId,
+        decidedAt: new Date(),
+        decisionReason: notes.trim(),
+        notes: notes.trim(),
+      },
     });
-    return tx.eventTeam.update({
+    const team = await tx.eventTeam.update({
       where: { id: teamId },
       data: { status: nextTeamStatus },
       include: {
@@ -713,14 +1195,27 @@ export async function rejectTeamChangeRequest(eventId: string, teamId: string, r
           orderBy: { joinedAt: 'desc' },
         },
         changeRequests: {
-          where: { status: 'PENDING' },
+          where: { status: { in: [...OPEN_CHANGE_REQUEST_STATUSES] } },
           orderBy: { createdAt: 'desc' },
           take: 1,
         },
       },
     });
+    const afterJson = await buildTeamSnapshot(tx, teamId);
+    await writeTeamHistory(tx, {
+      eventId,
+      teamId,
+      requestId,
+      actorUserId: adminUserId,
+      action: isInitialApprovalRequest(request, request.team.status) ? 'TEAM_REJECTED' : 'CHANGE_REQUEST_REJECTED',
+      beforeJson,
+      afterJson,
+      reason: notes.trim(),
+    });
+    return team;
   });
 
+  await notifyTeamRejected(eventId, teamId, notes);
   await notifyTeamUpdated(eventId, teamId);
   return updated;
 }

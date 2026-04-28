@@ -49,6 +49,8 @@ import {
   updateEmailBroadcast,
   updateEmailTemplate,
 } from './admin-email.service.js';
+import { previewManualRecipients, sendDirectEmailToUsers } from './email-direct.service.js';
+import { z } from 'zod';
 
 export const adminEmailRouter = Router();
 
@@ -404,3 +406,111 @@ adminEmailRouter.get('/webhooks', withErrorHandler(async (req, res) => {
   const webhooks = await getEmailWebhooks(parsed.data);
   res.json(webhooks);
 }));
+
+// ─── POST /api/admin/email/recipients/preview ───────────────────────────────────
+
+const manualRecipientsPreviewSchema = z.object({
+  selectedUserIds: z.array(z.string()).min(1),
+  excludedUserIds: z.array(z.string()).optional().default([]),
+  emailType: z.enum(['ADMIN_DIRECT', 'SYSTEM_NOTIFICATION', 'MARKETING']).default('ADMIN_DIRECT'),
+  respectConsent: z.boolean().default(false),
+  eventId: z.string().optional(),
+});
+
+adminEmailRouter.post('/recipients/preview', withErrorHandler(async (req, res) => {
+  const user = (req as AuthenticatedRequest).user;
+
+  if (!user || !['PLATFORM_ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  const parsed = manualRecipientsPreviewSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
+    return;
+  }
+
+  try {
+    const result = await previewManualRecipients({
+      selectedUserIds: parsed.data.selectedUserIds,
+      excludedUserIds: parsed.data.excludedUserIds,
+      emailType: parsed.data.emailType,
+      respectConsent: parsed.data.respectConsent,
+      eventId: parsed.data.eventId,
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    const code = err instanceof Error ? err.message : String(err);
+    const [status, message] = mapDirectEmailError(code);
+    res.status(status).json({ error: message, code });
+  }
+}));
+
+// ─── POST /api/admin/email/direct ──────────────────────────────────────────────
+
+const sendDirectEmailSchema = z.object({
+  selectedUserIds: z.array(z.string()).min(1),
+  excludedUserIds: z.array(z.string()).optional().default([]),
+  subject: z.string().min(1).max(200),
+  preheader: z.string().max(220).optional().nullable(),
+  text: z.string().max(100_000).optional().nullable(),
+  html: z.string().max(200_000).optional().nullable(),
+  emailType: z.enum(['ADMIN_DIRECT', 'SYSTEM_NOTIFICATION', 'MARKETING']).default('ADMIN_DIRECT'),
+  reason: z.string().min(1).max(1000),
+  respectConsent: z.boolean().default(false),
+  eventId: z.string().optional().nullable(),
+});
+
+adminEmailRouter.post('/direct', withErrorHandler(async (req, res) => {
+  const user = (req as AuthenticatedRequest).user;
+
+  if (!user || !['PLATFORM_ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  const parsed = sendDirectEmailSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
+    return;
+  }
+
+  try {
+    const result = await sendDirectEmailToUsers({
+      actorUserId: user.id,
+      eventId: parsed.data.eventId ?? null,
+      selectedUserIds: parsed.data.selectedUserIds,
+      excludedUserIds: parsed.data.excludedUserIds,
+      subject: parsed.data.subject,
+      preheader: parsed.data.preheader ?? null,
+      text: parsed.data.text ?? null,
+      html: parsed.data.html ?? null,
+      emailType: parsed.data.emailType,
+      reason: parsed.data.reason,
+      respectConsent: parsed.data.respectConsent,
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    const code = err instanceof Error ? err.message : String(err);
+    const [status, message] = mapDirectEmailError(code);
+    res.status(status).json({ error: message, code });
+  }
+}));
+
+function mapDirectEmailError(code: string): [number, string] {
+  const map: Record<string, [number, string]> = {
+    FORBIDDEN: [403, 'Forbidden'],
+    RECIPIENTS_REQUIRED: [400, 'Recipients are required'],
+    SUBJECT_REQUIRED: [400, 'Subject is required'],
+    EMAIL_CONTENT_REQUIRED: [400, 'Text or HTML is required'],
+    REASON_REQUIRED: [400, 'Reason is required'],
+    TOO_MANY_RECIPIENTS: [400, 'Too many recipients'],
+    EMAIL_DELIVERY_NOT_CONFIGURED: [503, 'Email delivery is not configured'],
+    EMAIL_SENDER_NOT_CONFIGURED: [503, 'Email sender is not configured'],
+  };
+
+  return map[code] ?? [500, 'Internal error'];
+}

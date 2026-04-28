@@ -124,18 +124,83 @@ enum RegistrationMode {
 enum EventTeamStatus {
   DRAFT
   ACTIVE
+  APPROVED
   PENDING
   CHANGES_PENDING
+  NEEDS_ATTENTION
   REJECTED
   SUBMITTED
   ARCHIVED
 }
 
+enum EventTeamChangeRequestType {
+  INITIAL_APPROVAL
+  MEMBER_REPLACEMENT
+  MEMBER_ADD
+  MEMBER_REMOVE
+  CAPTAIN_TRANSFER
+  DETAILS_UPDATE
+  WITHDRAWAL_REQUEST
+  ADMIN_CORRECTION
+}
+
 enum EventTeamChangeRequestStatus {
+  DRAFT
+  WAITING_INVITEE
   PENDING
   APPROVED
   REJECTED
   CANCELLED
+  EXPIRED
+}
+
+enum EventTeamChangeRequestItemAction {
+  ADD_MEMBER
+  REMOVE_MEMBER
+  REPLACE_MEMBER
+  TRANSFER_CAPTAIN
+  UPDATE_DETAILS
+}
+
+enum EventTeamChangeRequestItemStatus {
+  PENDING_INVITEE
+  INVITEE_ACCEPTED
+  INVITEE_DECLINED
+  READY_FOR_ADMIN
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum EventTeamHistoryAction {
+  TEAM_CREATED
+  TEAM_SUBMITTED
+  TEAM_APPROVED
+  TEAM_REJECTED
+  CHANGE_REQUEST_CREATED
+  CHANGE_REQUEST_INVITEE_ACCEPTED
+  CHANGE_REQUEST_INVITEE_DECLINED
+  CHANGE_REQUEST_SUBMITTED
+  CHANGE_REQUEST_APPROVED
+  CHANGE_REQUEST_REJECTED
+  CHANGE_REQUEST_CANCELLED
+  MEMBER_ADDED
+  MEMBER_REMOVED
+  MEMBER_REPLACED
+  MEMBER_WITHDRAWAL_REQUESTED
+  CAPTAIN_TRANSFERRED
+  TEAM_DETAILS_UPDATED
+  ADMIN_TEAM_RENAMED
+  ADMIN_TEAM_DESCRIPTION_UPDATED
+  ADMIN_MEMBER_ADDED
+  ADMIN_MEMBER_REMOVED
+  ADMIN_MEMBER_REPLACED
+  ADMIN_CAPTAIN_CHANGED
+  ADMIN_ROSTER_REPLACED
+  ADMIN_TEAM_APPROVED
+  ADMIN_TEAM_REJECTED
+  ADMIN_OVERRIDE_EVENT_PARTICIPANT_CREATED
+  ADMIN_OPEN_REQUEST_CANCELLED
 }
 
 enum EventTeamRole {
@@ -291,6 +356,7 @@ enum EmailMessageSource {
   NOTIFICATION
   BROADCAST
   ADMIN_TEST
+  ADMIN_DIRECT
   PASSWORD_RESET
   SYSTEM
 }
@@ -1127,6 +1193,7 @@ model EventTeam {
   members        EventTeamMember[]
   invitations    EventTeamInvitation[]
   changeRequests EventTeamChangeRequest[]
+  history        EventTeamHistory[]
 
   @@index([eventId])
   @@index([captainUserId])
@@ -1134,26 +1201,86 @@ model EventTeam {
 }
 
 model EventTeamChangeRequest {
-  id                    String                       @id @default(cuid())
+  id                    String                        @id @default(cuid())
   teamId                String
+  type                  EventTeamChangeRequestType    @default(DETAILS_UPDATE)
+  status                EventTeamChangeRequestStatus  @default(DRAFT)
   requestedByUserId     String
   decidedByUserId       String?
-  status                EventTeamChangeRequestStatus @default(PENDING)
-  proposedName          String
-  proposedDescription   String?
-  proposedMemberUserIds String[]
+  reason                String?
+  decisionReason        String?
   notes                 String?
-  createdAt             DateTime                     @default(now())
-  updatedAt             DateTime                     @updatedAt
+  proposedName          String?
+  proposedDescription   String?
+  proposedCaptainUserId String?
+  proposedMemberUserIds String[]
+  beforeSnapshotJson    Json?
+  afterSnapshotJson     Json?
+  createdAt             DateTime                      @default(now())
+  updatedAt             DateTime                      @updatedAt
+  submittedAt           DateTime?
   decidedAt             DateTime?
+  cancelledAt           DateTime?
+  expiresAt             DateTime?
 
   team            EventTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
   requestedByUser User      @relation("TeamChangeRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Cascade)
   decidedByUser   User?     @relation("TeamChangeDecidedBy", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+  items           EventTeamChangeRequestItem[]
+  history         EventTeamHistory[]
 
   @@index([teamId, status])
   @@index([requestedByUserId])
   @@map("event_team_change_requests")
+}
+
+model EventTeamChangeRequestItem {
+  id           String                           @id @default(cuid())
+  requestId    String
+  action       EventTeamChangeRequestItemAction
+  status       EventTeamChangeRequestItemStatus @default(PENDING_INVITEE)
+  oldUserId    String?
+  newUserId    String?
+  inviteeEmail String?
+  oldRole      String?
+  newRole      String?
+  message      String?
+  invitedAt    DateTime?
+  acceptedAt   DateTime?
+  declinedAt   DateTime?
+  createdAt    DateTime                         @default(now())
+  updatedAt    DateTime                         @updatedAt
+
+  request EventTeamChangeRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@index([oldUserId])
+  @@index([newUserId])
+  @@map("event_team_change_request_items")
+}
+
+model EventTeamHistory {
+  id           String                 @id @default(cuid())
+  eventId      String
+  teamId       String
+  requestId    String?
+  actorUserId  String?
+  targetUserId String?
+  action       EventTeamHistoryAction
+  beforeJson   Json?
+  afterJson    Json?
+  metaJson     Json?
+  reason       String?
+  createdAt    DateTime               @default(now())
+
+  team    EventTeam               @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  request EventTeamChangeRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+
+  @@index([eventId, teamId])
+  @@index([requestId])
+  @@index([actorUserId])
+  @@index([targetUserId])
+  @@map("event_team_history")
 }
 
 model EventTeamMember {
