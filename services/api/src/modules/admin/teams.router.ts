@@ -4,10 +4,22 @@ import { prisma } from '../../db/prisma.js';
 import {
   adminTeamMemberSchema,
   listTeamsQuerySchema,
+  replaceAdminTeamMemberSchema,
+  replaceAdminTeamRosterSchema,
   transferAdminTeamCaptainSchema,
   updateAdminTeamMemberSchema,
   updateAdminTeamSchema,
 } from './teams.schemas.js';
+import {
+  adminAddTeamMember,
+  adminRemoveTeamMember,
+  adminReplaceTeamMember,
+  adminReplaceTeamRoster,
+  adminTransferTeamCaptain,
+  adminUpdateTeamDetails,
+  archiveTeamForAdmin,
+  getTeamDetailsForAdmin,
+} from './team-override.service.js';
 
 export const adminTeamsRouter = Router();
 
@@ -238,8 +250,7 @@ adminTeamsRouter.get('/:teamId', async (req, res) => {
   const { teamId } = req.params;
 
   try {
-    await findTeamForAdmin(teamId, user);
-    const team = await getTeamDetails(teamId);
+    const team = await getTeamDetailsForAdmin(teamId, user);
     res.json({ data: team });
   } catch (err: any) {
     if (err.message === 'TEAM_NOT_FOUND') {
@@ -266,37 +277,18 @@ adminTeamsRouter.patch('/:teamId', async (req, res) => {
   }
 
   try {
-    const team = await findTeamForAdmin(teamId, user);
-
-    if (parsed.data.captainUserId) {
-      const targetUser = await prisma.user.findUnique({
-        where: { id: parsed.data.captainUserId },
-        select: { id: true },
-      });
-      if (!targetUser) {
-        res.status(404).json({ error: 'Captain user not found' });
-        return;
-      }
-    }
-
-    await prisma.$transaction(async (tx: any) => {
-      await tx.eventTeam.update({
-        where: { id: teamId },
-        data: {
-          name: parsed.data.name ?? undefined,
-          description: parsed.data.description !== undefined ? parsed.data.description : undefined,
-          maxSize: parsed.data.maxSize ?? undefined,
-          status: parsed.data.status ?? undefined,
-        },
-      });
-
-      if (parsed.data.captainUserId) {
-        await ensureEventParticipant(tx, team.eventId, parsed.data.captainUserId, user.id);
-        await setTeamCaptain(tx, teamId, parsed.data.captainUserId);
-      }
+    const data = await adminUpdateTeamDetails({
+      actor: user,
+      teamId,
+      name: parsed.data.name,
+      description: parsed.data.description,
+      maxSize: parsed.data.maxSize,
+      status: parsed.data.status,
+      captainUserId: parsed.data.captainUserId,
+      reason: parsed.data.reason,
     });
 
-    res.json({ data: await getTeamDetails(teamId) });
+    res.json({ data });
   } catch (err: any) {
     if (err.message === 'TEAM_NOT_FOUND') {
       res.status(404).json({ error: 'Team not found' });
@@ -304,6 +296,14 @@ adminTeamsRouter.patch('/:teamId', async (req, res) => {
     }
     if (err.message === 'ACCESS_DENIED') {
       res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+    if (err.message === 'USER_NOT_FOUND') {
+      res.status(404).json({ error: 'Captain user not found' });
+      return;
+    }
+    if (err.message === 'USER_DISABLED') {
+      res.status(409).json({ error: 'Captain user is disabled' });
       return;
     }
     throw err;
@@ -322,55 +322,17 @@ adminTeamsRouter.post('/:teamId/members', async (req, res) => {
   }
 
   try {
-    const [team, targetUser] = await Promise.all([
-      findTeamForAdmin(teamId, user),
-      resolveUserRef(parsed.data),
-    ]);
-
-    if (!targetUser) {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
-
-    const activeCount = await prisma.eventTeamMember.count({
-      where: { teamId, status: 'ACTIVE' },
-    });
-    const alreadyActive = await prisma.eventTeamMember.findUnique({
-      where: { teamId_userId: { teamId, userId: targetUser.id } },
-      select: { status: true },
+    const data = await adminAddTeamMember({
+      actor: user,
+      teamId,
+      userId: parsed.data.userId,
+      email: parsed.data.email,
+      role: parsed.data.role,
+      status: parsed.data.status,
+      reason: parsed.data.reason,
     });
 
-    if (parsed.data.status === 'ACTIVE' && alreadyActive?.status !== 'ACTIVE' && activeCount >= team.maxSize) {
-      res.status(400).json({ error: 'Team is full' });
-      return;
-    }
-
-    await prisma.$transaction(async (tx: any) => {
-      await ensureEventParticipant(tx, team.eventId, targetUser.id, user.id);
-
-      await tx.eventTeamMember.upsert({
-        where: { teamId_userId: { teamId, userId: targetUser.id } },
-        create: {
-          teamId,
-          userId: targetUser.id,
-          role: parsed.data.role,
-          status: parsed.data.status,
-          approvedAt: parsed.data.status === 'ACTIVE' ? new Date() : null,
-        },
-        update: {
-          role: parsed.data.role,
-          status: parsed.data.status,
-          removedAt: null,
-          approvedAt: parsed.data.status === 'ACTIVE' ? new Date() : undefined,
-        },
-      });
-
-      if (parsed.data.role === 'CAPTAIN') {
-        await setTeamCaptain(tx, teamId, targetUser.id);
-      }
-    });
-
-    res.status(201).json({ data: await getTeamDetails(teamId) });
+    res.status(201).json({ data });
   } catch (err: any) {
     if (err.message === 'TEAM_NOT_FOUND') {
       res.status(404).json({ error: 'Team not found' });
@@ -378,6 +340,18 @@ adminTeamsRouter.post('/:teamId/members', async (req, res) => {
     }
     if (err.message === 'ACCESS_DENIED') {
       res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+    if (err.message === 'USER_NOT_FOUND') {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    if (err.message === 'USER_DISABLED') {
+      res.status(409).json({ error: 'User is disabled' });
+      return;
+    }
+    if (err.message === 'USER_ALREADY_IN_OTHER_TEAM') {
+      res.status(409).json({ error: 'User is already in another team for this event' });
       return;
     }
     throw err;
@@ -462,23 +436,14 @@ adminTeamsRouter.post('/:teamId/captain', async (req, res) => {
   }
 
   try {
-    const team = await findTeamForAdmin(teamId, user);
-    const targetUser = await prisma.user.findUnique({
-      where: { id: parsed.data.userId },
-      select: { id: true },
+    const data = await adminTransferTeamCaptain({
+      actor: user,
+      teamId,
+      userId: parsed.data.userId,
+      reason: parsed.data.reason,
     });
 
-    if (!targetUser) {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
-
-    await prisma.$transaction(async (tx: any) => {
-      await ensureEventParticipant(tx, team.eventId, targetUser.id, user.id);
-      await setTeamCaptain(tx, teamId, targetUser.id);
-    });
-
-    res.json({ data: await getTeamDetails(teamId) });
+    res.json({ data });
   } catch (err: any) {
     if (err.message === 'TEAM_NOT_FOUND') {
       res.status(404).json({ error: 'Team not found' });
@@ -486,6 +451,18 @@ adminTeamsRouter.post('/:teamId/captain', async (req, res) => {
     }
     if (err.message === 'ACCESS_DENIED') {
       res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+    if (err.message === 'USER_NOT_FOUND') {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    if (err.message === 'USER_DISABLED') {
+      res.status(409).json({ error: 'User is disabled' });
+      return;
+    }
+    if (err.message === 'USER_ALREADY_IN_OTHER_TEAM') {
+      res.status(409).json({ error: 'User is already in another team for this event' });
       return;
     }
     throw err;
@@ -498,46 +475,14 @@ adminTeamsRouter.delete('/:teamId/members/:userId', async (req, res) => {
   const { teamId, userId } = req.params;
 
   try {
-    const team = await findTeamForAdmin(teamId, user);
-    const member = await prisma.eventTeamMember.findUnique({
-      where: { teamId_userId: { teamId, userId } },
+    const data = await adminRemoveTeamMember({
+      actor: user,
+      teamId,
+      userId,
+      reason: typeof req.body?.reason === 'string' ? req.body.reason : undefined,
     });
 
-    if (!member) {
-      res.status(404).json({ error: 'Team member not found' });
-      return;
-    }
-
-    if (team.captainUserId === userId) {
-      const replacement = await prisma.eventTeamMember.findFirst({
-        where: {
-          teamId,
-          userId: { not: userId },
-          status: 'ACTIVE',
-        },
-        orderBy: { joinedAt: 'asc' },
-      });
-
-      if (!replacement) {
-        res.status(400).json({ error: 'Cannot remove the only active captain. Transfer captain first or add another active member.' });
-        return;
-      }
-
-      await prisma.$transaction(async (tx: any) => {
-        await tx.eventTeamMember.update({
-          where: { id: member.id },
-          data: { status: 'REMOVED', role: 'MEMBER', removedAt: new Date() },
-        });
-        await setTeamCaptain(tx, teamId, replacement.userId);
-      });
-    } else {
-      await prisma.eventTeamMember.update({
-        where: { id: member.id },
-        data: { status: 'REMOVED', removedAt: new Date() },
-      });
-    }
-
-    res.json({ data: await getTeamDetails(teamId) });
+    res.json({ data });
   } catch (err: any) {
     if (err.message === 'TEAM_NOT_FOUND') {
       res.status(404).json({ error: 'Team not found' });
@@ -547,7 +492,91 @@ adminTeamsRouter.delete('/:teamId/members/:userId', async (req, res) => {
       res.status(403).json({ error: 'Access denied' });
       return;
     }
+    if (err.message === 'MEMBER_NOT_FOUND') {
+      res.status(404).json({ error: 'Team member not found' });
+      return;
+    }
+    if (err.message === 'CANNOT_REMOVE_CAPTAIN') {
+      res.status(400).json({ error: 'Cannot remove captain. Transfer captain first.' });
+      return;
+    }
     throw err;
+  }
+});
+
+// POST /admin/teams/:teamId/members/replace
+adminTeamsRouter.post('/:teamId/members/replace', async (req, res) => {
+  const user = (req as any).user as User;
+  const { teamId } = req.params;
+
+  const parsed = replaceAdminTeamMemberSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+    return;
+  }
+
+  try {
+    const data = await adminReplaceTeamMember({
+      actor: user,
+      teamId,
+      oldUserId: parsed.data.oldUserId,
+      newUserId: parsed.data.newUserId,
+      newUserEmail: parsed.data.newUserEmail,
+      reason: parsed.data.reason,
+    });
+
+    res.json({ data });
+  } catch (err: any) {
+    const map: Record<string, [number, string]> = {
+      TEAM_NOT_FOUND: [404, 'Team not found'],
+      ACCESS_DENIED: [403, 'Access denied'],
+      MEMBER_NOT_FOUND: [404, 'Team member not found'],
+      USER_NOT_FOUND: [404, 'Replacement user not found'],
+      USER_DISABLED: [409, 'Replacement user is disabled'],
+      USER_ALREADY_IN_OTHER_TEAM: [409, 'Replacement user is already in another team for this event'],
+      CANNOT_REMOVE_CAPTAIN: [400, 'Captain replacement must use the captain transfer flow'],
+      USER_ALREADY_IN_TEAM: [409, 'Replacement user is already in this team'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
+  }
+});
+
+// PUT /admin/teams/:teamId/roster
+adminTeamsRouter.put('/:teamId/roster', async (req, res) => {
+  const user = (req as any).user as User;
+  const { teamId } = req.params;
+
+  const parsed = replaceAdminTeamRosterSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+    return;
+  }
+
+  try {
+    const data = await adminReplaceTeamRoster({
+      actor: user,
+      teamId,
+      memberUserIds: parsed.data.memberUserIds,
+      captainUserId: parsed.data.captainUserId,
+      name: parsed.data.name,
+      description: parsed.data.description,
+      status: parsed.data.status,
+      reason: parsed.data.reason,
+    });
+
+    res.json({ data });
+  } catch (err: any) {
+    const map: Record<string, [number, string]> = {
+      TEAM_NOT_FOUND: [404, 'Team not found'],
+      ACCESS_DENIED: [403, 'Access denied'],
+      USER_NOT_FOUND: [404, 'Roster user not found'],
+      USER_DISABLED: [409, 'Roster contains a disabled user'],
+      USER_ALREADY_IN_OTHER_TEAM: [409, 'Roster contains a user from another team in this event'],
+      TEAM_EMPTY: [400, 'Roster cannot be empty'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
   }
 });
 
@@ -591,7 +620,7 @@ adminTeamsRouter.post('/:teamId/remove', async (req, res) => {
   const user = (req as any).user as User;
 
   try {
-    const data = await archiveTeam(req.params.teamId!, user);
+    const data = await archiveTeamForAdmin(req.params.teamId!, user);
     res.json({ data });
   } catch (err: any) {
     if (err.message === 'TEAM_NOT_FOUND') {
@@ -611,7 +640,7 @@ adminTeamsRouter.post('/:teamId/archive', async (req, res) => {
   const user = (req as any).user as User;
 
   try {
-    const data = await archiveTeam(req.params.teamId!, user);
+    const data = await archiveTeamForAdmin(req.params.teamId!, user);
     res.json({ data });
   } catch (err: any) {
     if (err.message === 'TEAM_NOT_FOUND') {
@@ -631,7 +660,7 @@ adminTeamsRouter.delete('/:teamId', async (req, res) => {
   const user = (req as any).user as User;
 
   try {
-    const data = await archiveTeam(req.params.teamId!, user);
+    const data = await archiveTeamForAdmin(req.params.teamId!, user);
     res.json({ data });
   } catch (err: any) {
     if (err.message === 'TEAM_NOT_FOUND') {

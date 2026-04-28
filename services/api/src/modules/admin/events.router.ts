@@ -9,6 +9,21 @@ import { approveTeamChangeRequest, rejectTeamChangeRequest } from '../events/eve
 import { getActiveProfileRequirementFields } from '../profile-config/profile-field-values.js';
 import { normalizeEmail } from '@event-platform/shared';
 import {
+  adminAddTeamMember,
+  adminRemoveTeamMember,
+  adminReplaceTeamMember,
+  adminReplaceTeamRoster,
+  adminTransferTeamCaptain,
+  adminUpdateTeamDetails,
+} from './team-override.service.js';
+import {
+  adminTeamMemberSchema,
+  replaceAdminTeamMemberSchema,
+  replaceAdminTeamRosterSchema,
+  transferAdminTeamCaptainSchema,
+  updateAdminTeamSchema,
+} from './teams.schemas.js';
+import {
   applyActiveWorkspacePoliciesToEvent,
   canAccessEvent,
   canManageWorkspace,
@@ -36,6 +51,26 @@ function normalizeStringArray(value: unknown) {
 
 function normalizeRequiredProfileFields(value: unknown) {
   return getActiveProfileRequirementFields(normalizeStringArray(value));
+}
+
+async function decorateTeamHistoryEntries<T extends Array<{ history?: Array<any> }>>(teams: T): Promise<T> {
+  const userIds = [...new Set(teams.flatMap(team => (team.history ?? []).flatMap((entry: any) => [entry.actorUserId, entry.targetUserId].filter(Boolean))))];
+  if (userIds.length === 0) return teams;
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+    select: { id: true, name: true, email: true, avatarUrl: true },
+  });
+  const usersById = new Map(users.map((user: any) => [user.id, user]));
+
+  return teams.map(team => ({
+    ...team,
+    history: (team.history ?? []).map((entry: any) => ({
+      ...entry,
+      actorUser: entry.actorUserId ? usersById.get(entry.actorUserId) ?? null : null,
+      targetUser: entry.targetUserId ? usersById.get(entry.targetUserId) ?? null : null,
+    })),
+  })) as T;
 }
 
 function normalizeEventBody(body: any) {
@@ -409,11 +444,240 @@ adminEventsRouter.get('/:id/teams', async (req, res) => {
         orderBy: { createdAt: 'desc' },
         take: 1,
       },
+      history: {
+        orderBy: { createdAt: 'desc' },
+        take: 12,
+      },
       _count: { select: { members: { where: { status: 'ACTIVE' } } } },
     },
     orderBy: { createdAt: 'desc' },
   });
-  res.json({ teams });
+  res.json({ teams: await decorateTeamHistoryEntries(teams) });
+});
+
+// PATCH /admin/events/:id/teams/:teamId
+adminEventsRouter.patch('/:id/teams/:teamId', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await canManageEvent(user, eventId))) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  const parsed = updateAdminTeamSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+    return;
+  }
+
+  try {
+    const data = await adminUpdateTeamDetails({
+      actor: user,
+      teamId: req.params['teamId']!,
+      eventId,
+      name: parsed.data.name,
+      description: parsed.data.description,
+      maxSize: parsed.data.maxSize,
+      status: parsed.data.status,
+      captainUserId: parsed.data.captainUserId,
+      reason: parsed.data.reason,
+    });
+    res.json({ team: data });
+  } catch (err: any) {
+    const map: Record<string, [number, string]> = {
+      TEAM_NOT_FOUND: [404, 'Team not found'],
+      USER_NOT_FOUND: [404, 'User not found'],
+      USER_DISABLED: [409, 'User is disabled'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
+  }
+});
+
+// POST /admin/events/:id/teams/:teamId/members
+adminEventsRouter.post('/:id/teams/:teamId/members', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await canManageEvent(user, eventId))) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  const parsed = adminTeamMemberSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+    return;
+  }
+
+  try {
+    const data = await adminAddTeamMember({
+      actor: user,
+      teamId: req.params['teamId']!,
+      eventId,
+      userId: parsed.data.userId,
+      email: parsed.data.email,
+      role: parsed.data.role,
+      status: parsed.data.status,
+      reason: parsed.data.reason,
+    });
+    res.status(201).json({ team: data });
+  } catch (err: any) {
+    const map: Record<string, [number, string]> = {
+      TEAM_NOT_FOUND: [404, 'Team not found'],
+      USER_NOT_FOUND: [404, 'User not found'],
+      USER_DISABLED: [409, 'User is disabled'],
+      USER_ALREADY_IN_OTHER_TEAM: [409, 'User is already in another team for this event'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
+  }
+});
+
+// DELETE /admin/events/:id/teams/:teamId/members/:userId
+adminEventsRouter.delete('/:id/teams/:teamId/members/:userId', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await canManageEvent(user, eventId))) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  try {
+    const data = await adminRemoveTeamMember({
+      actor: user,
+      teamId: req.params['teamId']!,
+      eventId,
+      userId: req.params['userId']!,
+      reason: typeof req.body?.reason === 'string' ? req.body.reason : undefined,
+    });
+    res.json({ team: data });
+  } catch (err: any) {
+    const map: Record<string, [number, string]> = {
+      TEAM_NOT_FOUND: [404, 'Team not found'],
+      MEMBER_NOT_FOUND: [404, 'Member not found'],
+      CANNOT_REMOVE_CAPTAIN: [400, 'Transfer captain before removing the current captain'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
+  }
+});
+
+// POST /admin/events/:id/teams/:teamId/members/replace
+adminEventsRouter.post('/:id/teams/:teamId/members/replace', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await canManageEvent(user, eventId))) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  const parsed = replaceAdminTeamMemberSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+    return;
+  }
+
+  try {
+    const data = await adminReplaceTeamMember({
+      actor: user,
+      teamId: req.params['teamId']!,
+      eventId,
+      oldUserId: parsed.data.oldUserId,
+      newUserId: parsed.data.newUserId,
+      newUserEmail: parsed.data.newUserEmail,
+      reason: parsed.data.reason,
+    });
+    res.json({ team: data });
+  } catch (err: any) {
+    const map: Record<string, [number, string]> = {
+      TEAM_NOT_FOUND: [404, 'Team not found'],
+      MEMBER_NOT_FOUND: [404, 'Member not found'],
+      USER_NOT_FOUND: [404, 'User not found'],
+      USER_DISABLED: [409, 'User is disabled'],
+      USER_ALREADY_IN_OTHER_TEAM: [409, 'User is already in another team for this event'],
+      USER_ALREADY_IN_TEAM: [409, 'User is already in this team'],
+      CANNOT_REMOVE_CAPTAIN: [400, 'Use captain transfer for captain replacement'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
+  }
+});
+
+// POST /admin/events/:id/teams/:teamId/captain
+adminEventsRouter.post('/:id/teams/:teamId/captain', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await canManageEvent(user, eventId))) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  const parsed = transferAdminTeamCaptainSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+    return;
+  }
+
+  try {
+    const data = await adminTransferTeamCaptain({
+      actor: user,
+      teamId: req.params['teamId']!,
+      eventId,
+      userId: parsed.data.userId,
+      reason: parsed.data.reason,
+    });
+    res.json({ team: data });
+  } catch (err: any) {
+    const map: Record<string, [number, string]> = {
+      TEAM_NOT_FOUND: [404, 'Team not found'],
+      USER_NOT_FOUND: [404, 'User not found'],
+      USER_DISABLED: [409, 'User is disabled'],
+      USER_ALREADY_IN_OTHER_TEAM: [409, 'User is already in another team for this event'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
+  }
+});
+
+// PUT /admin/events/:id/teams/:teamId/roster
+adminEventsRouter.put('/:id/teams/:teamId/roster', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await canManageEvent(user, eventId))) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  const parsed = replaceAdminTeamRosterSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+    return;
+  }
+
+  try {
+    const data = await adminReplaceTeamRoster({
+      actor: user,
+      teamId: req.params['teamId']!,
+      eventId,
+      memberUserIds: parsed.data.memberUserIds,
+      captainUserId: parsed.data.captainUserId,
+      name: parsed.data.name,
+      description: parsed.data.description,
+      status: parsed.data.status,
+      reason: parsed.data.reason,
+    });
+    res.json({ team: data });
+  } catch (err: any) {
+    const map: Record<string, [number, string]> = {
+      TEAM_NOT_FOUND: [404, 'Team not found'],
+      USER_NOT_FOUND: [404, 'User not found'],
+      USER_DISABLED: [409, 'User is disabled'],
+      USER_ALREADY_IN_OTHER_TEAM: [409, 'User is already in another team for this event'],
+      TEAM_EMPTY: [400, 'Roster cannot be empty'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
+  }
 });
 
 // POST /admin/events/:id/teams/:teamId/change-requests/:requestId/approve

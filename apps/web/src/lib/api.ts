@@ -378,6 +378,49 @@ export const adminApi = {
   listEventTeams: (eventId: string) =>
     request<{ teams: any[] }>(`/api/admin/events/${eventId}/teams`, { auth: true }),
 
+  updateEventTeam: (eventId: string, teamId: string, body: {
+    name?: string;
+    description?: string | null;
+    maxSize?: number;
+    status?: string;
+    captainUserId?: string;
+    reason?: string;
+  }) =>
+    request<{ team: any }>(`/api/admin/events/${eventId}/teams/${teamId}`, { method: 'PATCH', auth: true, body }),
+
+  addEventTeamMember: (eventId: string, teamId: string, body: {
+    userId?: string;
+    email?: string;
+    role?: 'CAPTAIN' | 'MEMBER';
+    status?: 'PENDING' | 'ACTIVE' | 'REJECTED' | 'REMOVED' | 'LEFT';
+    reason?: string;
+  }) =>
+    request<{ team: any }>(`/api/admin/events/${eventId}/teams/${teamId}/members`, { method: 'POST', auth: true, body }),
+
+  removeEventTeamMemberByAdmin: (eventId: string, teamId: string, userId: string, reason?: string) =>
+    request<{ team: any }>(`/api/admin/events/${eventId}/teams/${teamId}/members/${userId}`, { method: 'DELETE', auth: true, body: reason ? { reason } : {} }),
+
+  replaceEventTeamMember: (eventId: string, teamId: string, body: {
+    oldUserId: string;
+    newUserId?: string;
+    newUserEmail?: string;
+    reason: string;
+  }) =>
+    request<{ team: any }>(`/api/admin/events/${eventId}/teams/${teamId}/members/replace`, { method: 'POST', auth: true, body }),
+
+  transferEventTeamCaptain: (eventId: string, teamId: string, body: { userId: string; reason?: string }) =>
+    request<{ team: any }>(`/api/admin/events/${eventId}/teams/${teamId}/captain`, { method: 'POST', auth: true, body }),
+
+  replaceEventTeamRoster: (eventId: string, teamId: string, body: {
+    memberUserIds: string[];
+    captainUserId?: string;
+    name?: string;
+    description?: string | null;
+    status?: string;
+    reason: string;
+  }) =>
+    request<{ team: any }>(`/api/admin/events/${eventId}/teams/${teamId}/roster`, { method: 'PUT', auth: true, body }),
+
   approveEventTeamMember: (eventId: string, teamId: string, userId: string) =>
     request<{ member: any }>(`/api/events/${eventId}/teams/${teamId}/members/${userId}/approve`, { method: 'POST', auth: true }),
 
@@ -454,6 +497,7 @@ export const adminApi = {
     maxSize?: number;
     status?: string;
     captainUserId?: string;
+    reason?: string;
   }) =>
     request<{ data: any }>(`/api/admin/teams/${teamId}`, { method: 'PATCH', auth: true, body }),
 
@@ -462,6 +506,7 @@ export const adminApi = {
     email?: string;
     role?: 'CAPTAIN' | 'MEMBER';
     status?: 'PENDING' | 'ACTIVE' | 'REJECTED' | 'REMOVED' | 'LEFT';
+    reason?: string;
   }) =>
     request<{ data: any }>(`/api/admin/teams/${teamId}/members`, { method: 'POST', auth: true, body }),
 
@@ -471,11 +516,37 @@ export const adminApi = {
   }) =>
     request<{ data: any }>(`/api/admin/teams/${teamId}/members/${userId}`, { method: 'PATCH', auth: true, body }),
 
-  removeTeamMember: (teamId: string, userId: string) =>
-    request<{ data: any }>(`/api/admin/teams/${teamId}/members/${userId}`, { method: 'DELETE', auth: true }),
+  removeTeamMember: (teamId: string, userId: string, reason?: string) =>
+    request<{ data: any }>(`/api/admin/teams/${teamId}/members/${userId}`, {
+      method: 'DELETE',
+      auth: true,
+      body: reason ? { reason } : {},
+    }),
 
-  transferTeamCaptain: (teamId: string, userId: string) =>
-    request<{ data: any }>(`/api/admin/teams/${teamId}/captain`, { method: 'POST', auth: true, body: { userId } }),
+  transferTeamCaptain: (teamId: string, userId: string, reason?: string) =>
+    request<{ data: any }>(`/api/admin/teams/${teamId}/captain`, {
+      method: 'POST',
+      auth: true,
+      body: reason ? { userId, reason } : { userId },
+    }),
+
+  replaceTeamMember: (teamId: string, body: {
+    oldUserId: string;
+    newUserId?: string;
+    newUserEmail?: string;
+    reason: string;
+  }) =>
+    request<{ data: any }>(`/api/admin/teams/${teamId}/members/replace`, { method: 'POST', auth: true, body }),
+
+  replaceTeamRoster: (teamId: string, body: {
+    memberUserIds: string[];
+    captainUserId?: string;
+    name?: string;
+    description?: string | null;
+    status?: string;
+    reason: string;
+  }) =>
+    request<{ data: any }>(`/api/admin/teams/${teamId}/roster`, { method: 'PUT', auth: true, body }),
 
   getUserStats: () =>
     request<any>('/api/admin/users/stats', { auth: true }),

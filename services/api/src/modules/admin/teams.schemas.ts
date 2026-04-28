@@ -14,6 +14,7 @@ export const updateAdminTeamSchema = z.object({
   maxSize: z.coerce.number().int().min(1).max(200).optional(),
   status: z.enum(['DRAFT', 'ACTIVE', 'APPROVED', 'PENDING', 'CHANGES_PENDING', 'NEEDS_ATTENTION', 'REJECTED', 'SUBMITTED', 'ARCHIVED']).optional(),
   captainUserId: z.string().trim().min(1).optional(),
+  reason: z.string().trim().max(500).optional(),
 });
 
 export const adminTeamMemberSchema = z.object({
@@ -21,6 +22,7 @@ export const adminTeamMemberSchema = z.object({
   email: z.string().trim().email().optional(),
   role: z.enum(['CAPTAIN', 'MEMBER']).optional().default('MEMBER'),
   status: z.enum(['PENDING', 'ACTIVE', 'REJECTED', 'REMOVED', 'LEFT']).optional().default('ACTIVE'),
+  reason: z.string().trim().max(500).optional(),
 }).refine((value) => Boolean(value.userId || value.email), {
   message: 'userId or email is required',
   path: ['userId'],
@@ -35,6 +37,26 @@ export const updateAdminTeamMemberSchema = z.object({
 
 export const transferAdminTeamCaptainSchema = z.object({
   userId: z.string().trim().min(1),
+  reason: z.string().trim().max(500).optional(),
+});
+
+export const replaceAdminTeamMemberSchema = z.object({
+  oldUserId: z.string().trim().min(1),
+  newUserId: z.string().trim().min(1).optional(),
+  newUserEmail: z.string().trim().email().optional(),
+  reason: z.string().trim().min(1).max(500),
+}).refine((value) => Boolean(value.newUserId || value.newUserEmail), {
+  message: 'newUserId or newUserEmail is required',
+  path: ['newUserId'],
+});
+
+export const replaceAdminTeamRosterSchema = z.object({
+  memberUserIds: z.array(z.string().trim().min(1)).min(1),
+  captainUserId: z.string().trim().min(1).optional(),
+  name: z.string().trim().min(1).max(160).optional(),
+  description: z.string().trim().max(2000).nullable().optional(),
+  status: z.enum(['DRAFT', 'ACTIVE', 'APPROVED', 'PENDING', 'CHANGES_PENDING', 'NEEDS_ATTENTION', 'REJECTED', 'SUBMITTED', 'ARCHIVED']).optional(),
+  reason: z.string().trim().min(1).max(500),
 });
 
 export type ListTeamsQuery = z.infer<typeof listTeamsQuerySchema>;
