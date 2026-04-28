@@ -4,6 +4,7 @@ import { canManageEvent } from '../../common/middleware.js';
 import { OPEN_CHANGE_REQUEST_STATUSES } from '../events/team-governance.js';
 import {
   notifyAdminCaptainChanged,
+  notifyAdminMemberAdded,
   notifyAdminMemberReplaced,
   notifyAdminRosterReplaced,
 } from '../events/notifications.service.js';
@@ -628,7 +629,12 @@ export async function adminAddTeamMember(
     });
   });
 
-  await notifyAdminCaptainChanged(team.eventId, team.id, team.captainUserId, user.id);
+  if ((input.role ?? 'MEMBER') === 'CAPTAIN') {
+    await notifyAdminCaptainChanged(team.eventId, team.id, team.captainUserId, user.id);
+  } else {
+    await notifyAdminMemberAdded(team.eventId, team.id, user.id);
+  }
+
   return getActiveManagedTeamDetails(team.id);
 }
 
@@ -816,6 +822,7 @@ export async function adminTransferTeamCaptain(
     });
   });
 
+  await notifyAdminCaptainChanged(team.eventId, team.id, team.captainUserId, user.id);
   return getActiveManagedTeamDetails(team.id);
 }
 

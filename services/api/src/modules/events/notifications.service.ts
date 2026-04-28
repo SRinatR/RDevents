@@ -425,3 +425,23 @@ export async function notifyAdminRosterReplaced(
     action: 'admin_roster_replaced_email',
   });
 }
+
+export async function notifyAdminMemberAdded(eventId: string, teamId: string, userId: string) {
+  const data = await getTeamEmailData(eventId, teamId);
+  if (!data) return;
+
+  const member = data.team.members.find(m => m.user.id === userId)?.user;
+  if (!member) return;
+
+  await sendToRecipients({
+    event: data.event,
+    recipients: uniqueRecipients([member, data.captain]),
+    subject: `RDEvents: ${data.event.title} — вас добавили в команду`,
+    title: `Вас добавили в команду "${data.team.name}"`,
+    body: [
+      `Мероприятие: ${data.event.title}.`,
+      'Организатор мероприятия добавил вас в команду.',
+    ],
+    action: 'admin_member_added_email',
+  });
+}
