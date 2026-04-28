@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { adminApi } from '@/lib/api';
-import { LoadingLines, Badge } from '@/components/ui/signal-primitives';
+import { LoadingLines, StatusBadge } from '@/components/ui/signal-primitives';
 
 export type SelectedUser = {
   id: string;
@@ -177,9 +177,9 @@ export function UserRecipientPicker({
                 )}
               </div>
               {isSelected(user.id) && (
-                <Badge variant="success" size="sm">
+                <StatusBadge tone="success">
                   Выбран
-                </Badge>
+                </StatusBadge>
               )}
             </div>
           ))}

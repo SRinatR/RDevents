@@ -6,7 +6,7 @@ import { adminApi, adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { UserRecipientPicker, type SelectedUser } from '@/components/admin/email/UserRecipientPicker';
-import { FieldInput, FieldTextarea, LoadingLines, Notice, Panel, Badge } from '@/components/ui/signal-primitives';
+import { FieldInput, FieldTextarea, LoadingLines, Notice, Panel, StatusBadge } from '@/components/ui/signal-primitives';
 
 type EmailType = 'ADMIN_DIRECT' | 'SYSTEM_NOTIFICATION' | 'MARKETING';
 
@@ -173,9 +173,8 @@ export default function DirectEmailPage() {
     return (
       <div className="signal-page-shell">
         <AdminPageHeader
-          title={locale === 'ru' ? 'Письмо отправлено' : 'Email sent'}
-          backHref={`/${locale}/admin/email/direct`}
-        />
+        title={locale === 'ru' ? 'Письмо отправлено' : 'Email sent'}
+      />
 
         <Panel variant="elevated" className="admin-command-panel">
           <div className="space-y-4">
@@ -194,12 +193,11 @@ export default function DirectEmailPage() {
                 {sendResult.messages.map((msg, i) => (
                   <div key={i} className="flex items-center justify-between text-sm">
                     <span className="truncate max-w-[300px]">{msg.email}</span>
-                    <Badge
-                      variant={msg.status === 'SENT' || msg.status === 'PENDING' ? 'success' : 'danger'}
-                      size="sm"
+                    <StatusBadge
+                      tone={msg.status === 'SENT' || msg.status === 'PENDING' ? 'success' : 'danger'}
                     >
                       {msg.status}
-                    </Badge>
+                    </StatusBadge>
                   </div>
                 ))}
               </div>
@@ -234,7 +232,6 @@ export default function DirectEmailPage() {
       <AdminPageHeader
         title={locale === 'ru' ? 'Прямое письмо' : 'Direct email'}
         subtitle={locale === 'ru' ? 'Отправка email конкретным пользователям' : 'Send email to specific users'}
-        backHref={`/${locale}/admin/email`}
       />
 
       {error ? <Notice tone="danger">{error}</Notice> : null}
@@ -415,9 +412,9 @@ export default function DirectEmailPage() {
                               <div className="text-xs text-yellow-700">{s.reason}</div>
                             )}
                           </div>
-                          <Badge variant="warning" size="sm">
+                          <StatusBadge tone="warning">
                             {s.status.replace('SKIPPED_', '')}
-                          </Badge>
+                          </StatusBadge>
                         </div>
                       ))}
                     </div>
@@ -435,7 +432,7 @@ export default function DirectEmailPage() {
                           <span className="truncate flex-1">
                             {r.name || r.email}
                           </span>
-                          <Badge variant="success" size="sm">READY</Badge>
+                          <StatusBadge tone="success">READY</StatusBadge>
                         </div>
                       ))}
                       {preview.recipients.length > 10 && (
