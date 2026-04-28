@@ -193,6 +193,18 @@ async function getTeamEmailData(eventId: string, teamId: string) {
   };
 }
 
+async function getUsersByIds(userIds: string[]): Promise<Map<string, Recipient>> {
+  const uniqueIds = [...new Set(userIds)];
+  if (uniqueIds.length === 0) return new Map();
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: uniqueIds } },
+    select: { id: true, email: true, name: true },
+  });
+
+  return new Map(users.map(user => [user.id, user]));
+}
+
 async function sendToRecipients(input: {
   event: EventForEmail;
   recipients: Recipient[];
@@ -313,8 +325,9 @@ export async function notifyAdminMemberReplaced(
   const data = await getTeamEmailData(eventId, teamId);
   if (!data) return;
 
-  const oldMember = data.team.members.find(m => m.user.id === oldUserId)?.user;
-  const newMember = data.team.members.find(m => m.user.id === newUserId)?.user;
+  const usersById = await getUsersByIds([oldUserId, newUserId]);
+  const oldMember = usersById.get(oldUserId);
+  const newMember = usersById.get(newUserId);
 
   if (oldMember) {
     await sendToRecipients({
@@ -368,8 +381,9 @@ export async function notifyAdminCaptainChanged(
   const data = await getTeamEmailData(eventId, teamId);
   if (!data) return;
 
-  const oldCaptain = data.team.members.find(m => m.user.id === oldCaptainId)?.user;
-  const newCaptain = data.team.members.find(m => m.user.id === newCaptainId)?.user;
+  const usersById = await getUsersByIds([oldCaptainId, newCaptainId]);
+  const oldCaptain = usersById.get(oldCaptainId);
+  const newCaptain = usersById.get(newCaptainId);
 
   if (oldCaptain) {
     await sendToRecipients({
@@ -409,9 +423,10 @@ export async function notifyAdminRosterReplaced(
   const data = await getTeamEmailData(eventId, teamId);
   if (!data) return;
 
-  const affectedUsers = data.team.members
-    .filter(m => affectedUserIds.includes(m.user.id))
-    .map(m => m.user);
+  const usersById = await getUsersByIds(affectedUserIds);
+  const affectedUsers = affectedUserIds
+    .map(id => usersById.get(id))
+    .filter((u): u is Recipient => u !== undefined);
 
   await sendToRecipients({
     event: data.event,
