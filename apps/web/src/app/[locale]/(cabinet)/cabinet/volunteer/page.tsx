@@ -137,6 +137,7 @@ export default function CabinetVolunteerPage() {
   const pendingCount = applications.filter((item) => item.status === 'PENDING').length;
   const activeCount = applications.filter((item) => item.status === 'ACTIVE' || item.status === 'APPROVED').length;
   const rejectedCount = applications.filter((item) => ['REJECTED', 'CANCELLED'].includes(item.status)).length;
+  const certificateCount = applications.filter((item) => Boolean(item.volunteerCertificatePublicUrl)).length;
 
   return (
     <div className="signal-page-shell cabinet-workspace-page workspace-page-v2">
@@ -157,6 +158,7 @@ export default function CabinetVolunteerPage() {
         <div className="workspace-status-card"><small>{locale === 'ru' ? 'На рассмотрении' : 'Pending'}</small><strong>{pendingCount}</strong></div>
         <div className="workspace-status-card"><small>{locale === 'ru' ? 'Одобрено' : 'Approved'}</small><strong>{activeCount}</strong></div>
         <div className="workspace-status-card"><small>{locale === 'ru' ? 'Доступно для подачи' : 'Available to apply'}</small><strong>{availableEvents.length}</strong></div>
+        <div className="workspace-status-card"><small>{locale === 'ru' ? 'Сертификаты' : 'Certificates'}</small><strong>{certificateCount}</strong></div>
       </div>
 
       {success ? <Notice tone="success">{success}</Notice> : null}
@@ -180,9 +182,26 @@ export default function CabinetVolunteerPage() {
                       <div className="signal-muted">
                         {(application.event?.location ?? '—')} · {formatDate(application.assignedAt, locale)}
                       </div>
+                      {application.volunteerCertificatePublicUrl ? (
+                        <div className="signal-muted">
+                          {locale === 'ru'
+                            ? `Сертификат за мероприятие "${application.event?.title ?? '—'}" доступен`
+                            : `Certificate for "${application.event?.title ?? '—'}" is ready`} · {formatDate(application.volunteerCertificateUploadedAt, locale)}
+                        </div>
+                      ) : null}
                     </div>
                     <div className="cabinet-list-item-actions">
                       <StatusBadge tone={statusTone(application.status)}>{statusLabel(application.status, locale)}</StatusBadge>
+                      {application.volunteerCertificatePublicUrl ? (
+                        <a
+                          href={application.volunteerCertificatePublicUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="signal-chip-link"
+                        >
+                          {locale === 'ru' ? 'Сертификат' : 'Certificate'}
+                        </a>
+                      ) : null}
                       <Link href={`/${locale}/cabinet/events?event=${application.event?.slug ?? ''}&openApplyChoice=1`} className="signal-chip-link">
                         {locale === 'ru' ? 'Открыть' : 'Open'}
                       </Link>
@@ -241,6 +260,10 @@ export default function CabinetVolunteerPage() {
               <div className="signal-ranked-item">
                 <span>{locale === 'ru' ? 'Отклонённые или отменённые заявки' : 'Rejected or cancelled applications'}</span>
                 <StatusBadge tone={rejectedCount > 0 ? 'warning' : 'success'}>{rejectedCount}</StatusBadge>
+              </div>
+              <div className="signal-ranked-item">
+                <span>{locale === 'ru' ? 'Готовые сертификаты' : 'Ready certificates'}</span>
+                <StatusBadge tone={certificateCount > 0 ? 'info' : 'neutral'}>{certificateCount}</StatusBadge>
               </div>
               <div className="signal-ranked-item">
                 <span>{locale === 'ru' ? 'Вопрос организаторам' : 'Question for organizers'}</span>

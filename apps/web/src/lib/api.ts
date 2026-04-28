@@ -241,6 +241,11 @@ export const eventsApi = {
   get: (slug: string) =>
     request<{ event: any }>(`/api/events/${slug}`, { auth: true }),
 
+  getGallery: (slug: string, params?: Record<string, string | number>) => {
+    const qs = params ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<any>(`/api/events/${slug}/gallery${qs}`, { auth: true });
+  },
+
   register: (eventId: string, answers?: Record<string, unknown>) =>
     request<{ status: string; membership?: any; message?: string; participantCount?: number; participantTarget?: number | null }>(`/api/events/${eventId}/register`, { method: 'POST', auth: true, body: { answers: answers ?? {} } }),
 
@@ -307,6 +312,21 @@ export const eventsApi = {
   myEventWorkspace: (slug: string) =>
     request<{ event: any }>(`/api/me/events/${slug}/workspace`, { auth: true }),
 
+  myEventGallery: (slug: string, params?: Record<string, string | number>) => {
+    const qs = params ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<any>(`/api/me/events/${slug}/gallery${qs}`, { auth: true });
+  },
+
+  uploadMyEventGalleryAsset: (slug: string, file: File, caption?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (caption) formData.append('caption', caption);
+    return requestForm<any>(`/api/me/events/${slug}/gallery`, formData, true);
+  },
+
+  deleteMyEventGalleryAsset: (slug: string, assetId: string) =>
+    request<{ ok: boolean }>(`/api/me/events/${slug}/gallery/${assetId}`, { method: 'DELETE', auth: true }),
+
   myTeams: () =>
     request<{ teams: any[] }>('/api/me/teams', { auth: true }),
 
@@ -369,6 +389,15 @@ export const adminApi = {
   updateVolunteerStatus: (eventId: string, memberId: string, body: { status: string; notes?: string }) =>
     request<{ membership: any }>(`/api/admin/events/${eventId}/volunteers/${memberId}`, { method: 'PATCH', auth: true, body }),
 
+  uploadVolunteerCertificate: (eventId: string, memberId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return requestForm<{ membership: any }>(`/api/admin/events/${eventId}/volunteers/${memberId}/certificate`, formData, true);
+  },
+
+  deleteVolunteerCertificate: (eventId: string, memberId: string) =>
+    request<{ ok: boolean }>(`/api/admin/events/${eventId}/volunteers/${memberId}/certificate`, { method: 'DELETE', auth: true }),
+
   listEventParticipants: (eventId: string) =>
     request<{ participants: any[] }>(`/api/admin/events/${eventId}/participants`, { auth: true }),
 
@@ -395,6 +424,24 @@ export const adminApi = {
 
   getEventAnalytics: (eventId: string) =>
     request<any>(`/api/admin/events/${eventId}/analytics`, { auth: true }),
+
+  listEventGallery: (eventId: string, params?: Record<string, string | number>) => {
+    const qs = params ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request<any>(`/api/admin/events/${eventId}/gallery${qs}`, { auth: true });
+  },
+
+  uploadEventGalleryAsset: (eventId: string, file: File, caption?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (caption) formData.append('caption', caption);
+    return requestForm<any>(`/api/admin/events/${eventId}/gallery`, formData, true);
+  },
+
+  updateEventGalleryAsset: (eventId: string, assetId: string, body: { caption?: string | null; status?: string; reviewNote?: string | null }) =>
+    request<any>(`/api/admin/events/${eventId}/gallery/${assetId}`, { method: 'PATCH', auth: true, body }),
+
+  deleteEventGalleryAsset: (eventId: string, assetId: string) =>
+    request<{ ok: boolean }>(`/api/admin/events/${eventId}/gallery/${assetId}`, { method: 'DELETE', auth: true }),
 
   // Unified endpoints - no N+1 queries
   listParticipants: (params?: {

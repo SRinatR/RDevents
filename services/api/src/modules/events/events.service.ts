@@ -397,6 +397,11 @@ export async function getMyEventWorkspace(userId: string, slug: string) {
         rejectedAt: true,
         removedAt: true,
         notes: true,
+        volunteerCertificateOriginalFilename: true,
+        volunteerCertificateMimeType: true,
+        volunteerCertificateSizeBytes: true,
+        volunteerCertificatePublicUrl: true,
+        volunteerCertificateUploadedAt: true,
       },
       orderBy: { assignedAt: 'desc' },
     }),
@@ -471,7 +476,22 @@ export async function getMyTeams(userId: string) {
 export async function getMyVolunteerApplications(userId: string) {
   return prisma.eventMember.findMany({
     where: { userId, role: 'VOLUNTEER', status: { not: 'REMOVED' } },
-    include: {
+    select: {
+      id: true,
+      eventId: true,
+      userId: true,
+      role: true,
+      status: true,
+      assignedAt: true,
+      approvedAt: true,
+      rejectedAt: true,
+      removedAt: true,
+      notes: true,
+      volunteerCertificateOriginalFilename: true,
+      volunteerCertificateMimeType: true,
+      volunteerCertificateSizeBytes: true,
+      volunteerCertificatePublicUrl: true,
+      volunteerCertificateUploadedAt: true,
       event: {
         select: {
           id: true,

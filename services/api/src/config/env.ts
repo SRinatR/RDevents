@@ -68,6 +68,9 @@ export const env = {
   ),
   MAX_AVATAR_UPLOAD_MB: parseInt(optional_env('MAX_AVATAR_UPLOAD_MB', '3'), 10),
   MAX_DOCUMENT_UPLOAD_MB: parseInt(optional_env('MAX_DOCUMENT_UPLOAD_MB', '10'), 10),
+  MAX_EVENT_GALLERY_PHOTO_MB: parseInt(optional_env('MAX_EVENT_GALLERY_PHOTO_MB', '12'), 10),
+  MAX_EVENT_GALLERY_VIDEO_MB: parseInt(optional_env('MAX_EVENT_GALLERY_VIDEO_MB', '40'), 10),
+  MAX_VOLUNTEER_CERTIFICATE_UPLOAD_MB: parseInt(optional_env('MAX_VOLUNTEER_CERTIFICATE_UPLOAD_MB', '12'), 10),
 
   // Social auth — optional, dev mock is used when empty
   GOOGLE_CLIENT_ID: process.env['GOOGLE_CLIENT_ID'] ?? '',

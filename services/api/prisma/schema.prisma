@@ -75,6 +75,23 @@ enum EventMemberStatus {
   REMOVED
 }
 
+enum EventGalleryAssetSource {
+  OFFICIAL
+  PARTICIPANT
+}
+
+enum EventGalleryAssetType {
+  PHOTO
+  VIDEO
+}
+
+enum EventGalleryAssetStatus {
+  PENDING
+  PUBLISHED
+  REJECTED
+  ARCHIVED
+}
+
 enum EventStaffRole {
   OWNER
   ADMIN
@@ -522,6 +539,8 @@ model User {
   additionalDocuments                  UserAdditionalDocument[]
   emergencyContact                     UserEmergencyContact?
   mediaAssets                          MediaAsset[]                      @relation("MediaAssetOwner")
+  uploadedEventGalleryAssets          EventGalleryAsset[]               @relation("EventGalleryUploader")
+  reviewedEventGalleryAssets          EventGalleryAsset[]               @relation("EventGalleryReviewer")
 
   supportThreads             SupportThread[]          @relation("SupportThreadUser")
   assignedSupportThreads     SupportThread[]          @relation("SupportThreadAdmin")
@@ -968,9 +987,44 @@ model Event {
   registrationSubmissions EventRegistrationFormSubmission[]
   milestones              EventMilestone[]
   exportPresets           ExportPreset[]
+  galleryAssets           EventGalleryAsset[]
 
   @@index([organizerWorkspaceId])
   @@map("events")
+}
+
+model EventGalleryAsset {
+  id               String                  @id @default(cuid())
+  eventId          String
+  uploaderUserId   String
+  reviewerUserId   String?
+  source           EventGalleryAssetSource
+  type             EventGalleryAssetType
+  status           EventGalleryAssetStatus @default(PENDING)
+  caption          String?
+  originalFilename String
+  mimeType         String
+  sizeBytes        Int
+  storageDriver    String
+  storageKey       String
+  publicUrl        String
+  publishedAt      DateTime?
+  reviewedAt       DateTime?
+  reviewNote       String?
+  archivedAt       DateTime?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  event    Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  uploader User   @relation("EventGalleryUploader", fields: [uploaderUserId], references: [id], onDelete: Cascade)
+  reviewer User?  @relation("EventGalleryReviewer", fields: [reviewerUserId], references: [id], onDelete: SetNull)
+
+  @@index([eventId, status, createdAt])
+  @@index([eventId, source, status])
+  @@index([eventId, type, status])
+  @@index([uploaderUserId, eventId])
+  @@index([reviewerUserId])
+  @@map("event_gallery_assets")
 }
 
 model EventRegistrationFormSubmission {
@@ -1002,6 +1056,13 @@ model EventMember {
   rejectedAt       DateTime?
   removedAt        DateTime?
   notes            String?
+  volunteerCertificateOriginalFilename String?
+  volunteerCertificateMimeType         String?
+  volunteerCertificateSizeBytes        Int?
+  volunteerCertificateStorageDriver    String?
+  volunteerCertificateStorageKey       String?
+  volunteerCertificatePublicUrl        String?
+  volunteerCertificateUploadedAt       DateTime?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 

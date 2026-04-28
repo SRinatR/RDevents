@@ -124,6 +124,7 @@ export default function AdminEventOverviewPage() {
                 <Link href={`/${locale}/admin/events/${event.id}/participants`} className="btn btn-primary btn-sm">{locale === 'ru' ? 'Участники' : 'Participants'}</Link>
                 <Link href={`/${locale}/admin/events/${event.id}/volunteers`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Волонтёры' : 'Volunteers'}</Link>
                 <Link href={`/${locale}/admin/events/${event.id}/teams`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Команды' : 'Teams'}</Link>
+                <Link href={`/${locale}/admin/events/${event.id}/media`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Фотобанк' : 'Photobank'}</Link>
                 <Link href={`/${locale}/admin/events/${event.id}/forms`} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Форма' : 'Form'}</Link>
               </ToolbarRow>
             </Panel>

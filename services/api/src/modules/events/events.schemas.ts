@@ -51,6 +51,25 @@ export const registrationAnswersSchema = z.object({
   answers: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).default({}),
 });
 
+export const eventGalleryQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(60).default(12),
+  source: z.enum(['ALL', 'OFFICIAL', 'PARTICIPANT']).default('ALL'),
+  type: z.enum(['ALL', 'PHOTO', 'VIDEO']).default('ALL'),
+  status: z.enum(['ALL', 'PENDING', 'PUBLISHED', 'REJECTED', 'ARCHIVED']).default('ALL'),
+  search: z.string().trim().max(100).optional(),
+});
+
+export const eventGalleryUploadSchema = z.object({
+  caption: z.string().trim().max(180).optional().or(z.literal('')),
+});
+
+export const eventGalleryUpdateSchema = z.object({
+  caption: z.string().trim().max(180).optional().nullable(),
+  status: z.enum(['PENDING', 'PUBLISHED', 'REJECTED', 'ARCHIVED']).optional(),
+  reviewNote: z.string().trim().max(300).optional().nullable(),
+});
+
 export const updateEventSchema = createEventSchema.partial();
 
 export type EventQuery = z.infer<typeof eventQuerySchema>;

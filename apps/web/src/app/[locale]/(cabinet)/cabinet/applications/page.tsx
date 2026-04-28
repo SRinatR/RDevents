@@ -51,6 +51,7 @@ export default function CabinetApplicationsPage() {
   if (loading || !user) return null;
 
   const formatDate = (date: string) => new Date(date).toLocaleDateString(locale === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+  const volunteerCertificateCount = volunteerApplications.filter((item) => Boolean(item.volunteerCertificatePublicUrl)).length;
   const statusLabel = (status: string) => {
     const ru: Record<string, string> = {
       PENDING: 'На рассмотрении',
@@ -97,6 +98,7 @@ export default function CabinetApplicationsPage() {
         <div className="workspace-status-card"><small>{locale === 'ru' ? 'Одобрено' : 'Approved'}</small><strong>{participantApplications.filter((item) => item.status === 'ACTIVE').length}</strong></div>
         <div className="workspace-status-card"><small>{locale === 'ru' ? 'Командные заявки' : 'Team statuses'}</small><strong>{teams.length}</strong></div>
         <div className="workspace-status-card"><small>{locale === 'ru' ? 'Волонтёрские заявки' : 'Volunteer statuses'}</small><strong>{volunteerApplications.length}</strong></div>
+        <div className="workspace-status-card"><small>{locale === 'ru' ? 'Сертификаты волонтёра' : 'Volunteer certificates'}</small><strong>{volunteerCertificateCount}</strong></div>
       </div>
 
       {loadingData ? <LoadingLines rows={8} /> : null}
@@ -160,16 +162,33 @@ export default function CabinetApplicationsPage() {
             {volunteerApplications.length === 0 ? <EmptyState title={locale === 'ru' ? 'Заявки отсутствуют' : 'No applications'} description={locale === 'ru' ? 'Статусы волонтёрства появятся здесь после подачи.' : 'Volunteer statuses appear here after applying.'} /> : (
               <div className="signal-stack cabinet-list-stack cabinet-list-stack-premium">
                 {volunteerApplications.map((application: any) => (
-                  <Link key={application.id} href={`/${locale}/cabinet/volunteer`} className="signal-ranked-item cabinet-list-item">
+                  <div key={application.id} className="signal-ranked-item cabinet-list-item">
                     <div>
                       <strong>{application.event?.title || 'Event'}</strong>
                       <div className="signal-muted">{application.event?.location || 'Location'} · {formatDate(application.assignedAt || new Date().toISOString())}</div>
+                      {application.volunteerCertificatePublicUrl ? (
+                        <div className="signal-muted">
+                          {locale === 'ru'
+                            ? `Сертификат за мероприятие "${application.event?.title || '—'}" доступен`
+                            : `Certificate for "${application.event?.title || '—'}" is ready`} · {formatDate(application.volunteerCertificateUploadedAt || application.assignedAt || new Date().toISOString())}
+                        </div>
+                      ) : null}
                     </div>
                     <div className="cabinet-list-item-actions">
                       <StatusBadge tone={statusTone(application.status)}>{statusLabel(application.status)}</StatusBadge>
-                      <span className="signal-chip-link">{locale === 'ru' ? 'Открыть' : 'Open'}</span>
+                      {application.volunteerCertificatePublicUrl ? (
+                        <a
+                          href={application.volunteerCertificatePublicUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="signal-chip-link"
+                        >
+                          {locale === 'ru' ? 'Сертификат' : 'Certificate'}
+                        </a>
+                      ) : null}
+                      <Link href={`/${locale}/cabinet/volunteer`} className="signal-chip-link">{locale === 'ru' ? 'Открыть' : 'Open'}</Link>
                     </div>
-                  </Link>
+                  </div>
                 ))}
               </div>
             )}

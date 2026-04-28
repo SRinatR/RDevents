@@ -120,6 +120,219 @@
     --shell-focus-ring: rgba(30, 86, 217, 0.22);
 }
 
+.event-gallery-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.event-gallery-summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.event-gallery-summary-pill {
+  min-width: 112px;
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 78%, white);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-primary-subtle) 36%, white), color-mix(in srgb, var(--color-bg-subtle) 88%, white));
+}
+
+.event-gallery-summary-pill strong {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.event-gallery-summary-pill span {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.event-gallery-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.event-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 18px;
+}
+
+.event-gallery-card {
+  overflow: hidden;
+  display: grid;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 82%, white);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 92%, white), color-mix(in srgb, var(--color-bg-subtle) 84%, white));
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+}
+
+.event-gallery-card-media {
+  position: relative;
+  aspect-ratio: 16 / 11;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--color-primary-subtle) 65%, white), transparent 58%),
+    linear-gradient(160deg, color-mix(in srgb, var(--color-bg-subtle) 82%, white), color-mix(in srgb, var(--color-surface) 92%, white));
+}
+
+.event-gallery-video-tile {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  padding: 22px;
+  text-align: center;
+  color: var(--color-text);
+}
+
+.event-gallery-video-tile strong {
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.event-gallery-video-tile span {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.event-gallery-card-body {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.event-gallery-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.event-gallery-card-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.event-gallery-card-copy h3 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.event-gallery-card-copy p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.92rem;
+}
+
+.event-gallery-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--color-text-muted);
+  font-size: 0.84rem;
+}
+
+.event-gallery-card-note {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+}
+
+.event-gallery-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.event-gallery-loadmore {
+  display: flex;
+  justify-content: center;
+}
+
+.event-gallery-upload-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.event-gallery-upload-form {
+  display: grid;
+  gap: 14px;
+}
+
+.event-gallery-file-picker {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px dashed color-mix(in srgb, var(--color-border) 78%, white);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--color-primary-subtle) 38%, white), color-mix(in srgb, var(--color-bg-subtle) 90%, white));
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.event-gallery-file-picker input {
+  width: 100%;
+  font: inherit;
+}
+
+.event-gallery-file-meta {
+  display: grid;
+  gap: 4px;
+}
+
+.event-gallery-file-meta strong {
+  overflow-wrap: anywhere;
+}
+
+.event-gallery-file-meta span {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.event-gallery-admin-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.8fr) repeat(3, minmax(160px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+@media (max-width: 1180px) {
+  .event-gallery-admin-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .event-gallery-summary-pill {
+    min-width: calc(50% - 6px);
+  }
+
+  .event-gallery-admin-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .event-gallery-card-actions {
+    flex-direction: column;
+  }
+
+  .event-gallery-card-actions .btn {
+    width: 100%;
+  }
+}
+
 .signal-modal-backdrop {
   position: fixed;
   inset: 0;

@@ -71,6 +71,9 @@ function getSafeExtension(filename: string, mimeType: string) {
   if (mimeType === 'image/jpeg') return '.jpg';
   if (mimeType === 'image/png') return '.png';
   if (mimeType === 'image/webp') return '.webp';
+  if (mimeType === 'video/mp4') return '.mp4';
+  if (mimeType === 'video/webm') return '.webm';
+  if (mimeType === 'video/quicktime') return '.mov';
   if (mimeType === 'application/pdf') return '.pdf';
 
   return '.bin';

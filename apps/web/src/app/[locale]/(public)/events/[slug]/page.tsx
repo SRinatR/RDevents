@@ -11,6 +11,7 @@ import { useRouteParams } from '@/hooks/useRouteParams';
 import { EmptyState, LoadingLines, Notice, Panel, SectionHeader } from '@/components/ui/signal-primitives';
 import { PublicFooter } from '@/components/layout/PublicFooter';
 import { RussiaHouseQuestPage } from '@/components/events/russia-house-quest/RussiaHouseQuestPage';
+import { EventGalleryCard } from '@/components/event-gallery/EventGalleryCard';
 
 export default function EventDetailPage() {
   const t = useTranslations();
@@ -26,6 +27,11 @@ export default function EventDetailPage() {
   const [participationStatus, setParticipationStatus] = useState<string | null>(null);
   const [volunteerStatus, setVolunteerStatus] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [gallery, setGallery] = useState<any>(null);
+  const [galleryLoading, setGalleryLoading] = useState(false);
+  const [galleryError, setGalleryError] = useState('');
+  const [gallerySource, setGallerySource] = useState<'ALL' | 'OFFICIAL' | 'PARTICIPANT'>('ALL');
+  const [galleryType, setGalleryType] = useState<'ALL' | 'PHOTO' | 'VIDEO'>('ALL');
 
   useEffect(() => {
     if (!slug) return;
@@ -48,6 +54,37 @@ export default function EventDetailPage() {
       .catch(() => setError('Event not found'))
       .finally(() => setLoading(false));
   }, [slug, locale]);
+
+  useEffect(() => {
+    if (!slug) return;
+
+    let active = true;
+    setGalleryLoading(true);
+    setGalleryError('');
+
+    eventsApi.getGallery(slug, {
+      page: 1,
+      limit: 6,
+      source: gallerySource,
+      type: galleryType,
+    })
+      .then((result) => {
+        if (!active) return;
+        setGallery(result);
+      })
+      .catch((err: any) => {
+        if (!active) return;
+        setGallery(null);
+        setGalleryError(err.message || 'Failed to load gallery');
+      })
+      .finally(() => {
+        if (active) setGalleryLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [slug, gallerySource, galleryType]);
 
   async function handleCopyLink() {
     await navigator.clipboard.writeText(window.location.href);
@@ -75,6 +112,31 @@ export default function EventDetailPage() {
       return;
     }
     router.push(cabinetHref);
+  }
+
+  async function handleLoadMoreGallery() {
+    if (!slug || !gallery?.meta?.hasMore || galleryLoading) return;
+    setGalleryLoading(true);
+    setGalleryError('');
+
+    try {
+      const nextPage = Number(gallery?.meta?.page ?? 1) + 1;
+      const result = await eventsApi.getGallery(slug, {
+        page: nextPage,
+        limit: Number(gallery?.meta?.limit ?? 6),
+        source: gallerySource,
+        type: galleryType,
+      });
+
+      setGallery((previous: any) => ({
+        ...result,
+        items: [...(previous?.items ?? []), ...(result.items ?? [])],
+      }));
+    } catch (err: any) {
+      setGalleryError(err.message || 'Failed to load gallery');
+    } finally {
+      setGalleryLoading(false);
+    }
   }
 
   if (loading) {
@@ -264,6 +326,67 @@ export default function EventDetailPage() {
                 <Panel className="event-v4-description-panel">
                   <SectionHeader title={t('events.description')} subtitle={locale === 'ru' ? 'Полная программа и содержание события' : 'Full story, context, and event structure'} />
                   <div className="signal-prose-copy">{event.fullDescription}</div>
+                </Panel>
+
+                <Panel className="event-gallery-panel event-gallery-panel-public">
+                  <SectionHeader
+                    title={locale === 'ru' ? 'Фотобанк мероприятия' : 'Event photobank'}
+                    subtitle={locale === 'ru'
+                      ? 'Официальные материалы и публикации участников в одном архиве.'
+                      : 'Official media and participant contributions in one archive.'}
+                  />
+
+                  {(gallery?.summary?.total ?? 0) > 0 ? (
+                    <>
+                      <div className="event-gallery-summary-row">
+                        <div className="event-gallery-summary-pill"><strong>{gallery.summary.total}</strong><span>{locale === 'ru' ? 'всего' : 'total'}</span></div>
+                        <div className="event-gallery-summary-pill"><strong>{gallery.summary.official}</strong><span>{locale === 'ru' ? 'официальных' : 'official'}</span></div>
+                        <div className="event-gallery-summary-pill"><strong>{gallery.summary.participant}</strong><span>{locale === 'ru' ? 'от участников' : 'participant'}</span></div>
+                        <div className="event-gallery-summary-pill"><strong>{gallery.summary.videos}</strong><span>{locale === 'ru' ? 'видео' : 'videos'}</span></div>
+                      </div>
+
+                      <div className="event-gallery-filter-row">
+                        <button type="button" className={`signal-chip-link ${gallerySource === 'ALL' ? 'active' : ''}`} onClick={() => setGallerySource('ALL')}>{locale === 'ru' ? 'Все материалы' : 'All media'}</button>
+                        <button type="button" className={`signal-chip-link ${gallerySource === 'OFFICIAL' ? 'active' : ''}`} onClick={() => setGallerySource('OFFICIAL')}>{locale === 'ru' ? 'От организаторов' : 'Official'}</button>
+                        <button type="button" className={`signal-chip-link ${gallerySource === 'PARTICIPANT' ? 'active' : ''}`} onClick={() => setGallerySource('PARTICIPANT')}>{locale === 'ru' ? 'От участников' : 'Participants'}</button>
+                        <button type="button" className={`signal-chip-link ${galleryType === 'PHOTO' ? 'active' : ''}`} onClick={() => setGalleryType((value) => value === 'PHOTO' ? 'ALL' : 'PHOTO')}>{locale === 'ru' ? 'Только фото' : 'Photos only'}</button>
+                        <button type="button" className={`signal-chip-link ${galleryType === 'VIDEO' ? 'active' : ''}`} onClick={() => setGalleryType((value) => value === 'VIDEO' ? 'ALL' : 'VIDEO')}>{locale === 'ru' ? 'Только видео' : 'Videos only'}</button>
+                      </div>
+                    </>
+                  ) : null}
+
+                  {galleryLoading && !(gallery?.items?.length > 0) ? <LoadingLines rows={4} /> : null}
+
+                  {!galleryLoading && (gallery?.items?.length ?? 0) === 0 ? (
+                    <EmptyState
+                      title={locale === 'ru' ? 'Фотобанк пока пуст' : 'Photobank is empty for now'}
+                      description={new Date(event.endsAt).getTime() > Date.now()
+                        ? (locale === 'ru' ? 'После мероприятия здесь появятся официальные материалы и лучшие публикации участников.' : 'Official media and selected participant uploads appear here after the event.')
+                        : (locale === 'ru' ? 'Материалы ещё готовятся к публикации.' : 'Media is still being prepared for publication.')}
+                    />
+                  ) : null}
+
+                  {(gallery?.items?.length ?? 0) > 0 ? (
+                    <>
+                      <div className="event-gallery-grid">
+                        {gallery.items.map((item: any) => (
+                          <EventGalleryCard key={item.id} item={item} locale={locale} />
+                        ))}
+                      </div>
+
+                      {gallery?.meta?.hasMore ? (
+                        <div className="event-gallery-loadmore">
+                          <button type="button" className="btn btn-secondary btn-sm" onClick={handleLoadMoreGallery} disabled={galleryLoading}>
+                            {galleryLoading
+                              ? (locale === 'ru' ? 'Загружаем...' : 'Loading...')
+                              : (locale === 'ru' ? 'Показать ещё' : 'Load more')}
+                          </button>
+                        </div>
+                      ) : null}
+                    </>
+                  ) : null}
+
+                  {galleryError ? <Notice tone="danger">{galleryError}</Notice> : null}
                 </Panel>
               </div>
               <section id="event-participation" className="event-v4-registration-stack motion-fade-up-fast">
