@@ -111,7 +111,8 @@ export default function EventDetailPage() {
 
   const hasActiveVolunteer = ['PENDING', 'APPROVED', 'ACTIVE'].includes(volunteerStatus ?? '');
   const isRussiaHouseEvent = event.slug === 'dom-gde-zhivet-rossiya';
-  const spotsLeft = Math.max((event.capacity ?? 0) - (event.registrationsCount ?? 0), 0);
+  const participantTarget = event.participantTarget ?? event.capacity ?? 0;
+  const spotsLeft = Math.max(participantTarget - (event.registrationsCount ?? 0), 0);
   const eventDateRange = isRussiaHouseEvent && locale === 'ru'
     ? 'воскресенье, 3 мая 2026 г. · 10:30 – 15:30'
     : `${formatDate(event.startsAt)} · ${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}`;
@@ -119,10 +120,9 @@ export default function EventDetailPage() {
   const requireApproval = event.requireParticipantApproval;
   const showCountPublicly = event.participantCountVisibility === 'PUBLIC';
   const limitMode = event.participantLimitMode;
-  const participantTarget = event.participantTarget ?? event.capacity;
   const isStrictLimit = limitMode === 'STRICT_LIMIT';
   const isGoalLimit = limitMode === 'GOAL_LIMIT';
-  const isFull = event.registrationsCount >= event.capacity;
+  const isFull = participantTarget > 0 && event.registrationsCount >= participantTarget;
   
   const getParticipationStatusLabel = (status: string | null) => {
     if (!status) return null;

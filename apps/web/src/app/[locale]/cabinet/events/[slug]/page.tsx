@@ -570,6 +570,8 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
                 locale={locale}
                 invitations={openInvitations}
                 actionLoading={actionLoading}
+                registrationBlocked={registrationBlocked}
+                registrationClosedMessage={registrationClosedMessage}
                 onAccept={handleAcceptInvitation}
                 onDecline={handleDeclineInvitation}
               />
@@ -634,21 +636,28 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
   );
 }
 
-function IncomingInvitations({ locale, invitations, actionLoading, onAccept, onDecline }: {
+function IncomingInvitations({ locale, invitations, actionLoading, registrationBlocked, registrationClosedMessage, onAccept, onDecline }: {
   locale: string;
   invitations: any[];
   actionLoading: string;
+  registrationBlocked: boolean;
+  registrationClosedMessage: string;
   onAccept: (id: string) => void;
   onDecline: (id: string) => void;
 }) {
   const isRu = locale === 'ru';
   return (
     <div className="signal-stack">
+      {registrationBlocked ? (
+        <Notice tone="warning">
+          {registrationClosedMessage}
+        </Notice>
+      ) : null}
       {invitations.map((invitation) => (
         <div key={invitation.id} className="signal-ranked-item">
           <span>{isRu ? 'Вас пригласили в команду' : 'You were invited to team'} {invitation.team?.name}</span>
           <ToolbarRow>
-            <button onClick={() => onAccept(invitation.id)} disabled={Boolean(actionLoading)} className="btn btn-primary btn-sm">
+            <button onClick={() => onAccept(invitation.id)} disabled={registrationBlocked || Boolean(actionLoading)} className="btn btn-primary btn-sm">
               {actionLoading === `accept:${invitation.id}` ? '...' : (isRu ? 'Принять' : 'Accept')}
             </button>
             <button onClick={() => onDecline(invitation.id)} disabled={Boolean(actionLoading)} className="btn btn-secondary btn-sm">
