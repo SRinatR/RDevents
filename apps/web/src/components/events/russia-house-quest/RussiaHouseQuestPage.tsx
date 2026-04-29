@@ -93,6 +93,14 @@ export function RussiaHouseQuestPage({
   const registrationBlocked = registrationClosedReason !== null;
   const registrationClosedMessage = getRegistrationClosedMessage(registrationClosedReason, locale);
 
+  const participantMembership = event.memberships?.find(
+    (membership: any) => membership.role === 'PARTICIPANT',
+  );
+  const isExistingParticipant = ['ACTIVE', 'PENDING', 'RESERVE'].includes(
+    participantMembership?.status ?? '',
+  );
+  const shouldDisableApplyButton = registrationBlocked && !isExistingParticipant;
+
   const eventDateRange =
     locale === 'ru' ? 'воскресенье, 3 мая 2026 г. · 10:30 – 15:30' : 'Sunday, May 3, 2026 · 10:30 – 15:30';
 
@@ -117,11 +125,11 @@ export function RussiaHouseQuestPage({
               <p>{event.shortDescription}</p>
               <div className="rhq-hero-actions">
                 <button
-                  onClick={registrationBlocked ? undefined : onApply}
-                  disabled={registrationBlocked}
+                  onClick={shouldDisableApplyButton ? undefined : onApply}
+                  disabled={shouldDisableApplyButton}
                   className="rhq-button rhq-button-primary"
                 >
-                  {registrationBlocked
+                  {shouldDisableApplyButton
                     ? locale === 'ru'
                       ? 'Регистрация закрыта'
                       : 'Registration closed'
@@ -295,11 +303,11 @@ export function RussiaHouseQuestPage({
             </div>
             <div className="rhq-registration-card">
               <button
-                onClick={registrationBlocked ? undefined : onApply}
-                disabled={registrationBlocked}
+                onClick={shouldDisableApplyButton ? undefined : onApply}
+                disabled={shouldDisableApplyButton}
                 className="rhq-button rhq-button-primary"
               >
-                {registrationBlocked
+                {shouldDisableApplyButton
                   ? locale === 'ru'
                     ? 'Регистрация закрыта'
                     : 'Registration closed'
@@ -316,7 +324,7 @@ export function RussiaHouseQuestPage({
                     ? 'Поделиться событием'
                     : 'Share event'}
               </button>
-              {registrationBlocked ? (
+              {registrationBlocked && !isExistingParticipant ? (
                 <p className="rhq-registration-closed-note">
                   {registrationClosedMessage}
                 </p>

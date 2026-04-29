@@ -547,6 +547,12 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
         <Panel variant="elevated" className="workspace-event-panel">
           <SectionHeader title={isRu ? 'Команда' : 'Team'} subtitle={isRu ? 'Создайте команду или ответьте на входящее приглашение.' : 'Create a team or respond to an incoming invitation.'} />
           <div className="signal-stack">
+            {registrationBlocked ? (
+              <Notice tone="warning">
+                {registrationClosedMessage}
+              </Notice>
+            ) : null}
+
             <ToolbarRow>
               <button
                 onClick={handleCancelParticipation}
@@ -573,7 +579,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
               <FieldInput value={teamName} onChange={(event) => setTeamName(event.target.value)} placeholder={isRu ? 'Название команды' : 'Team name'} />
               <FieldInput value={teamDescription} onChange={(event) => setTeamDescription(event.target.value)} placeholder={isRu ? 'Комментарий' : 'Comment'} />
               <ToolbarRow>
-                <button onClick={handleCreateTeam} disabled={actionLoading === 'create-team' || !teamName.trim()} className="btn btn-primary btn-sm">
+                <button onClick={handleCreateTeam} disabled={registrationBlocked || actionLoading === 'create-team' || !teamName.trim()} className="btn btn-primary btn-sm">
                   {actionLoading === 'create-team' ? (isRu ? 'Создаём...' : 'Creating...') : (isRu ? 'Создать команду' : 'Create team')}
                 </button>
                 <Link href={`/${locale}/cabinet/team-invitations`} className="btn btn-secondary btn-sm">
@@ -607,6 +613,8 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
             isCaptain={isCaptain}
             focusTeamEditor={openTeamEditor}
             actionLoading={actionLoading}
+            registrationBlocked={registrationBlocked}
+            registrationClosedMessage={registrationClosedMessage}
             teamName={teamName}
             teamDescription={teamDescription}
             slotEmails={slotEmails}
@@ -661,6 +669,8 @@ function TeamSlotsWorkspace({
   isCaptain,
   focusTeamEditor,
   actionLoading,
+  registrationBlocked,
+  registrationClosedMessage,
   teamName,
   teamDescription,
   slotEmails,
@@ -681,6 +691,8 @@ function TeamSlotsWorkspace({
   isCaptain: boolean;
   focusTeamEditor: boolean;
   actionLoading: string;
+  registrationBlocked: boolean;
+  registrationClosedMessage: string;
   teamName: string;
   teamDescription: string;
   slotEmails: Record<number, string>;
@@ -724,6 +736,11 @@ function TeamSlotsWorkspace({
         subtitle={`${isRu ? 'Статус' : 'Status'}: ${formatTeamStatus(team?.status, locale)} · ${progress.active}/${progress.max}`}
       />
       <div className="signal-stack">
+        {registrationBlocked ? (
+          <Notice tone="warning">
+            {registrationClosedMessage}
+          </Notice>
+        ) : null}
         {focusTeamEditor ? (
           <Notice tone={canEditTeamDetails || editable ? 'info' : 'warning'}>
             {canEditTeamDetails || editable
@@ -769,9 +786,10 @@ function TeamSlotsWorkspace({
               locale={locale}
               userId={userId}
               slot={slot}
-              editable={editable}
+              editable={editable && !registrationBlocked}
               isCaptain={isCaptain}
               actionLoading={actionLoading}
+              registrationBlocked={registrationBlocked}
               emailValue={slotEmails[slot.slotIndex] ?? ''}
               onEmailChange={(value) => onSlotEmailChange(slot.slotIndex, value)}
               onInvite={() => onInvite(slot.slotIndex)}
@@ -783,7 +801,7 @@ function TeamSlotsWorkspace({
         </div>
         <ToolbarRow>
           {permissions.canSubmitForApproval ? (
-            <button onClick={onSubmitTeam} disabled={!canSubmit || actionLoading === 'submit-team'} className="btn btn-primary btn-sm">
+            <button onClick={onSubmitTeam} disabled={!canSubmit || registrationBlocked || actionLoading === 'submit-team'} className="btn btn-primary btn-sm">
               {actionLoading === 'submit-team' ? (isRu ? 'Отправляем...' : 'Submitting...') : (isRu ? 'Подать состав на утверждение' : 'Submit roster for approval')}
             </button>
           ) : null}
@@ -822,6 +840,7 @@ function SlotCard({
   editable,
   isCaptain,
   actionLoading,
+  registrationBlocked,
   emailValue,
   onEmailChange,
   onInvite,
@@ -835,6 +854,7 @@ function SlotCard({
   editable: boolean;
   isCaptain: boolean;
   actionLoading: string;
+  registrationBlocked: boolean;
   emailValue: string;
   onEmailChange: (value: string) => void;
   onInvite: () => void;
@@ -860,7 +880,7 @@ function SlotCard({
         editable ? (
           <div className="signal-stack">
             <FieldInput type="email" value={emailValue} onChange={(event) => onEmailChange(event.target.value)} placeholder="participant@example.com" />
-            <button onClick={onInvite} disabled={!emailValue.trim() || Boolean(actionLoading)} className="btn btn-primary btn-sm">
+            <button onClick={onInvite} disabled={!emailValue.trim() || registrationBlocked || Boolean(actionLoading)} className="btn btn-primary btn-sm">
               {actionLoading === `invite:${slot.slotIndex}` ? '...' : (isRu ? 'Пригласить' : 'Invite')}
             </button>
           </div>

@@ -5,6 +5,7 @@ export type RegistrationStatusInput = {
   registrationsCount?: number | null;
   capacity?: number | null;
   participantLimitMode?: string | null;
+  participantTarget?: number | null;
 };
 
 export type RegistrationClosedReason =
@@ -31,9 +32,9 @@ export function getRegistrationClosedReason(event: RegistrationStatusInput): Reg
 
   const isStrictLimit = event.participantLimitMode === 'STRICT_LIMIT';
   const registrationsCount = event.registrationsCount ?? 0;
-  const capacity = event.capacity ?? 0;
+  const target = event.participantTarget ?? event.capacity ?? 0;
 
-  if (isStrictLimit && capacity > 0 && registrationsCount >= capacity) {
+  if (isStrictLimit && target > 0 && registrationsCount >= target) {
     return 'FULL';
   }
 

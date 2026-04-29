@@ -169,12 +169,6 @@ export default function EventDetailPage() {
           </div>
         ) : null}
 
-        {registrationClosedReason ? (
-          <Notice tone="warning">
-            {registrationClosedMessage}
-          </Notice>
-        ) : null}
-
         {participationStatus === 'ACTIVE' || isRegistered ? (
           <Notice tone="success">
             <div>{getParticipationStatusLabel('ACTIVE')}</div>

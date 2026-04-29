@@ -427,9 +427,9 @@ export async function getEventMembership(eventId: string, userId: string) {
 export async function saveRegistrationAnswers(eventId: string, userId: string, answers: Record<string, unknown>) {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { id: true },
   });
   if (!event) throw new Error('EVENT_NOT_FOUND');
+  assertRegistrationGateOpen(event);
 
   const saved = await prisma.eventRegistrationFormSubmission.upsert({
     where: { eventId_userId: { eventId, userId } },
