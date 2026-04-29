@@ -3,6 +3,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { createApp } from '../../app.js';
 import { prisma } from '../../db/prisma.js';
+import { signAccessToken } from '../../common/jwt.js';
 
 const app = createApp();
 const createdUserIds: string[] = [];
@@ -12,9 +13,19 @@ const pastDeadline = new Date('2020-01-01T00:00:00.000Z');
 const futureDeadline = new Date('2099-01-01T00:00:00.000Z');
 const futureOpenDate = new Date('2099-06-01T00:00:00.000Z');
 
-async function makeUser(runId: string) {
+function authHeader(user: { id: string; email: string; role: string }) {
+  const token = signAccessToken({
+    sub: user.id,
+    email: user.email,
+    role: user.role,
+  });
+  return `Bearer ${token}`;
+}
+
+async function makeUser(runId: string, label = '') {
+  const uniqueSuffix = label ? `-${label}` : `-${randomUUID().slice(0, 8)}`;
   const user = await prisma.user.create({
-    data: { email: `user-${runId}@test.local`, name: 'Test User', isActive: true, role: 'USER' },
+    data: { email: `user-${runId}${uniqueSuffix}@test.local`, name: 'Test User', isActive: true, role: 'USER' },
   });
   createdUserIds.push(user.id);
   return user;
@@ -69,7 +80,7 @@ describe('Registration gates — deadline', () => {
     const event = await makeEvent(runId, { registrationDeadline: pastDeadline });
     const res = await request(app)
       .post(`/api/events/${event.id}/register`)
-      .set('Authorization', `Bearer test-token-${user.id}`)
+      .set('Authorization', authHeader(user))
       .send({});
     expect(res.status).toBe(410);
     expect(res.body.code).toBe('REGISTRATION_DEADLINE_PASSED');
@@ -80,7 +91,7 @@ describe('Registration gates — deadline', () => {
     const event = await makeEvent(runId, { registrationDeadline: pastDeadline });
     const res = await request(app)
       .post(`/api/events/${event.id}/registration/precheck`)
-      .set('Authorization', `Bearer test-token-${user.id}`)
+      .set('Authorization', authHeader(user))
       .send({});
     expect(res.status).toBe(410);
     expect(res.body.code).toBe('REGISTRATION_DEADLINE_PASSED');
@@ -91,7 +102,7 @@ describe('Registration gates — deadline', () => {
     const event = await makeEvent(runId, { registrationDeadline: pastDeadline });
     const res = await request(app)
       .patch(`/api/events/${event.id}/registration-answers`)
-      .set('Authorization', `Bearer test-token-${user.id}`)
+      .set('Authorization', authHeader(user))
       .send({});
     expect(res.status).toBe(410);
     expect(res.body.code).toBe('REGISTRATION_DEADLINE_PASSED');
@@ -102,7 +113,7 @@ describe('Registration gates — deadline', () => {
     const event = await makeEvent(runId, { registrationDeadline: futureDeadline });
     const res = await request(app)
       .post(`/api/events/${event.id}/register`)
-      .set('Authorization', `Bearer test-token-${user.id}`)
+      .set('Authorization', authHeader(user))
       .send({});
     expect(res.status).toBe(201);
   });
@@ -127,7 +138,7 @@ describe('Registration gates — not open', () => {
     const event = await makeEvent(runId, { registrationOpensAt: futureOpenDate, registrationDeadline: null });
     const res = await request(app)
       .post(`/api/events/${event.id}/register`)
-      .set('Authorization', `Bearer test-token-${user.id}`)
+      .set('Authorization', authHeader(user))
       .send({});
     expect(res.status).toBe(400);
     expect(res.body.code).toBe('REGISTRATION_NOT_OPEN');
@@ -138,7 +149,7 @@ describe('Registration gates — not open', () => {
     const event = await makeEvent(runId, { registrationOpensAt: futureOpenDate, registrationDeadline: null });
     const res = await request(app)
       .post(`/api/events/${event.id}/registration/precheck`)
-      .set('Authorization', `Bearer test-token-${user.id}`)
+      .set('Authorization', authHeader(user))
       .send({});
     expect(res.status).toBe(400);
     expect(res.body.code).toBe('REGISTRATION_NOT_OPEN');
@@ -164,7 +175,7 @@ describe('Registration gates — disabled', () => {
     const event = await makeEvent(runId, { registrationEnabled: false });
     const res = await request(app)
       .post(`/api/events/${event.id}/register`)
-      .set('Authorization', `Bearer test-token-${user.id}`)
+      .set('Authorization', authHeader(user))
       .send({});
     expect(res.status).toBe(400);
     expect(res.body.code).toBe('REGISTRATION_DISABLED');
@@ -195,15 +206,40 @@ describe('Team gates after deadline', () => {
     await makeParticipant(event.id, user.id);
     const res = await request(app)
       .post(`/api/events/${event.id}/teams`)
-      .set('Authorization', `Bearer test-token-${user.id}`)
+      .set('Authorization', authHeader(user))
       .send({ name: 'My Team' });
     expect(res.status).toBe(410);
     expect(res.body.code).toBe('REGISTRATION_DEADLINE_PASSED');
   });
 
   it('joinTeam throws 410 when deadline passed', async () => {
-    const captain = await makeUser(runId);
-    const joiner = await makeUser(runId);
+    const captain = await makeUser(runId, 'captain');
+    const joiner = await makeUser(runId, 'joiner');
+    const event = await makeEvent(runId, {
+      isTeamBased: true,
+      requireAdminApprovalForTeams: false,
+      teamJoinMode: 'OPEN',
+      registrationDeadline: pastDeadline,
+    });
+    await makeParticipant(event.id, captain.id);
+    await makeParticipant(event.id, joiner.id);
+    const team = await prisma.eventTeam.create({
+      data: { eventId: event.id, name: 'Captain Team', slug: `cap-team-${runId}`, joinCode: 'ABC123', captainUserId: captain.id, status: 'ACTIVE', maxSize: 5 },
+    });
+    await prisma.eventTeamMember.create({ data: { teamId: team.id, userId: captain.id, role: 'CAPTAIN', status: 'ACTIVE', approvedAt: new Date() } });
+    const res = await request(app)
+      .post(`/api/events/${event.id}/teams/${team.id}/join`)
+      .set('Authorization', authHeader(joiner))
+      .send({});
+    expect(res.status).toBe(410);
+    expect(res.body.code).toBe('REGISTRATION_DEADLINE_PASSED');
+    await prisma.eventTeamMember.deleteMany({ where: { teamId: team.id } });
+    await prisma.eventTeam.delete({ where: { id: team.id } });
+  });
+
+  it('joinTeam succeeds when deadline is future', async () => {
+    const captain = await makeUser(runId, 'captain');
+    const joiner = await makeUser(runId, 'joiner');
     const event = await makeEvent(runId, {
       isTeamBased: true,
       requireAdminApprovalForTeams: false,
@@ -218,7 +254,7 @@ describe('Team gates after deadline', () => {
     await prisma.eventTeamMember.create({ data: { teamId: team.id, userId: captain.id, role: 'CAPTAIN', status: 'ACTIVE', approvedAt: new Date() } });
     const res = await request(app)
       .post(`/api/events/${event.id}/teams/${team.id}/join`)
-      .set('Authorization', `Bearer test-token-${joiner.id}`)
+      .set('Authorization', authHeader(joiner))
       .send({});
     expect(res.status).toBe(201);
     await prisma.eventTeamMember.deleteMany({ where: { teamId: team.id } });
@@ -235,7 +271,7 @@ describe('Team gates after deadline', () => {
     await makeParticipant(event.id, user.id);
     const res = await request(app)
       .post(`/api/events/${event.id}/teams`)
-      .set('Authorization', `Bearer test-token-${user.id}`)
+      .set('Authorization', authHeader(user))
       .send({ name: 'Late Team' });
     expect(res.status).toBe(410);
     expect(res.body.code).toBe('REGISTRATION_DEADLINE_PASSED');
@@ -265,7 +301,7 @@ describe('Gate priority order', () => {
     });
     const res = await request(app)
       .post(`/api/events/${event.id}/register`)
-      .set('Authorization', `Bearer test-token-${user.id}`)
+      .set('Authorization', authHeader(user))
       .send({});
     expect(res.status).toBe(400);
     expect(res.body.code).toBe('EVENT_NOT_AVAILABLE');
@@ -281,7 +317,7 @@ describe('Gate priority order', () => {
     });
     const res = await request(app)
       .post(`/api/events/${event.id}/register`)
-      .set('Authorization', `Bearer test-token-${user.id}`)
+      .set('Authorization', authHeader(user))
       .send({});
     expect(res.status).toBe(400);
     expect(res.body.code).toBe('REGISTRATION_DISABLED');
@@ -297,7 +333,7 @@ describe('Gate priority order', () => {
     });
     const res = await request(app)
       .post(`/api/events/${event.id}/register`)
-      .set('Authorization', `Bearer test-token-${user.id}`)
+      .set('Authorization', authHeader(user))
       .send({});
     expect(res.status).toBe(400);
     expect(res.body.code).toBe('REGISTRATION_NOT_OPEN');
