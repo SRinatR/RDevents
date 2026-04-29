@@ -151,7 +151,7 @@ export default function EventDetailPage() {
 
         {showCountPublicly && (
           <>
-            {!isRussiaHouseEvent ? <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div> : null}
+            {!isRussiaHouseEvent ? <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{participantTarget} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div> : null}
           </>
         )}
 

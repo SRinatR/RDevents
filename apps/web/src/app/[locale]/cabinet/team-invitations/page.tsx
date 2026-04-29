@@ -13,6 +13,10 @@ import {
   filterProfileMissingFields,
   type RegistrationMissingField,
 } from '@/components/cabinet/profile/profile.requirements';
+import {
+  getRegistrationClosedReason,
+  getRegistrationClosedMessage,
+} from '@/lib/registration-status';
 
 const OPEN_STATUSES = new Set(['PENDING_ACCOUNT', 'PENDING_RESPONSE']);
 
@@ -113,23 +117,29 @@ export default function TeamInvitationsPage() {
           <EmptyState title={isRu ? 'Новых приглашений нет' : 'No new invitations'} description={isRu ? 'Когда капитан пригласит вас по email, приглашение появится здесь.' : 'When a captain invites you by email, it will appear here.'} />
         ) : (
           <div className="signal-stack">
-            {openInvitations.map((invitation) => (
-              <div key={invitation.id} className="signal-ranked-item">
-                <div>
-                  <strong>{invitation.team?.name}</strong>
-                  <div className="signal-muted">{invitation.event?.title}</div>
+            {openInvitations.map((invitation) => {
+              const regReason = getRegistrationClosedReason(invitation.event || {});
+              const regBlocked = regReason !== null;
+              const regMessage = getRegistrationClosedMessage(regReason, locale);
+              return (
+                <div key={invitation.id} className="signal-ranked-item">
+                  <div>
+                    <strong>{invitation.team?.name}</strong>
+                    <div className="signal-muted">{invitation.event?.title}</div>
+                  </div>
+                  {regBlocked ? <Notice tone="warning">{regMessage}</Notice> : null}
+                  <ToolbarRow>
+                    <button onClick={() => void handleAccept(invitation)} disabled={regBlocked || Boolean(actionLoading)} className="btn btn-primary btn-sm">
+                      {actionLoading === `accept:${invitation.id}` ? '...' : (isRu ? 'Принять' : 'Accept')}
+                    </button>
+                    <button onClick={() => void handleDecline(invitation)} disabled={Boolean(actionLoading)} className="btn btn-secondary btn-sm">
+                      {actionLoading === `decline:${invitation.id}` ? '...' : (isRu ? 'Отклонить' : 'Decline')}
+                    </button>
+                    <Link href={`/${locale}/cabinet/events/${invitation.event?.slug}`} className="btn btn-ghost btn-sm">{isRu ? 'Открыть событие' : 'Open event'}</Link>
+                  </ToolbarRow>
                 </div>
-                <ToolbarRow>
-                  <button onClick={() => void handleAccept(invitation)} disabled={Boolean(actionLoading)} className="btn btn-primary btn-sm">
-                    {actionLoading === `accept:${invitation.id}` ? '...' : (isRu ? 'Принять' : 'Accept')}
-                  </button>
-                  <button onClick={() => void handleDecline(invitation)} disabled={Boolean(actionLoading)} className="btn btn-secondary btn-sm">
-                    {actionLoading === `decline:${invitation.id}` ? '...' : (isRu ? 'Отклонить' : 'Decline')}
-                  </button>
-                  <Link href={`/${locale}/cabinet/events/${invitation.event?.slug}`} className="btn btn-ghost btn-sm">{isRu ? 'Открыть событие' : 'Open event'}</Link>
-                </ToolbarRow>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Panel>

@@ -145,7 +145,11 @@ export async function listMyTeamInvitations(userId: string) {
   return prisma.eventTeamInvitation.findMany({
     where: { inviteeUserId: userId },
     include: {
-      event: { select: { id: true, slug: true, title: true, coverImageUrl: true, startsAt: true, endsAt: true } },
+      event: { select: { 
+        id: true, slug: true, title: true, coverImageUrl: true, startsAt: true, endsAt: true,
+        registrationEnabled: true, registrationOpensAt: true, registrationDeadline: true,
+        participantLimitMode: true, participantTarget: true, capacity: true, registrationsCount: true,
+      } },
       team: { select: { id: true, name: true, status: true, captainUserId: true } },
       invitedBy: { select: { id: true, name: true, email: true } },
     },
