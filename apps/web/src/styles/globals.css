@@ -9240,6 +9240,24 @@ body {
   color: var(--rhq-blue-strong);
 }
 
+.rhq-button:disabled,
+.rhq-button[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.rhq-registration-closed-note {
+  margin: 10px 0 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.rhq-registration-card .rhq-registration-closed-note {
+  color: var(--color-text-muted);
+}
+
 .rhq-hero-facts {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

@@ -33,7 +33,10 @@ export const eventsRouter = Router();
 const registrationFlowErrors: Record<string, [number, string]> = {
   EVENT_NOT_FOUND: [404, 'Event not found'],
   EVENT_NOT_AVAILABLE: [400, 'Event is not available for registration'],
+  REGISTRATION_DISABLED: [400, 'Registration is disabled for this event'],
   REGISTRATION_NOT_OPEN: [400, 'Registration is not open yet'],
+  REGISTRATION_DEADLINE_PASSED: [410, 'Registration deadline has passed'],
+
   EVENT_REQUIRES_TEAM: [400, 'This event requires team participation'],
   EVENT_NOT_TEAM_BASED: [400, 'Event is not team-based'],
   TEAM_NOT_FOUND: [404, 'Team not found'],

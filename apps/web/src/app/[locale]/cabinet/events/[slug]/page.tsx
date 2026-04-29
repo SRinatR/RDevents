@@ -25,6 +25,11 @@ import {
   getProfileRequirementLabel,
   type RegistrationMissingField,
 } from '@/components/cabinet/profile/profile.requirements';
+import {
+  getRegistrationClosedReason,
+  getRegistrationClosedMessage,
+} from '@/lib/registration-status';
+import { getFriendlyApiErrorMessage } from '@/lib/api-errors';
 
 const OPEN_INVITATION_STATUSES = new Set(['PENDING_ACCOUNT', 'PENDING_RESPONSE']);
 
@@ -150,6 +155,10 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
   const participantMembership = getParticipantMembership(event, membership);
   const isActiveParticipant = participantMembership?.status === 'ACTIVE';
 
+  const registrationClosedReason = getRegistrationClosedReason(event);
+  const registrationBlocked = registrationClosedReason !== null;
+  const registrationClosedMessage = getRegistrationClosedMessage(registrationClosedReason, locale);
+
   async function handleJoinEvent() {
     setActionLoading('join-event');
     setError('');
@@ -169,7 +178,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
         }
         setError(isRu ? 'Заполните обязательные поля анкеты мероприятия.' : 'Complete required event form fields.');
       } else {
-        setError(err.message || (isRu ? 'Не удалось стать участником' : 'Failed to join event'));
+        setError(getFriendlyApiErrorMessage(err, locale));
       }
     } finally {
       setActionLoading('');
@@ -215,7 +224,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       setSuccess(isRu ? 'Команда создана. Заполните слоты участниками.' : 'Team created. Fill the slots with members.');
       await loadWorkspace();
     } catch (err: any) {
-      setError(err.message || (isRu ? 'Не удалось создать команду' : 'Failed to create team'));
+      setError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setActionLoading('');
     }
@@ -256,7 +265,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       );
       await loadWorkspace();
     } catch (err: any) {
-      setError(err.message || (isRu ? 'Не удалось сохранить изменения команды' : 'Failed to save team changes'));
+      setError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setActionLoading('');
     }
@@ -281,7 +290,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
         }
         setError(isRu ? 'Сначала заполните обязательную анкету мероприятия.' : 'Complete required event form fields first.');
       } else {
-        setError(err.message || (isRu ? 'Не удалось принять приглашение' : 'Failed to accept invitation'));
+        setError(getFriendlyApiErrorMessage(err, locale));
       }
     } finally {
       setActionLoading('');
@@ -297,7 +306,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       setSuccess(isRu ? 'Приглашение отклонено.' : 'Invitation declined.');
       await loadWorkspace();
     } catch (err: any) {
-      setError(err.message || (isRu ? 'Не удалось отклонить приглашение' : 'Failed to decline invitation'));
+      setError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setActionLoading('');
     }
@@ -316,7 +325,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       setSuccess(isRu ? 'Приглашение отправлено.' : 'Invitation sent.');
       await loadWorkspace();
     } catch (err: any) {
-      setError(err.message || (isRu ? 'Не удалось отправить приглашение' : 'Failed to send invitation'));
+      setError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setActionLoading('');
     }
@@ -332,7 +341,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       setSuccess(isRu ? 'Приглашение отменено.' : 'Invitation cancelled.');
       await loadWorkspace();
     } catch (err: any) {
-      setError(err.message || (isRu ? 'Не удалось отменить приглашение' : 'Failed to cancel invitation'));
+      setError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setActionLoading('');
     }
@@ -350,7 +359,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       setSuccess(isRu ? 'Участник удалён.' : 'Member removed.');
       await loadWorkspace();
     } catch (err: any) {
-      setError(err.message || (isRu ? 'Не удалось удалить участника' : 'Failed to remove member'));
+      setError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setActionLoading('');
     }
@@ -368,7 +377,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       setSuccess(isRu ? 'Капитанство передано.' : 'Captain role transferred.');
       await loadWorkspace();
     } catch (err: any) {
-      setError(err.message || (isRu ? 'Не удалось передать капитанство' : 'Failed to transfer captain role'));
+      setError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setActionLoading('');
     }
@@ -384,7 +393,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       setSuccess(isRu ? 'Команда отправлена на утверждение.' : 'Team submitted for approval.');
       await loadWorkspace();
     } catch (err: any) {
-      setError(err.message || (isRu ? 'Не удалось отправить команду' : 'Failed to submit team'));
+      setError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setActionLoading('');
     }
@@ -424,7 +433,27 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       {!isActiveParticipant ? (
         <Panel variant="elevated" className="workspace-event-panel">
           <SectionHeader title={isRu ? 'Стать участником' : 'Join as participant'} />
-          {participantMembership?.status && ['PENDING', 'RESERVE'].includes(participantMembership.status) ? (
+          {registrationBlocked ? (
+            <div className="signal-stack">
+              <Notice tone="warning">
+                {registrationClosedMessage}
+              </Notice>
+
+              {participantMembership?.status ? (
+                <Notice tone="info">
+                  {isRu
+                    ? `Ваш текущий статус: ${formatParticipantStatus(participantMembership.status, locale)}.`
+                    : `Your current status: ${formatParticipantStatus(participantMembership.status, locale)}.`}
+                </Notice>
+              ) : null}
+
+              <ToolbarRow>
+                <Link href={`/${locale}/events/${event.slug}`} className="btn btn-secondary btn-sm">
+                  {isRu ? 'Вернуться на страницу события' : 'Back to event page'}
+                </Link>
+              </ToolbarRow>
+            </div>
+          ) : participantMembership?.status && ['PENDING', 'RESERVE'].includes(participantMembership.status) ? (
             <div className="signal-stack">
               {participantMembership.status === 'PENDING' ? (
                 <Notice tone="warning">{isRu ? 'Заявка участника ожидает решения организатора.' : 'Participant application is pending organizer review.'}</Notice>
