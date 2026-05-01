@@ -1,10 +1,25 @@
 import { Router } from 'express';
+import multer from 'multer';
 import type { User } from '@prisma/client';
-import { requirePlatformAdmin, requireSuperAdmin } from '../../common/middleware.js';
+import { canManageEvent, requirePlatformAdmin, requireSuperAdmin } from '../../common/middleware.js';
 import { logger } from '../../common/logger.js';
 import { prisma } from '../../db/prisma.js';
+import { env } from '../../config/env.js';
+import {
+  listProfileDocuments,
+  removeProfileDocument,
+  updateProfileSection,
+  uploadProfileAvatar,
+  uploadProfileDocument,
+} from '../auth/profile.service.js';
+import { ProfileMediaError } from '../auth/profile.media.js';
+import { isProfileSectionKey } from '../auth/profile.sections.js';
 
 export const adminUsersRouter = Router();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: env.MAX_DOCUMENT_UPLOAD_MB * 1024 * 1024 },
+});
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
 const SENSITIVE_PROFILE_FIELDS = ['phone'] as const;
@@ -139,17 +154,7 @@ async function canAdminAccessUserProfile(actor: User, targetUserId: string, even
 
   if (!eventId) return false;
 
-  const actorEventAdminMembership = await prisma.eventMember.findFirst({
-    where: {
-      userId: actor.id,
-      eventId,
-      role: 'EVENT_ADMIN',
-      status: { in: ['ACTIVE'] },
-    },
-    select: { id: true },
-  });
-
-  if (!actorEventAdminMembership) return false;
+  if (!(await canManageEvent(actor, eventId))) return false;
 
   const [member, teamMember, submission] = await Promise.all([
     prisma.eventMember.findFirst({
@@ -170,6 +175,52 @@ async function canAdminAccessUserProfile(actor: User, targetUserId: string, even
   ]);
 
   return Boolean(member || teamMember || submission);
+}
+
+async function resolveEditableProfile(req: any, res: any) {
+  const actor = req.user as User;
+  const { id } = req.params;
+  const eventId = String(req.query['eventId'] ?? req.body?.eventId ?? '').trim() || undefined;
+  const target = await prisma.user.findFirst({
+    where: { OR: [{ id: String(id) }, { email: String(id) }] },
+    select: { id: true },
+  });
+
+  if (!target) {
+    res.status(404).json({ error: 'User not found' });
+    return null;
+  }
+
+  if (!(await canAdminAccessUserProfile(actor, target.id, eventId))) {
+    res.status(403).json({ error: 'Access denied' });
+    return null;
+  }
+
+  return { actor, target, eventId };
+}
+
+function sendProfileUpdateError(res: any, err: any) {
+  if (err.message === 'Profile section validation failed') {
+    res.status(400).json({ error: 'Validation failed', details: err.details });
+    return;
+  }
+  if (err.message === 'INVALID_UZBEK_PHONE') {
+    res.status(400).json({ error: 'Введите номер в формате +998 XX XXX XX XX' });
+    return;
+  }
+  if (err.message === 'INVALID_TELEGRAM_USERNAME') {
+    res.status(400).json({ error: 'Введите Telegram username от 5 до 32 символов.' });
+    return;
+  }
+  if (err.message === 'INVALID_DATE') {
+    res.status(400).json({ error: 'Invalid date value' });
+    return;
+  }
+  if (err instanceof ProfileMediaError) {
+    res.status(400).json({ error: err.message });
+    return;
+  }
+  throw err;
 }
 
 // GET /api/admin/users - список всех пользователей с расширенной информацией
@@ -534,6 +585,7 @@ adminUsersRouter.get('/:id/profile', async (req, res) => {
     additionalDocuments,
     emergencyContact,
     profileSectionStates,
+    documents,
     avatarHistory,
     profileHistory,
     eventMemberships,
@@ -578,6 +630,7 @@ adminUsersRouter.get('/:id/profile', async (req, res) => {
       where: { userId: existing.id },
       select: { sectionKey: true, status: true, updatedAt: true },
     }),
+    listProfileDocuments(existing.id),
     prisma.mediaAsset.findMany({
       where: { ownerUserId: existing.id, purpose: 'AVATAR' },
       select: {
@@ -665,6 +718,15 @@ adminUsersRouter.get('/:id/profile', async (req, res) => {
       sectionKey: s.sectionKey,
       status: s.status,
       updatedAt: s.updatedAt.toISOString(),
+    })),
+    documents: documents.map(asset => ({
+      id: asset.id,
+      originalFilename: asset.originalFilename,
+      mimeType: asset.mimeType,
+      sizeBytes: asset.sizeBytes,
+      publicUrl: shouldRevealSensitive || !scopedToEvent ? (asset.publicUrl ?? '') : '',
+      createdAt: asset.createdAt.toISOString(),
+      status: asset.status,
     })),
     avatarHistory: avatarHistory.map(asset => ({
       id: asset.id,
@@ -800,6 +862,100 @@ adminUsersRouter.get('/:id/profile', async (req, res) => {
   });
 
   res.json(result);
+});
+
+// PATCH /api/admin/users/:id/profile/sections/:sectionKey - admin edits a user's profile section
+adminUsersRouter.patch('/:id/profile/sections/:sectionKey', async (req, res) => {
+  const resolved = await resolveEditableProfile(req, res);
+  if (!resolved) return;
+
+  const sectionKey = String(req.params['sectionKey'] ?? '');
+  if (!isProfileSectionKey(sectionKey)) {
+    res.status(400).json({ error: 'Invalid profile section' });
+    return;
+  }
+
+  try {
+    const result = await updateProfileSection(resolved.target.id, sectionKey, req.body, resolved.actor.id);
+    logger.info('Admin user profile section updated', {
+      module: 'admin-users',
+      action: 'ADMIN_PROFILE_SECTION_UPDATED',
+      userId: resolved.actor.id,
+      eventId: resolved.eventId,
+      meta: { targetUserId: resolved.target.id, sectionKey },
+    });
+    res.json(result);
+  } catch (err: any) {
+    sendProfileUpdateError(res, err);
+  }
+});
+
+// POST /api/admin/users/:id/profile/avatar/upload - admin uploads/replaces a user's profile photo
+adminUsersRouter.post('/:id/profile/avatar/upload', upload.single('file'), async (req, res) => {
+  const resolved = await resolveEditableProfile(req, res);
+  if (!resolved) return;
+  if (!req.file) {
+    res.status(400).json({ error: 'File is required' });
+    return;
+  }
+
+  try {
+    const result = await uploadProfileAvatar(resolved.target.id, req.file, resolved.actor.id);
+    logger.info('Admin user profile avatar uploaded', {
+      module: 'admin-users',
+      action: 'ADMIN_PROFILE_AVATAR_UPLOADED',
+      userId: resolved.actor.id,
+      eventId: resolved.eventId,
+      meta: { targetUserId: resolved.target.id, assetId: result.asset.id },
+    });
+    res.status(201).json(result);
+  } catch (err: any) {
+    sendProfileUpdateError(res, err);
+  }
+});
+
+// POST /api/admin/users/:id/profile/documents/upload - admin uploads a user's profile document
+adminUsersRouter.post('/:id/profile/documents/upload', upload.single('file'), async (req, res) => {
+  const resolved = await resolveEditableProfile(req, res);
+  if (!resolved) return;
+  if (!req.file) {
+    res.status(400).json({ error: 'File is required' });
+    return;
+  }
+
+  try {
+    const result = await uploadProfileDocument(resolved.target.id, req.file, resolved.actor.id);
+    logger.info('Admin user profile document uploaded', {
+      module: 'admin-users',
+      action: 'ADMIN_PROFILE_DOCUMENT_UPLOADED',
+      userId: resolved.actor.id,
+      eventId: resolved.eventId,
+      meta: { targetUserId: resolved.target.id, assetId: result.asset.id },
+    });
+    res.status(201).json(result);
+  } catch (err: any) {
+    sendProfileUpdateError(res, err);
+  }
+});
+
+// DELETE /api/admin/users/:id/profile/documents/:assetId - admin removes a user's profile document
+adminUsersRouter.delete('/:id/profile/documents/:assetId', async (req, res) => {
+  const resolved = await resolveEditableProfile(req, res);
+  if (!resolved) return;
+
+  try {
+    await removeProfileDocument(resolved.target.id, String(req.params['assetId']), resolved.actor.id);
+    logger.info('Admin user profile document deleted', {
+      module: 'admin-users',
+      action: 'ADMIN_PROFILE_DOCUMENT_DELETED',
+      userId: resolved.actor.id,
+      eventId: resolved.eventId,
+      meta: { targetUserId: resolved.target.id, assetId: String(req.params['assetId']) },
+    });
+    res.json({ ok: true });
+  } catch (err: any) {
+    sendProfileUpdateError(res, err);
+  }
 });
 
 // GET /api/admin/users/export - экспорт всех пользователей с расширенными полями

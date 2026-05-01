@@ -134,6 +134,54 @@
   gap: 14px;
 }
 
+.editShell {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.28fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.editNav {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.editNav button {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  min-height: 58px;
+  padding: 10px 11px;
+  border: 1px solid rgba(188, 204, 227, 0.9);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--color-text-secondary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.editNav button strong {
+  color: var(--color-text-primary);
+  font-size: 0.88rem;
+}
+
+.editNav button span {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.editNav button:hover,
+.editNavActive {
+  border-color: rgba(43, 106, 221, 0.44) !important;
+  background: rgba(236, 243, 255, 0.9) !important;
+}
+
+.editBody {
+  min-width: 0;
+}
+
 .profileCard {
   display: grid;
   gap: 14px;
@@ -285,8 +333,13 @@
 
 @media (max-width: 1100px) {
   .heroPanel,
-  .cardGrid {
+  .cardGrid,
+  .editShell {
     grid-template-columns: 1fr;
+  }
+
+  .editNav {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   }
 
   .metricsGrid {

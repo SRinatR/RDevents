@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { EventMemberStatus, EventStaffRole, EventTeamStatus, User } from '@prisma/client';
 import { canManageEvent, requirePlatformAdmin } from '../../common/middleware.js';
 import { prisma } from '../../db/prisma.js';
+import { buildPublicMediaUrl } from '../../common/storage.js';
 import { createEventSchema, updateEventSchema } from '../events/events.schemas.js';
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 import { notifyParticipantStatusChanged } from '../events/notifications.service.js';
@@ -375,15 +376,46 @@ adminEventsRouter.get('/:id/members', async (req, res) => {
   const members = await prisma.eventMember.findMany({
     where: { eventId, status: { not: 'REMOVED' } },
     include: {
-      user: { select: { id: true, name: true, email: true, avatarUrl: true, city: true } },
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          avatarUrl: true,
+          city: true,
+          phone: true,
+          telegram: true,
+          fullNameCyrillic: true,
+          fullNameLatin: true,
+          lastNameCyrillic: true,
+          firstNameCyrillic: true,
+          middleNameCyrillic: true,
+          lastNameLatin: true,
+          firstNameLatin: true,
+          avatarAsset: { select: { storageKey: true, publicUrl: true } },
+        },
+      },
       assignedByUser: { select: { id: true, name: true, email: true } },
     },
     orderBy: [{ role: 'asc' }, { assignedAt: 'desc' }],
   });
+  const userIds = [...new Set(members.map(member => member.userId))];
+  const teamMemberships = await prisma.eventTeamMember.findMany({
+    where: {
+      userId: { in: userIds },
+      status: { notIn: ['REMOVED', 'LEFT'] },
+      team: { eventId },
+    },
+    include: {
+      team: { select: { id: true, name: true, status: true, captainUserId: true } },
+    },
+    orderBy: [{ role: 'asc' }, { joinedAt: 'desc' }],
+  });
+  const teamMembershipByUserId = new Map(teamMemberships.map(membership => [membership.userId, membership]));
   const submissions = await prisma.eventRegistrationFormSubmission.findMany({
     where: {
       eventId,
-      userId: { in: [...new Set(members.map(member => member.userId))] },
+      userId: { in: userIds },
     },
     select: { userId: true, answersJson: true, isComplete: true, updatedAt: true },
   });
@@ -392,8 +424,26 @@ adminEventsRouter.get('/:id/members', async (req, res) => {
   res.json({
     members: members.map(member => {
       const submission = submissionsByUserId.get(member.userId);
+      const teamMembership = teamMembershipByUserId.get(member.userId);
+      const avatarStorageKey = member.user.avatarAsset?.storageKey;
       return {
         ...member,
+        user: {
+          ...member.user,
+          avatarAsset: undefined,
+          avatarUrl: avatarStorageKey
+            ? buildPublicMediaUrl(avatarStorageKey)
+            : (member.user.avatarAsset?.publicUrl ?? member.user.avatarUrl),
+        },
+        teamMembership: teamMembership
+          ? {
+              id: teamMembership.id,
+              role: teamMembership.role,
+              status: teamMembership.status,
+              joinedAt: teamMembership.joinedAt.toISOString(),
+              team: teamMembership.team,
+            }
+          : null,
         answers: submission?.answersJson ?? {},
         answersComplete: submission?.isComplete ?? false,
         answersUpdatedAt: submission?.updatedAt ?? null,
