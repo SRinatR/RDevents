@@ -584,7 +584,7 @@ export default function NewEmailBroadcastPage() {
             <TableShell>
               <table className="signal-table">
                 <thead><tr><th>Photo</th><th>{locale === 'ru' ? 'ФИО' : 'Full name'}</th><th>Email</th><th>{locale === 'ru' ? 'Телефон' : 'Phone'}</th><th>Team</th><th>{locale === 'ru' ? 'Статус' : 'Status'}</th><th>✓</th></tr></thead>
-                <tbody>{userSearchResults.map((u:any) => <tr key={u.id}><td>{u.avatarUrl ? <img src={u.avatarUrl} alt="" style={{width:24,height:24,borderRadius:999}}/>:'—'}</td><td>{u.name}</td><td>{u.email}</td><td>{u.phone||'—'}</td><td>{u.eventMembership?.teamCode || '—'}</td><td>{u.eventMembership?.status || (u.isActive ? 'ACTIVE':'INACTIVE')}</td><td><input type="checkbox" checked={form.selectedUserIds.includes(u.id)} onChange={(e)=>updateForm({selectedUserIds: e.target.checked ? [...form.selectedUserIds,u.id] : form.selectedUserIds.filter(x=>x!==u.id)})}/></td></tr>)}</tbody>
+                <tbody>{userSearchResults.map((u:any) => <tr key={u.id}><td>{u.avatarUrl ? <span aria-hidden="true" style={{display:'inline-block',width:24,height:24,borderRadius:999,backgroundImage:`url(${u.avatarUrl})`,backgroundSize:'cover',backgroundPosition:'center'}}/>:'—'}</td><td>{u.name}</td><td>{u.email}</td><td>{u.phone||'—'}</td><td>{u.eventMembership?.teamCode || '—'}</td><td>{u.eventMembership?.status || (u.isActive ? 'ACTIVE':'INACTIVE')}</td><td><input type="checkbox" checked={form.selectedUserIds.includes(u.id)} onChange={(e)=>updateForm({selectedUserIds: e.target.checked ? [...form.selectedUserIds,u.id] : form.selectedUserIds.filter(x=>x!==u.id)})}/></td></tr>)}</tbody>
               </table>
             </TableShell>
           )}
@@ -732,7 +732,7 @@ export default function NewEmailBroadcastPage() {
               <TableShell>
                 <table className="signal-table">
                   <thead><tr><th>Photo</th><th>{locale === 'ru' ? 'Имя' : 'Full name'}</th><th>Email</th><th>{locale === 'ru' ? 'Телефон' : 'Phone'}</th><th>{locale === 'ru' ? 'Роль' : 'Role'}</th><th>{locale === 'ru' ? 'Статус' : 'Status'}</th><th>{locale === 'ru' ? 'Причина' : 'Reason'}</th></tr></thead>
-                  <tbody>{audiencePreview.data.map((r: any, idx: number) => <tr key={r.recipientId ?? idx}><td>{r.avatarUrl ? <img src={r.avatarUrl} alt="" style={{ width: 24, height: 24, borderRadius: 999 }} /> : '—'}</td><td>{r.name || r.fullName || '—'}</td><td>{r.email || '—'}</td><td>{r.phone || '—'}</td><td>{r.role || '—'}</td><td>{r.deliveryStatus || r.status}</td><td>{formatSkipReason(r.skipReasonCode || r.skipReason, locale)}</td></tr>)}</tbody>
+                  <tbody>{audiencePreview.data.map((r: any, idx: number) => <tr key={r.recipientId ?? idx}><td>{r.avatarUrl ? <span aria-hidden="true" style={{display:'inline-block',width:24,height:24,borderRadius:999,backgroundImage:`url(${r.avatarUrl})`,backgroundSize:'cover',backgroundPosition:'center'}}/> : '—'}</td><td>{r.name || r.fullName || '—'}</td><td>{r.email || '—'}</td><td>{r.phone || '—'}</td><td>{r.role || '—'}</td><td>{r.deliveryStatus || r.status}</td><td>{formatSkipReason(r.skipReasonCode || r.skipReason, locale)}</td></tr>)}</tbody>
                 </table>
               </TableShell>
             </Panel>

@@ -452,7 +452,7 @@ export default function AdminTeamDetailsPage() {
             <tbody>
               {(team.members || []).map((member: any) => (
                 <tr key={member.id} onClick={() => router.push(`/${locale}/admin/users/${member.userId}?eventId=${team.eventId}`)} style={{ cursor: 'pointer' }}>
-                  <td>{member.user?.avatarUrl ? <img src={member.user.avatarUrl} alt="" style={{ width: 28, height: 28, borderRadius: 999 }} /> : '—'}</td>
+                  <td>{member.user?.avatarUrl ? <span aria-hidden="true" style={{display:'inline-block',width:28,height:28,borderRadius:999,backgroundImage:`url(${member.user.avatarUrl})`,backgroundSize:'cover',backgroundPosition:'center'}} /> : '—'}</td>
                   <td>
                     <strong>{member.user?.name || '—'}</strong>
                     <div className="signal-muted">{member.userId}</div>

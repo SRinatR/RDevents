@@ -377,7 +377,10 @@ adminEmailRouter.post('/broadcasts/:id/audience-preview', withErrorHandler(async
     audienceFilterJson: req.body?.audienceFilterJson ?? current.broadcast.audienceFilterJson,
     savedAudienceId: req.body?.savedAudienceId ?? null,
   });
-  if (!body.success) return res.status(400).json({ error: 'Invalid request body', details: body.error.flatten() });
+  if (!body.success) {
+    res.status(400).json({ error: 'Invalid request body', details: body.error.flatten() });
+    return;
+  }
   const result = await previewEmailAudience(body.data, { page: 1, limit: 200 }, user);
   res.json({
     totalSelected: result.totals.totalMatched,
@@ -399,13 +402,19 @@ adminEmailRouter.post('/broadcasts/:id/preview', withErrorHandler(async (req, re
     htmlBody: req.body?.htmlBody ?? current.broadcast.htmlBody,
     sampleVariables: req.body?.sampleVariables ?? {},
   });
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
+    return;
+  }
   res.json(await previewBroadcastContent(id, { ...parsed.data, recipientId: req.body?.recipientId }, user));
 }));
 
 adminEmailRouter.post('/broadcasts/:id/send-test', withErrorHandler(async (req, res) => {
   const parsed = emailTestSendSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
+    return;
+  }
   const user = (req as AuthenticatedRequest).user;
   res.json(await sendBroadcastTestEmail(String(req.params['id']), parsed.data, user));
 }));

@@ -65,6 +65,13 @@ type CandidateUser = {
   communicationConsents?: Array<{ channel: string; topic: string; status: string; optedInAt?: Date | null; optedOutAt?: Date | null; lastChangedAt?: Date | null }>;
   audienceReason?: unknown;
 };
+type PrefillContact = {
+  id: string;
+  email?: string | null;
+  name?: string | null;
+  fullName?: string | null;
+  phone?: string | null;
+};
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -308,8 +315,10 @@ async function resolveCandidates(input: ResolveAudienceInput) {
   }
   if (source === 'MANUAL_SELECTION') {
     const selectedIds = toArray((filter as any)?.selectedUserIds ?? (filter as any)?.recipientIds);
-    const prefillContacts = Array.isArray((filter as any)?.prefillContacts) ? (filter as any).prefillContacts : [];
-    const prefillById = new Map(prefillContacts.map((x: any) => [String(x.id), x]));
+    const prefillContacts: PrefillContact[] = Array.isArray((filter as any)?.prefillContacts)
+      ? (filter as any).prefillContacts
+      : [];
+    const prefillById = new Map<string, PrefillContact>(prefillContacts.map((x) => [String(x.id), x]));
     const userIds = selectedIds.filter(id => !id.startsWith('prefill-'));
     const users = userIds.length
       ? await prisma.user.findMany({ where: { id: { in: userIds } }, select: userSelect() as any })
@@ -332,7 +341,7 @@ async function resolveCandidates(input: ResolveAudienceInput) {
         };
       }
       const u = usersById.get(id);
-      if (u) return { ...u, recipientId: id, recipientKind: 'USER' as const, audienceReason: { matchedBy: 'manualSelectionUser' } };
+      if (u) return { ...(u as any), recipientId: id, recipientKind: 'USER' as const, audienceReason: { matchedBy: 'manualSelectionUser' } };
       return {
         id,
         recipientId: id,
