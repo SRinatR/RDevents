@@ -917,6 +917,13 @@ img { display: block; max-width: 100%; }
   transition: background var(--transition-fast), transform var(--transition-fast);
 }
 .signal-table tbody tr:hover { background: rgba(255, 255, 255, 0.88); }
+.signal-table tbody tr.admin-clickable-row {
+  cursor: pointer;
+}
+.signal-table tbody tr.admin-clickable-row:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
 .signal-row-actions { display: inline-flex; gap: 8px; }
 
 .motion-fade-up {

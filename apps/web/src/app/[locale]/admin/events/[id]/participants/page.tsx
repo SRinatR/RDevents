@@ -1,12 +1,12 @@
 'use client';
 
+import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
 import { adminApi, adminExportsApi, type ExportDownloadFormat } from '@/lib/api';
-import { EmptyState, FieldInput, FieldSelect, LoadingLines, MetricCard, Notice, Panel, SectionHeader, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, MetricCard, Notice, Panel, SectionHeader, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 import { EventNotFound, EventWorkspaceHeader, formatAdminDateTime, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
 
 type ParticipantMember = {
@@ -22,7 +22,21 @@ type ParticipantMember = {
     name?: string | null;
     email?: string | null;
     city?: string | null;
+    avatarUrl?: string | null;
+    phone?: string | null;
+    telegram?: string | null;
+    fullNameCyrillic?: string | null;
+    fullNameLatin?: string | null;
   };
+  teamMembership?: {
+    role: string;
+    status: string;
+    team: {
+      id: string;
+      name: string;
+      status: string;
+    };
+  } | null;
 };
 
 export default function EventParticipantsPage() {
@@ -35,9 +49,8 @@ export default function EventParticipantsPage() {
   const [participants, setParticipants] = useState<ParticipantMember[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [search, setSearch] = useState('');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState('');
-  const [exportFilters, setExportFilters] = useState({ includeRejected: true, includeCancelled: true, includeRemoved: false });
+  const exportFilters = useMemo(() => ({ includeRejected: true, includeCancelled: true, includeRemoved: false }), []);
   const [exportFormat, setExportFormat] = useState<ExportDownloadFormat>('xlsx');
 
   useEffect(() => {
@@ -55,7 +68,7 @@ export default function EventParticipantsPage() {
         adminApi.listEventMembers(eventId),
       ]);
       setEvent(eventResult.data[0] ?? null);
-      setParticipants((membersResult.members ?? []).filter((member: ParticipantMember) => member.role === 'PARTICIPANT' && member.status === 'ACTIVE'));
+      setParticipants((membersResult.members ?? []).filter((member: ParticipantMember) => member.role === 'PARTICIPANT'));
     } catch (err: any) {
       setError(err.message || 'Failed to load participants');
       setParticipants([]);
@@ -73,16 +86,27 @@ export default function EventParticipantsPage() {
     return participants.filter((participant) => {
       const searchMatches = !normalized
         || participant.user?.name?.toLowerCase().includes(normalized)
+        || participant.user?.fullNameCyrillic?.toLowerCase().includes(normalized)
+        || participant.user?.fullNameLatin?.toLowerCase().includes(normalized)
         || participant.user?.email?.toLowerCase().includes(normalized)
-        || participant.user?.city?.toLowerCase().includes(normalized);
+        || participant.user?.city?.toLowerCase().includes(normalized)
+        || participant.teamMembership?.team.name.toLowerCase().includes(normalized);
       return searchMatches;
     });
   }, [participants, search]);
 
   const stats = useMemo(() => ({
     total: participants.length,
-    active: participants.length,
+    active: participants.filter((participant) => participant.status === 'ACTIVE').length,
+    pending: participants.filter((participant) => participant.status === 'PENDING').length,
+    inTeams: participants.filter((participant) => participant.teamMembership).length,
   }), [participants]);
+  const isTeamBased = Boolean((event as any)?.isTeamBased) || participants.some((participant) => participant.teamMembership);
+
+  function openParticipantProfile(participant: ParticipantMember) {
+    if (!eventId || !participant.user?.id) return;
+    router.push(`/${locale}/admin/users/${participant.user.id}?eventId=${eventId}`);
+  }
 
   if (loading || !user || !isAdmin) return <div className="admin-loading-screen"><div className="spinner" /></div>;
   if (!loadingData && !event) return <EventNotFound locale={locale} />;
@@ -104,11 +128,13 @@ export default function EventParticipantsPage() {
         <>
           <div className="signal-kpi-grid">
             <MetricCard tone="success" label={locale === 'ru' ? 'Подтверждены' : 'Approved'} value={stats.active} />
-            <MetricCard tone="info" label={locale === 'ru' ? 'Всего в ростере' : 'Roster total'} value={stats.total} />
+            <MetricCard tone="warning" label={locale === 'ru' ? 'На рассмотрении' : 'Pending'} value={stats.pending} />
+            <MetricCard tone="info" label={locale === 'ru' ? 'В командах' : 'In teams'} value={stats.inTeams} />
+            <MetricCard tone="neutral" label={locale === 'ru' ? 'Всего участников' : 'Participants total'} value={stats.total} />
           </div>
 
           <Panel variant="elevated" className="admin-command-panel admin-data-panel">
-            <SectionHeader title={locale === 'ru' ? 'Список участников' : 'Participant list'} subtitle={locale === 'ru' ? 'Ростер подтверждённых участников выбранного события' : 'Roster of approved participants for the selected event'} />
+            <SectionHeader title={locale === 'ru' ? 'Участники этого мероприятия' : 'Participants for this event'} subtitle={locale === 'ru' ? 'Клик по строке открывает полный профиль участника в контексте мероприятия' : 'Click a row to open the full participant profile in this event context'} />
 
             <ToolbarRow>
               <FieldInput
@@ -161,52 +187,68 @@ export default function EventParticipantsPage() {
                 <table className="signal-table">
                   <thead>
                     <tr>
+                      <th>{locale === 'ru' ? 'Фото' : 'Photo'}</th>
                       <th>{locale === 'ru' ? 'Участник' : 'Participant'}</th>
+                      {isTeamBased ? <th>{locale === 'ru' ? 'Команда' : 'Team'}</th> : null}
+                      {isTeamBased ? <th>{locale === 'ru' ? 'Статус в команде' : 'Team status'}</th> : null}
+                      <th>{locale === 'ru' ? 'Участие' : 'Participation'}</th>
                       <th>{locale === 'ru' ? 'Город' : 'City'}</th>
-                      <th>{locale === 'ru' ? 'Статус' : 'Status'}</th>
+                      <th>{locale === 'ru' ? 'Контакты' : 'Contacts'}</th>
                       <th>{locale === 'ru' ? 'Дата' : 'Date'}</th>
-                      <th className="right">{locale === 'ru' ? 'Действия' : 'Actions'}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredParticipants.map((participant) => (
-                      <Fragment key={participant.id}>
-                        <tr>
+                    {filteredParticipants.map((participant) => {
+                      const displayName = participant.user?.fullNameCyrillic || participant.user?.fullNameLatin || participant.user?.name || participant.user?.email || '—';
+                      const initials = displayName.slice(0, 2).toUpperCase();
+                      return (
+                        <tr
+                          key={participant.id}
+                          className="admin-clickable-row"
+                          tabIndex={0}
+                          onClick={() => openParticipantProfile(participant)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              openParticipantProfile(participant);
+                            }
+                          }}
+                        >
                           <td>
-                            <strong>{participant.user?.name ?? participant.user?.email ?? '—'}</strong>
+                            <span className="signal-avatar">
+                              {participant.user?.avatarUrl ? <Image src={participant.user.avatarUrl} alt="" width={32} height={32} /> : initials}
+                            </span>
+                          </td>
+                          <td>
+                            <strong>{displayName}</strong>
                             <div className="signal-muted">{participant.user?.email}</div>
                           </td>
-                          <td>{participant.user?.city ?? '—'}</td>
-                          <td>{locale === 'ru' ? 'Подтверждён' : 'Approved'}</td>
-                          <td className="signal-muted">{formatAdminDateTime(participant.assignedAt, locale)}</td>
-                          <td className="right">
-                            <div className="signal-row-actions">
-                              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setExpandedId(expandedId === participant.id ? null : participant.id)}>
-                                {expandedId === participant.id ? (locale === 'ru' ? 'Скрыть' : 'Hide') : (locale === 'ru' ? 'Анкета' : 'Form')}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                        {expandedId === participant.id ? (
-                          <tr key={`${participant.id}-answers`} className="admin-expanded-row">
-                            <td colSpan={5}>
-                              {participant.answers && Object.keys(participant.answers).length > 0 ? (
-                                <div className="admin-answer-grid">
-                                  {Object.entries(participant.answers).map(([key, value]) => (
-                                    <div key={key}>
-                                      <small>{key}</small>
-                                      <strong>{String(value)}</strong>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span className="signal-muted">{locale === 'ru' ? 'Ответов анкеты пока нет.' : 'No form answers yet.'}</span>
-                              )}
+                          {isTeamBased ? (
+                            <td>
+                              <strong>{participant.teamMembership?.team.name ?? '—'}</strong>
+                              {participant.teamMembership?.team.status ? <div className="signal-muted">{participant.teamMembership.team.status}</div> : null}
                             </td>
-                          </tr>
-                        ) : null}
-                      </Fragment>
-                    ))}
+                          ) : null}
+                          {isTeamBased ? (
+                            <td>
+                              {participant.teamMembership ? (
+                                <div className="signal-row-actions">
+                                  <StatusBadge tone={participant.teamMembership.role === 'CAPTAIN' ? 'warning' : 'info'}>{participant.teamMembership.role}</StatusBadge>
+                                  <StatusBadge tone={statusTone(participant.teamMembership.status)}>{participant.teamMembership.status}</StatusBadge>
+                                </div>
+                              ) : '—'}
+                            </td>
+                          ) : null}
+                          <td><StatusBadge tone={statusTone(participant.status)}>{participant.status}</StatusBadge></td>
+                          <td>{participant.user?.city ?? '—'}</td>
+                          <td>
+                            <div>{participant.user?.phone ?? '—'}</div>
+                            {participant.user?.telegram ? <div className="signal-muted">{participant.user.telegram}</div> : null}
+                          </td>
+                          <td className="signal-muted">{formatAdminDateTime(participant.assignedAt, locale)}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </TableShell>
@@ -216,4 +258,12 @@ export default function EventParticipantsPage() {
       )}
     </div>
   );
+}
+
+function statusTone(status: string): 'success' | 'warning' | 'danger' | 'info' | 'neutral' {
+  if (status === 'ACTIVE' || status === 'APPROVED') return 'success';
+  if (status === 'PENDING' || status === 'SUBMITTED' || status === 'CHANGES_PENDING') return 'warning';
+  if (status === 'RESERVE') return 'info';
+  if (status === 'REJECTED' || status === 'CANCELLED') return 'danger';
+  return 'neutral';
 }

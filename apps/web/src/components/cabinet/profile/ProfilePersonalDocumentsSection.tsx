@@ -115,7 +115,7 @@ export function ProfilePersonalDocumentsSection({ locale, user, status, saving, 
                   <span>{Math.ceil(document.sizeBytes / 1024)} KB</span>
                 </div>
                 <div className="profile-document-actions">
-                  <a className="btn btn-ghost btn-sm" href={document.publicUrl} target="_blank" rel="noreferrer">{isRu ? 'Открыть' : 'Open'}</a>
+                  {document.publicUrl ? <a className="btn btn-ghost btn-sm" href={document.publicUrl} target="_blank" rel="noreferrer">{isRu ? 'Открыть' : 'Open'}</a> : null}
                   <button type="button" className="btn btn-secondary btn-sm" onClick={() => void onDelete(document.id)}>{isRu ? 'Удалить' : 'Delete'}</button>
                 </div>
               </div>

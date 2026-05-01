@@ -40,7 +40,7 @@ export async function getProfileSections(userId: string) {
   return sections;
 }
 
-export async function updateProfileSection(userId: string, sectionKey: ProfileSectionKey, input: unknown) {
+export async function updateProfileSection(userId: string, sectionKey: ProfileSectionKey, input: unknown, actorUserId = userId) {
   if (!isProfileSectionKey(sectionKey)) {
     throw new Error('INVALID_PROFILE_SECTION');
   }
@@ -71,6 +71,7 @@ export async function updateProfileSection(userId: string, sectionKey: ProfileSe
   const after = await getProfileSnapshot(userId);
   await recordProfileHistory({
     userId,
+    actorUserId,
     action: 'PROFILE_SECTION_UPDATED',
     sectionKey,
     before,
@@ -87,7 +88,7 @@ export async function updateProfileSection(userId: string, sectionKey: ProfileSe
   };
 }
 
-export async function uploadProfileAvatar(userId: string, file: Express.Multer.File) {
+export async function uploadProfileAvatar(userId: string, file: Express.Multer.File, actorUserId = userId) {
   validateAvatarFile(file);
   const before = await getProfileSnapshot(userId);
   const asset = await createMediaAsset(userId, 'AVATAR', file);
@@ -95,6 +96,7 @@ export async function uploadProfileAvatar(userId: string, file: Express.Multer.F
   const after = await getProfileSnapshot(userId);
   await recordProfileHistory({
     userId,
+    actorUserId,
     action: 'PROFILE_AVATAR_UPLOADED',
     sectionKey: 'registration_data',
     assetId: asset.id,
@@ -128,7 +130,7 @@ export async function listProfileDocuments(userId: string) {
   return listUserDocuments(userId);
 }
 
-export async function uploadProfileDocument(userId: string, file: Express.Multer.File) {
+export async function uploadProfileDocument(userId: string, file: Express.Multer.File, actorUserId = userId) {
   validateDocumentFile(file);
   const before = await getProfileSnapshot(userId);
   const asset = await createMediaAsset(userId, 'DOCUMENT', file);
@@ -137,6 +139,7 @@ export async function uploadProfileDocument(userId: string, file: Express.Multer
   const after = await getProfileSnapshot(userId);
   await recordProfileHistory({
     userId,
+    actorUserId,
     action: 'PROFILE_DOCUMENT_UPLOADED',
     sectionKey: 'personal_documents',
     assetId: asset.id,
@@ -152,7 +155,7 @@ export async function uploadProfileDocument(userId: string, file: Express.Multer
   return { asset: publicMediaAsset(asset), section };
 }
 
-export async function removeProfileDocument(userId: string, assetId: string) {
+export async function removeProfileDocument(userId: string, assetId: string, actorUserId = userId) {
   const before = await getProfileSnapshot(userId);
   await markMediaAssetDeleted(userId, assetId);
   await prisma.userAdditionalDocument.deleteMany({ where: { userId, assetId } });
@@ -162,6 +165,7 @@ export async function removeProfileDocument(userId: string, assetId: string) {
   const after = await getProfileSnapshot(userId);
   await recordProfileHistory({
     userId,
+    actorUserId,
     action: 'PROFILE_DOCUMENT_DELETED',
     sectionKey: 'personal_documents',
     assetId,

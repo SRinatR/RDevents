@@ -581,6 +581,38 @@ export const adminApi = {
     return request<any>(`/api/admin/users/${userId}/profile${qs}`, { auth: true });
   },
 
+  updateUserProfileSection: (userId: string, sectionKey: string, body: Record<string, unknown>, eventId?: string) => {
+    const qp = new URLSearchParams();
+    if (eventId) qp.set('eventId', eventId);
+    const qs = qp.toString() ? `?${qp.toString()}` : '';
+    return request<any>(`/api/admin/users/${userId}/profile/sections/${sectionKey}${qs}`, { method: 'PATCH', auth: true, body });
+  },
+
+  uploadUserAvatar: (userId: string, file: File, eventId?: string) => {
+    const qp = new URLSearchParams();
+    if (eventId) qp.set('eventId', eventId);
+    const qs = qp.toString() ? `?${qp.toString()}` : '';
+    const formData = new FormData();
+    formData.append('file', file);
+    return requestForm<any>(`/api/admin/users/${userId}/profile/avatar/upload${qs}`, formData, true);
+  },
+
+  uploadUserProfileDocument: (userId: string, file: File, eventId?: string) => {
+    const qp = new URLSearchParams();
+    if (eventId) qp.set('eventId', eventId);
+    const qs = qp.toString() ? `?${qp.toString()}` : '';
+    const formData = new FormData();
+    formData.append('file', file);
+    return requestForm<any>(`/api/admin/users/${userId}/profile/documents/upload${qs}`, formData, true);
+  },
+
+  deleteUserProfileDocument: (userId: string, assetId: string, eventId?: string) => {
+    const qp = new URLSearchParams();
+    if (eventId) qp.set('eventId', eventId);
+    const qs = qp.toString() ? `?${qp.toString()}` : '';
+    return request<{ ok: boolean }>(`/api/admin/users/${userId}/profile/documents/${assetId}${qs}`, { method: 'DELETE', auth: true });
+  },
+
   exportUsers: async (params?: {
     search?: string;
     role?: string;

@@ -2,13 +2,20 @@
 
 import Image from 'next/image';
 import type { ReactNode } from 'react';
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { adminApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, LoadingLines, MetricCard, PageHeader, Panel, SectionHeader, StatusBadge, TableShell } from '@/components/ui/signal-primitives';
+import { EmptyState, LoadingLines, MetricCard, Notice, PageHeader, Panel, SectionHeader, StatusBadge, TableShell } from '@/components/ui/signal-primitives';
+import { ProfileActivityInfoSection } from '@/components/cabinet/profile/ProfileActivityInfoSection';
+import { ProfileContactDataSection } from '@/components/cabinet/profile/ProfileContactDataSection';
+import { ProfileGeneralInfoSection } from '@/components/cabinet/profile/ProfileGeneralInfoSection';
+import { ProfilePersonalDocumentsSection } from '@/components/cabinet/profile/ProfilePersonalDocumentsSection';
+import { ProfileRegistrationDataSection } from '@/components/cabinet/profile/ProfileRegistrationDataSection';
+import { PROFILE_SECTION_COPY, PROFILE_SECTION_ORDER, getLocaleKey } from '@/components/cabinet/profile/profile.config';
+import type { ProfileDocument, ProfileSectionKey, ProfileSectionState, ProfileSectionStatus } from '@/components/cabinet/profile/profile.types';
 import styles from './page.module.css';
 
 interface UserFullProfile {
@@ -58,6 +65,7 @@ interface UserFullProfile {
       providerEmail: string | null;
       linkedAt: string;
     }>;
+    updatedAt?: string;
   };
   extendedProfile: {
     gender: string | null;
@@ -122,6 +130,12 @@ interface UserFullProfile {
   } | null;
   activityDirections: string[];
   additionalLanguages: string[];
+  documents: ProfileDocument[];
+  profileSectionStates: Array<{
+    sectionKey: ProfileSectionKey;
+    status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+    updatedAt: string;
+  }>;
   avatarHistory: Array<{
     id: string;
     originalFilename: string;
@@ -231,7 +245,7 @@ interface UserFullProfile {
   };
 }
 
-type ProfileTab = 'overview' | 'documents' | 'activity' | 'history';
+type ProfileTab = 'overview' | 'edit' | 'documents' | 'activity' | 'history';
 
 const toneByStatus: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
   ACTIVE: 'success',
@@ -340,6 +354,11 @@ export default function AdminUserFullProfilePage() {
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
+  const [activeEditSection, setActiveEditSection] = useState<ProfileSectionKey>('registration_data');
+  const [savingSection, setSavingSection] = useState<ProfileSectionKey | null>(null);
+  const [editError, setEditError] = useState('');
+  const [editSuccess, setEditSuccess] = useState('');
+  const [profileVersion, setProfileVersion] = useState(0);
   const [revealSensitive, setRevealSensitive] = useState(false);
 
   useEffect(() => {
@@ -348,21 +367,28 @@ export default function AdminUserFullProfilePage() {
     }
   }, [user, loading, isAdmin, router, locale]);
 
-  useEffect(() => {
+  const loadProfile = useCallback(async (showLoading = true) => {
     if (!userId) return;
 
-    setLoadingData(true);
-    adminApi.getUserFullProfile(userId, eventIdParam ?? undefined, { revealSensitive })
+    if (showLoading) setLoadingData(true);
+    await adminApi.getUserFullProfile(userId, eventIdParam ?? undefined, { revealSensitive })
       .then((data) => {
         setProfileData(data as UserFullProfile);
         setError(null);
+        setProfileVersion((value) => value + 1);
       })
       .catch((err) => {
         setError(err instanceof Error ? err.message : t('loadErrorDescription'));
         setProfileData(null);
       })
-      .finally(() => setLoadingData(false));
+      .finally(() => {
+        if (showLoading) setLoadingData(false);
+      });
   }, [userId, eventIdParam, revealSensitive, t]);
+
+  useEffect(() => {
+    void loadProfile(true);
+  }, [loadProfile]);
 
   useEffect(() => {
     setRevealSensitive(false);
@@ -402,6 +428,70 @@ export default function AdminUserFullProfilePage() {
     </span>
   );
 
+  async function saveAdminSection(sectionKey: ProfileSectionKey, payload: Record<string, unknown>) {
+    setSavingSection(sectionKey);
+    setEditError('');
+    setEditSuccess('');
+    try {
+      await adminApi.updateUserProfileSection(userId, sectionKey, payload, eventIdParam ?? undefined);
+      await loadProfile(false);
+      setEditSuccess(locale === 'ru' ? 'Данные профиля сохранены.' : 'Profile data saved.');
+      window.setTimeout(() => setEditSuccess(''), 3000);
+    } catch (err: any) {
+      setEditError(err.message || (locale === 'ru' ? 'Не удалось сохранить профиль.' : 'Failed to save profile.'));
+    } finally {
+      setSavingSection(null);
+    }
+  }
+
+  async function uploadAdminAvatar(file: File) {
+    setSavingSection('registration_data');
+    setEditError('');
+    setEditSuccess('');
+    try {
+      await adminApi.uploadUserAvatar(userId, file, eventIdParam ?? undefined);
+      await loadProfile(false);
+      setEditSuccess(locale === 'ru' ? 'Фото профиля обновлено.' : 'Profile photo updated.');
+      window.setTimeout(() => setEditSuccess(''), 3000);
+    } catch (err: any) {
+      setEditError(err.message || (locale === 'ru' ? 'Не удалось загрузить фото.' : 'Failed to upload photo.'));
+    } finally {
+      setSavingSection(null);
+    }
+  }
+
+  async function uploadAdminDocument(file: File) {
+    setSavingSection('personal_documents');
+    setEditError('');
+    setEditSuccess('');
+    try {
+      await adminApi.uploadUserProfileDocument(userId, file, eventIdParam ?? undefined);
+      await loadProfile(false);
+      setEditSuccess(locale === 'ru' ? 'Документ загружен.' : 'Document uploaded.');
+      window.setTimeout(() => setEditSuccess(''), 3000);
+    } catch (err: any) {
+      setEditError(err.message || (locale === 'ru' ? 'Не удалось загрузить документ.' : 'Failed to upload document.'));
+    } finally {
+      setSavingSection(null);
+    }
+  }
+
+  async function deleteAdminDocument(assetId: string) {
+    setSavingSection('personal_documents');
+    setEditError('');
+    setEditSuccess('');
+    try {
+      await adminApi.deleteUserProfileDocument(userId, assetId, eventIdParam ?? undefined);
+      await loadProfile(false);
+      setEditSuccess(locale === 'ru' ? 'Документ удалён.' : 'Document deleted.');
+      window.setTimeout(() => setEditSuccess(''), 3000);
+    } catch (err: any) {
+      setEditError(err.message || (locale === 'ru' ? 'Не удалось удалить документ.' : 'Failed to delete document.'));
+    } finally {
+      setSavingSection(null);
+    }
+  }
+
   if (loading || !user || !isAdmin) {
     return <div className="admin-loading-screen"><div className="spinner" /></div>;
   }
@@ -440,6 +530,8 @@ export default function AdminUserFullProfilePage() {
     socialLinks,
     activityDirections,
     additionalLanguages,
+    documents,
+    profileSectionStates,
     avatarHistory,
     profileHistory,
     additionalDocuments,
@@ -467,9 +559,33 @@ export default function AdminUserFullProfilePage() {
     (profileCompletenessItems.filter(Boolean).length / profileCompletenessItems.length) * 100
   );
   const canRevealSensitive = profileData.access?.canRevealSensitive && profileData.access.sensitiveMasked;
+  const localeKey = getLocaleKey(locale);
+  const sectionStatusByKey = new Map(profileSectionStates.map((section) => [section.sectionKey, section.status]));
+  const editableSections: ProfileSectionState[] = PROFILE_SECTION_ORDER.map((key) => ({
+    key,
+    title: PROFILE_SECTION_COPY[key].title[localeKey],
+    description: PROFILE_SECTION_COPY[key].description[localeKey],
+    status: sectionStatusByKey.get(key) ?? 'NOT_STARTED',
+  }));
+  const activeSectionState = editableSections.find((section) => section.key === activeEditSection);
+  const editableUser = {
+    ...p,
+    extendedProfile,
+    identityDocument,
+    internationalPassport,
+    socialLinks,
+    additionalDocuments: additionalDocuments.map((document) => ({
+      ...document,
+      assetId: document.asset.id,
+    })),
+    activityDirections: activityDirections.map((direction) => ({ direction })),
+    additionalLanguages: additionalLanguages.map((languageName) => ({ languageName })),
+    emergencyContact,
+  };
 
   const tabItems: Array<{ key: ProfileTab; label: string }> = [
     { key: 'overview', label: t('tabs.overview') },
+    { key: 'edit', label: locale === 'ru' ? 'Редактирование' : 'Edit' },
     { key: 'documents', label: t('tabs.documents') },
     { key: 'activity', label: t('tabs.activity') },
     { key: 'history', label: locale === 'ru' ? 'История' : 'History' },
@@ -617,6 +733,46 @@ export default function AdminUserFullProfilePage() {
           </button>
         ))}
       </div>
+
+      {activeTab === 'edit' && (
+        <Panel variant="elevated" className={`${styles.profileCard} ${styles.fullWidth}`}>
+          <SectionHeader
+            title={locale === 'ru' ? 'Редактирование профиля' : 'Edit Profile'}
+            subtitle={locale === 'ru' ? 'Админ может обновить данные участника, загрузить новое фото и документы. Фото профиля не удаляется, только заменяется.' : 'Admins can update participant data, upload a new photo, and manage documents. Profile photo is replaced, not deleted.'}
+          />
+          {editError ? <Notice tone="danger">{editError}</Notice> : null}
+          {editSuccess ? <Notice tone="success">{editSuccess}</Notice> : null}
+          <div className={styles.editShell}>
+            <div className={styles.editNav} role="tablist" aria-label={locale === 'ru' ? 'Разделы профиля' : 'Profile sections'}>
+              {editableSections.map((section) => (
+                <button
+                  key={section.key}
+                  type="button"
+                  className={activeEditSection === section.key ? styles.editNavActive : ''}
+                  onClick={() => setActiveEditSection(section.key)}
+                >
+                  <strong>{section.title}</strong>
+                  <span>{section.status}</span>
+                </button>
+              ))}
+            </div>
+            <div className={styles.editBody} key={`${activeEditSection}-${profileVersion}`}>
+              {renderEditableProfileSection({
+                activeSection: activeEditSection,
+                locale,
+                user: editableUser,
+                status: activeSectionState?.status ?? 'NOT_STARTED',
+                savingSection,
+                documents: documents ?? [],
+                saveSection: saveAdminSection,
+                uploadAvatar: uploadAdminAvatar,
+                uploadDocument: uploadAdminDocument,
+                deleteDocument: deleteAdminDocument,
+              })}
+            </div>
+          </div>
+        </Panel>
+      )}
 
       {activeTab === 'overview' && (
         <div className={styles.cardGrid}>
@@ -965,5 +1121,101 @@ export default function AdminUserFullProfilePage() {
         </div>
       )}
     </div>
+  );
+}
+
+function renderEditableProfileSection({
+  activeSection,
+  locale,
+  user,
+  status,
+  savingSection,
+  documents,
+  saveSection,
+  uploadAvatar,
+  uploadDocument,
+  deleteDocument,
+}: {
+  activeSection: ProfileSectionKey;
+  locale: string;
+  user: any;
+  status: ProfileSectionStatus;
+  savingSection: ProfileSectionKey | null;
+  documents: ProfileDocument[];
+  saveSection: (section: ProfileSectionKey, payload: Record<string, unknown>) => Promise<void>;
+  uploadAvatar: (file: File) => Promise<void>;
+  uploadDocument: (file: File) => Promise<void>;
+  deleteDocument: (assetId: string) => Promise<void>;
+}) {
+  if (activeSection === 'registration_data') {
+    return (
+      <ProfileRegistrationDataSection
+        locale={locale}
+        user={user}
+        status={status}
+        saving={savingSection === 'registration_data'}
+        requiredFields={[]}
+        eventTitle=""
+        onSave={(payload) => saveSection('registration_data', payload)}
+        onUpload={uploadAvatar}
+      />
+    );
+  }
+
+  if (activeSection === 'general_info') {
+    return (
+      <ProfileGeneralInfoSection
+        locale={locale}
+        user={user}
+        status={status}
+        saving={savingSection === 'general_info'}
+        requiredFields={[]}
+        eventTitle=""
+        onSave={(payload) => saveSection('general_info', payload)}
+      />
+    );
+  }
+
+  if (activeSection === 'personal_documents') {
+    return (
+      <ProfilePersonalDocumentsSection
+        locale={locale}
+        user={user}
+        status={status}
+        saving={savingSection === 'personal_documents'}
+        requiredFields={[]}
+        eventTitle=""
+        documents={documents}
+        onSave={(payload) => saveSection('personal_documents', payload)}
+        onUpload={uploadDocument}
+        onDelete={deleteDocument}
+      />
+    );
+  }
+
+  if (activeSection === 'contact_data') {
+    return (
+      <ProfileContactDataSection
+        locale={locale}
+        user={user}
+        status={status}
+        saving={savingSection === 'contact_data'}
+        requiredFields={[]}
+        eventTitle=""
+        onSave={(payload) => saveSection('contact_data', payload)}
+      />
+    );
+  }
+
+  return (
+    <ProfileActivityInfoSection
+      locale={locale}
+      user={user}
+      status={status}
+      saving={savingSection === 'activity_info'}
+      requiredFields={[]}
+      eventTitle=""
+      onSave={(payload) => saveSection('activity_info', payload)}
+    />
   );
 }
