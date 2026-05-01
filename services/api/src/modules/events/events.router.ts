@@ -334,7 +334,7 @@ eventsRouter.post('/:id/teams/:teamId/join', authenticate, async (req, res) => {
   const user = (req as any).user;
   try {
     const member = await joinTeam(String(req.params['id']), String(req.params['teamId']), user.id, req.body?.code, req.body?.answers);
-    res.status(200).json({ member });
+    res.status(201).json({ member });
   } catch (err: any) {
     sendMappedError(res, err, { EVENT_NOT_AVAILABLE: [400, 'Event is not available for teams'] });
   }

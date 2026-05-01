@@ -13,7 +13,9 @@ import {
   generateAvatarBundle,
   generateCsvContent,
   generateJsonContent,
+  generateXlsxContent,
   type ExportConfig,
+  type ExportFormat,
 } from './exports.service.js';
 import { logger } from '../../common/logger.js';
 import { getManagedEventIds as getRbacManagedEventIds } from '../access-control/access-control.service.js';
@@ -29,11 +31,11 @@ const createPresetSchema = z.object({
   eventId: z.string().nullable(),
   scope: z.enum(['participants', 'volunteers', 'teams', 'team_members', 'all']),
   name: z.string().min(1),
-  format: z.enum(['csv', 'json']),
+  format: z.enum(['csv', 'json', 'xlsx']),
   config: z.object({
     scope: z.string(),
     fields: z.array(z.string()),
-    format: z.string(),
+    format: z.enum(['csv', 'json', 'xlsx']),
     filters: z.object({
       status: z.array(z.string()).optional(),
       hasTeam: z.boolean().optional(),
@@ -48,7 +50,7 @@ const createPresetSchema = z.object({
 
 const runExportSchema = z.object({
   scope: z.enum(['participants', 'volunteers', 'teams', 'team_members', 'all']),
-  format: z.enum(['csv', 'json']),
+  format: z.enum(['csv', 'json', 'xlsx']),
   fields: z.array(z.string()).optional(),
   filters: z.object({
     status: z.array(z.string()).optional(),
@@ -69,7 +71,7 @@ const avatarBundleSchema = z.object({
 
 const exportQuerySchema = z.object({
   scope: z.enum(['participants', 'volunteers', 'teams', 'team_members']).optional().default('participants'),
-  format: z.enum(['csv', 'json']).optional().default('csv'),
+  format: z.enum(['csv', 'json', 'xlsx']).optional().default('csv'),
   status: z.union([z.string(), z.array(z.string())]).optional(),
   hasTeam: z.string().optional(),
   hasPhoto: z.string().optional(),
@@ -106,6 +108,35 @@ function sendAvatarBundle(res: any, bundle: Awaited<ReturnType<typeof generateAv
   res.setHeader('Content-Type', 'application/zip');
   res.setHeader('Content-Disposition', `attachment; filename="${bundle.filename}"`);
   res.send(bundle.buffer);
+}
+
+async function sendTabularExport(
+  res: any,
+  data: Record<string, unknown>[],
+  columns: string[],
+  format: ExportFormat,
+  filenameBase: string
+) {
+  if (format === 'json') {
+    const jsonContent = generateJsonContent(data);
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${filenameBase}.json"`);
+    res.send(jsonContent);
+    return;
+  }
+
+  if (format === 'xlsx') {
+    const xlsxContent = await generateXlsxContent(data, columns);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filenameBase}.xlsx"`);
+    res.send(xlsxContent);
+    return;
+  }
+
+  const csvContent = generateCsvContent(data, columns);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filenameBase}.csv"`);
+  res.send(`\ufeff${csvContent}`);
 }
 
 // GET /api/admin/events/:eventId/exports/presets
@@ -285,19 +316,8 @@ exportsRouter.post('/events/:eventId/exports/run', async (req, res) => {
     data = [];
   }
 
-  if (config.format === 'json') {
-    const jsonContent = generateJsonContent(data);
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', `attachment; filename="export_${eventId}_${config.scope}.json"`);
-    res.send(jsonContent);
-    return;
-  }
-
   const columns = Object.keys(data[0] || {});
-  const csvContent = generateCsvContent(data, columns);
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', `attachment; filename="export_${eventId}_${config.scope}.csv"`);
-  res.send(csvContent);
+  await sendTabularExport(res, data, columns, config.format, `export_${eventId}_${config.scope}`);
 });
 
 // POST /api/admin/events/:eventId/exports/avatar-bundle
@@ -403,8 +423,14 @@ exportsRouter.get('/events/:eventId/exports/:scope', async (req, res) => {
     return;
   }
 
-  const format = (req.query['format'] as string) || 'csv';
-  const filters = parseFilters(req.query as Record<string, unknown>);
+  const parsedQuery = exportQuerySchema.safeParse(req.query);
+  if (!parsedQuery.success) {
+    res.status(400).json({ error: 'Validation failed', details: parsedQuery.error.flatten() });
+    return;
+  }
+
+  const format = parsedQuery.data.format;
+  const filters = parseFilters(parsedQuery.data as Record<string, unknown>);
 
   let data: any[];
   if (scope === 'participants') {
@@ -415,16 +441,6 @@ exportsRouter.get('/events/:eventId/exports/:scope', async (req, res) => {
     data = await exportTeamMembers(eventId, { filters });
   }
 
-  if (format === 'json') {
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', `attachment; filename="export_${eventId}_${scope}.json"`);
-    res.send(JSON.stringify(data, null, 2));
-    return;
-  }
-
   const columns = Object.keys(data[0] || {});
-  const csvContent = generateCsvContent(data, columns);
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="export_${eventId}_${scope}.csv"`);
-  res.send(`\ufeff${csvContent}`);
+  await sendTabularExport(res, data, columns, format, `export_${eventId}_${scope}`);
 });

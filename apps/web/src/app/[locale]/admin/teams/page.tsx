@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
-import { adminApi, adminExportsApi } from '@/lib/api';
+import { adminApi, adminExportsApi, type ExportDownloadFormat } from '@/lib/api';
 import { downloadCsv, formatCsvDate } from '@/lib/exportCsv';
 import { useRouteLocale } from '@/hooks/useRouteParams';
 import { EmptyState, FieldInput, FieldSelect, LoadingLines, PageHeader, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
@@ -39,6 +39,7 @@ export default function AdminTeamsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [exporting, setExporting] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [exportFormat, setExportFormat] = useState<ExportDownloadFormat>('xlsx');
 
   const search = searchParams.get('search') ?? '';
   const eventFilter = searchParams.get('eventId') ?? 'ALL';
@@ -195,31 +196,41 @@ export default function AdminTeamsPage() {
             <option value="ARCHIVED">{locale === 'ru' ? 'Архивные' : 'Archived'}</option>
           </FieldSelect>
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => void handleExportTeams()} disabled={teams.length === 0 || exporting}>
-            {exporting ? (locale === 'ru' ? 'Готовим...' : 'Preparing...') : (locale === 'ru' ? 'Выгрузить CSV' : 'Export CSV')}
+            {exporting ? (locale === 'ru' ? 'Готовим...' : 'Preparing...') : (locale === 'ru' ? 'Текущая таблица CSV' : 'Current table CSV')}
           </button>
           {eventFilter !== 'ALL' && (
             <>
+              <FieldSelect
+                value={exportFormat}
+                onChange={(e) => setExportFormat(e.target.value as ExportDownloadFormat)}
+                className="admin-filter-select"
+                aria-label={locale === 'ru' ? 'Формат полной выгрузки' : 'Full export format'}
+              >
+                <option value="xlsx">XLSX</option>
+                <option value="csv">CSV</option>
+                <option value="json">JSON</option>
+              </FieldSelect>
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
-                onClick={() => void adminExportsApi.downloadTeams(eventFilter, 'csv', {
+                onClick={() => void adminExportsApi.downloadTeams(eventFilter, exportFormat, {
                   ...(statusFilter !== 'ALL' ? { status: [statusFilter] } : {}),
                   includeArchived: statusFilter === 'ARCHIVED',
                   includeRejected: statusFilter === 'REJECTED',
                 })}
               >
-                {locale === 'ru' ? 'Полная выгрузка команд CSV' : 'Full teams CSV'}
+                {locale === 'ru' ? 'Полная выгрузка команд' : 'Full teams export'}
               </button>
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
-                onClick={() => void adminExportsApi.downloadTeamMembers(eventFilter, 'csv', {
+                onClick={() => void adminExportsApi.downloadTeamMembers(eventFilter, exportFormat, {
                   ...(statusFilter !== 'ALL' ? { status: [statusFilter] } : {}),
                   includeArchived: statusFilter === 'ARCHIVED',
                   includeRejected: statusFilter === 'REJECTED',
                 })}
               >
-                {locale === 'ru' ? 'Составы команд CSV' : 'Team members CSV'}
+                {locale === 'ru' ? 'Составы команд' : 'Team members export'}
               </button>
             </>
           )}

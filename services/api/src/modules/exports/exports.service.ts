@@ -5,7 +5,7 @@ import { buildPublicMediaUrl, readStoredFile } from '../../common/storage.js';
 import type { EventTeamStatus } from '@prisma/client';
 
 export type ExportScope = 'participants' | 'volunteers' | 'teams' | 'team_members' | 'all';
-export type ExportFormat = 'csv' | 'json';
+export type ExportFormat = 'csv' | 'json' | 'xlsx';
 
 export interface ExportConfig {
   scope: ExportScope;
@@ -813,6 +813,96 @@ export function generateCsvContent(data: Record<string, unknown>[], columns: str
     }).join(',')
   );
   return [header, ...rows].join('\n');
+}
+
+function sanitizeXmlText(value: string) {
+  return value
+    .split('')
+    .map(char => {
+      const code = char.charCodeAt(0);
+      return code === 9 || code === 10 || code === 13 || code >= 32 ? char : ' ';
+    })
+    .join('')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function columnName(index: number) {
+  let value = index + 1;
+  let name = '';
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    name = String.fromCharCode(65 + remainder) + name;
+    value = Math.floor((value - 1) / 26);
+  }
+  return name;
+}
+
+function toInlineStringCell(value: unknown, rowIndex: number, columnIndex: number) {
+  const cellRef = `${columnName(columnIndex)}${rowIndex}`;
+  if (value === null || value === undefined) {
+    return `<c r="${cellRef}" t="inlineStr"><is><t></t></is></c>`;
+  }
+  return `<c r="${cellRef}" t="inlineStr"><is><t xml:space="preserve">${sanitizeXmlText(String(value))}</t></is></c>`;
+}
+
+export async function generateXlsxContent(data: Record<string, unknown>[], columns: string[]): Promise<Buffer> {
+  const zip = new JSZip();
+  const rowCount = Math.max(data.length + 1, 1);
+  const columnCount = Math.max(columns.length, 1);
+  const dimension = `A1:${columnName(columnCount - 1)}${rowCount}`;
+  const headerRow = columns.length > 0
+    ? `<row r="1">${columns.map((column, index) => toInlineStringCell(column, 1, index)).join('')}</row>`
+    : '<row r="1"></row>';
+  const dataRows = data.map((row, rowIndex) => {
+    const excelRowIndex = rowIndex + 2;
+    return `<row r="${excelRowIndex}">${columns.map((column, columnIndex) => toInlineStringCell(row[column], excelRowIndex, columnIndex)).join('')}</row>`;
+  });
+
+  zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>`);
+  zip.file('_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`);
+  zip.file('xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="Export" sheetId="1" r:id="rId1"/>
+  </sheets>
+</workbook>`);
+  zip.file('xl/_rels/workbook.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`);
+  zip.file('xl/styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>
+  <fills count="1"><fill><patternFill patternType="none"/></fill></fills>
+  <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>
+  <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`);
+  zip.file('xl/worksheets/sheet1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <dimension ref="${dimension}"/>
+  <sheetViews><sheetView workbookViewId="0"/></sheetViews>
+  <sheetFormatPr defaultRowHeight="15"/>
+  <sheetData>${headerRow}${dataRows.join('')}</sheetData>
+</worksheet>`);
+
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
 
 export function generateJsonContent(data: Record<string, unknown>[]): string {

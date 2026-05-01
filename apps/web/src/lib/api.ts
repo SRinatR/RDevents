@@ -1195,7 +1195,9 @@ export interface ExportFilters {
   includeRemoved?: boolean;
 }
 
-export function buildExportUrl(eventId: string, scope: string, format = 'csv', filters?: ExportFilters): string {
+export type ExportDownloadFormat = 'xlsx' | 'csv' | 'json';
+
+export function buildExportUrl(eventId: string, scope: string, format: ExportDownloadFormat = 'xlsx', filters?: ExportFilters): string {
   const params = new URLSearchParams();
   params.set('format', format);
   if (filters) {
@@ -1210,7 +1212,7 @@ export function buildExportUrl(eventId: string, scope: string, format = 'csv', f
   return `${BASE_URL}/api/admin/exports/events/${eventId}/exports/${scope}?${params.toString()}`;
 }
 
-function buildExportPath(eventId: string, scope: string, format = 'csv', filters?: ExportFilters): string {
+function buildExportPath(eventId: string, scope: string, format: ExportDownloadFormat = 'xlsx', filters?: ExportFilters): string {
   const params = new URLSearchParams();
   params.set('format', format);
   if (filters) {
@@ -1226,13 +1228,13 @@ function buildExportPath(eventId: string, scope: string, format = 'csv', filters
 }
 
 export const adminExportsApi = {
-  downloadParticipants: async (eventId: string, format = 'csv', filters?: ExportFilters) => {
+  downloadParticipants: async (eventId: string, format: ExportDownloadFormat = 'xlsx', filters?: ExportFilters) => {
     await downloadWithAuth(buildExportPath(eventId, 'participants', format, filters), `export_${eventId}_participants.${format}`);
   },
-  downloadTeams: async (eventId: string, format = 'csv', filters?: ExportFilters) => {
+  downloadTeams: async (eventId: string, format: ExportDownloadFormat = 'xlsx', filters?: ExportFilters) => {
     await downloadWithAuth(buildExportPath(eventId, 'teams', format, filters), `export_${eventId}_teams.${format}`);
   },
-  downloadTeamMembers: async (eventId: string, format = 'csv', filters?: ExportFilters) => {
+  downloadTeamMembers: async (eventId: string, format: ExportDownloadFormat = 'xlsx', filters?: ExportFilters) => {
     await downloadWithAuth(buildExportPath(eventId, 'team_members', format, filters), `export_${eventId}_team_members.${format}`);
   },
   downloadAvatarBundle: async (eventId: string, options?: { includeApprovedOnly?: boolean; includeTeamsOnly?: boolean; includeVolunteers?: boolean }) => {
