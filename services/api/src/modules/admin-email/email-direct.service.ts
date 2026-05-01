@@ -121,6 +121,17 @@ export async function previewManualRecipients(input: {
   const skipped: RecipientPreview[] = [];
 
   for (const userId of selectedIds) {
+    if (userId.startsWith('prefill-')) {
+      skipped.push({
+        userId,
+        email: '',
+        name: '',
+        status: 'SKIPPED_USER_NOT_FOUND',
+        reason: 'Получатель передан без реального User ID. Найдите пользователя через поиск и выберите его из списка.',
+      });
+      continue;
+    }
+
     if (excludedIds.has(userId)) {
       skipped.push({
         userId,
@@ -197,9 +208,10 @@ export async function previewManualRecipients(input: {
 
 export async function sendDirectEmailToUsers(input: DirectEmailInput): Promise<SendDirectEmailResult> {
   assertDirectEmailInput(input);
+  const selectedUserIds = input.selectedUserIds.filter(id => !id.startsWith('prefill-'));
 
   const { recipients, skipped } = await previewManualRecipients({
-    selectedUserIds: input.selectedUserIds,
+    selectedUserIds,
     excludedUserIds: input.excludedUserIds ?? [],
     emailType: input.emailType,
     respectConsent: input.respectConsent,
