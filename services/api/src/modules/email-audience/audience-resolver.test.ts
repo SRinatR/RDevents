@@ -359,4 +359,37 @@ describe('audience-resolver skip reasons', () => {
       expect(result.skippedByReason['SKIPPED_SUPPRESSED']).toBe(1);
     });
   });
+
+  describe('manual selection prefill contacts', () => {
+    it('marks prefill recipient as PREFILL_CONTACT', async () => {
+      vi.mocked(prisma.user.findMany).mockResolvedValue([] as any);
+      vi.mocked(prisma.emailSuppression.findMany).mockResolvedValue([]);
+      const { resolveAudience } = await import('./audience-resolver.service.js');
+      const result = await resolveAudience({
+        broadcastType: 'MARKETING',
+        audienceSource: 'MANUAL_SELECTION',
+        audienceFilterJson: {
+          selectedUserIds: ['prefill-1'],
+          prefillContacts: [{ id: 'prefill-1', email: 'prefill@example.com', name: 'Prefill User' }],
+        },
+      });
+      expect(result.items[0].recipientKind).toBe('PREFILL_CONTACT');
+      expect(result.items[0].status).toBe('QUEUED');
+    });
+
+    it('prefill without email is NO_EMAIL', async () => {
+      vi.mocked(prisma.user.findMany).mockResolvedValue([] as any);
+      vi.mocked(prisma.emailSuppression.findMany).mockResolvedValue([]);
+      const { resolveAudience } = await import('./audience-resolver.service.js');
+      const result = await resolveAudience({
+        broadcastType: 'MARKETING',
+        audienceSource: 'MANUAL_SELECTION',
+        audienceFilterJson: {
+          selectedUserIds: ['prefill-1'],
+          prefillContacts: [{ id: 'prefill-1', name: 'No Email Prefill' }],
+        },
+      });
+      expect(result.items[0].skipReasonCode).toBe('NO_EMAIL');
+    });
+  });
 });

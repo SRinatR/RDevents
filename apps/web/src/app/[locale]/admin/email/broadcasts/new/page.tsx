@@ -28,6 +28,9 @@ type BroadcastFormState = {
   timezone: string;
   testEmail: string;
   internalNotes: string;
+  selectedUserIds: string[];
+  userSearch: string;
+  prefillContacts: Array<{ id: string; email?: string; name?: string; phone?: string }>;
 };
 
 const emptyForm: BroadcastFormState = {
@@ -59,6 +62,9 @@ const emptyForm: BroadcastFormState = {
   timezone: 'Asia/Tashkent',
   testEmail: '',
   internalNotes: '',
+  selectedUserIds: [],
+  userSearch: '',
+  prefillContacts: [],
 };
 
 function buildAudienceFilterJson(form: BroadcastFormState) {
@@ -78,6 +84,17 @@ function buildAudienceFilterJson(form: BroadcastFormState) {
 
   if (form.teamMembership !== 'ANY') {
     filter.teamMembership = form.teamMembership;
+  }
+  if (form.audienceSource === 'event_teams') {
+    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const teamId = params?.get('teamId');
+    if (teamId) filter.teamId = teamId;
+    if (form.memberRoles.length) filter.teamRoles = form.memberRoles;
+    filter.teamMemberStatuses = form.memberStatuses;
+  }
+  if (form.audienceSource === 'manual_selection') {
+    filter.selectedUserIds = form.selectedUserIds;
+    filter.prefillContacts = form.prefillContacts;
   }
 
   return filter;
@@ -111,6 +128,24 @@ const stepLabels = {
   4: { ru: 'Предпросмотр', en: 'Preview' },
   5: { ru: 'Отправка', en: 'Delivery' },
 };
+function formatSkipReason(value: string | null | undefined, locale: string) {
+  const map: Record<string, { ru: string; en: string }> = {
+    NO_EMAIL: { ru: 'Нет email', en: 'No email' },
+    INVALID_EMAIL: { ru: 'Неверный email', en: 'Invalid email' },
+    EMAIL_NOT_VERIFIED: { ru: 'Email не подтверждён', en: 'Email not verified' },
+    NO_MARKETING_CONSENT: { ru: 'Нет согласия на рассылку', en: 'No marketing consent' },
+    USER_DISABLED: { ru: 'Пользователь отключён', en: 'User disabled' },
+    PARTICIPANT_NOT_ACTIVE: { ru: 'Участник неактивен', en: 'Participant not active' },
+    TEAM_ARCHIVED: { ru: 'Команда в архиве', en: 'Team archived' },
+    DUPLICATE_RECIPIENT: { ru: 'Дубликат получателя', en: 'Duplicate recipient' },
+    UNSUBSCRIBED: { ru: 'Отписан', en: 'Unsubscribed' },
+    SUPPRESSED_EMAIL: { ru: 'Email в suppression-листе', en: 'Suppressed email' },
+    MISSING_TEMPLATE_VARIABLE: { ru: 'Отсутствует переменная шаблона', en: 'Missing template variable' },
+    UNKNOWN_ERROR: { ru: 'Неизвестная ошибка', en: 'Unknown error' },
+  };
+  const key = String(value ?? '').trim();
+  return (map[key]?.[locale === 'ru' ? 'ru' : 'en']) || key || '—';
+}
 
 export default function NewEmailBroadcastPage() {
   const locale = useRouteLocale();
@@ -128,6 +163,7 @@ export default function NewEmailBroadcastPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [userSearchResults, setUserSearchResults] = useState<any[]>([]);
   const [previewRecipientId, setPreviewRecipientId] = useState<string>('');
   const broadcastId = searchParams.get('broadcastId');
 
@@ -185,6 +221,13 @@ export default function NewEmailBroadcastPage() {
       htmlBody: template.htmlBody ?? prev.htmlBody,
     }));
   }, [templates]);
+
+  const searchUsers = useCallback(async () => {
+    const q = form.userSearch.trim();
+    if (!q) return setUserSearchResults([]);
+    const res = await adminApi.searchUsers({ q, eventId: form.eventId || undefined, limit: 20 });
+    setUserSearchResults(res.users ?? []);
+  }, [form.userSearch, form.eventId]);
 
   const loadEstimate = useCallback(async () => {
     if (!form.subject.trim() || (!form.textBody.trim() && !form.htmlBody.trim())) {
@@ -455,8 +498,18 @@ export default function NewEmailBroadcastPage() {
                 <option value="static_filter">{locale === 'ru' ? 'Статический фильтр' : 'Static filter'}</option>
                 <option value="event_participants">{locale === 'ru' ? 'Участники события' : 'Event participants'}</option>
                 <option value="event_teams">{locale === 'ru' ? 'Команды события' : 'Event teams'}</option>
+                <option value="manual_selection">{locale === 'ru' ? 'Конкретные пользователи' : 'Specific users'}</option>
               </FieldSelect>
             </label>
+            {form.audienceSource === 'manual_selection' && (
+              <>
+                <label className="admin-email-form-wide">
+                  <span>{locale === 'ru' ? 'Поиск пользователей' : 'User search'}</span>
+                  <FieldInput value={form.userSearch} onChange={(e) => updateForm({ userSearch: e.target.value })} placeholder={locale === 'ru' ? 'Имя / email / phone / ID / team code' : 'Name / email / phone / ID / team code'} />
+                </label>
+                <button className="btn btn-secondary btn-sm" type="button" onClick={() => void searchUsers()}>{locale === 'ru' ? 'Найти' : 'Search'}</button>
+              </>
+            )}
 
             <label>
               <span>{locale === 'ru' ? 'Тип аудитории' : 'Audience kind'}</span>
@@ -527,6 +580,14 @@ export default function NewEmailBroadcastPage() {
               </>
             )}
           </div>
+          {form.audienceSource === 'manual_selection' && userSearchResults.length > 0 && (
+            <TableShell>
+              <table className="signal-table">
+                <thead><tr><th>Photo</th><th>{locale === 'ru' ? 'ФИО' : 'Full name'}</th><th>Email</th><th>{locale === 'ru' ? 'Телефон' : 'Phone'}</th><th>Team</th><th>{locale === 'ru' ? 'Статус' : 'Status'}</th><th>✓</th></tr></thead>
+                <tbody>{userSearchResults.map((u:any) => <tr key={u.id}><td>{u.avatarUrl ? <img src={u.avatarUrl} alt="" style={{width:24,height:24,borderRadius:999}}/>:'—'}</td><td>{u.name}</td><td>{u.email}</td><td>{u.phone||'—'}</td><td>{u.eventMembership?.teamCode || '—'}</td><td>{u.eventMembership?.status || (u.isActive ? 'ACTIVE':'INACTIVE')}</td><td><input type="checkbox" checked={form.selectedUserIds.includes(u.id)} onChange={(e)=>updateForm({selectedUserIds: e.target.checked ? [...form.selectedUserIds,u.id] : form.selectedUserIds.filter(x=>x!==u.id)})}/></td></tr>)}</tbody>
+              </table>
+            </TableShell>
+          )}
 
           <div className="signal-row-actions" style={{ marginTop: '1.5rem' }}>
             <button className="btn btn-secondary btn-sm" disabled={loadingEstimate} onClick={() => void loadEstimate()}>
@@ -671,7 +732,7 @@ export default function NewEmailBroadcastPage() {
               <TableShell>
                 <table className="signal-table">
                   <thead><tr><th>Photo</th><th>{locale === 'ru' ? 'Имя' : 'Full name'}</th><th>Email</th><th>{locale === 'ru' ? 'Телефон' : 'Phone'}</th><th>{locale === 'ru' ? 'Роль' : 'Role'}</th><th>{locale === 'ru' ? 'Статус' : 'Status'}</th><th>{locale === 'ru' ? 'Причина' : 'Reason'}</th></tr></thead>
-                  <tbody>{audiencePreview.data.map((r: any, idx: number) => <tr key={r.recipientId ?? idx}><td>{r.avatarUrl ? <img src={r.avatarUrl} alt="" style={{ width: 24, height: 24, borderRadius: 999 }} /> : '—'}</td><td>{r.name || r.fullName || '—'}</td><td>{r.email || '—'}</td><td>{r.phone || '—'}</td><td>{r.role || '—'}</td><td>{r.deliveryStatus || r.status}</td><td>{r.skipReasonCode || r.skipReason || '—'}</td></tr>)}</tbody>
+                  <tbody>{audiencePreview.data.map((r: any, idx: number) => <tr key={r.recipientId ?? idx}><td>{r.avatarUrl ? <img src={r.avatarUrl} alt="" style={{ width: 24, height: 24, borderRadius: 999 }} /> : '—'}</td><td>{r.name || r.fullName || '—'}</td><td>{r.email || '—'}</td><td>{r.phone || '—'}</td><td>{r.role || '—'}</td><td>{r.deliveryStatus || r.status}</td><td>{formatSkipReason(r.skipReasonCode || r.skipReason, locale)}</td></tr>)}</tbody>
                 </table>
               </TableShell>
             </Panel>
