@@ -332,6 +332,17 @@ export const eventsApi = {
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
 export const adminApi = {
+  listAuditLogs: (params?: { search?: string; action?: string; limit?: number }) => {
+    const entries: [string, string][] = [];
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined && value !== '') entries.push([key, String(value)]);
+      }
+    }
+    const qs = entries.length ? '?' + new URLSearchParams(entries).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/audit${qs}`, { auth: true });
+  },
+
   listEvents: (params?: Record<string, string | number>) => {
     const qs = params ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
     return request<{ data: any[]; meta: any }>(`/api/admin/events${qs}`, { auth: true });

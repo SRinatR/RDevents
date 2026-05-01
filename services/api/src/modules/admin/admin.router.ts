@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { requireAuth, requireSuperAdmin } from '../../common/middleware.js';
+import { AuditAction, Prisma } from '@prisma/client';
+import { requireAuth, requirePlatformAdmin, requireSuperAdmin } from '../../common/middleware.js';
 import { prisma } from '../../db/prisma.js';
 
 import { adminEventsRouter } from './events.router.js';
@@ -17,6 +18,7 @@ import { organizationMapRouter } from '../organization-map/organization-map.rout
 import { accessControlRouter } from '../access-control/access-control.router.js';
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
+const AUDIT_ACTION_VALUES = new Set<string>(Object.values(AuditAction));
 
 export const adminRouter = Router();
 
@@ -41,6 +43,73 @@ adminRouter.use('/users', adminUsersRouter);
 
 // Analytics routes on /analytics prefix
 adminRouter.use('/analytics', adminAnalyticsRouter);
+
+// GET /api/admin/audit - real platform audit log entries
+adminRouter.get('/audit', requirePlatformAdmin, async (req, res) => {
+  const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+  const action = typeof req.query.action === 'string' ? req.query.action.trim() : '';
+  const limitValue = Number(req.query.limit ?? 100);
+  const limit = Number.isFinite(limitValue) ? Math.min(Math.max(Math.trunc(limitValue), 1), 250) : 100;
+
+  if (action && !AUDIT_ACTION_VALUES.has(action)) {
+    res.status(400).json({ error: 'Invalid audit action' });
+    return;
+  }
+
+  const where: Prisma.AuditLogWhereInput = {};
+
+  if (action) {
+    where.action = action as AuditAction;
+  }
+
+  if (search) {
+    const normalizedAction = search.toUpperCase().replace(/\s+/g, '_');
+    const or: Prisma.AuditLogWhereInput[] = [
+      { actor: { is: { email: { contains: search, mode: 'insensitive' } } } },
+      { targetUser: { is: { email: { contains: search, mode: 'insensitive' } } } },
+      { workspaceId: { contains: search } },
+      { eventId: { contains: search } },
+      { targetUserId: { contains: search } },
+      { requestId: { contains: search } },
+    ];
+
+    if (AUDIT_ACTION_VALUES.has(normalizedAction)) {
+      or.push({ action: normalizedAction as AuditAction });
+    }
+
+    where.OR = or;
+  }
+
+  const logs = await prisma.auditLog.findMany({
+    where,
+    include: {
+      actor: { select: { id: true, email: true, name: true } },
+      targetUser: { select: { id: true, email: true, name: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+  });
+
+  res.json({
+    data: logs.map((log) => {
+      const entity = log.eventId ? 'Event' : log.workspaceId ? 'Workspace' : log.targetUserId ? 'User' : 'System';
+      const entityId = log.eventId ?? log.workspaceId ?? log.targetUserId ?? log.id;
+
+      return {
+        id: log.id,
+        actor: log.actor?.email ?? 'system',
+        actorName: log.actor?.name ?? null,
+        action: log.action,
+        entity,
+        entityId,
+        targetUserEmail: log.targetUser?.email ?? null,
+        timestamp: log.createdAt.toISOString(),
+        status: 'success',
+      };
+    }),
+    meta: { limit, total: logs.length },
+  });
+});
 
 // GET /api/admin/admins - список всех админов (platform + event admins)
 adminRouter.get('/admins', requireSuperAdmin, async (_req, res) => {

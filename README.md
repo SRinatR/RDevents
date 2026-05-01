@@ -159,7 +159,7 @@ CREATE USER event_platform_user WITH PASSWORD 'event_platform_password';
 GRANT ALL PRIVILEGES ON DATABASE event_platform TO event_platform_user;
 ```
 
-### 4. Применение миграций и seed данных
+### 4. Применение миграций и локальных seed данных
 
 ```bash
 # Генерация Prisma Client
@@ -168,18 +168,19 @@ pnpm db:generate
 # Применение схемы к БД (для разработки используйте db:push)
 pnpm db:push
 
-# Наполнение тестовыми данными
+# Наполнение локальной БД мок-пользователями, демо-событием и справочниками
 pnpm db:seed
 ```
 
-Seed создаст:
-- **Super Admin**: admin@example.com / Admin123!
-- **10 событий** (различные категории, solo и team-based)
-- **6+ тестовых пользователей**
-- Команды и memberships
-- Заявки на волонтерство
-- Event admin assignments
-- Analytics events
+Seed предназначен только для локальной разработки. В `NODE_ENV=production`
+он отказывается запускаться.
+
+Локальный seed создаст:
+- **Super Admin**: admin@example.com / admin123
+- **Platform Admin**: platform@example.com / platform123
+- **Event Admin**: organizer@example.com / organizer123
+- демо-пользователей для регистраций, статусов, social auth и аналитики
+- демо-событие `dom-gde-zhivet-rossiya`
 
 ### 5. Запуск в режиме разработки
 
@@ -213,18 +214,33 @@ docker compose logs -f
 docker compose down
 ```
 
-## 🧪 Тестовые аккаунты
+## 🧹 Очистка мок-данных в production
 
-После выполнения `pnpm db:seed`:
+Production deploy после миграций запускает `pnpm db:cleanup-mock`: старые
+`demo/example` аккаунты и seeded event `dom-gde-zhivet-rossiya` удаляются, а
+`rinat200355@gmail.com` переводится в `SUPER_ADMIN`.
 
-| Email | Password | Role | Описание |
-|-------|----------|------|----------|
-| admin@example.com | Admin123! | SUPER_ADMIN | Полный доступ |
-| alice@example.com | Alice123! | USER | Обычный пользователь, участник событий |
-| bob@example.com | Bob123! | USER | Участник и капитан команды |
-| carol@example.com | Carol123! | USER | Волонтер (одобренный) |
-| dave@example.com | Dave123! | USER | Event admin (FITVIBE) |
-| eve@example.com | Eve123! | USER | Волонтер (pending) |
+Ручной запуск для production:
+
+```bash
+NODE_ENV=production SUPER_ADMIN_EMAIL=rinat200355@gmail.com pnpm db:cleanup-mock
+```
+
+Команда не создаёт пользователя: аккаунт должен уже существовать. В локальной
+среде она специально не запускается без `ALLOW_NON_PROD_MOCK_CLEANUP=true`.
+Если нужно удалить дополнительные старые демо-события в production, передайте
+их slug через `CLEANUP_MOCK_EVENT_SLUGS`:
+
+```bash
+NODE_ENV=production CLEANUP_MOCK_EVENT_SLUGS=old-demo-event pnpm db:cleanup-mock
+```
+
+Если seeded event нужно временно оставить в production, можно явно отключить
+default event cleanup:
+
+```bash
+NODE_ENV=production CLEANUP_DEFAULT_MOCK_EVENTS=false pnpm db:cleanup-mock
+```
 
 ## 📚 Основные команды
 
@@ -234,7 +250,8 @@ docker compose down
 pnpm db:generate    # Генерация Prisma Client
 pnpm db:push        # Применение схемы к БД (dev)
 pnpm db:migrate     # Создание и применение миграций (prod)
-pnpm db:seed        # Наполнение тестовыми данными
+pnpm db:seed        # Наполнение локальной БД мок/seed данными
+pnpm db:cleanup-mock # Production-only очистка старых demo/example аккаунтов
 pnpm db:studio      # Открыть Prisma Studio (GUI для БД)
 ```
 
