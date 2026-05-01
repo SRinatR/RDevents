@@ -407,7 +407,7 @@ export async function resolveAudience(input: ResolveAudienceInput): Promise<Audi
       status,
       skipReasonCode,
       skipReasonText,
-      skipReason: skipReasonText,
+      skipReason: skipReasonText ?? undefined,
       consentSnapshot: consentSnap,
       variables,
       audienceReason: user.audienceReason,

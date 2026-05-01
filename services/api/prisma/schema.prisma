@@ -454,6 +454,14 @@ enum EmailAudienceSource {
   SYSTEM
 }
 
+enum EmailRecipientKind {
+  USER
+  EVENT_MEMBER
+  TEAM_MEMBER
+  PREFILL_CONTACT
+  MANUAL_EMAIL
+}
+
 enum EmailBroadcastEventType {
   CREATED
   UPDATED
@@ -1666,11 +1674,17 @@ model EmailBroadcast {
 model EmailBroadcastRecipient {
   id                    String               @id @default(cuid())
   broadcastId           String
+  recipientKind         EmailRecipientKind    @default(USER)
   userId                String?
+  eventMemberId         String?
+  teamMemberId          String?
+  prefillContactId      String?
   email                 String               @db.Citext
   normalizedEmail       String               @db.Citext
   name                  String?
+  phone                 String?
   status                EmailRecipientStatus @default(MATCHED)
+  skipReasonCode        String?
   skipReason            String?              @db.Text
   failureReason         String?              @db.Text
   consentSnapshotJson   Json?

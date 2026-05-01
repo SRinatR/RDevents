@@ -364,6 +364,33 @@ adminEmailRouter.post('/test-send', withErrorHandler(async (req, res) => {
   res.json(await sendTestEmail(parsed.data, user));
 }));
 
+adminEmailRouter.post('/broadcasts/:id/audience-preview', withErrorHandler(async (req, res) => {
+  const body = audienceEstimateSchema.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: 'Invalid request body', details: body.error.flatten() });
+  const user = (req as AuthenticatedRequest).user;
+  const result = await previewEmailAudience(body.data, { page: 1, limit: 200 }, user);
+  res.json({
+    totalSelected: result.totals.totalMatched,
+    willSend: result.totals.totalEligible,
+    skipped: result.totals.totalSkipped,
+    skippedByReason: result.totals.skippedByReason,
+    recipients: result.data,
+  });
+}));
+
+adminEmailRouter.post('/broadcasts/:id/preview', withErrorHandler(async (req, res) => {
+  const parsed = emailPreviewSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
+  res.json(await previewEmailContent(parsed.data));
+}));
+
+adminEmailRouter.post('/broadcasts/:id/send-test', withErrorHandler(async (req, res) => {
+  const parsed = emailTestSendSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
+  const user = (req as AuthenticatedRequest).user;
+  res.json(await sendTestEmail(parsed.data, user));
+}));
+
 // ─── GET /api/admin/email/automations ─────────────────────────────────────────
 
 adminEmailRouter.get('/automations', withErrorHandler(async (req, res) => {

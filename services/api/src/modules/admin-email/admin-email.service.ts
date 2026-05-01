@@ -713,11 +713,17 @@ export async function createEmailBroadcastSnapshot(id: string, actor?: User): Pr
       await tx.emailBroadcastRecipient.create({
         data: {
           broadcastId: id,
+          recipientKind: (item.recipientKind ?? 'USER') as any,
           userId: item.userId ?? null,
+          eventMemberId: item.eventMemberId ?? null,
+          teamMemberId: item.teamMemberId ?? null,
+          prefillContactId: item.prefillContactId ?? null,
           email: item.email ?? '',
           normalizedEmail: item.normalizedEmail ?? `missing-${item.userId ?? Date.now()}`,
           name: item.name ?? null,
+          phone: item.phone ?? null,
           status: item.eligible ? 'QUEUED' as any : item.deliveryStatus as any,
+          skipReasonCode: item.skipReasonCode ?? null,
           skipReason: item.skipReasonText ?? null,
           consentSnapshotJson: item.consentSnapshot as any,
           variablesSnapshotJson: item.variables as any,
@@ -860,10 +866,16 @@ export async function listEmailBroadcastRecipients(id: string, query: EmailRecip
   return {
     data: rows.map(row => ({
       id: row.id,
+      recipientKind: row.recipientKind,
       userId: row.userId,
+      eventMemberId: row.eventMemberId,
+      teamMemberId: row.teamMemberId,
+      prefillContactId: row.prefillContactId,
       email: row.email,
       name: row.name,
+      phone: row.phone,
       status: row.status,
+      skipReasonCode: row.skipReasonCode,
       skipReason: row.skipReason,
       failureReason: row.failureReason,
       provider: row.provider,
@@ -994,18 +1006,19 @@ export async function previewEmailContent(input: EmailPreviewInput) {
 
 export async function sendTestEmail(input: EmailTestSendInput, actor?: User) {
   if (!isPlatformAdmin(actor)) throw new Error('FORBIDDEN');
+  const toEmail = input.toEmail ?? input.email ?? 'admin@example.com';
   const since = new Date(Date.now() - 60 * 60 * 1000);
-  const sentRecently = await prisma.emailMessage.count({ where: { source: 'ADMIN_TEST' as any, toEmail: input.toEmail, createdAt: { gte: since } } });
+  const sentRecently = await prisma.emailMessage.count({ where: { source: 'ADMIN_TEST' as any, toEmail, createdAt: { gte: since } } });
   if (sentRecently >= EMAIL_TEST_SEND_RATE_LIMIT_PER_HOUR) throw new Error('EMAIL_TEST_SEND_RATE_LIMITED');
   const preview = await previewEmailContent({
-    subject: input.subject,
+    subject: input.subject ?? 'Test broadcast',
     preheader: input.preheader,
-    textBody: input.textBody,
-    htmlBody: input.htmlBody,
-    sampleVariables: { name: 'Admin', email: input.toEmail, unsubscribeUrl: `${env.APP_URL}/ru/unsubscribe?token=test` },
+    textBody: input.textBody ?? 'Test',
+    htmlBody: input.htmlBody ?? '<p>Test</p>',
+    sampleVariables: { name: 'Admin', email: toEmail, unsubscribeUrl: `${env.APP_URL}/ru/unsubscribe?token=test` },
   });
-  await sendPlatformEmail({ to: input.toEmail, subject: preview.subjectPreview, text: preview.textPreview, html: preview.htmlPreview, source: 'admin_test' });
-  return { ok: true, toEmail: input.toEmail, warnings: preview.warnings };
+  await sendPlatformEmail({ to: toEmail, subject: preview.subjectPreview, text: preview.textPreview, html: preview.htmlPreview, source: 'admin_test' });
+  return { ok: true, toEmail, warnings: preview.warnings };
 }
 
 async function recipientStillEligible(broadcast: any, recipient: any) {
