@@ -30,6 +30,7 @@ export type AudiencePreviewItem = {
   firstName?: string | null;
   lastName?: string | null;
   avatarUrl?: string | null;
+  eventId?: string | null;
   teamId?: string | null;
   teamName?: string | null;
   role?: string | null;
@@ -321,6 +322,10 @@ async function resolveCandidates(input: ResolveAudienceInput) {
   }
   if (source === 'MANUAL_SELECTION') {
     const selectedIds = toArray((filter as any)?.selectedUserIds ?? (filter as any)?.recipientIds);
+    const manualEmails = [
+      ...toArray((filter as any)?.emails),
+      ...toArray((filter as any)?.manualEmails),
+    ];
     const prefillContacts: PrefillContact[] = Array.isArray((filter as any)?.prefillContacts)
       ? (filter as any).prefillContacts
       : [];
@@ -330,7 +335,7 @@ async function resolveCandidates(input: ResolveAudienceInput) {
       ? await prisma.user.findMany({ where: { id: { in: userIds } }, select: userSelect() as any })
       : [];
     const usersById = new Map(users.map((u: any) => [u.id, u]));
-    return selectedIds.map((id) => {
+    const selectedRecipients = selectedIds.map((id) => {
       if (id.startsWith('prefill-')) {
         const p = prefillById.get(id) ?? prefillById.get(id.replace(/^prefill-/, ''));
         return {
@@ -360,6 +365,18 @@ async function resolveCandidates(input: ResolveAudienceInput) {
         audienceReason: { matchedBy: 'manualSelectionUnknown' },
       };
     });
+    const emailRecipients = manualEmails.map((email, idx) => ({
+      id: `manual-email-${idx}`,
+      recipientId: `manual-email-${idx}`,
+      recipientKind: 'MANUAL_EMAIL' as const,
+      email,
+      name: email,
+      city: null,
+      isActive: true,
+      emailVerifiedAt: new Date(),
+      audienceReason: { matchedBy: 'manualSelectionEmail' },
+    }));
+    return [...selectedRecipients, ...emailRecipients];
   }
   if (source === 'MANUAL_EMAIL') {
     const items = toArray(filter?.emails).map(email => ({ email }));
@@ -474,6 +491,7 @@ export async function resolveAudience(input: ResolveAudienceInput): Promise<Audi
       teamName: (user as any).audienceReason?.teamName ?? null,
       teamCode: (user as any).audienceReason?.teamCode ?? null,
       role: (user as any).audienceReason?.teamRole ?? null,
+      eventId: (user as any).audienceReason?.eventId ?? null,
     };
   });
 

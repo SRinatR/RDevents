@@ -463,7 +463,7 @@ export default function AdminTeamDetailsPage() {
                   <td>
                     <FieldSelect
                       value={member.status}
-                      onChange={(event) => void handleMemberStatus(member, event.target.value as TeamMemberStatus)}
+                      onChange={(event) => { event.stopPropagation(); void handleMemberStatus(member, event.target.value as TeamMemberStatus); }}
                       disabled={saving}
                     >
                       {memberStatuses.map((status) => <option key={status} value={status}>{formatMemberStatus(status, locale)}</option>)}
@@ -488,7 +488,7 @@ export default function AdminTeamDetailsPage() {
                         type="button"
                         className="btn btn-ghost btn-sm"
                         disabled={saving || member.userId === team.captainUserId}
-                        onClick={() => void handleTransferCaptain(member)}
+                        onClick={(e) => { e.stopPropagation(); void handleTransferCaptain(member); }}
                       >
                         {isRu ? 'Капитан' : 'Captain'}
                       </button>
@@ -497,7 +497,7 @@ export default function AdminTeamDetailsPage() {
                           type="button"
                           className="btn btn-secondary btn-sm"
                           disabled={saving}
-                          onClick={() => void handleReplaceMember(member)}
+                          onClick={(e) => { e.stopPropagation(); void handleReplaceMember(member); }}
                         >
                           {isRu ? 'Заменить' : 'Replace'}
                         </button>
@@ -506,7 +506,7 @@ export default function AdminTeamDetailsPage() {
                         type="button"
                         className="btn btn-danger btn-sm"
                         disabled={saving}
-                        onClick={() => void handleRemoveMember(member)}
+                        onClick={(e) => { e.stopPropagation(); void handleRemoveMember(member); }}
                       >
                         {isRu ? 'Убрать' : 'Remove'}
                       </button>

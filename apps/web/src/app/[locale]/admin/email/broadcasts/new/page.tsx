@@ -488,7 +488,15 @@ export default function NewEmailBroadcastPage() {
               <span>{locale === 'ru' ? 'Источник аудитории' : 'Audience source'}</span>
               <FieldSelect
                 value={form.audienceSource}
-                onChange={(e) => updateForm({ audienceSource: e.target.value as BroadcastFormState['audienceSource'], eventId: '' })}
+                onChange={(e) => {
+                  const audienceSource = e.target.value as BroadcastFormState['audienceSource'];
+                  updateForm({
+                    audienceSource,
+                    eventId: '',
+                    memberRoles: audienceSource === 'event_teams' ? ['CAPTAIN', 'MEMBER'] : ['PARTICIPANT'],
+                    memberStatuses: ['ACTIVE'],
+                  });
+                }}
               >
                 <option value="static_filter">{locale === 'ru' ? 'Статический фильтр' : 'Static filter'}</option>
                 <option value="event_participants">{locale === 'ru' ? 'Участники события' : 'Event participants'}</option>
