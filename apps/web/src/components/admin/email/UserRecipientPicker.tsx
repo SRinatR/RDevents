@@ -11,6 +11,14 @@ export type SelectedUser = {
   phone?: string | null;
 };
 
+type SearchUserWithOptionalRole = {
+  id: string;
+  email: string;
+  name: string;
+  phone: string;
+  role?: string;
+};
+
 export type UserRecipientPickerProps = {
   selectedUsers: SelectedUser[];
   onChange: (users: SelectedUser[]) => void;
@@ -48,7 +56,7 @@ export function UserRecipientPicker({
         eventId,
         limit: 20,
       });
-      setSearchResults(result.users
+      setSearchResults((result.users as SearchUserWithOptionalRole[])
         .filter(u => u.role !== 'SUPER_ADMIN')
         .map(u => ({
           id: u.id,
