@@ -55,7 +55,9 @@ export type AudiencePreviewResult = {
 type CandidateUser = {
   recipientId?: string;
   recipientKind?: AudiencePreviewItem['recipientKind'];
+  eventMemberId?: string | null;
   teamMemberId?: string | null;
+  prefillContactId?: string | null;
   id: string;
   email: string | null;
   name: string | null;
@@ -240,6 +242,9 @@ async function resolveEventParticipantCandidates(filter: any, limit: number): Pr
       return teamMembership === 'WITH_TEAM' ? hasTeam : !hasTeam;
     })
     .map((row: any) => ({
+      recipientId: row.id,
+      recipientKind: 'EVENT_MEMBER' as const,
+      eventMemberId: row.id,
       ...row.user,
       audienceReason: {
         matchedBy: 'eventMember',
@@ -389,7 +394,7 @@ export async function resolveAudience(input: ResolveAudienceInput): Promise<Audi
   const items = candidates.map((user) => {
     const email = user.email?.trim() ?? '';
     const normalizedEmail = email ? normalizeEmail(email) : '';
-    const isExternalRecipient = user.recipientKind && user.recipientKind !== 'USER';
+    const isExternalRecipient = user.recipientKind === 'PREFILL_CONTACT' || user.recipientKind === 'MANUAL_EMAIL';
     const consent = isExternalRecipient ? { allowed: true, optedOut: false, topics: [] as string[] } : consentDecision(user, type);
     const consentSnap = isExternalRecipient ? { externalRecipient: true } : consentSnapshot(user);
     const variables = buildDefaultRecipientVariables({
@@ -445,8 +450,10 @@ export async function resolveAudience(input: ResolveAudienceInput): Promise<Audi
     return {
       recipientId: user.recipientId ?? user.id,
       recipientKind: user.recipientKind ?? 'USER',
-      userId: user.id,
+      userId: user.recipientKind === 'PREFILL_CONTACT' || user.recipientKind === 'MANUAL_EMAIL' ? null : user.id,
+      eventMemberId: user.eventMemberId ?? null,
       teamMemberId: user.teamMemberId ?? null,
+      prefillContactId: user.prefillContactId ?? null,
       email: email || undefined,
       normalizedEmail: normalizedEmail || undefined,
       name: user.name ?? undefined,
@@ -474,7 +481,10 @@ export async function resolveAudience(input: ResolveAudienceInput): Promise<Audi
   const totalEligible = items.filter(item => item.eligible).length;
   const totalSkipped = totalMatched - totalEligible;
   const skippedByReason = items.reduce<Record<string, number>>((acc, item) => {
-    if (!item.eligible) acc[item.status] = (acc[item.status] ?? 0) + 1;
+    if (!item.eligible) {
+      const key = item.skipReasonCode ?? 'UNKNOWN_ERROR';
+      acc[key] = (acc[key] ?? 0) + 1;
+    }
     return acc;
   }, {});
 

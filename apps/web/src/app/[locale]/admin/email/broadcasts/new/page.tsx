@@ -230,11 +230,6 @@ export default function NewEmailBroadcastPage() {
   }, [form.userSearch, form.eventId]);
 
   const loadEstimate = useCallback(async () => {
-    if (!form.subject.trim() || (!form.textBody.trim() && !form.htmlBody.trim())) {
-      setError(locale === 'ru' ? 'Сначала заполните тему и текст письма.' : 'Fill subject and text body first.');
-      return;
-    }
-
     setLoadingEstimate(true);
     setError(null);
 
