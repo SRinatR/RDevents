@@ -306,6 +306,46 @@ async function resolveCandidates(input: ResolveAudienceInput) {
   if (source === 'TEAM') {
     return resolveEventTeamCandidates(filter, limit);
   }
+  if (source === 'MANUAL_SELECTION') {
+    const selectedIds = toArray((filter as any)?.selectedUserIds ?? (filter as any)?.recipientIds);
+    const prefillContacts = Array.isArray((filter as any)?.prefillContacts) ? (filter as any).prefillContacts : [];
+    const prefillById = new Map(prefillContacts.map((x: any) => [String(x.id), x]));
+    const userIds = selectedIds.filter(id => !id.startsWith('prefill-'));
+    const users = userIds.length
+      ? await prisma.user.findMany({ where: { id: { in: userIds } }, select: userSelect() as any })
+      : [];
+    const usersById = new Map(users.map((u: any) => [u.id, u]));
+    return selectedIds.map((id) => {
+      if (id.startsWith('prefill-')) {
+        const p = prefillById.get(id) ?? prefillById.get(id.replace(/^prefill-/, ''));
+        return {
+          id,
+          recipientId: id,
+          recipientKind: 'PREFILL_CONTACT' as const,
+          prefillContactId: id,
+          email: p?.email ?? null,
+          name: p?.name ?? p?.fullName ?? null,
+          city: null,
+          isActive: true,
+          emailVerifiedAt: new Date(),
+          audienceReason: { matchedBy: 'manualSelectionPrefill' },
+        };
+      }
+      const u = usersById.get(id);
+      if (u) return { ...u, recipientId: id, recipientKind: 'USER' as const, audienceReason: { matchedBy: 'manualSelectionUser' } };
+      return {
+        id,
+        recipientId: id,
+        recipientKind: 'MANUAL_EMAIL' as const,
+        email: null,
+        name: null,
+        city: null,
+        isActive: true,
+        emailVerifiedAt: new Date(),
+        audienceReason: { matchedBy: 'manualSelectionUnknown' },
+      };
+    });
+  }
   if (source === 'MANUAL_EMAIL') {
     const items = toArray(filter?.emails).map(email => ({ email }));
     return items.map((item, idx) => ({

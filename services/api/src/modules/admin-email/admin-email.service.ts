@@ -719,7 +719,7 @@ export async function createEmailBroadcastSnapshot(id: string, actor?: User): Pr
           teamMemberId: item.teamMemberId ?? null,
           prefillContactId: item.prefillContactId ?? null,
           email: item.email ?? '',
-          normalizedEmail: item.normalizedEmail ?? `missing-${item.userId ?? Date.now()}`,
+          normalizedEmail: item.normalizedEmail ?? `missing-${item.recipientKind ?? 'USER'}-${item.recipientId}`,
           name: item.name ?? null,
           phone: item.phone ?? null,
           status: item.eligible ? 'QUEUED' as any : item.deliveryStatus as any,
