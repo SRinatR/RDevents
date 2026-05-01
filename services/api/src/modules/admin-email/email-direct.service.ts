@@ -208,10 +208,9 @@ export async function previewManualRecipients(input: {
 
 export async function sendDirectEmailToUsers(input: DirectEmailInput): Promise<SendDirectEmailResult> {
   assertDirectEmailInput(input);
-  const selectedUserIds = input.selectedUserIds.filter(id => !id.startsWith('prefill-'));
 
   const { recipients, skipped } = await previewManualRecipients({
-    selectedUserIds,
+    selectedUserIds: input.selectedUserIds,
     excludedUserIds: input.excludedUserIds ?? [],
     emailType: input.emailType,
     respectConsent: input.respectConsent,
