@@ -1004,6 +1004,65 @@ export async function previewEmailContent(input: EmailPreviewInput) {
   };
 }
 
+async function buildBroadcastRecipientVariables(broadcast: any, recipient: any) {
+  const appUrl = (env.APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+  const fullName = recipient.name ?? recipient.email ?? 'Participant';
+  const firstName = String(fullName).split(/\s+/).filter(Boolean)[0] ?? fullName;
+  const lastName = String(fullName).split(/\s+/).filter(Boolean).slice(1).join(' ');
+  const eventId = (broadcast.audienceFilterJson as any)?.eventId ?? null;
+  let eventTitle = '';
+  let teamName = '';
+  let teamCode = '';
+  let captainName = '';
+  if (eventId) {
+    const ev = await prisma.event.findUnique({ where: { id: String(eventId) }, select: { title: true } });
+    eventTitle = ev?.title ?? '';
+  }
+  if (recipient.teamMemberId) {
+    const tm = await prisma.eventTeamMember.findUnique({
+      where: { id: recipient.teamMemberId },
+      include: { team: { include: { captainUser: { select: { name: true } } } } },
+    });
+    teamName = tm?.team?.name ?? '';
+    teamCode = tm?.team?.joinCode ?? '';
+    captainName = tm?.team?.captainUser?.name ?? '';
+  }
+  return {
+    firstName,
+    lastName,
+    fullName,
+    eventTitle,
+    teamName,
+    teamCode,
+    captainName,
+    profileUrl: recipient.userId ? `${appUrl}/ru/admin/users/${recipient.userId}` : '',
+    photoUploadUrl: recipient.userId ? `${appUrl}/ru/cabinet/profile` : '',
+    unsubscribeUrl: buildDefaultRecipientVariables({ userId: recipient.userId, email: recipient.email, name: recipient.name, broadcastId: broadcast.id, topic: String(broadcast.type) }).unsubscribeUrl,
+  };
+}
+
+export async function previewBroadcastContent(id: string, input: { recipientId?: string; subject?: string; preheader?: string | null; textBody?: string; htmlBody?: string }, actor?: User) {
+  const detail = await getEmailBroadcast(id, actor);
+  const broadcast = detail.broadcast as any;
+  let recipient: any = null;
+  if (input.recipientId) {
+    recipient = await prisma.emailBroadcastRecipient.findFirst({ where: { broadcastId: id, id: input.recipientId } });
+    if (!recipient) {
+      await createEmailBroadcastSnapshot(id, actor);
+      recipient = await prisma.emailBroadcastRecipient.findFirst({ where: { broadcastId: id, id: input.recipientId } });
+    }
+  }
+  const vars = recipient ? await buildBroadcastRecipientVariables(broadcast, recipient) : {};
+  const rendered = await previewEmailContent({
+    subject: input.subject ?? broadcast.subject,
+    preheader: input.preheader ?? broadcast.preheader,
+    textBody: input.textBody ?? broadcast.textBody,
+    htmlBody: input.htmlBody ?? broadcast.htmlBody,
+    sampleVariables: vars,
+  });
+  return { ...rendered, missingVariables: rendered.unknownVariables, recipientId: input.recipientId ?? null };
+}
+
 export async function sendTestEmail(input: EmailTestSendInput, actor?: User) {
   if (!isPlatformAdmin(actor)) throw new Error('FORBIDDEN');
   const toEmail = input.toEmail ?? input.email ?? 'admin@example.com';
@@ -1019,6 +1078,15 @@ export async function sendTestEmail(input: EmailTestSendInput, actor?: User) {
   });
   await sendPlatformEmail({ to: toEmail, subject: preview.subjectPreview, text: preview.textPreview, html: preview.htmlPreview, source: 'admin_test' });
   return { ok: true, toEmail, warnings: preview.warnings };
+}
+
+export async function sendBroadcastTestEmail(id: string, input: EmailTestSendInput, actor?: User) {
+  if (!isPlatformAdmin(actor)) throw new Error('FORBIDDEN');
+  const toEmail = input.toEmail ?? input.email ?? actor?.email;
+  if (!toEmail) throw new Error('EMAIL_REQUIRED');
+  const preview = await previewBroadcastContent(id, { recipientId: input.recipientId, subject: input.subject, preheader: input.preheader, textBody: input.textBody, htmlBody: input.htmlBody }, actor);
+  await sendPlatformEmail({ to: toEmail, subject: preview.subjectPreview, text: preview.textPreview, html: preview.htmlPreview, source: 'admin_test' });
+  return { ok: true, toEmail, warnings: preview.warnings, missingVariables: preview.missingVariables };
 }
 
 async function recipientStillEligible(broadcast: any, recipient: any) {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { adminApi, adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
@@ -115,6 +115,7 @@ const stepLabels = {
 export default function NewEmailBroadcastPage() {
   const locale = useRouteLocale();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState<BroadcastWizardStep>(1);
   const [form, setForm] = useState<BroadcastFormState>(emptyForm);
   const [events, setEvents] = useState<any[]>([]);
@@ -154,6 +155,20 @@ export default function NewEmailBroadcastPage() {
 
     return () => { alive = false; };
   }, []);
+
+  useEffect(() => {
+    const audienceSource = searchParams.get('audienceSource');
+    const eventId = searchParams.get('eventId');
+    const teamId = searchParams.get('teamId');
+    const teamRoles = searchParams.get('teamRoles');
+    if (!audienceSource) return;
+    setForm(prev => ({
+      ...prev,
+      audienceSource: audienceSource as any,
+      eventId: eventId ?? prev.eventId,
+      memberRoles: teamRoles ? teamRoles.split(',') : prev.memberRoles,
+    }));
+  }, [searchParams]);
 
   const applyTemplate = useCallback((templateId: string) => {
     if (!templateId) return;
@@ -199,7 +214,7 @@ export default function NewEmailBroadcastPage() {
     setLoadingPreview(true);
 
     try {
-      const filter = buildAudienceFilterJson(form);
+      const filter = { ...buildAudienceFilterJson(form), ...(searchParams.get('teamId') ? { teamId: searchParams.get('teamId') } : {}) };
       const result = await adminEmailApi.previewAudience({
         broadcastType: form.type,
         audienceKind: form.audienceKind,
@@ -212,7 +227,13 @@ export default function NewEmailBroadcastPage() {
     } finally {
       setLoadingPreview(false);
     }
-  }, [form]);
+  }, [form, searchParams]);
+
+  useEffect(() => {
+    if (form.audienceSource === 'event_teams' && form.eventId) {
+      void loadAudiencePreview();
+    }
+  }, [form.audienceSource, form.eventId, loadAudiencePreview]);
 
   const loadEmailPreview = useCallback(async () => {
     try {

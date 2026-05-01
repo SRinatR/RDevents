@@ -42,10 +42,12 @@ import {
   getEmailWebhooks,
   previewEmailAudience,
   previewEmailContent,
+  previewBroadcastContent,
   retryEmailBroadcastRecipient,
   scheduleEmailBroadcast,
   sendEmailBroadcast,
   sendTestEmail,
+  sendBroadcastTestEmail,
   updateEmailBroadcast,
   updateEmailTemplate,
 } from './admin-email.service.js';
@@ -351,7 +353,7 @@ adminEmailRouter.post('/preview', withErrorHandler(async (req, res) => {
     res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
     return;
   }
-  res.json(await previewEmailContent(parsed.data));
+  res.json(await previewBroadcastContent(id, { ...parsed.data, recipientId: req.body?.recipientId }, user));
 }));
 
 adminEmailRouter.post('/test-send', withErrorHandler(async (req, res) => {
@@ -361,7 +363,7 @@ adminEmailRouter.post('/test-send', withErrorHandler(async (req, res) => {
     return;
   }
   const user = (req as AuthenticatedRequest).user;
-  res.json(await sendTestEmail(parsed.data, user));
+  res.json(await sendBroadcastTestEmail(String(req.params['id']), parsed.data, user));
 }));
 
 adminEmailRouter.post('/broadcasts/:id/audience-preview', withErrorHandler(async (req, res) => {

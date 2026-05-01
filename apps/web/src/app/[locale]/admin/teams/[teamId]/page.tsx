@@ -267,7 +267,13 @@ export default function AdminTeamDetailsPage() {
       <PageHeader
         title={team.name}
         subtitle={team.event?.title || (isRu ? 'Команда' : 'Team')}
-        actions={<StatusBadge tone={toneByStatus(team.status)}>{formatTeamStatus(team.status, locale)}</StatusBadge>}
+        actions={<div className="signal-row-actions">
+          <StatusBadge tone={toneByStatus(team.status)}>{formatTeamStatus(team.status, locale)}</StatusBadge>
+          <button className="btn btn-secondary btn-sm" onClick={() => router.push(`/${locale}/admin/email/broadcasts/new?audienceSource=event_teams&eventId=${team.eventId}&teamId=${team.id}&teamRoles=CAPTAIN,MEMBER`)}>{isRu ? 'Письмо команде' : 'Email team'}</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => router.push(`/${locale}/admin/email/broadcasts/new?audienceSource=event_teams&eventId=${team.eventId}&teamId=${team.id}&teamRoles=CAPTAIN`)}>{isRu ? 'Письмо капитану' : 'Email captain'}</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => location.hash = '#team-members'}>{isRu ? 'Проверить фото' : 'Check photos'}</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => location.hash = '#team-history'}>{isRu ? 'История' : 'Team history'}</button>
+        </div>}
       />
 
       {notice ? <Notice tone="success">{notice}</Notice> : null}
@@ -432,21 +438,26 @@ export default function AdminTeamDetailsPage() {
           <table className="signal-table">
             <thead>
               <tr>
-                <th>{isRu ? 'Пользователь' : 'User'}</th>
+                <th>{isRu ? 'Фото' : 'Photo'}</th>
+                <th>{isRu ? 'Участник' : 'Participant'}</th>
+                <th>{isRu ? 'Телефон' : 'Phone'}</th>
                 <th>Email</th>
                 <th>{isRu ? 'Роль' : 'Role'}</th>
                 <th>{isRu ? 'Статус' : 'Status'}</th>
+                <th>{isRu ? 'Фото/Профиль' : 'Photo/Profile'}</th>
                 <th>{isRu ? 'Вступил' : 'Joined'}</th>
                 <th className="right">{isRu ? 'Действия' : 'Actions'}</th>
               </tr>
             </thead>
             <tbody>
               {(team.members || []).map((member: any) => (
-                <tr key={member.id}>
+                <tr key={member.id} onClick={() => router.push(`/${locale}/admin/users/${member.userId}?eventId=${team.eventId}`)} style={{ cursor: 'pointer' }}>
+                  <td>{member.user?.avatarUrl ? <img src={member.user.avatarUrl} alt="" style={{ width: 28, height: 28, borderRadius: 999 }} /> : '—'}</td>
                   <td>
                     <strong>{member.user?.name || '—'}</strong>
                     <div className="signal-muted">{member.userId}</div>
                   </td>
+                  <td>{member.user?.phone || '—'}</td>
                   <td>{member.user?.email || '—'}</td>
                   <td><StatusBadge tone={member.role === 'CAPTAIN' ? 'info' : 'neutral'}>{member.role}</StatusBadge></td>
                   <td>
@@ -458,13 +469,18 @@ export default function AdminTeamDetailsPage() {
                       {memberStatuses.map((status) => <option key={status} value={status}>{formatMemberStatus(status, locale)}</option>)}
                     </FieldSelect>
                   </td>
+                  <td>
+                    <StatusBadge tone={member.user?.avatarAsset?.status === 'APPROVED' ? 'success' : 'warning'}>
+                      {member.user?.avatarAsset?.status || (member.user?.avatarUrl ? 'UPLOADED' : 'MISSING')}
+                    </StatusBadge>
+                  </td>
                   <td>{member.joinedAt ? new Date(member.joinedAt).toLocaleDateString() : '—'}</td>
                   <td className="right">
                     <div className="signal-row-actions">
                       <button
                         type="button"
                         className="btn btn-ghost btn-sm"
-                        onClick={() => router.push(`/${locale}/admin/users/${member.userId}?eventId=${team.eventId}`)}
+                        onClick={(e) => { e.stopPropagation(); router.push(`/${locale}/admin/users/${member.userId}?eventId=${team.eventId}`); }}
                       >
                         {isRu ? 'Профиль' : 'Profile'}
                       </button>
