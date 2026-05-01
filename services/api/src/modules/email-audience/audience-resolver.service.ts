@@ -26,6 +26,7 @@ export type AudiencePreviewItem = {
   normalizedEmail?: string;
   phone?: string | null;
   name?: string | null;
+  fullName?: string | null;
   firstName?: string | null;
   lastName?: string | null;
   avatarUrl?: string | null;
@@ -449,6 +450,7 @@ export async function resolveAudience(input: ResolveAudienceInput): Promise<Audi
       email: email || undefined,
       normalizedEmail: normalizedEmail || undefined,
       name: user.name ?? undefined,
+      fullName: user.name ?? undefined,
       firstName: user.name?.split(/\s+/).filter(Boolean)[0] ?? null,
       lastName: user.name?.split(/\s+/).filter(Boolean).slice(1).join(' ') || null,
       avatarUrl: (user as any).avatarUrl ?? null,
@@ -461,6 +463,10 @@ export async function resolveAudience(input: ResolveAudienceInput): Promise<Audi
       consentSnapshot: consentSnap,
       variables,
       audienceReason: user.audienceReason,
+      teamId: (user as any).audienceReason?.teamId ?? null,
+      teamName: (user as any).audienceReason?.teamName ?? null,
+      teamCode: (user as any).audienceReason?.teamCode ?? null,
+      role: (user as any).audienceReason?.teamRole ?? null,
     };
   });
 

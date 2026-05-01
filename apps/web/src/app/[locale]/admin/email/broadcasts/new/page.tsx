@@ -39,7 +39,7 @@ const emptyForm: BroadcastFormState = {
   audienceKind: 'mailing_consent',
   audienceSource: 'static_filter',
   eventId: '',
-  memberRoles: ['PARTICIPANT'],
+  memberRoles: ['CAPTAIN', 'MEMBER'],
   memberStatuses: ['ACTIVE'],
   teamMembership: 'ANY',
   templateId: '',
@@ -75,7 +75,7 @@ function buildAudienceFilterJson(form: BroadcastFormState) {
   }
 
   if (form.memberRoles.length > 0) {
-    filter.memberRoles = form.memberRoles;
+    filter[form.audienceSource === 'event_teams' ? 'teamRoles' : 'memberRoles'] = form.memberRoles;
   }
 
   if (form.memberStatuses.length > 0) {
@@ -544,13 +544,21 @@ export default function NewEmailBroadcastPage() {
                 <label>
                   <span>{locale === 'ru' ? 'Роли участников' : 'Member roles'}</span>
                   <FieldSelect
-                    value={form.memberRoles[0] ?? 'PARTICIPANT'}
+                    value={form.memberRoles[0] ?? (form.audienceSource === 'event_teams' ? 'CAPTAIN' : 'PARTICIPANT')}
                     onChange={(e) => updateForm({ memberRoles: [e.target.value] })}
                   >
-                    <option value="PARTICIPANT">{locale === 'ru' ? 'Участник' : 'Participant'}</option>
-                    <option value="TEAM_CAPTAIN">{locale === 'ru' ? 'Капитан команды' : 'Team captain'}</option>
-                    <option value="ORGANIZER">{locale === 'ru' ? 'Организатор' : 'Organizer'}</option>
-                    <option value="VOLUNTEER">{locale === 'ru' ? 'Волонтёр' : 'Volunteer'}</option>
+                    {form.audienceSource === 'event_teams' ? (
+                      <>
+                        <option value="CAPTAIN">{locale === 'ru' ? 'Капитан' : 'Captain'}</option>
+                        <option value="MEMBER">{locale === 'ru' ? 'Участник команды' : 'Team member'}</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="PARTICIPANT">{locale === 'ru' ? 'Участник' : 'Participant'}</option>
+                        <option value="ORGANIZER">{locale === 'ru' ? 'Организатор' : 'Organizer'}</option>
+                        <option value="VOLUNTEER">{locale === 'ru' ? 'Волонтёр' : 'Volunteer'}</option>
+                      </>
+                    )}
                   </FieldSelect>
                 </label>
 
