@@ -355,8 +355,67 @@ describe('audience-resolver skip reasons', () => {
       expect(result.totalMatched).toBe(3);
       expect(result.totalEligible).toBe(1);
       expect(result.totalSkipped).toBe(2);
-      expect(result.skippedByReason['SKIPPED_NO_EMAIL']).toBe(1);
-      expect(result.skippedByReason['SKIPPED_SUPPRESSED']).toBe(1);
+      expect(result.skippedByReason['NO_EMAIL']).toBe(1);
+      expect(result.skippedByReason['SUPPRESSED_EMAIL']).toBe(1);
+    });
+  });
+
+  describe('manual selection prefill contacts', () => {
+    it('marks prefill recipient as PREFILL_CONTACT', async () => {
+      vi.mocked(prisma.user.findMany).mockResolvedValue([] as any);
+      vi.mocked(prisma.emailSuppression.findMany).mockResolvedValue([]);
+      const { resolveAudience } = await import('./audience-resolver.service.js');
+      const result = await resolveAudience({
+        broadcastType: 'MARKETING',
+        audienceSource: 'MANUAL_SELECTION',
+        includeSkipped: true,
+        audienceFilterJson: {
+          selectedUserIds: ['prefill-1'],
+          prefillContacts: [{ id: 'prefill-1', email: 'prefill@example.com', name: 'Prefill User' }],
+        },
+      });
+      expect(result.items[0].recipientKind).toBe('PREFILL_CONTACT');
+      expect(result.items[0].status).toBe('QUEUED');
+    });
+
+    it('prefill without email is NO_EMAIL', async () => {
+      vi.mocked(prisma.user.findMany).mockResolvedValue([] as any);
+      vi.mocked(prisma.emailSuppression.findMany).mockResolvedValue([]);
+      const { resolveAudience } = await import('./audience-resolver.service.js');
+      const result = await resolveAudience({
+        broadcastType: 'MARKETING',
+        audienceSource: 'MANUAL_SELECTION',
+        includeSkipped: true,
+        audienceFilterJson: {
+          selectedUserIds: ['prefill-1'],
+          prefillContacts: [{ id: 'prefill-1', name: 'No Email Prefill' }],
+        },
+      });
+      expect(result.items[0].skipReasonCode).toBe('NO_EMAIL');
+    });
+  });
+
+  describe('team and event member recipient kinds', () => {
+    it('event participants returns EVENT_MEMBER with eventMemberId', async () => {
+      vi.mocked(prisma.eventMember.findMany).mockResolvedValue([
+        { id: 'em-1', userId: 'u1', role: 'PARTICIPANT', status: 'ACTIVE', user: { id: 'u1', email: 'u1@example.com', name: 'U1', isActive: true, emailVerifiedAt: new Date(), extendedProfile: { consentMailing: true }, communicationConsents: [] } },
+      ] as any);
+      vi.mocked(prisma.emailSuppression.findMany).mockResolvedValue([]);
+      const { resolveAudience } = await import('./audience-resolver.service.js');
+      const result = await resolveAudience({ broadcastType: 'MARKETING', audienceSource: 'EVENT_PARTICIPANTS', audienceFilterJson: { eventId: 'e1' }, includeSkipped: true });
+      expect(result.items[0].recipientKind).toBe('EVENT_MEMBER');
+      expect(result.items[0].eventMemberId).toBe('em-1');
+    });
+
+    it('event teams captain only returns only captain', async () => {
+      vi.mocked(prisma.eventTeamMember.findMany).mockResolvedValue([
+        { id: 'tm1', teamId: 't1', role: 'CAPTAIN', status: 'ACTIVE', user: { id: 'u1', email: 'u1@example.com', name: 'Cap', isActive: true, emailVerifiedAt: new Date(), extendedProfile: { consentMailing: true }, communicationConsents: [] }, team: { id: 't1', name: 'T1', status: 'ACTIVE' } },
+      ] as any);
+      vi.mocked(prisma.emailSuppression.findMany).mockResolvedValue([]);
+      const { resolveAudience } = await import('./audience-resolver.service.js');
+      const result = await resolveAudience({ broadcastType: 'MARKETING', audienceSource: 'EVENT_TEAMS', audienceFilterJson: { eventId: 'e1', teamRoles: ['CAPTAIN'] }, includeSkipped: true });
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].role).toBe('CAPTAIN');
     });
   });
 });

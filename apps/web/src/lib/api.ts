@@ -830,6 +830,12 @@ export const adminEmailApi = {
   testSendEmail: (body: Record<string, unknown>) =>
     request<any>('/api/admin/email/test-send', { method: 'POST', auth: true, body }),
 
+  previewBroadcastEmail: (broadcastId: string, body: Record<string, unknown>) =>
+    request<any>(`/api/admin/email/broadcasts/${broadcastId}/preview`, { method: 'POST', auth: true, body }),
+
+  sendBroadcastTestEmail: (broadcastId: string, body: Record<string, unknown>) =>
+    request<any>(`/api/admin/email/broadcasts/${broadcastId}/send-test`, { method: 'POST', auth: true, body }),
+
   listAutomations: (params: Record<string, string | number> = {}) => {
     const qs = toQuery(params);
     return request<{ data: any[]; meta: any }>(`/api/admin/email/automations${qs}`, { auth: true });

@@ -5,7 +5,7 @@ import type { User } from '@prisma/client';
 import { canAccessEvent, getManagedEventIds } from '../access-control/access-control.service.js';
 import { resolveAudience, extractAudienceEventId } from '../email-audience/audience-resolver.service.js';
 import { normalizeEmail } from '@event-platform/shared';
-import { renderEmailContent, hasUnsubscribeVariable, requiresUnsubscribeVariable } from '../email/email-renderer.service.js';
+import { renderEmailContent, hasUnsubscribeVariable, requiresUnsubscribeVariable, buildDefaultRecipientVariables } from '../email/email-renderer.service.js';
 import { sanitizeEmailHtml } from '../email/email-sanitizer.service.js';
 import { getEmailProvider } from '../email/resend.provider.js';
 import type {
@@ -109,6 +109,8 @@ const AUDIENCE_SOURCE_TO_DB: Record<string, string> = {
   event_teams: 'EVENT_TEAMS',
   uploaded_csv: 'UPLOADED_CSV',
   manual_selection: 'MANUAL_SELECTION',
+  manual_email: 'MANUAL_SELECTION',
+  team: 'EVENT_TEAMS',
   system: 'SYSTEM',
 };
 
@@ -711,12 +713,29 @@ export async function createEmailBroadcastSnapshot(id: string, actor?: User): Pr
       await tx.emailBroadcastRecipient.create({
         data: {
           broadcastId: id,
+          recipientKind: (item.recipientKind ?? 'USER') as any,
           userId: item.userId ?? null,
+          eventMemberId: item.eventMemberId ?? null,
+          teamMemberId: item.teamMemberId ?? null,
+          prefillContactId: item.prefillContactId ?? null,
+          manualEmail: item.recipientKind === 'MANUAL_EMAIL' ? (item.email ?? null) : null,
           email: item.email ?? '',
-          normalizedEmail: item.normalizedEmail ?? `missing-${item.userId ?? Date.now()}`,
+          normalizedEmail: item.normalizedEmail ?? `missing-${item.recipientKind ?? 'USER'}-${item.recipientId}`,
           name: item.name ?? null,
-          status: item.eligible ? 'QUEUED' as any : item.status as any,
-          skipReason: item.skipReason ?? null,
+          fullName: item.fullName ?? item.name ?? null,
+          firstName: item.firstName ?? null,
+          lastName: item.lastName ?? null,
+          phone: item.phone ?? null,
+          avatarUrl: item.avatarUrl ?? null,
+          eventId: (item as any).eventId ?? null,
+          teamId: item.teamId ?? null,
+          teamName: item.teamName ?? null,
+          teamCode: (item as any).teamCode ?? null,
+          role: item.role ?? null,
+          status: item.eligible ? 'QUEUED' as any : item.deliveryStatus as any,
+          skipReasonCode: item.skipReasonCode ?? null,
+          skipReason: item.skipReasonText ?? null,
+          skipReasonText: item.skipReasonText ?? null,
           consentSnapshotJson: item.consentSnapshot as any,
           variablesSnapshotJson: item.variables as any,
           audienceReasonJson: item.audienceReason as any,
@@ -830,10 +849,10 @@ export async function previewEmailAudience(input: AudienceEstimateInput, query: 
     resultLimit: EMAIL_BROADCAST_MAX_RECIPIENTS + 1,
   });
   const filtered = result.items.filter(item => {
-    if (query.status && query.status !== 'ALL' && item.status !== query.status.toUpperCase()) return false;
+    if (query.status && query.status !== 'ALL' && item.deliveryStatus !== query.status.toUpperCase()) return false;
     if (!query.search) return true;
     const needle = query.search.toLowerCase();
-    return [item.email, item.name, item.userId].filter(Boolean).some(value => String(value).toLowerCase().includes(needle));
+    return [item.email, item.name, item.userId, item.recipientId].filter(Boolean).some(value => String(value).toLowerCase().includes(needle));
   });
   return { data: filtered.slice((page - 1) * limit, page * limit), meta: paginationMeta(filtered.length, page, limit), totals: { totalMatched: result.totalMatched, totalEligible: result.totalEligible, totalSkipped: result.totalSkipped, skippedByReason: result.skippedByReason } };
 }
@@ -858,10 +877,16 @@ export async function listEmailBroadcastRecipients(id: string, query: EmailRecip
   return {
     data: rows.map(row => ({
       id: row.id,
+      recipientKind: row.recipientKind,
       userId: row.userId,
+      eventMemberId: row.eventMemberId,
+      teamMemberId: row.teamMemberId,
+      prefillContactId: row.prefillContactId,
       email: row.email,
       name: row.name,
+      phone: row.phone,
       status: row.status,
+      skipReasonCode: row.skipReasonCode,
       skipReason: row.skipReason,
       failureReason: row.failureReason,
       provider: row.provider,
@@ -990,20 +1015,109 @@ export async function previewEmailContent(input: EmailPreviewInput) {
   };
 }
 
+async function buildBroadcastRecipientVariables(broadcast: any, recipient: any) {
+  const appUrl = (env.APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+  const fullName = recipient.name ?? recipient.email ?? 'Participant';
+  const firstName = String(fullName).split(/\s+/).filter(Boolean)[0] ?? fullName;
+  const lastName = String(fullName).split(/\s+/).filter(Boolean).slice(1).join(' ');
+  const eventId = (broadcast.audienceFilterJson as any)?.eventId ?? null;
+  let eventTitle = '';
+  let teamName = '';
+  let teamCode = '';
+  let captainName = '';
+  if (eventId) {
+    const ev = await prisma.event.findUnique({ where: { id: String(eventId) }, select: { title: true } });
+    eventTitle = ev?.title ?? '';
+  }
+  if (recipient.teamMemberId) {
+    const tm = await prisma.eventTeamMember.findUnique({
+      where: { id: recipient.teamMemberId },
+      include: { team: { include: { captainUser: { select: { name: true } } } } },
+    });
+    teamName = tm?.team?.name ?? '';
+    teamCode = tm?.team?.joinCode ?? '';
+    captainName = tm?.team?.captainUser?.name ?? '';
+  }
+  return {
+    firstName,
+    lastName,
+    fullName,
+    eventTitle,
+    teamName,
+    teamCode,
+    captainName,
+    profileUrl: recipient.userId ? `${appUrl}/ru/admin/users/${recipient.userId}` : '',
+    photoUploadUrl: recipient.userId ? `${appUrl}/ru/cabinet/profile` : '',
+    unsubscribeUrl: buildDefaultRecipientVariables({ userId: recipient.userId, email: recipient.email, name: recipient.name, broadcastId: broadcast.id, topic: String(broadcast.type) }).unsubscribeUrl,
+  };
+}
+
+export async function previewBroadcastContent(id: string, input: { recipientId?: string; subject?: string; preheader?: string | null; textBody?: string; htmlBody?: string }, actor?: User) {
+  const detail = await getEmailBroadcast(id, actor);
+  const broadcast = detail.broadcast as any;
+  let recipient: any = null;
+  if (input.recipientId) {
+    recipient = await prisma.emailBroadcastRecipient.findFirst({
+      where: {
+        broadcastId: id,
+        OR: [
+          { id: input.recipientId },
+          { userId: input.recipientId },
+          { teamMemberId: input.recipientId },
+          { prefillContactId: input.recipientId },
+        ],
+      },
+    });
+    if (!recipient) {
+      await createEmailBroadcastSnapshot(id, actor);
+      recipient = await prisma.emailBroadcastRecipient.findFirst({
+        where: {
+          broadcastId: id,
+          OR: [
+            { id: input.recipientId },
+            { userId: input.recipientId },
+            { teamMemberId: input.recipientId },
+            { prefillContactId: input.recipientId },
+          ],
+        },
+      });
+    }
+  }
+  const vars = recipient ? await buildBroadcastRecipientVariables(broadcast, recipient) : {};
+  const rendered = await previewEmailContent({
+    subject: input.subject ?? broadcast.subject,
+    preheader: input.preheader ?? broadcast.preheader,
+    textBody: input.textBody ?? broadcast.textBody,
+    htmlBody: input.htmlBody ?? broadcast.htmlBody,
+    sampleVariables: vars,
+  });
+  return { ...rendered, missingVariables: rendered.unknownVariables, recipientId: input.recipientId ?? null };
+}
+
 export async function sendTestEmail(input: EmailTestSendInput, actor?: User) {
   if (!isPlatformAdmin(actor)) throw new Error('FORBIDDEN');
+  const toEmail = input.toEmail ?? input.email ?? 'admin@example.com';
   const since = new Date(Date.now() - 60 * 60 * 1000);
-  const sentRecently = await prisma.emailMessage.count({ where: { source: 'ADMIN_TEST' as any, toEmail: input.toEmail, createdAt: { gte: since } } });
+  const sentRecently = await prisma.emailMessage.count({ where: { source: 'ADMIN_TEST' as any, toEmail, createdAt: { gte: since } } });
   if (sentRecently >= EMAIL_TEST_SEND_RATE_LIMIT_PER_HOUR) throw new Error('EMAIL_TEST_SEND_RATE_LIMITED');
   const preview = await previewEmailContent({
-    subject: input.subject,
+    subject: input.subject ?? 'Test broadcast',
     preheader: input.preheader,
-    textBody: input.textBody,
-    htmlBody: input.htmlBody,
-    sampleVariables: { name: 'Admin', email: input.toEmail, unsubscribeUrl: `${env.APP_URL}/ru/unsubscribe?token=test` },
+    textBody: input.textBody ?? 'Test',
+    htmlBody: input.htmlBody ?? '<p>Test</p>',
+    sampleVariables: { name: 'Admin', email: toEmail, unsubscribeUrl: `${env.APP_URL}/ru/unsubscribe?token=test` },
   });
-  await sendPlatformEmail({ to: input.toEmail, subject: preview.subjectPreview, text: preview.textPreview, html: preview.htmlPreview, source: 'admin_test' });
-  return { ok: true, toEmail: input.toEmail, warnings: preview.warnings };
+  await sendPlatformEmail({ to: toEmail, subject: preview.subjectPreview, text: preview.textPreview, html: preview.htmlPreview, source: 'admin_test' });
+  return { ok: true, toEmail, warnings: preview.warnings };
+}
+
+export async function sendBroadcastTestEmail(id: string, input: EmailTestSendInput, actor?: User) {
+  if (!isPlatformAdmin(actor)) throw new Error('FORBIDDEN');
+  const toEmail = input.toEmail ?? input.email ?? actor?.email;
+  if (!toEmail) throw new Error('EMAIL_REQUIRED');
+  const preview = await previewBroadcastContent(id, { recipientId: input.recipientId, subject: input.subject, preheader: input.preheader, textBody: input.textBody, htmlBody: input.htmlBody }, actor);
+  await sendPlatformEmail({ to: toEmail, subject: preview.subjectPreview, text: preview.textPreview, html: preview.htmlPreview, source: 'admin_test' });
+  return { ok: true, toEmail, warnings: preview.warnings, missingVariables: preview.missingVariables };
 }
 
 async function recipientStillEligible(broadcast: any, recipient: any) {

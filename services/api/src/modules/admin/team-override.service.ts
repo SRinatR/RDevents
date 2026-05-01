@@ -14,10 +14,10 @@ const LIVE_TEAM_MEMBER_STATUSES = ['ACTIVE', 'PENDING'];
 
 const teamDetailsInclude = {
   event: { select: { id: true, title: true, slug: true, requireAdminApprovalForTeams: true } },
-  captainUser: { select: { id: true, name: true, email: true, avatarUrl: true } },
+  captainUser: { select: { id: true, name: true, email: true, phone: true, avatarUrl: true, avatarAsset: { select: { status: true } } } },
   members: {
     include: {
-      user: { select: { id: true, name: true, email: true, avatarUrl: true, isActive: true } },
+      user: { select: { id: true, name: true, email: true, phone: true, avatarUrl: true, isActive: true, avatarAsset: { select: { status: true } } } },
     },
     orderBy: { joinedAt: 'asc' },
   },

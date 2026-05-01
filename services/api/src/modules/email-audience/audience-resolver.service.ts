@@ -16,13 +16,30 @@ export type ResolveAudienceInput = {
 };
 
 export type AudiencePreviewItem = {
-  userId?: string;
+  recipientId: string;
+  recipientKind: 'USER' | 'EVENT_MEMBER' | 'TEAM_MEMBER' | 'PREFILL_CONTACT' | 'MANUAL_EMAIL';
+  userId?: string | null;
+  eventMemberId?: string | null;
+  teamMemberId?: string | null;
+  prefillContactId?: string | null;
   email?: string;
   normalizedEmail?: string;
-  name?: string;
+  phone?: string | null;
+  name?: string | null;
+  fullName?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  avatarUrl?: string | null;
+  eventId?: string | null;
+  teamId?: string | null;
+  teamName?: string | null;
+  role?: string | null;
+  status?: string | null;
   eligible: boolean;
-  status: string;
-  skipReason?: string;
+  deliveryStatus: string;
+  skipReasonCode?: string | null;
+  skipReasonText?: string | null;
+  skipReason?: string | null;
   consentSnapshot?: unknown;
   variables?: Record<string, string>;
   audienceReason?: unknown;
@@ -37,6 +54,11 @@ export type AudiencePreviewResult = {
 };
 
 type CandidateUser = {
+  recipientId?: string;
+  recipientKind?: AudiencePreviewItem['recipientKind'];
+  eventMemberId?: string | null;
+  teamMemberId?: string | null;
+  prefillContactId?: string | null;
   id: string;
   email: string | null;
   name: string | null;
@@ -46,6 +68,13 @@ type CandidateUser = {
   extendedProfile?: { consentMailing?: boolean | null; regionId?: string | null; regionText?: string | null } | null;
   communicationConsents?: Array<{ channel: string; topic: string; status: string; optedInAt?: Date | null; optedOutAt?: Date | null; lastChangedAt?: Date | null }>;
   audienceReason?: unknown;
+};
+type PrefillContact = {
+  id: string;
+  email?: string | null;
+  name?: string | null;
+  fullName?: string | null;
+  phone?: string | null;
 };
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -214,6 +243,9 @@ async function resolveEventParticipantCandidates(filter: any, limit: number): Pr
       return teamMembership === 'WITH_TEAM' ? hasTeam : !hasTeam;
     })
     .map((row: any) => ({
+      recipientId: row.id,
+      recipientKind: 'EVENT_MEMBER' as const,
+      eventMemberId: row.id,
       ...row.user,
       audienceReason: {
         matchedBy: 'eventMember',
@@ -257,6 +289,9 @@ async function resolveEventTeamCandidates(filter: any, limit: number): Promise<C
   });
 
   return rows.map((row: any) => ({
+    recipientId: row.id,
+    recipientKind: 'TEAM_MEMBER' as const,
+    teamMemberId: row.id,
     ...row.user,
     audienceReason: {
       matchedBy: 'eventTeamMember',
@@ -282,6 +317,79 @@ async function resolveCandidates(input: ResolveAudienceInput) {
   if (source === 'EVENT_TEAMS') {
     return resolveEventTeamCandidates(filter, limit);
   }
+  if (source === 'TEAM') {
+    return resolveEventTeamCandidates(filter, limit);
+  }
+  if (source === 'MANUAL_SELECTION') {
+    const selectedIds = toArray((filter as any)?.selectedUserIds ?? (filter as any)?.recipientIds);
+    const manualEmails = [
+      ...toArray((filter as any)?.emails),
+      ...toArray((filter as any)?.manualEmails),
+    ];
+    const prefillContacts: PrefillContact[] = Array.isArray((filter as any)?.prefillContacts)
+      ? (filter as any).prefillContacts
+      : [];
+    const prefillById = new Map<string, PrefillContact>(prefillContacts.map((x) => [String(x.id), x]));
+    const userIds = selectedIds.filter(id => !id.startsWith('prefill-'));
+    const users = userIds.length
+      ? await prisma.user.findMany({ where: { id: { in: userIds } }, select: userSelect() as any })
+      : [];
+    const usersById = new Map(users.map((u: any) => [u.id, u]));
+    const selectedRecipients = selectedIds.map((id) => {
+      if (id.startsWith('prefill-')) {
+        const p = prefillById.get(id) ?? prefillById.get(id.replace(/^prefill-/, ''));
+        return {
+          id,
+          recipientId: id,
+          recipientKind: 'PREFILL_CONTACT' as const,
+          prefillContactId: id,
+          email: p?.email ?? null,
+          name: p?.name ?? p?.fullName ?? null,
+          city: null,
+          isActive: true,
+          emailVerifiedAt: new Date(),
+          audienceReason: { matchedBy: 'manualSelectionPrefill' },
+        };
+      }
+      const u = usersById.get(id);
+      if (u) return { ...(u as any), recipientId: id, recipientKind: 'USER' as const, audienceReason: { matchedBy: 'manualSelectionUser' } };
+      return {
+        id,
+        recipientId: id,
+        recipientKind: 'MANUAL_EMAIL' as const,
+        email: null,
+        name: null,
+        city: null,
+        isActive: true,
+        emailVerifiedAt: new Date(),
+        audienceReason: { matchedBy: 'manualSelectionUnknown' },
+      };
+    });
+    const emailRecipients = manualEmails.map((email, idx) => ({
+      id: `manual-email-${idx}`,
+      recipientId: `manual-email-${idx}`,
+      recipientKind: 'MANUAL_EMAIL' as const,
+      email,
+      name: email,
+      city: null,
+      isActive: true,
+      emailVerifiedAt: new Date(),
+      audienceReason: { matchedBy: 'manualSelectionEmail' },
+    }));
+    return [...selectedRecipients, ...emailRecipients];
+  }
+  if (source === 'MANUAL_EMAIL') {
+    const items = toArray(filter?.emails).map(email => ({ email }));
+    return items.map((item, idx) => ({
+      id: `manual-email-${idx}`,
+      recipientId: `manual-email-${idx}`,
+      recipientKind: 'MANUAL_EMAIL' as const,
+      email: item.email,
+      name: item.email,
+      isActive: true,
+      emailVerifiedAt: new Date(),
+    }));
+  }
   return resolveStaticCandidates(audienceKind, filter, limit);
 }
 
@@ -303,8 +411,9 @@ export async function resolveAudience(input: ResolveAudienceInput): Promise<Audi
   const items = candidates.map((user) => {
     const email = user.email?.trim() ?? '';
     const normalizedEmail = email ? normalizeEmail(email) : '';
-    const consent = consentDecision(user, type);
-    const consentSnap = consentSnapshot(user);
+    const isExternalRecipient = user.recipientKind === 'PREFILL_CONTACT' || user.recipientKind === 'MANUAL_EMAIL';
+    const consent = isExternalRecipient ? { allowed: true, optedOut: false, topics: [] as string[] } : consentDecision(user, type);
+    const consentSnap = isExternalRecipient ? { externalRecipient: true } : consentSnapshot(user);
     const variables = buildDefaultRecipientVariables({
       userId: user.id,
       email,
@@ -314,32 +423,41 @@ export async function resolveAudience(input: ResolveAudienceInput): Promise<Audi
     }) as Record<string, string>;
 
     let status = 'QUEUED';
-    let skipReason: string | undefined;
+    let skipReasonCode: string | null = null;
+    let skipReasonText: string | null = null;
 
     if (!email) {
       status = 'SKIPPED_NO_EMAIL';
-      skipReason = 'Email is missing.';
+      skipReasonCode = 'NO_EMAIL';
+      skipReasonText = 'Email is missing.';
     } else if (!EMAIL_REGEX.test(email)) {
       status = 'SKIPPED_INVALID_EMAIL';
-      skipReason = 'Email format is invalid.';
+      skipReasonCode = 'INVALID_EMAIL';
+      skipReasonText = 'Email format is invalid.';
     } else if (!user.isActive) {
       status = 'SKIPPED_BLOCKED';
-      skipReason = 'User account is inactive.';
-    } else if (requiresVerifiedEmail(type, audienceKind, filter) && !user.emailVerifiedAt) {
+      skipReasonCode = 'USER_DISABLED';
+      skipReasonText = 'User account is inactive.';
+    } else if (!isExternalRecipient && requiresVerifiedEmail(type, audienceKind, filter) && !user.emailVerifiedAt) {
       status = 'SKIPPED_EMAIL_NOT_VERIFIED';
-      skipReason = 'Email is not verified.';
+      skipReasonCode = 'EMAIL_NOT_VERIFIED';
+      skipReasonText = 'Email is not verified.';
     } else if (suppressionByEmail.has(normalizedEmail)) {
       status = 'SKIPPED_SUPPRESSED';
-      skipReason = `Email is suppressed: ${suppressionByEmail.get(normalizedEmail)}`;
-    } else if (consent.optedOut) {
+      skipReasonCode = 'SUPPRESSED_EMAIL';
+      skipReasonText = `Email is suppressed: ${suppressionByEmail.get(normalizedEmail)}`;
+    } else if (!isExternalRecipient && consent.optedOut) {
       status = 'SKIPPED_UNSUBSCRIBED';
-      skipReason = 'User opted out of this communication topic.';
-    } else if (!consent.allowed) {
+      skipReasonCode = 'UNSUBSCRIBED';
+      skipReasonText = 'User opted out of this communication topic.';
+    } else if (!isExternalRecipient && !consent.allowed) {
       status = 'SKIPPED_NO_CONSENT';
-      skipReason = 'No explicit consent for this communication topic.';
+      skipReasonCode = 'NO_MARKETING_CONSENT';
+      skipReasonText = 'No explicit consent for this communication topic.';
     } else if (seenEmails.has(normalizedEmail)) {
       status = 'SKIPPED_DUPLICATE_EMAIL';
-      skipReason = 'Duplicate email in this audience.';
+      skipReasonCode = 'DUPLICATE_RECIPIENT';
+      skipReasonText = 'Duplicate email in this audience.';
     }
 
     if (!status.startsWith('SKIPPED') && normalizedEmail) {
@@ -347,16 +465,33 @@ export async function resolveAudience(input: ResolveAudienceInput): Promise<Audi
     }
 
     return {
-      userId: user.id,
+      recipientId: user.recipientId ?? user.id,
+      recipientKind: user.recipientKind ?? 'USER',
+      userId: user.recipientKind === 'PREFILL_CONTACT' || user.recipientKind === 'MANUAL_EMAIL' ? null : user.id,
+      eventMemberId: user.eventMemberId ?? null,
+      teamMemberId: user.teamMemberId ?? null,
+      prefillContactId: user.prefillContactId ?? null,
       email: email || undefined,
       normalizedEmail: normalizedEmail || undefined,
       name: user.name ?? undefined,
+      fullName: user.name ?? undefined,
+      firstName: user.name?.split(/\s+/).filter(Boolean)[0] ?? null,
+      lastName: user.name?.split(/\s+/).filter(Boolean).slice(1).join(' ') || null,
+      avatarUrl: (user as any).avatarUrl ?? null,
       eligible: !status.startsWith('SKIPPED'),
+      deliveryStatus: status,
       status,
-      skipReason,
+      skipReasonCode,
+      skipReasonText,
+      skipReason: skipReasonText ?? undefined,
       consentSnapshot: consentSnap,
       variables,
       audienceReason: user.audienceReason,
+      teamId: (user as any).audienceReason?.teamId ?? null,
+      teamName: (user as any).audienceReason?.teamName ?? null,
+      teamCode: (user as any).audienceReason?.teamCode ?? null,
+      role: (user as any).audienceReason?.teamRole ?? null,
+      eventId: (user as any).audienceReason?.eventId ?? null,
     };
   });
 
@@ -364,7 +499,10 @@ export async function resolveAudience(input: ResolveAudienceInput): Promise<Audi
   const totalEligible = items.filter(item => item.eligible).length;
   const totalSkipped = totalMatched - totalEligible;
   const skippedByReason = items.reduce<Record<string, number>>((acc, item) => {
-    if (!item.eligible) acc[item.status] = (acc[item.status] ?? 0) + 1;
+    if (!item.eligible) {
+      const key = item.skipReasonCode ?? 'UNKNOWN_ERROR';
+      acc[key] = (acc[key] ?? 0) + 1;
+    }
     return acc;
   }, {});
 
