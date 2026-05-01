@@ -507,7 +507,7 @@ adminEmailRouter.post('/recipients/preview', withErrorHandler(async (req, res) =
 
 const sendDirectEmailSchema = z.object({
   selectedUserIds: z.array(z.string()).min(1),
-  recipientEmailByUserId: z.record(z.string()).optional(),
+  recipientEmailByUserId: z.record(z.string(), z.string()).optional(),
   excludedUserIds: z.array(z.string()).optional().default([]),
   subject: z.string().min(1).max(200),
   preheader: z.string().max(220).optional().nullable(),
