@@ -1046,10 +1046,30 @@ export async function previewBroadcastContent(id: string, input: { recipientId?:
   const broadcast = detail.broadcast as any;
   let recipient: any = null;
   if (input.recipientId) {
-    recipient = await prisma.emailBroadcastRecipient.findFirst({ where: { broadcastId: id, id: input.recipientId } });
+    recipient = await prisma.emailBroadcastRecipient.findFirst({
+      where: {
+        broadcastId: id,
+        OR: [
+          { id: input.recipientId },
+          { userId: input.recipientId },
+          { teamMemberId: input.recipientId },
+          { prefillContactId: input.recipientId },
+        ],
+      },
+    });
     if (!recipient) {
       await createEmailBroadcastSnapshot(id, actor);
-      recipient = await prisma.emailBroadcastRecipient.findFirst({ where: { broadcastId: id, id: input.recipientId } });
+      recipient = await prisma.emailBroadcastRecipient.findFirst({
+        where: {
+          broadcastId: id,
+          OR: [
+            { id: input.recipientId },
+            { userId: input.recipientId },
+            { teamMemberId: input.recipientId },
+            { prefillContactId: input.recipientId },
+          ],
+        },
+      });
     }
   }
   const vars = recipient ? await buildBroadcastRecipientVariables(broadcast, recipient) : {};

@@ -353,7 +353,7 @@ adminEmailRouter.post('/preview', withErrorHandler(async (req, res) => {
     res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
     return;
   }
-  res.json(await previewBroadcastContent(id, { ...parsed.data, recipientId: req.body?.recipientId }, user));
+  res.json(await previewEmailContent(parsed.data));
 }));
 
 adminEmailRouter.post('/test-send', withErrorHandler(async (req, res) => {
@@ -363,7 +363,7 @@ adminEmailRouter.post('/test-send', withErrorHandler(async (req, res) => {
     return;
   }
   const user = (req as AuthenticatedRequest).user;
-  res.json(await sendBroadcastTestEmail(String(req.params['id']), parsed.data, user));
+  res.json(await sendTestEmail(parsed.data, user));
 }));
 
 adminEmailRouter.post('/broadcasts/:id/audience-preview', withErrorHandler(async (req, res) => {
@@ -400,14 +400,14 @@ adminEmailRouter.post('/broadcasts/:id/preview', withErrorHandler(async (req, re
     sampleVariables: req.body?.sampleVariables ?? {},
   });
   if (!parsed.success) return res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
-  res.json(await previewEmailContent(parsed.data));
+  res.json(await previewBroadcastContent(id, { ...parsed.data, recipientId: req.body?.recipientId }, user));
 }));
 
 adminEmailRouter.post('/broadcasts/:id/send-test', withErrorHandler(async (req, res) => {
   const parsed = emailTestSendSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
   const user = (req as AuthenticatedRequest).user;
-  res.json(await sendTestEmail(parsed.data, user));
+  res.json(await sendBroadcastTestEmail(String(req.params['id']), parsed.data, user));
 }));
 
 // ─── GET /api/admin/email/automations ─────────────────────────────────────────
