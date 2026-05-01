@@ -368,6 +368,7 @@ describe('audience-resolver skip reasons', () => {
       const result = await resolveAudience({
         broadcastType: 'MARKETING',
         audienceSource: 'MANUAL_SELECTION',
+        includeSkipped: true,
         audienceFilterJson: {
           selectedUserIds: ['prefill-1'],
           prefillContacts: [{ id: 'prefill-1', email: 'prefill@example.com', name: 'Prefill User' }],
@@ -384,6 +385,7 @@ describe('audience-resolver skip reasons', () => {
       const result = await resolveAudience({
         broadcastType: 'MARKETING',
         audienceSource: 'MANUAL_SELECTION',
+        includeSkipped: true,
         audienceFilterJson: {
           selectedUserIds: ['prefill-1'],
           prefillContacts: [{ id: 'prefill-1', name: 'No Email Prefill' }],

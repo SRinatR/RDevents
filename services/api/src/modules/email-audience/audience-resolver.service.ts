@@ -379,8 +379,9 @@ export async function resolveAudience(input: ResolveAudienceInput): Promise<Audi
   const items = candidates.map((user) => {
     const email = user.email?.trim() ?? '';
     const normalizedEmail = email ? normalizeEmail(email) : '';
-    const consent = consentDecision(user, type);
-    const consentSnap = consentSnapshot(user);
+    const isExternalRecipient = user.recipientKind && user.recipientKind !== 'USER';
+    const consent = isExternalRecipient ? { allowed: true, optedOut: false, topics: [] as string[] } : consentDecision(user, type);
+    const consentSnap = isExternalRecipient ? { externalRecipient: true } : consentSnapshot(user);
     const variables = buildDefaultRecipientVariables({
       userId: user.id,
       email,
@@ -405,7 +406,7 @@ export async function resolveAudience(input: ResolveAudienceInput): Promise<Audi
       status = 'SKIPPED_BLOCKED';
       skipReasonCode = 'USER_DISABLED';
       skipReasonText = 'User account is inactive.';
-    } else if (requiresVerifiedEmail(type, audienceKind, filter) && !user.emailVerifiedAt) {
+    } else if (!isExternalRecipient && requiresVerifiedEmail(type, audienceKind, filter) && !user.emailVerifiedAt) {
       status = 'SKIPPED_EMAIL_NOT_VERIFIED';
       skipReasonCode = 'EMAIL_NOT_VERIFIED';
       skipReasonText = 'Email is not verified.';
@@ -413,11 +414,11 @@ export async function resolveAudience(input: ResolveAudienceInput): Promise<Audi
       status = 'SKIPPED_SUPPRESSED';
       skipReasonCode = 'SUPPRESSED_EMAIL';
       skipReasonText = `Email is suppressed: ${suppressionByEmail.get(normalizedEmail)}`;
-    } else if (consent.optedOut) {
+    } else if (!isExternalRecipient && consent.optedOut) {
       status = 'SKIPPED_UNSUBSCRIBED';
       skipReasonCode = 'UNSUBSCRIBED';
       skipReasonText = 'User opted out of this communication topic.';
-    } else if (!consent.allowed) {
+    } else if (!isExternalRecipient && !consent.allowed) {
       status = 'SKIPPED_NO_CONSENT';
       skipReasonCode = 'NO_MARKETING_CONSENT';
       skipReasonText = 'No explicit consent for this communication topic.';
