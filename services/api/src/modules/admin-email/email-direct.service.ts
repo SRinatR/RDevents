@@ -121,6 +121,17 @@ export async function previewManualRecipients(input: {
   const skipped: RecipientPreview[] = [];
 
   for (const userId of selectedIds) {
+    if (userId.startsWith('prefill-')) {
+      skipped.push({
+        userId,
+        email: '',
+        name: '',
+        status: 'SKIPPED_USER_NOT_FOUND',
+        reason: 'Получатель передан без реального User ID. Найдите пользователя через поиск и выберите его из списка.',
+      });
+      continue;
+    }
+
     if (excludedIds.has(userId)) {
       skipped.push({
         userId,
