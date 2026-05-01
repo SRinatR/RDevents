@@ -67,15 +67,40 @@ export default function DirectEmailPage() {
   const prefillName = searchParams.get('name');
 
   useEffect(() => {
-    if (prefillEmail) {
-      const recipient: SelectedUser = {
-        id: `prefill-${Date.now()}`,
-        email: decodeURIComponent(prefillEmail),
-        name: prefillName ? decodeURIComponent(prefillName) : null,
-      };
-      setForm(prev => ({ ...prev, selectedUsers: [recipient] }));
-    }
-  }, [prefillEmail, prefillName]);
+    const hydratePrefillRecipient = async () => {
+      if (!prefillEmail) return;
+      const decodedEmail = decodeURIComponent(prefillEmail).trim();
+      const decodedName = prefillName ? decodeURIComponent(prefillName).trim() : null;
+      if (!decodedEmail) return;
+
+      try {
+        const result = await adminApi.searchUsers({ q: decodedEmail, limit: 5 });
+        const exactMatch = result.users.find((user) => user.email?.toLowerCase() === decodedEmail.toLowerCase());
+
+        if (exactMatch) {
+          const recipient: SelectedUser = {
+            id: exactMatch.id,
+            email: exactMatch.email,
+            name: exactMatch.name ?? decodedName,
+            phone: exactMatch.phone ?? null,
+          };
+          setForm(prev => ({ ...prev, selectedUsers: [recipient] }));
+          setError(null);
+          return;
+        }
+
+        setError(locale === 'ru'
+          ? 'Пользователь с этим email не найден. Найдите его через поиск получателей.'
+          : 'User with this email was not found. Search and select the recipient manually.');
+      } catch {
+        setError(locale === 'ru'
+          ? 'Пользователь с этим email не найден. Найдите его через поиск получателей.'
+          : 'User with this email was not found. Search and select the recipient manually.');
+      }
+    };
+
+    void hydratePrefillRecipient();
+  }, [prefillEmail, prefillName, locale]);
 
   const updateForm = useCallback((updates: Partial<DirectEmailForm>) => {
     setForm(prev => ({ ...prev, ...updates }));
