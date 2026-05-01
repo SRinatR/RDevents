@@ -74,7 +74,7 @@ export const createEmailBroadcastSchema = z.object({
   htmlBody: z.string().trim().max(200_000).optional().default(''),
   textBody: z.string().trim().max(100_000).optional().default(''),
   audienceKind: z.enum(['mailing_consent', 'verified_users', 'active_users', 'platform_admins']).optional().default('mailing_consent'),
-  audienceSource: lowerEnum(['static_filter', 'saved_segment', 'event_participants', 'event_teams', 'uploaded_csv', 'manual_selection', 'system'], 'static_filter').optional(),
+  audienceSource: lowerEnum(['static_filter', 'saved_segment', 'event_participants', 'event_teams', 'team', 'uploaded_csv', 'manual_selection', 'manual_email', 'system'], 'static_filter').optional(),
   audienceFilterJson: jsonObjectSchema,
   savedAudienceId: z.string().trim().min(1).optional().nullable(),
   templateId: z.string().trim().min(1).optional().nullable(),
@@ -91,7 +91,7 @@ export const audienceEstimateSchema = z.object({
   broadcastType: lowerEnum(['marketing', 'event_announcement', 'event_reminder', 'system_notification', 'admin_test', 'transactional'], 'marketing').optional(),
   type: lowerEnum(['marketing', 'event_announcement', 'event_reminder', 'system_notification', 'admin_test', 'transactional'], 'marketing').optional(),
   audienceKind: z.enum(['mailing_consent', 'verified_users', 'active_users', 'platform_admins']).optional().default('mailing_consent'),
-  audienceSource: lowerEnum(['static_filter', 'saved_segment', 'event_participants', 'event_teams', 'uploaded_csv', 'manual_selection', 'system'], 'static_filter').optional(),
+  audienceSource: lowerEnum(['static_filter', 'saved_segment', 'event_participants', 'event_teams', 'team', 'uploaded_csv', 'manual_selection', 'manual_email', 'system'], 'static_filter').optional(),
   audienceFilterJson: jsonObjectSchema,
   savedAudienceId: z.string().trim().min(1).optional().nullable(),
 });
@@ -128,11 +128,13 @@ export const emailPreviewSchema = z.object({
 });
 
 export const emailTestSendSchema = z.object({
-  toEmail: z.string().trim().email().default('admin@example.com'),
-  subject: z.string().trim().min(1).max(200),
+  toEmail: z.string().trim().email().optional(),
+  email: z.string().trim().email().optional(),
+  recipientId: z.string().trim().optional(),
+  subject: z.string().trim().min(1).max(200).optional(),
   preheader: z.string().trim().max(220).optional().nullable(),
-  textBody: z.string().trim().min(1).max(100_000),
-  htmlBody: z.string().trim().max(200_000).optional().default(''),
+  textBody: z.string().trim().min(1).max(100_000).optional(),
+  htmlBody: z.string().trim().max(200_000).optional(),
 });
 
 // ─── Response types ────────────────────────────────────────────────────────────

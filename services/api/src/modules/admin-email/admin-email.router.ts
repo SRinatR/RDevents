@@ -42,10 +42,12 @@ import {
   getEmailWebhooks,
   previewEmailAudience,
   previewEmailContent,
+  previewBroadcastContent,
   retryEmailBroadcastRecipient,
   scheduleEmailBroadcast,
   sendEmailBroadcast,
   sendTestEmail,
+  sendBroadcastTestEmail,
   updateEmailBroadcast,
   updateEmailTemplate,
 } from './admin-email.service.js';
@@ -362,6 +364,59 @@ adminEmailRouter.post('/test-send', withErrorHandler(async (req, res) => {
   }
   const user = (req as AuthenticatedRequest).user;
   res.json(await sendTestEmail(parsed.data, user));
+}));
+
+adminEmailRouter.post('/broadcasts/:id/audience-preview', withErrorHandler(async (req, res) => {
+  const id = String(req.params['id']);
+  const user = (req as AuthenticatedRequest).user;
+  const current = await getEmailBroadcast(id, user);
+  const body = audienceEstimateSchema.safeParse({
+    broadcastType: req.body?.broadcastType ?? current.broadcast.type,
+    audienceKind: req.body?.audienceKind ?? current.broadcast.audienceKind,
+    audienceSource: req.body?.audienceSource ?? current.broadcast.audienceSource,
+    audienceFilterJson: req.body?.audienceFilterJson ?? current.broadcast.audienceFilterJson,
+    savedAudienceId: req.body?.savedAudienceId ?? null,
+  });
+  if (!body.success) {
+    res.status(400).json({ error: 'Invalid request body', details: body.error.flatten() });
+    return;
+  }
+  const result = await previewEmailAudience(body.data, { page: 1, limit: 200 }, user);
+  res.json({
+    totalSelected: result.totals.totalMatched,
+    willSend: result.totals.totalEligible,
+    skipped: result.totals.totalSkipped,
+    skippedByReason: result.totals.skippedByReason,
+    recipients: result.data,
+  });
+}));
+
+adminEmailRouter.post('/broadcasts/:id/preview', withErrorHandler(async (req, res) => {
+  const id = String(req.params['id']);
+  const user = (req as AuthenticatedRequest).user;
+  const current = await getEmailBroadcast(id, user);
+  const parsed = emailPreviewSchema.safeParse({
+    subject: req.body?.subject ?? current.broadcast.subject,
+    preheader: req.body?.preheader ?? current.broadcast.preheader,
+    textBody: req.body?.textBody ?? current.broadcast.textBody,
+    htmlBody: req.body?.htmlBody ?? current.broadcast.htmlBody,
+    sampleVariables: req.body?.sampleVariables ?? {},
+  });
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
+    return;
+  }
+  res.json(await previewBroadcastContent(id, { ...parsed.data, recipientId: req.body?.recipientId }, user));
+}));
+
+adminEmailRouter.post('/broadcasts/:id/send-test', withErrorHandler(async (req, res) => {
+  const parsed = emailTestSendSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid request body', details: parsed.error.flatten() });
+    return;
+  }
+  const user = (req as AuthenticatedRequest).user;
+  res.json(await sendBroadcastTestEmail(String(req.params['id']), parsed.data, user));
 }));
 
 // ─── GET /api/admin/email/automations ─────────────────────────────────────────
