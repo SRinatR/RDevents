@@ -225,6 +225,13 @@ export default function AdminParticipantsPage() {
               >
                 {locale === 'ru' ? 'Выгрузить участников JSON' : 'Export participants JSON'}
               </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => void adminExportsApi.downloadAvatarBundle(eventFilter)}
+              >
+                {locale === 'ru' ? 'Скачать фото ZIP' : 'Download photos ZIP'}
+              </button>
             </>
           )}
         </ToolbarRow>

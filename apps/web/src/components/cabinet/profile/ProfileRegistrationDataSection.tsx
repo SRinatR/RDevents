@@ -18,10 +18,9 @@ type Props = {
   eventTitle: string;
   onSave: (payload: Record<string, unknown>) => Promise<void>;
   onUpload: (file: File) => Promise<void>;
-  onDelete: () => Promise<void>;
 };
 
-export function ProfileRegistrationDataSection({ locale, user, status, saving, requiredFields, eventTitle, onSave, onUpload, onDelete }: Props) {
+export function ProfileRegistrationDataSection({ locale, user, status, saving, requiredFields, eventTitle, onSave, onUpload }: Props) {
   const isRu = locale === 'ru';
   const extended = user.extendedProfile ?? {};
   const [uploading, setUploading] = useState(false);
@@ -115,10 +114,9 @@ export function ProfileRegistrationDataSection({ locale, user, status, saving, r
             </div>
             <div className="profile-photo-actions">
               <label className="btn btn-secondary btn-sm">
-                {uploading ? (isRu ? 'Загрузка...' : 'Uploading...') : (isRu ? 'Загрузить' : 'Upload')}
+                {uploading ? (isRu ? 'Загрузка...' : 'Uploading...') : (user.avatarUrl ? (isRu ? 'Изменить фото' : 'Change photo') : (isRu ? 'Загрузить' : 'Upload'))}
                 <input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => void handleFile(event.target.files?.[0])} />
               </label>
-              {user.avatarUrl ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => void onDelete()}>{isRu ? 'Удалить' : 'Delete'}</button> : null}
             </div>
           </div>
           <div className="profile-requirements-panel">

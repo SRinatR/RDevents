@@ -11,6 +11,8 @@ import { normalizeEmail, normalizeOptionalEmail } from '../../common/email-norma
 import { trackAnalyticsEvent } from '../analytics/analytics.service.js';
 import { bindPendingInvitationsToUser } from '../events/team-invitations.service.js';
 import { createSession } from './auth.sessions.js';
+import { recordProfileHistory } from './profile.history.js';
+import { getProfileSnapshot } from './profile.snapshot.js';
 import type {
   CompleteRegistrationInput,
   LoginInput,
@@ -425,6 +427,10 @@ function buildFullName(parts: string[]): string | null {
 }
 
 export async function updateProfile(userId: string, input: UpdateProfileInput) {
+  if (input.avatarUrl !== undefined && !input.avatarUrl) {
+    throw new Error('PROFILE_AVATAR_DELETE_FORBIDDEN');
+  }
+
   // Build full names from parts
   const fullNameCyrillic = buildFullName([
     input.lastNameCyrillic ?? '',
@@ -442,6 +448,7 @@ export async function updateProfile(userId: string, input: UpdateProfileInput) {
     ? input.name || fullNameCyrillic
     : fullNameCyrillic;
 
+  const before = await getProfileSnapshot(userId);
   const user = await prisma.user.update({
     where: { id: userId },
     data: {
@@ -475,6 +482,13 @@ export async function updateProfile(userId: string, input: UpdateProfileInput) {
       ...(fullNameCyrillic !== null && { fullNameCyrillic }),
       ...(fullNameLatin !== null && { fullNameLatin }),
     },
+  });
+  const after = await getProfileSnapshot(userId);
+  await recordProfileHistory({
+    userId,
+    action: 'PROFILE_UPDATED',
+    before,
+    after,
   });
   return sanitizeUser(user as any);
 }

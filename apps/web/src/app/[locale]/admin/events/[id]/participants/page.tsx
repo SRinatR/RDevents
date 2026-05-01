@@ -137,6 +137,16 @@ export default function EventParticipantsPage() {
                 >
                   {locale === 'ru' ? 'Выгрузить JSON' : 'Export JSON'}
                 </button>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => {
+                    if (!eventId) return;
+                    adminExportsApi.downloadAvatarBundle(eventId);
+                  }}
+                >
+                  {locale === 'ru' ? 'Скачать фото ZIP' : 'Download photos ZIP'}
+                </button>
               </div>
             </ToolbarRow>
 

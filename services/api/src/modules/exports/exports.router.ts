@@ -16,20 +16,13 @@ import {
   type ExportConfig,
 } from './exports.service.js';
 import { logger } from '../../common/logger.js';
+import { getManagedEventIds as getRbacManagedEventIds } from '../access-control/access-control.service.js';
 
 export const exportsRouter = Router();
 
-const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
-
 async function getManagedEventIds(user: User): Promise<string[] | null> {
   if (['PLATFORM_ADMIN', 'SUPER_ADMIN'].includes(user.role)) return null;
-
-  const memberships = await prisma.eventMember.findMany({
-    where: { userId: user.id, role: 'EVENT_ADMIN', status: { in: [...ACTIVE_MEMBER_STATUSES] } },
-    select: { eventId: true },
-  });
-
-  return memberships.map(m => m.eventId);
+  return getRbacManagedEventIds(user, 'participants.readPii');
 }
 
 const createPresetSchema = z.object({
@@ -99,6 +92,20 @@ function parseFilters(query: Record<string, unknown>) {
   if (query['includeCancelled']) filters['includeCancelled'] = query['includeCancelled'] === 'true';
   if (query['includeRemoved']) filters['includeRemoved'] = query['includeRemoved'] === 'true';
   return Object.keys(filters).length > 0 ? filters : undefined;
+}
+
+function parseAvatarBundleOptions(input: Record<string, unknown>) {
+  return {
+    includeApprovedOnly: input['includeApprovedOnly'] === true || input['includeApprovedOnly'] === 'true',
+    includeTeamsOnly: input['includeTeamsOnly'] === true || input['includeTeamsOnly'] === 'true',
+    includeVolunteers: input['includeVolunteers'] === true || input['includeVolunteers'] === 'true',
+  };
+}
+
+function sendAvatarBundle(res: any, bundle: Awaited<ReturnType<typeof generateAvatarBundle>>) {
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename="${bundle.filename}"`);
+  res.send(bundle.buffer);
 }
 
 // GET /api/admin/events/:eventId/exports/presets
@@ -329,13 +336,46 @@ exportsRouter.post('/events/:eventId/exports/avatar-bundle', async (req, res) =>
     meta: { eventId, eventTitle: event.title, participantsCount: bundle.participants.length },
   });
 
-  res.json({
-    jobId: bundle.jobId,
-    format: bundle.format,
-    contains: bundle.contains,
-    participantsCount: bundle.participants.length,
-    missingAvatarsCount: bundle.participants.filter((p: any) => p.missingAvatar).length,
+  sendAvatarBundle(res, bundle);
+});
+
+// GET /api/admin/events/:eventId/exports/avatar-bundle
+exportsRouter.get('/events/:eventId/exports/avatar-bundle', async (req, res) => {
+  const user = (req as any).user as User;
+  const { eventId } = req.params;
+
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, title: true },
   });
+
+  if (!event) {
+    res.status(404).json({ error: 'Event not found' });
+    return;
+  }
+
+  const managedEventIds = await getManagedEventIds(user);
+  if (managedEventIds && !managedEventIds.includes(eventId)) {
+    res.status(403).json({ error: 'Access denied' });
+    return;
+  }
+
+  const parsed = avatarBundleSchema.safeParse(parseAvatarBundleOptions(req.query as Record<string, unknown>));
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+    return;
+  }
+
+  const bundle = await generateAvatarBundle(eventId, parsed.data);
+
+  logger.info('Avatar bundle downloaded', {
+    module: 'exports',
+    action: 'AVATAR_BUNDLE_DOWNLOADED',
+    userId: user.id,
+    meta: { eventId, eventTitle: event.title, participantsCount: bundle.participants.length },
+  });
+
+  sendAvatarBundle(res, bundle);
 });
 
 exportsRouter.get('/events/:eventId/exports/:scope', async (req, res) => {

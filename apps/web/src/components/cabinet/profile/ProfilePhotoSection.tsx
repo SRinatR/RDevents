@@ -15,7 +15,6 @@ type ProfilePhotoSectionProps = {
   requiredFields: string[];
   eventTitle?: string;
   onUpload: (file: File) => Promise<void>;
-  onDelete: () => Promise<void>;
 };
 
 const ACCEPTED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -29,7 +28,6 @@ export function ProfilePhotoSection({
   requiredFields,
   eventTitle,
   onUpload,
-  onDelete,
 }: ProfilePhotoSectionProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [localError, setLocalError] = useState('');
@@ -114,13 +112,8 @@ export function ProfilePhotoSection({
           </div>
           <div className="profile-photo-actions">
             <button type="button" className="btn btn-primary" disabled={saving} onClick={() => inputRef.current?.click()}>
-              {saving ? (locale === 'ru' ? 'Загрузка...' : 'Uploading...') : (locale === 'ru' ? 'Выбрать файл' : 'Choose file')}
+              {saving ? (locale === 'ru' ? 'Загрузка...' : 'Uploading...') : (user.avatarUrl ? (locale === 'ru' ? 'Изменить фото' : 'Change photo') : (locale === 'ru' ? 'Выбрать файл' : 'Choose file'))}
             </button>
-            {user.avatarUrl ? (
-              <button type="button" className="btn btn-secondary" disabled={saving} onClick={() => void onDelete()}>
-                {locale === 'ru' ? 'Удалить' : 'Delete'}
-              </button>
-            ) : null}
           </div>
           {localError ? <Notice tone="danger">{localError}</Notice> : null}
         </div>

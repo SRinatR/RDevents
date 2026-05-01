@@ -1235,6 +1235,14 @@ export const adminExportsApi = {
   downloadTeamMembers: async (eventId: string, format = 'csv', filters?: ExportFilters) => {
     await downloadWithAuth(buildExportPath(eventId, 'team_members', format, filters), `export_${eventId}_team_members.${format}`);
   },
+  downloadAvatarBundle: async (eventId: string, options?: { includeApprovedOnly?: boolean; includeTeamsOnly?: boolean; includeVolunteers?: boolean }) => {
+    const params = new URLSearchParams();
+    if (options?.includeApprovedOnly) params.set('includeApprovedOnly', 'true');
+    if (options?.includeTeamsOnly) params.set('includeTeamsOnly', 'true');
+    if (options?.includeVolunteers) params.set('includeVolunteers', 'true');
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    await downloadWithAuth(`/api/admin/exports/events/${eventId}/exports/avatar-bundle${qs}`, `event_${eventId}_photos.zip`);
+  },
 };
 
 function parseFilters(query: Record<string, unknown>) {

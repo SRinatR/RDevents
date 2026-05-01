@@ -10,6 +10,7 @@ import {
 } from './profile.sections.js';
 import { profileSectionSchemaMap } from './profile.schemas.js';
 import {
+  getProfileSnapshot,
   isDomesticDocumentComplete,
   isInternationalPassportComplete,
   isSocialLinksComplete,
@@ -17,12 +18,12 @@ import {
 import {
   attachAvatarToUser,
   createMediaAsset,
-  detachAvatarFromUser,
   listUserDocuments,
   markMediaAssetDeleted,
   validateAvatarFile,
   validateDocumentFile,
 } from './profile.media.js';
+import { recordProfileHistory } from './profile.history.js';
 
 type ProfileUser = Record<string, any>;
 
@@ -53,6 +54,7 @@ export async function updateProfileSection(userId: string, sectionKey: ProfileSe
   }
 
   const data = parsed.data as Record<string, any>;
+  const before = await getProfileSnapshot(userId);
 
   if (sectionKey === 'registration_data') {
     await updateRegistrationDataSection(userId, data);
@@ -66,6 +68,15 @@ export async function updateProfileSection(userId: string, sectionKey: ProfileSe
     await updateActivityInfoSection(userId, data);
   }
 
+  const after = await getProfileSnapshot(userId);
+  await recordProfileHistory({
+    userId,
+    action: 'PROFILE_SECTION_UPDATED',
+    sectionKey,
+    before,
+    after,
+  });
+
   const user = await getProfileUserForResponse(userId);
   const statusUser = await getProfileUserForStatus(userId);
   const section = await upsertSectionState(userId, sectionKey, getSectionStatus(sectionKey, statusUser as ProfileUser));
@@ -78,8 +89,24 @@ export async function updateProfileSection(userId: string, sectionKey: ProfileSe
 
 export async function uploadProfileAvatar(userId: string, file: Express.Multer.File) {
   validateAvatarFile(file);
+  const before = await getProfileSnapshot(userId);
   const asset = await createMediaAsset(userId, 'AVATAR', file);
   await attachAvatarToUser(userId, asset.id);
+  const after = await getProfileSnapshot(userId);
+  await recordProfileHistory({
+    userId,
+    action: 'PROFILE_AVATAR_UPLOADED',
+    sectionKey: 'registration_data',
+    assetId: asset.id,
+    before,
+    after,
+    meta: {
+      originalFilename: asset.originalFilename,
+      mimeType: asset.mimeType,
+      sizeBytes: asset.sizeBytes,
+      publicUrl: buildPublicMediaUrl(asset.storageKey),
+    },
+  });
 
   const user = await getProfileUserForResponse(userId);
   const statusUser = await getProfileUserForStatus(userId);
@@ -93,9 +120,8 @@ export async function uploadProfileAvatar(userId: string, file: Express.Multer.F
 }
 
 export async function removeProfileAvatar(userId: string) {
-  await detachAvatarFromUser(userId);
-  const statusUser = await getProfileUserForStatus(userId);
-  return upsertSectionState(userId, 'registration_data', getSectionStatus('registration_data', statusUser as ProfileUser));
+  void userId;
+  throw new Error('PROFILE_AVATAR_DELETE_FORBIDDEN');
 }
 
 export async function listProfileDocuments(userId: string) {
@@ -104,18 +130,44 @@ export async function listProfileDocuments(userId: string) {
 
 export async function uploadProfileDocument(userId: string, file: Express.Multer.File) {
   validateDocumentFile(file);
+  const before = await getProfileSnapshot(userId);
   const asset = await createMediaAsset(userId, 'DOCUMENT', file);
   const statusUser = await getProfileUserForStatus(userId);
   const section = await upsertSectionState(userId, 'personal_documents', getSectionStatus('personal_documents', statusUser as ProfileUser));
+  const after = await getProfileSnapshot(userId);
+  await recordProfileHistory({
+    userId,
+    action: 'PROFILE_DOCUMENT_UPLOADED',
+    sectionKey: 'personal_documents',
+    assetId: asset.id,
+    before,
+    after,
+    meta: {
+      originalFilename: asset.originalFilename,
+      mimeType: asset.mimeType,
+      sizeBytes: asset.sizeBytes,
+      publicUrl: buildPublicMediaUrl(asset.storageKey),
+    },
+  });
   return { asset: publicMediaAsset(asset), section };
 }
 
 export async function removeProfileDocument(userId: string, assetId: string) {
+  const before = await getProfileSnapshot(userId);
   await markMediaAssetDeleted(userId, assetId);
   await prisma.userAdditionalDocument.deleteMany({ where: { userId, assetId } });
   await prisma.userIdentityDocument.updateMany({ where: { userId, scanAssetId: assetId }, data: { scanAssetId: null } });
   await prisma.userInternationalPassport.updateMany({ where: { userId, scanAssetId: assetId }, data: { scanAssetId: null } });
   const statusUser = await getProfileUserForStatus(userId);
+  const after = await getProfileSnapshot(userId);
+  await recordProfileHistory({
+    userId,
+    action: 'PROFILE_DOCUMENT_DELETED',
+    sectionKey: 'personal_documents',
+    assetId,
+    before,
+    after,
+  });
   return upsertSectionState(userId, 'personal_documents', getSectionStatus('personal_documents', statusUser as ProfileUser));
 }
 
