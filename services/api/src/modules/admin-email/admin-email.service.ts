@@ -109,6 +109,8 @@ const AUDIENCE_SOURCE_TO_DB: Record<string, string> = {
   event_teams: 'EVENT_TEAMS',
   uploaded_csv: 'UPLOADED_CSV',
   manual_selection: 'MANUAL_SELECTION',
+  manual_email: 'MANUAL_SELECTION',
+  team: 'EVENT_TEAMS',
   system: 'SYSTEM',
 };
 
@@ -715,8 +717,8 @@ export async function createEmailBroadcastSnapshot(id: string, actor?: User): Pr
           email: item.email ?? '',
           normalizedEmail: item.normalizedEmail ?? `missing-${item.userId ?? Date.now()}`,
           name: item.name ?? null,
-          status: item.eligible ? 'QUEUED' as any : item.status as any,
-          skipReason: item.skipReason ?? null,
+          status: item.eligible ? 'QUEUED' as any : item.deliveryStatus as any,
+          skipReason: item.skipReasonText ?? null,
           consentSnapshotJson: item.consentSnapshot as any,
           variablesSnapshotJson: item.variables as any,
           audienceReasonJson: item.audienceReason as any,
@@ -830,10 +832,10 @@ export async function previewEmailAudience(input: AudienceEstimateInput, query: 
     resultLimit: EMAIL_BROADCAST_MAX_RECIPIENTS + 1,
   });
   const filtered = result.items.filter(item => {
-    if (query.status && query.status !== 'ALL' && item.status !== query.status.toUpperCase()) return false;
+    if (query.status && query.status !== 'ALL' && item.deliveryStatus !== query.status.toUpperCase()) return false;
     if (!query.search) return true;
     const needle = query.search.toLowerCase();
-    return [item.email, item.name, item.userId].filter(Boolean).some(value => String(value).toLowerCase().includes(needle));
+    return [item.email, item.name, item.userId, item.recipientId].filter(Boolean).some(value => String(value).toLowerCase().includes(needle));
   });
   return { data: filtered.slice((page - 1) * limit, page * limit), meta: paginationMeta(filtered.length, page, limit), totals: { totalMatched: result.totalMatched, totalEligible: result.totalEligible, totalSkipped: result.totalSkipped, skippedByReason: result.skippedByReason } };
 }
