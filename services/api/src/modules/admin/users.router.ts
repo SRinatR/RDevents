@@ -17,6 +17,7 @@ const USER_PROFILE_SELECT = {
   role: true,
   isActive: true,
   avatarUrl: true,
+  avatarAssetId: true,
   city: true,
   registeredAt: true,
   lastLoginAt: true,
@@ -125,6 +126,12 @@ function auditAdminProfileView(params: {
       documentsReturned: params.documentsReturned,
     },
   });
+}
+
+function getChangedFields(meta: unknown): string[] {
+  if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return [];
+  const value = (meta as Record<string, unknown>)['changedFields'];
+  return Array.isArray(value) ? value.map(String) : [];
 }
 
 async function canAdminAccessUserProfile(actor: User, targetUserId: string, eventId?: string) {
@@ -527,6 +534,8 @@ adminUsersRouter.get('/:id/profile', async (req, res) => {
     additionalDocuments,
     emergencyContact,
     profileSectionStates,
+    avatarHistory,
+    profileHistory,
     eventMemberships,
     registrationsSubmissions,
     teamMemberships,
@@ -568,6 +577,35 @@ adminUsersRouter.get('/:id/profile', async (req, res) => {
     prisma.userProfileSectionState.findMany({
       where: { userId: existing.id },
       select: { sectionKey: true, status: true, updatedAt: true },
+    }),
+    prisma.mediaAsset.findMany({
+      where: { ownerUserId: existing.id, purpose: 'AVATAR' },
+      select: {
+        id: true,
+        originalFilename: true,
+        mimeType: true,
+        sizeBytes: true,
+        publicUrl: true,
+        status: true,
+        createdAt: true,
+        deletedAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.userProfileHistory.findMany({
+      where: { userId: existing.id },
+      select: {
+        id: true,
+        action: true,
+        sectionKey: true,
+        assetId: true,
+        meta: true,
+        createdAt: true,
+        actor: { select: { id: true, email: true, name: true, role: true } },
+        asset: { select: { id: true, originalFilename: true, publicUrl: true, mimeType: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
     }),
     prisma.eventMember.findMany({
       where: { userId: existing.id, ...eventScopedWhere },
@@ -627,6 +665,32 @@ adminUsersRouter.get('/:id/profile', async (req, res) => {
       sectionKey: s.sectionKey,
       status: s.status,
       updatedAt: s.updatedAt.toISOString(),
+    })),
+    avatarHistory: avatarHistory.map(asset => ({
+      id: asset.id,
+      originalFilename: asset.originalFilename,
+      mimeType: asset.mimeType,
+      sizeBytes: asset.sizeBytes,
+      publicUrl: asset.publicUrl,
+      status: asset.status,
+      createdAt: asset.createdAt.toISOString(),
+      deletedAt: asset.deletedAt?.toISOString() ?? null,
+      isCurrent: asset.id === profile?.avatarAssetId,
+    })),
+    profileHistory: profileHistory.map(entry => ({
+      id: entry.id,
+      action: entry.action,
+      sectionKey: entry.sectionKey,
+      assetId: entry.assetId,
+      changedFields: getChangedFields(entry.meta),
+      createdAt: entry.createdAt.toISOString(),
+      actor: entry.actor,
+      asset: entry.asset
+        ? {
+            ...entry.asset,
+            publicUrl: entry.action === 'PROFILE_AVATAR_UPLOADED' || shouldRevealSensitive ? entry.asset.publicUrl : null,
+          }
+        : null,
     })),
     eventMemberships: eventMemberships.map(m => ({
       id: m.id,

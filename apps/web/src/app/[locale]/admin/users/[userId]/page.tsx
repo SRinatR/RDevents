@@ -25,6 +25,7 @@ interface UserFullProfile {
     role: string;
     isActive: boolean;
     avatarUrl: string | null;
+    avatarAssetId: string | null;
     city: string | null;
     phone: string | null;
     telegram: string | null;
@@ -121,6 +122,27 @@ interface UserFullProfile {
   } | null;
   activityDirections: string[];
   additionalLanguages: string[];
+  avatarHistory: Array<{
+    id: string;
+    originalFilename: string;
+    mimeType: string;
+    sizeBytes: number;
+    publicUrl: string | null;
+    status: string;
+    createdAt: string;
+    deletedAt: string | null;
+    isCurrent: boolean;
+  }>;
+  profileHistory: Array<{
+    id: string;
+    action: string;
+    sectionKey: string | null;
+    assetId: string | null;
+    changedFields: string[];
+    createdAt: string;
+    actor: { id: string; email: string; name: string | null; role: string } | null;
+    asset: { id: string; originalFilename: string; publicUrl: string | null; mimeType: string } | null;
+  }>;
   emergencyContact: {
     fullName: string | null;
     relationship: string | null;
@@ -209,7 +231,7 @@ interface UserFullProfile {
   };
 }
 
-type ProfileTab = 'overview' | 'documents' | 'activity';
+type ProfileTab = 'overview' | 'documents' | 'activity' | 'history';
 
 const toneByStatus: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
   ACTIVE: 'success',
@@ -241,6 +263,24 @@ function formatAnswerValue(value: unknown): string {
     return String(value);
   }
   return JSON.stringify(value);
+}
+
+function formatHistoryAction(action: string, locale: string): string {
+  const isRu = locale === 'ru';
+  const labels: Record<string, string> = {
+    PROFILE_SECTION_UPDATED: isRu ? 'Обновление раздела' : 'Section updated',
+    PROFILE_UPDATED: isRu ? 'Обновление профиля' : 'Profile updated',
+    PROFILE_AVATAR_UPLOADED: isRu ? 'Загружено фото профиля' : 'Profile photo uploaded',
+    PROFILE_DOCUMENT_UPLOADED: isRu ? 'Загружен документ' : 'Document uploaded',
+    PROFILE_DOCUMENT_DELETED: isRu ? 'Удалён документ' : 'Document deleted',
+  };
+  return labels[action] ?? action;
+}
+
+function formatBytes(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return '—';
+  if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function InfoField({
@@ -400,6 +440,8 @@ export default function AdminUserFullProfilePage() {
     socialLinks,
     activityDirections,
     additionalLanguages,
+    avatarHistory,
+    profileHistory,
     additionalDocuments,
     emergencyContact,
     eventMemberships,
@@ -430,6 +472,7 @@ export default function AdminUserFullProfilePage() {
     { key: 'overview', label: t('tabs.overview') },
     { key: 'documents', label: t('tabs.documents') },
     { key: 'activity', label: t('tabs.activity') },
+    { key: 'history', label: locale === 'ru' ? 'История' : 'History' },
   ];
 
   return (
@@ -753,6 +796,86 @@ export default function AdminUserFullProfilePage() {
                   </div>
                 ))}
               </div>
+            ) : (
+              <span className="signal-muted">—</span>
+            )}
+          </Panel>
+        </div>
+      )}
+
+      {activeTab === 'history' && (
+        <div className={styles.cardGrid}>
+          <Panel variant="elevated" className={`${styles.profileCard} ${styles.fullWidth}`}>
+            <SectionHeader title={locale === 'ru' ? 'История фото профиля' : 'Profile Photo History'} />
+            {avatarHistory.length > 0 ? (
+              <TableShell>
+                <table className="signal-table">
+                  <thead>
+                    <tr>
+                      <th>{locale === 'ru' ? 'Фото' : 'Photo'}</th>
+                      <th>{locale === 'ru' ? 'Файл' : 'File'}</th>
+                      <th>{locale === 'ru' ? 'Статус' : 'Status'}</th>
+                      <th>{locale === 'ru' ? 'Дата' : 'Date'}</th>
+                      <th className="right">{locale === 'ru' ? 'Ссылка' : 'Link'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {avatarHistory.map((asset) => (
+                      <tr key={asset.id}>
+                        <td>
+                          {asset.publicUrl ? <Image src={asset.publicUrl} alt="" width={44} height={44} /> : <span className="signal-muted">—</span>}
+                        </td>
+                        <td>
+                          <strong>{asset.originalFilename}</strong>
+                          <div className="signal-muted">{asset.mimeType} · {formatBytes(asset.sizeBytes)}</div>
+                        </td>
+                        <td>
+                          <StatusBadge tone={asset.isCurrent ? 'success' : asset.status === 'DELETED' ? 'neutral' : 'info'}>
+                            {asset.isCurrent ? (locale === 'ru' ? 'Текущее' : 'Current') : asset.status}
+                          </StatusBadge>
+                        </td>
+                        <td>{formatDateTime(asset.createdAt)}</td>
+                        <td className="right"><LinkValue href={asset.publicUrl} label={t('open')} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </TableShell>
+            ) : (
+              <span className="signal-muted">—</span>
+            )}
+          </Panel>
+
+          <Panel variant="elevated" className={`${styles.profileCard} ${styles.fullWidth}`}>
+            <SectionHeader title={locale === 'ru' ? 'История изменений данных' : 'Profile Data History'} />
+            {profileHistory.length > 0 ? (
+              <TableShell>
+                <table className="signal-table">
+                  <thead>
+                    <tr>
+                      <th>{locale === 'ru' ? 'Действие' : 'Action'}</th>
+                      <th>{locale === 'ru' ? 'Раздел' : 'Section'}</th>
+                      <th>{locale === 'ru' ? 'Изменённые поля' : 'Changed fields'}</th>
+                      <th>{locale === 'ru' ? 'Автор' : 'Actor'}</th>
+                      <th>{locale === 'ru' ? 'Дата' : 'Date'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {profileHistory.map((entry) => (
+                      <tr key={entry.id}>
+                        <td>
+                          <strong>{formatHistoryAction(entry.action, locale)}</strong>
+                          {entry.asset?.publicUrl ? <div><LinkValue href={entry.asset.publicUrl} label={entry.asset.originalFilename} /></div> : null}
+                        </td>
+                        <td>{entry.sectionKey ?? '—'}</td>
+                        <td>{entry.changedFields.length > 0 ? entry.changedFields.join(', ') : '—'}</td>
+                        <td>{entry.actor?.name || entry.actor?.email || '—'}</td>
+                        <td>{formatDateTime(entry.createdAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </TableShell>
             ) : (
               <span className="signal-muted">—</span>
             )}

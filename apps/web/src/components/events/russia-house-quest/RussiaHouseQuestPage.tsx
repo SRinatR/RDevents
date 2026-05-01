@@ -9,6 +9,10 @@ import { analyticsApi } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { PublicFooter } from '@/components/layout/PublicFooter';
 import {
+  getRegistrationClosedReason,
+  getRegistrationClosedMessage,
+} from '@/lib/registration-status';
+import {
   QUEST_NAV_ITEMS,
   QUEST_HIGHLIGHTS,
   QUEST_STATS,
@@ -85,16 +89,17 @@ export function RussiaHouseQuestPage({
   const heroImage = event.coverImageUrl || '/dom-gde-zhivet-rossiya.jpg';
   const descriptionParts = String(event.fullDescription ?? '').split(/\n{2,}/).filter(Boolean);
 
-  const isFull = event.registrationsCount >= event.capacity;
-  const registrationEnabled = event.registrationEnabled !== false;
-  const registrationNotOpen = event.registrationOpensAt
-    ? new Date(event.registrationOpensAt).getTime() > Date.now()
-    : false;
-  const registrationExpired = event.registrationDeadline
-    ? new Date(event.registrationDeadline).getTime() < Date.now()
-    : false;
-  const registrationBlocked =
-    !registrationEnabled || registrationNotOpen || registrationExpired || isFull;
+  const registrationClosedReason = getRegistrationClosedReason(event);
+  const registrationBlocked = registrationClosedReason !== null;
+  const registrationClosedMessage = getRegistrationClosedMessage(registrationClosedReason, locale);
+
+  const participantMembership = event.memberships?.find(
+    (membership: any) => membership.role === 'PARTICIPANT',
+  );
+  const isExistingParticipant = ['ACTIVE', 'PENDING', 'RESERVE'].includes(
+    participantMembership?.status ?? '',
+  );
+  const shouldDisableApplyButton = registrationBlocked && !isExistingParticipant;
 
   const eventDateRange =
     locale === 'ru' ? 'воскресенье, 3 мая 2026 г. · 10:30 – 15:30' : 'Sunday, May 3, 2026 · 10:30 – 15:30';
@@ -119,8 +124,18 @@ export function RussiaHouseQuestPage({
               <h1>{event.title}</h1>
               <p>{event.shortDescription}</p>
               <div className="rhq-hero-actions">
-                <button onClick={onApply} className="rhq-button rhq-button-primary">
-                  {locale === 'ru' ? 'Перейти в личный кабинет' : 'Open cabinet'}
+                <button
+                  onClick={shouldDisableApplyButton ? undefined : onApply}
+                  disabled={shouldDisableApplyButton}
+                  className="rhq-button rhq-button-primary"
+                >
+                  {shouldDisableApplyButton
+                    ? locale === 'ru'
+                      ? 'Регистрация закрыта'
+                      : 'Registration closed'
+                    : locale === 'ru'
+                      ? 'Перейти в личный кабинет'
+                      : 'Open cabinet'}
                 </button>
                 <a href="#program" className="rhq-button rhq-button-secondary">
                   {locale === 'ru' ? 'Смотреть программу' : 'View program'}
@@ -287,8 +302,18 @@ export function RussiaHouseQuestPage({
               </div>
             </div>
             <div className="rhq-registration-card">
-              <button onClick={onApply} className="rhq-button rhq-button-primary">
-                {locale === 'ru' ? 'Перейти в личный кабинет' : 'Open cabinet'}
+              <button
+                onClick={shouldDisableApplyButton ? undefined : onApply}
+                disabled={shouldDisableApplyButton}
+                className="rhq-button rhq-button-primary"
+              >
+                {shouldDisableApplyButton
+                  ? locale === 'ru'
+                    ? 'Регистрация закрыта'
+                    : 'Registration closed'
+                  : locale === 'ru'
+                    ? 'Перейти в личный кабинет'
+                    : 'Open cabinet'}
               </button>
               <button onClick={onCopyLink} className="rhq-button rhq-button-secondary rhq-share-button">
                 {copied
@@ -299,6 +324,11 @@ export function RussiaHouseQuestPage({
                     ? 'Поделиться событием'
                     : 'Share event'}
               </button>
+              {registrationBlocked && !isExistingParticipant ? (
+                <p className="rhq-registration-closed-note">
+                  {registrationClosedMessage}
+                </p>
+              ) : null}
             </div>
           </div>
         </section>

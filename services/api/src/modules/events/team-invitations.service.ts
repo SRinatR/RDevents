@@ -12,6 +12,7 @@ import {
   OPEN_CHANGE_REQUEST_STATUSES,
   TEAM_STATUSES_EDITABLE_BY_CAPTAIN,
 } from './team-governance.js';
+import { assertRegistrationGateOpen } from './registration-gates.js';
 
 const OPEN_INVITATION_STATUSES = ['PENDING_ACCOUNT', 'PENDING_RESPONSE'] as const;
 const OCCUPIED_INVITATION_STATUSES = ['PENDING_ACCOUNT', 'PENDING_RESPONSE', 'ACCEPTED'] as const;
@@ -144,7 +145,11 @@ export async function listMyTeamInvitations(userId: string) {
   return prisma.eventTeamInvitation.findMany({
     where: { inviteeUserId: userId },
     include: {
-      event: { select: { id: true, slug: true, title: true, coverImageUrl: true, startsAt: true, endsAt: true } },
+      event: { select: { 
+        id: true, slug: true, title: true, coverImageUrl: true, startsAt: true, endsAt: true,
+        registrationEnabled: true, registrationOpensAt: true, registrationDeadline: true,
+        participantLimitMode: true, participantTarget: true, capacity: true, registrationsCount: true,
+      } },
       team: { select: { id: true, name: true, status: true, captainUserId: true } },
       invitedBy: { select: { id: true, name: true, email: true } },
     },
@@ -179,8 +184,7 @@ export async function inviteToTeamByEmail(
 
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
   if (!team.event.isTeamBased) throw new Error('EVENT_NOT_TEAM_BASED');
-  if (team.event.status !== 'PUBLISHED') throw new Error('EVENT_NOT_AVAILABLE');
-  if (!team.event.registrationEnabled) throw new Error('EVENT_NOT_AVAILABLE');
+  assertRegistrationGateOpen(team.event);
   if (team.event.teamJoinMode !== 'EMAIL_INVITE') throw new Error('TEAM_INVITATIONS_DISABLED');
   if (team.captainUserId !== captainUserId) throw new Error('NOT_TEAM_CAPTAIN');
   assertTeamEditableForInvites(team);
@@ -276,6 +280,9 @@ export async function acceptTeamInvitation(invitationId: string, userId: string)
   });
 
   if (!team || team.eventId !== invitation.eventId) throw new Error('TEAM_NOT_FOUND');
+
+  assertRegistrationGateOpen(team.event);
+
   if (team.status === 'ARCHIVED') throw new Error('TEAM_NOT_ACTIVE');
   if (team.event.requireAdminApprovalForTeams && (isTeamApprovedStatus(team.status) || team.status === 'SUBMITTED' || team.status === 'CHANGES_PENDING' || team.status === 'NEEDS_ATTENTION')) {
     throw new Error('TEAM_LOCKED_CONTACT_ORGANIZER');

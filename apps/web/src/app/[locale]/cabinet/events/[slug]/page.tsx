@@ -25,6 +25,11 @@ import {
   getProfileRequirementLabel,
   type RegistrationMissingField,
 } from '@/components/cabinet/profile/profile.requirements';
+import {
+  getRegistrationClosedReason,
+  getRegistrationClosedMessage,
+} from '@/lib/registration-status';
+import { getFriendlyApiErrorMessage } from '@/lib/api-errors';
 
 const OPEN_INVITATION_STATUSES = new Set(['PENDING_ACCOUNT', 'PENDING_RESPONSE']);
 
@@ -150,6 +155,10 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
   const participantMembership = getParticipantMembership(event, membership);
   const isActiveParticipant = participantMembership?.status === 'ACTIVE';
 
+  const registrationClosedReason = getRegistrationClosedReason(event);
+  const registrationBlocked = registrationClosedReason !== null;
+  const registrationClosedMessage = getRegistrationClosedMessage(registrationClosedReason, locale);
+
   async function handleJoinEvent() {
     setActionLoading('join-event');
     setError('');
@@ -169,7 +178,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
         }
         setError(isRu ? 'Заполните обязательные поля анкеты мероприятия.' : 'Complete required event form fields.');
       } else {
-        setError(err.message || (isRu ? 'Не удалось стать участником' : 'Failed to join event'));
+        setError(getFriendlyApiErrorMessage(err, locale));
       }
     } finally {
       setActionLoading('');
@@ -215,7 +224,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       setSuccess(isRu ? 'Команда создана. Заполните слоты участниками.' : 'Team created. Fill the slots with members.');
       await loadWorkspace();
     } catch (err: any) {
-      setError(err.message || (isRu ? 'Не удалось создать команду' : 'Failed to create team'));
+      setError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setActionLoading('');
     }
@@ -256,7 +265,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       );
       await loadWorkspace();
     } catch (err: any) {
-      setError(err.message || (isRu ? 'Не удалось сохранить изменения команды' : 'Failed to save team changes'));
+      setError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setActionLoading('');
     }
@@ -281,7 +290,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
         }
         setError(isRu ? 'Сначала заполните обязательную анкету мероприятия.' : 'Complete required event form fields first.');
       } else {
-        setError(err.message || (isRu ? 'Не удалось принять приглашение' : 'Failed to accept invitation'));
+        setError(getFriendlyApiErrorMessage(err, locale));
       }
     } finally {
       setActionLoading('');
@@ -297,7 +306,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       setSuccess(isRu ? 'Приглашение отклонено.' : 'Invitation declined.');
       await loadWorkspace();
     } catch (err: any) {
-      setError(err.message || (isRu ? 'Не удалось отклонить приглашение' : 'Failed to decline invitation'));
+      setError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setActionLoading('');
     }
@@ -316,7 +325,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       setSuccess(isRu ? 'Приглашение отправлено.' : 'Invitation sent.');
       await loadWorkspace();
     } catch (err: any) {
-      setError(err.message || (isRu ? 'Не удалось отправить приглашение' : 'Failed to send invitation'));
+      setError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setActionLoading('');
     }
@@ -332,7 +341,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       setSuccess(isRu ? 'Приглашение отменено.' : 'Invitation cancelled.');
       await loadWorkspace();
     } catch (err: any) {
-      setError(err.message || (isRu ? 'Не удалось отменить приглашение' : 'Failed to cancel invitation'));
+      setError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setActionLoading('');
     }
@@ -350,7 +359,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       setSuccess(isRu ? 'Участник удалён.' : 'Member removed.');
       await loadWorkspace();
     } catch (err: any) {
-      setError(err.message || (isRu ? 'Не удалось удалить участника' : 'Failed to remove member'));
+      setError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setActionLoading('');
     }
@@ -368,7 +377,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       setSuccess(isRu ? 'Капитанство передано.' : 'Captain role transferred.');
       await loadWorkspace();
     } catch (err: any) {
-      setError(err.message || (isRu ? 'Не удалось передать капитанство' : 'Failed to transfer captain role'));
+      setError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setActionLoading('');
     }
@@ -384,7 +393,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       setSuccess(isRu ? 'Команда отправлена на утверждение.' : 'Team submitted for approval.');
       await loadWorkspace();
     } catch (err: any) {
-      setError(err.message || (isRu ? 'Не удалось отправить команду' : 'Failed to submit team'));
+      setError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setActionLoading('');
     }
@@ -424,7 +433,27 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       {!isActiveParticipant ? (
         <Panel variant="elevated" className="workspace-event-panel">
           <SectionHeader title={isRu ? 'Стать участником' : 'Join as participant'} />
-          {participantMembership?.status && ['PENDING', 'RESERVE'].includes(participantMembership.status) ? (
+          {registrationBlocked ? (
+            <div className="signal-stack">
+              <Notice tone="warning">
+                {registrationClosedMessage}
+              </Notice>
+
+              {participantMembership?.status ? (
+                <Notice tone="info">
+                  {isRu
+                    ? `Ваш текущий статус: ${formatParticipantStatus(participantMembership.status, locale)}.`
+                    : `Your current status: ${formatParticipantStatus(participantMembership.status, locale)}.`}
+                </Notice>
+              ) : null}
+
+              <ToolbarRow>
+                <Link href={`/${locale}/events/${event.slug}`} className="btn btn-secondary btn-sm">
+                  {isRu ? 'Вернуться на страницу события' : 'Back to event page'}
+                </Link>
+              </ToolbarRow>
+            </div>
+          ) : participantMembership?.status && ['PENDING', 'RESERVE'].includes(participantMembership.status) ? (
             <div className="signal-stack">
               {participantMembership.status === 'PENDING' ? (
                 <Notice tone="warning">{isRu ? 'Заявка участника ожидает решения организатора.' : 'Participant application is pending organizer review.'}</Notice>
@@ -518,6 +547,12 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
         <Panel variant="elevated" className="workspace-event-panel">
           <SectionHeader title={isRu ? 'Команда' : 'Team'} subtitle={isRu ? 'Создайте команду или ответьте на входящее приглашение.' : 'Create a team or respond to an incoming invitation.'} />
           <div className="signal-stack">
+            {registrationBlocked ? (
+              <Notice tone="warning">
+                {registrationClosedMessage}
+              </Notice>
+            ) : null}
+
             <ToolbarRow>
               <button
                 onClick={handleCancelParticipation}
@@ -535,6 +570,8 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
                 locale={locale}
                 invitations={openInvitations}
                 actionLoading={actionLoading}
+                registrationBlocked={registrationBlocked}
+                registrationClosedMessage={registrationClosedMessage}
                 onAccept={handleAcceptInvitation}
                 onDecline={handleDeclineInvitation}
               />
@@ -544,7 +581,7 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
               <FieldInput value={teamName} onChange={(event) => setTeamName(event.target.value)} placeholder={isRu ? 'Название команды' : 'Team name'} />
               <FieldInput value={teamDescription} onChange={(event) => setTeamDescription(event.target.value)} placeholder={isRu ? 'Комментарий' : 'Comment'} />
               <ToolbarRow>
-                <button onClick={handleCreateTeam} disabled={actionLoading === 'create-team' || !teamName.trim()} className="btn btn-primary btn-sm">
+                <button onClick={handleCreateTeam} disabled={registrationBlocked || actionLoading === 'create-team' || !teamName.trim()} className="btn btn-primary btn-sm">
                   {actionLoading === 'create-team' ? (isRu ? 'Создаём...' : 'Creating...') : (isRu ? 'Создать команду' : 'Create team')}
                 </button>
                 <Link href={`/${locale}/cabinet/team-invitations`} className="btn btn-secondary btn-sm">
@@ -578,6 +615,8 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
             isCaptain={isCaptain}
             focusTeamEditor={openTeamEditor}
             actionLoading={actionLoading}
+            registrationBlocked={registrationBlocked}
+            registrationClosedMessage={registrationClosedMessage}
             teamName={teamName}
             teamDescription={teamDescription}
             slotEmails={slotEmails}
@@ -597,21 +636,28 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
   );
 }
 
-function IncomingInvitations({ locale, invitations, actionLoading, onAccept, onDecline }: {
+function IncomingInvitations({ locale, invitations, actionLoading, registrationBlocked, registrationClosedMessage, onAccept, onDecline }: {
   locale: string;
   invitations: any[];
   actionLoading: string;
+  registrationBlocked: boolean;
+  registrationClosedMessage: string;
   onAccept: (id: string) => void;
   onDecline: (id: string) => void;
 }) {
   const isRu = locale === 'ru';
   return (
     <div className="signal-stack">
+      {registrationBlocked ? (
+        <Notice tone="warning">
+          {registrationClosedMessage}
+        </Notice>
+      ) : null}
       {invitations.map((invitation) => (
         <div key={invitation.id} className="signal-ranked-item">
           <span>{isRu ? 'Вас пригласили в команду' : 'You were invited to team'} {invitation.team?.name}</span>
           <ToolbarRow>
-            <button onClick={() => onAccept(invitation.id)} disabled={Boolean(actionLoading)} className="btn btn-primary btn-sm">
+            <button onClick={() => onAccept(invitation.id)} disabled={registrationBlocked || Boolean(actionLoading)} className="btn btn-primary btn-sm">
               {actionLoading === `accept:${invitation.id}` ? '...' : (isRu ? 'Принять' : 'Accept')}
             </button>
             <button onClick={() => onDecline(invitation.id)} disabled={Boolean(actionLoading)} className="btn btn-secondary btn-sm">
@@ -632,6 +678,8 @@ function TeamSlotsWorkspace({
   isCaptain,
   focusTeamEditor,
   actionLoading,
+  registrationBlocked,
+  registrationClosedMessage,
   teamName,
   teamDescription,
   slotEmails,
@@ -652,6 +700,8 @@ function TeamSlotsWorkspace({
   isCaptain: boolean;
   focusTeamEditor: boolean;
   actionLoading: string;
+  registrationBlocked: boolean;
+  registrationClosedMessage: string;
   teamName: string;
   teamDescription: string;
   slotEmails: Record<number, string>;
@@ -695,6 +745,11 @@ function TeamSlotsWorkspace({
         subtitle={`${isRu ? 'Статус' : 'Status'}: ${formatTeamStatus(team?.status, locale)} · ${progress.active}/${progress.max}`}
       />
       <div className="signal-stack">
+        {registrationBlocked ? (
+          <Notice tone="warning">
+            {registrationClosedMessage}
+          </Notice>
+        ) : null}
         {focusTeamEditor ? (
           <Notice tone={canEditTeamDetails || editable ? 'info' : 'warning'}>
             {canEditTeamDetails || editable
@@ -740,9 +795,10 @@ function TeamSlotsWorkspace({
               locale={locale}
               userId={userId}
               slot={slot}
-              editable={editable}
+              editable={editable && !registrationBlocked}
               isCaptain={isCaptain}
               actionLoading={actionLoading}
+              registrationBlocked={registrationBlocked}
               emailValue={slotEmails[slot.slotIndex] ?? ''}
               onEmailChange={(value) => onSlotEmailChange(slot.slotIndex, value)}
               onInvite={() => onInvite(slot.slotIndex)}
@@ -754,7 +810,7 @@ function TeamSlotsWorkspace({
         </div>
         <ToolbarRow>
           {permissions.canSubmitForApproval ? (
-            <button onClick={onSubmitTeam} disabled={!canSubmit || actionLoading === 'submit-team'} className="btn btn-primary btn-sm">
+            <button onClick={onSubmitTeam} disabled={!canSubmit || registrationBlocked || actionLoading === 'submit-team'} className="btn btn-primary btn-sm">
               {actionLoading === 'submit-team' ? (isRu ? 'Отправляем...' : 'Submitting...') : (isRu ? 'Подать состав на утверждение' : 'Submit roster for approval')}
             </button>
           ) : null}
@@ -793,6 +849,7 @@ function SlotCard({
   editable,
   isCaptain,
   actionLoading,
+  registrationBlocked,
   emailValue,
   onEmailChange,
   onInvite,
@@ -806,6 +863,7 @@ function SlotCard({
   editable: boolean;
   isCaptain: boolean;
   actionLoading: string;
+  registrationBlocked: boolean;
   emailValue: string;
   onEmailChange: (value: string) => void;
   onInvite: () => void;
@@ -831,7 +889,7 @@ function SlotCard({
         editable ? (
           <div className="signal-stack">
             <FieldInput type="email" value={emailValue} onChange={(event) => onEmailChange(event.target.value)} placeholder="participant@example.com" />
-            <button onClick={onInvite} disabled={!emailValue.trim() || Boolean(actionLoading)} className="btn btn-primary btn-sm">
+            <button onClick={onInvite} disabled={!emailValue.trim() || registrationBlocked || Boolean(actionLoading)} className="btn btn-primary btn-sm">
               {actionLoading === `invite:${slot.slotIndex}` ? '...' : (isRu ? 'Пригласить' : 'Invite')}
             </button>
           </div>

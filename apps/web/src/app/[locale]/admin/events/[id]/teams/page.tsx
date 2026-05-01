@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
-import { adminApi, adminExportsApi } from '@/lib/api';
+import { adminApi, adminExportsApi, type ExportDownloadFormat } from '@/lib/api';
 import {
   EmptyState,
   FieldInput,
@@ -43,6 +43,7 @@ export default function EventTeamsPage() {
   const [actionKey, setActionKey] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [exportFormat, setExportFormat] = useState<ExportDownloadFormat>('xlsx');
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) router.push(`/${locale}`);
@@ -221,25 +222,35 @@ export default function EventTeamsPage() {
                 ))}
               </FieldSelect>
               <div className="export-actions">
+                <FieldSelect
+                  value={exportFormat}
+                  onChange={(selectEvent) => setExportFormat(selectEvent.target.value as ExportDownloadFormat)}
+                  className="admin-filter-select"
+                  aria-label={locale === 'ru' ? 'Формат выгрузки' : 'Export format'}
+                >
+                  <option value="xlsx">XLSX</option>
+                  <option value="csv">CSV</option>
+                  <option value="json">JSON</option>
+                </FieldSelect>
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
                   onClick={() => {
                     if (!eventId) return;
-                    adminExportsApi.downloadTeams(eventId, 'csv');
+                    adminExportsApi.downloadTeams(eventId, exportFormat);
                   }}
                 >
-                  {locale === 'ru' ? 'Выгрузить CSV' : 'Export CSV'}
+                  {locale === 'ru' ? 'Выгрузить команды' : 'Export teams'}
                 </button>
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
                   onClick={() => {
                     if (!eventId) return;
-                    adminExportsApi.downloadTeamMembers(eventId, 'csv');
+                    adminExportsApi.downloadTeamMembers(eventId, exportFormat);
                   }}
                 >
-                  {locale === 'ru' ? 'Выгрузить участников CSV' : 'Export members CSV'}
+                  {locale === 'ru' ? 'Выгрузить участников' : 'Export members'}
                 </button>
               </div>
             </ToolbarRow>

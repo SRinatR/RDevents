@@ -22,6 +22,7 @@ import {
   OPEN_CHANGE_REQUEST_STATUSES,
   TEAM_STATUSES_EDITABLE_BY_CAPTAIN,
 } from './team-governance.js';
+import { assertRegistrationGateOpen } from './registration-gates.js';
 
 const PLATFORM_ADMIN_ROLES = ['PLATFORM_ADMIN', 'SUPER_ADMIN'] as const;
 
@@ -521,15 +522,9 @@ export async function createTeam(
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) throw new Error('EVENT_NOT_FOUND');
   if (!event.isTeamBased) throw new Error('EVENT_NOT_TEAM_BASED');
-  if (event.status !== 'PUBLISHED') throw new Error('EVENT_NOT_AVAILABLE');
-  if (!event.registrationEnabled) throw new Error('EVENT_NOT_AVAILABLE');
+  assertRegistrationGateOpen(event);
   await assertApprovedParticipant(eventId, userId);
 
-  if (event.registrationDeadline && event.registrationDeadline < new Date()) {
-    throw new Error('EVENT_NOT_AVAILABLE');
-  }
-
-  // Check if user is already in a team for this event
   const existingMembership = await prisma.eventTeamMember.findFirst({
     where: { team: { eventId }, userId, status: { in: [...LIVE_TEAM_MEMBER_STATUSES] } }
   });
@@ -597,13 +592,8 @@ export async function joinTeam(
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) throw new Error('EVENT_NOT_FOUND');
   if (!event.isTeamBased) throw new Error('EVENT_NOT_TEAM_BASED');
-  if (event.status !== 'PUBLISHED') throw new Error('EVENT_NOT_AVAILABLE');
-  if (!event.registrationEnabled) throw new Error('EVENT_NOT_AVAILABLE');
+  assertRegistrationGateOpen(event);
   await assertApprovedParticipant(eventId, userId);
-
-  if (event.registrationDeadline && event.registrationDeadline < new Date()) {
-    throw new Error('EVENT_NOT_AVAILABLE');
-  }
 
   const team = await prisma.eventTeam.findUnique({
     where: { id: teamId },
@@ -737,7 +727,17 @@ export async function submitTeamForApproval(eventId: string, teamId: string, use
   const team = await prisma.eventTeam.findUnique({
     where: { id: teamId },
     include: {
-      event: { select: { requireAdminApprovalForTeams: true, minTeamSize: true, teamJoinMode: true } },
+      event: {
+        select: {
+          status: true,
+          registrationEnabled: true,
+          registrationOpensAt: true,
+          registrationDeadline: true,
+          requireAdminApprovalForTeams: true,
+          minTeamSize: true,
+          teamJoinMode: true,
+        },
+      },
       members: {
         where: { status: { in: [...LIVE_TEAM_MEMBER_STATUSES] } },
         include: { user: { select: { id: true, name: true, email: true } } },
@@ -746,6 +746,7 @@ export async function submitTeamForApproval(eventId: string, teamId: string, use
     },
   });
   if (!team || team.eventId !== eventId) throw new Error('TEAM_NOT_FOUND');
+  assertRegistrationGateOpen(team.event);
   if (team.captainUserId !== userId) throw new Error('NOT_TEAM_CAPTAIN');
   if (!team.event.requireAdminApprovalForTeams) return team;
   if (team.status === 'SUBMITTED') throw new Error('TEAM_SUBMITTED_LOCKED');

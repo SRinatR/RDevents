@@ -579,6 +579,8 @@ model User {
   refreshSessions                      RefreshSession[]
   avatarAsset                          MediaAsset?                       @relation("UserAvatar", fields: [avatarAssetId], references: [id], onDelete: SetNull)
   profileSectionStates                 UserProfileSectionState[]
+  profileHistory                       UserProfileHistory[]              @relation("UserProfileHistoryUser")
+  authoredProfileHistory               UserProfileHistory[]              @relation("UserProfileHistoryActor")
   extendedProfile                      UserExtendedProfile?
   identityDocument                     UserIdentityDocument?
   internationalPassport                UserInternationalPassport?
@@ -626,6 +628,28 @@ model UserProfileSectionState {
   @@unique([userId, sectionKey])
   @@index([userId])
   @@map("user_profile_section_states")
+}
+
+model UserProfileHistory {
+  id          String   @id @default(cuid())
+  userId      String
+  actorUserId String?
+  action      String
+  sectionKey  String?
+  assetId     String?
+  beforeJson  Json?
+  afterJson   Json?
+  meta        Json?
+  createdAt   DateTime @default(now())
+
+  user  User        @relation("UserProfileHistoryUser", fields: [userId], references: [id], onDelete: Cascade)
+  actor User?       @relation("UserProfileHistoryActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  asset MediaAsset? @relation("UserProfileHistoryAsset", fields: [assetId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([actorUserId])
+  @@index([assetId])
+  @@map("user_profile_history")
 }
 
 model UserExtendedProfile {
@@ -872,6 +896,7 @@ model MediaAsset {
   identityDocumentScanFor      UserIdentityDocument?      @relation("IdentityDocumentScan")
   internationalPassportScanFor UserInternationalPassport? @relation("InternationalPassportScan")
   userAdditionalDocumentFor    UserAdditionalDocument?    @relation("UserAdditionalDocumentAsset")
+  profileHistoryEntries        UserProfileHistory[]        @relation("UserProfileHistoryAsset")
 
   @@index([ownerUserId, purpose, status])
   @@map("media_assets")

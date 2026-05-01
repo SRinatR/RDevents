@@ -356,6 +356,10 @@ authRouter.patch('/profile', authenticate, async (req, res) => {
       res.status(400).json({ error: 'Invalid date value' });
       return;
     }
+    if (err.message === 'PROFILE_AVATAR_DELETE_FORBIDDEN') {
+      res.status(405).json({ error: 'Profile photo cannot be deleted. Upload a new photo instead.' });
+      return;
+    }
     throw err;
   }
 });
@@ -419,8 +423,16 @@ authRouter.post('/profile/avatar/upload', authenticate, upload.single('file'), a
 // DELETE /api/auth/profile/avatar
 authRouter.delete('/profile/avatar', authenticate, async (req, res) => {
   const user = (req as any).user;
-  await removeProfileAvatar(user.id);
-  res.json({ ok: true });
+  try {
+    await removeProfileAvatar(user.id);
+    res.json({ ok: true });
+  } catch (err: any) {
+    if (err.message === 'PROFILE_AVATAR_DELETE_FORBIDDEN') {
+      res.status(405).json({ error: 'Profile photo cannot be deleted. Upload a new photo instead.' });
+      return;
+    }
+    throw err;
+  }
 });
 
 // GET /api/auth/profile/documents

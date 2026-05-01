@@ -42,7 +42,6 @@ export default function ProfilePage() {
     success,
     saveSection,
     uploadAvatar,
-    deleteAvatar,
     uploadDocument,
     deleteDocument,
   } = useProfileSections(locale);
@@ -133,7 +132,6 @@ export default function ProfilePage() {
           documents,
           saveSection: saveSectionAndReturn,
           uploadAvatar,
-          deleteAvatar,
           uploadDocument,
           deleteDocument,
         })
@@ -153,7 +151,6 @@ function renderSection({
   documents,
   saveSection,
   uploadAvatar,
-  deleteAvatar,
   uploadDocument,
   deleteDocument,
 }: {
@@ -167,7 +164,6 @@ function renderSection({
   documents: any[];
   saveSection: (section: ProfileSectionKey, payload: Record<string, unknown>) => Promise<void>;
   uploadAvatar: (file: File) => Promise<void>;
-  deleteAvatar: () => Promise<void>;
   uploadDocument: (file: File) => Promise<void>;
   deleteDocument: (assetId: string) => Promise<void>;
 }) {
@@ -182,7 +178,6 @@ function renderSection({
         eventTitle={eventTitle}
         onSave={(payload) => saveSection('registration_data', payload)}
         onUpload={uploadAvatar}
-        onDelete={deleteAvatar}
       />
     );
   }

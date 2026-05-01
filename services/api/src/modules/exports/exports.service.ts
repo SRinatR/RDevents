@@ -1,10 +1,11 @@
+import JSZip from 'jszip';
 import { prisma } from '../../db/prisma.js';
 import { logger } from '../../common/logger.js';
-import { buildPublicMediaUrl } from '../../common/storage.js';
+import { buildPublicMediaUrl, readStoredFile } from '../../common/storage.js';
 import type { EventTeamStatus } from '@prisma/client';
 
 export type ExportScope = 'participants' | 'volunteers' | 'teams' | 'team_members' | 'all';
-export type ExportFormat = 'csv' | 'json';
+export type ExportFormat = 'csv' | 'json' | 'xlsx';
 
 export interface ExportConfig {
   scope: ExportScope;
@@ -128,6 +129,7 @@ export interface ParticipantExportRow {
   middleNameCyrillic: string;
   lastNameLatin: string;
   firstNameLatin: string;
+  middleNameLatin: string;
   fullNameCyrillic: string;
   fullNameLatin: string;
   email: string;
@@ -139,12 +141,14 @@ export interface ParticipantExportRow {
   nativeLanguage: string;
   communicationLanguage: string;
   bio: string;
+  Фото: string;
   avatarUrl: string;
   teamId: string;
   teamName: string;
   teamStatus: string;
   teamRole: string;
   teamMemberStatus: string;
+  teamMembers: string;
 }
 
 export interface TeamExportRow {
@@ -189,6 +193,14 @@ interface ExtendedExportFilters {
   includeRemoved?: boolean;
 }
 
+function resolveAvatarUrl(user: {
+  avatarUrl?: string | null;
+  avatarAsset?: { storageKey?: string | null; publicUrl?: string | null } | null;
+}) {
+  if (user.avatarAsset?.storageKey) return buildPublicMediaUrl(user.avatarAsset.storageKey);
+  return user.avatarAsset?.publicUrl ?? user.avatarUrl ?? null;
+}
+
 export async function exportParticipants(eventId: string, config: { filters?: ExtendedExportFilters }) {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
@@ -231,6 +243,7 @@ export async function exportParticipants(eventId: string, config: { filters?: Ex
           middleNameCyrillic: true,
           lastNameLatin: true,
           firstNameLatin: true,
+          middleNameLatin: true,
           fullNameCyrillic: true,
           fullNameLatin: true,
           birthDate: true,
@@ -241,6 +254,7 @@ export async function exportParticipants(eventId: string, config: { filters?: Ex
           communicationLanguage: true,
           bio: true,
           avatarUrl: true,
+          avatarAsset: { select: { storageKey: true, publicUrl: true } },
           extendedProfile: {
             select: {
               gender: true,
@@ -258,7 +272,29 @@ export async function exportParticipants(eventId: string, config: { filters?: Ex
       ...(includeRemoved ? {} : { status: { notIn: ['REMOVED', 'LEFT'] } }),
     },
     include: {
-      team: { select: { id: true, name: true, status: true } },
+      team: {
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          members: {
+            where: includeRemoved ? {} : { status: { notIn: ['REMOVED', 'LEFT'] } },
+            select: {
+              role: true,
+              status: true,
+              user: {
+                select: {
+                  name: true,
+                  fullNameCyrillic: true,
+                  fullNameLatin: true,
+                  email: true,
+                },
+              },
+            },
+            orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }],
+          },
+        },
+      },
     },
   });
 
@@ -277,11 +313,19 @@ export async function exportParticipants(eventId: string, config: { filters?: Ex
     .filter(p => {
       if (config.filters?.hasTeam === true && !membershipMap.has(p.userId)) return false;
       if (config.filters?.hasTeam === false && membershipMap.has(p.userId)) return false;
+      const avatarUrl = resolveAvatarUrl(p.user);
+      if (config.filters?.hasPhoto === true && !avatarUrl) return false;
+      if (config.filters?.hasPhoto === false && avatarUrl) return false;
       return true;
     })
     .map(p => {
       const tm = membershipMap.get(p.userId);
       const registrationAnswers = submissionMap.get(p.userId) || '';
+      const avatarUrl = resolveAvatarUrl(p.user);
+      const teamMembers = tm?.team?.members
+        ?.map(member => member.user.fullNameCyrillic ?? member.user.fullNameLatin ?? member.user.name ?? member.user.email)
+        .filter(Boolean)
+        .join('; ') ?? '';
 
       return {
         eventId: event.id,
@@ -301,6 +345,7 @@ export async function exportParticipants(eventId: string, config: { filters?: Ex
         middleNameCyrillic: p.user.middleNameCyrillic ?? '',
         lastNameLatin: p.user.lastNameLatin ?? '',
         firstNameLatin: p.user.firstNameLatin ?? '',
+        middleNameLatin: p.user.middleNameLatin ?? '',
         fullNameCyrillic: p.user.fullNameCyrillic ?? '',
         fullNameLatin: p.user.fullNameLatin ?? '',
         email: p.user.email,
@@ -312,12 +357,14 @@ export async function exportParticipants(eventId: string, config: { filters?: Ex
         nativeLanguage: p.user.nativeLanguage ?? '',
         communicationLanguage: p.user.communicationLanguage ?? '',
         bio: p.user.bio ?? '',
-        avatarUrl: p.user.avatarUrl ?? '',
+        Фото: avatarUrl ?? '',
+        avatarUrl: avatarUrl ?? '',
         teamId: tm?.team?.id ?? '',
         teamName: tm?.team?.name ?? '',
         teamStatus: tm?.team?.status ?? '',
         teamRole: tm?.role ?? '',
         teamMemberStatus: tm?.status ?? '',
+        teamMembers,
       };
     });
 }
@@ -448,28 +495,90 @@ export async function exportTeamMembers(eventId: string, config: { filters?: Ext
     joinedAt: m.joinedAt.toISOString(),
   }));
 }
-  export interface AvatarBundleResult {
+export interface AvatarBundleResult {
   jobId: string;
-  format: string;
+  format: 'zip';
+  filename: string;
+  buffer: Buffer;
   contains: string[];
   participants: Array<{
     userId: string;
     fullNameCyrillic: string;
     fullNameLatin: string;
     teamName: string | null;
-    role: string;
-    status: string;
+    teamRole: string | null;
+    participantRole: string;
+    participantStatus: string;
     avatarFilename: string;
-    avatarUrl: string | null;
     missingAvatar: boolean;
+    missingReason?: string;
   }>;
 }
 
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)+/g, '');
+type AvatarBundleAsset = {
+  id: string;
+  storageKey: string;
+  originalFilename: string;
+  mimeType: string;
+  sizeBytes: number;
+  publicUrl: string | null;
+  createdAt: Date;
+  status?: string;
+};
+
+function safeArchiveSegment(value: string, fallback: string) {
+  const cleaned = value
+    .split('')
+    .map(char => (char.charCodeAt(0) < 32 ? ' ' : char))
+    .join('')
+    .replace(/[<>:"/\\|?*]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/[. ]+$/g, '')
+    .trim()
+    .slice(0, 180);
+  return cleaned || fallback;
+}
+
+function buildDisplayName(user: {
+  email: string;
+  lastNameCyrillic?: string | null;
+  firstNameCyrillic?: string | null;
+  middleNameCyrillic?: string | null;
+  lastNameLatin?: string | null;
+  firstNameLatin?: string | null;
+  fullNameCyrillic?: string | null;
+  fullNameLatin?: string | null;
+}) {
+  const cyrillic = user.fullNameCyrillic
+    ?? [user.lastNameCyrillic, user.firstNameCyrillic, user.middleNameCyrillic].filter(Boolean).join(' ');
+  if (cyrillic.trim()) return cyrillic.trim();
+  const latin = user.fullNameLatin
+    ?? [user.lastNameLatin, user.firstNameLatin].filter(Boolean).join(' ');
+  return latin.trim() || user.email;
+}
+
+function getAssetExtension(asset: { originalFilename: string; mimeType: string; storageKey: string }) {
+  const fromName = asset.originalFilename.match(/\.[a-zA-Z0-9]{2,8}$/)?.[0]?.toLowerCase();
+  if (fromName) return fromName;
+  const fromStorage = asset.storageKey.match(/\.[a-zA-Z0-9]{2,8}$/)?.[0]?.toLowerCase();
+  if (fromStorage) return fromStorage;
+  if (asset.mimeType === 'image/png') return '.png';
+  if (asset.mimeType === 'image/webp') return '.webp';
+  return '.jpg';
+}
+
+function uniqueFilename(filename: string, used: Set<string>) {
+  if (!used.has(filename)) {
+    used.add(filename);
+    return filename;
+  }
+  const extension = filename.match(/\.[^.]+$/)?.[0] ?? '';
+  const base = extension ? filename.slice(0, -extension.length) : filename;
+  let index = 2;
+  while (used.has(`${base}-${index}${extension}`)) index += 1;
+  const next = `${base}-${index}${extension}`;
+  used.add(next);
+  return next;
 }
 
 export async function generateAvatarBundle(
@@ -493,11 +602,13 @@ export async function generateAvatarBundle(
     where: {
       eventId,
       role: options.includeVolunteers ? { in: ['PARTICIPANT', 'VOLUNTEER'] } : { equals: 'PARTICIPANT' },
+      ...(options.includeApprovedOnly ? { status: { in: ['ACTIVE', 'APPROVED'] } } : {}),
     },
     include: {
       user: {
         select: {
           id: true,
+          email: true,
           lastNameCyrillic: true,
           firstNameCyrillic: true,
           middleNameCyrillic: true,
@@ -505,8 +616,33 @@ export async function generateAvatarBundle(
           firstNameLatin: true,
           fullNameCyrillic: true,
           fullNameLatin: true,
+          avatarAssetId: true,
           avatarUrl: true,
-          avatarAsset: true,
+          avatarAsset: {
+            select: {
+              id: true,
+              storageKey: true,
+              originalFilename: true,
+              mimeType: true,
+              sizeBytes: true,
+              publicUrl: true,
+              createdAt: true,
+              status: true,
+            },
+          },
+          mediaAssets: {
+            where: { purpose: 'AVATAR', status: 'ACTIVE' },
+            select: {
+              id: true,
+              storageKey: true,
+              originalFilename: true,
+              mimeType: true,
+              sizeBytes: true,
+              publicUrl: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+          },
         },
       },
     },
@@ -522,6 +658,7 @@ export async function generateAvatarBundle(
         select: {
           id: true,
           name: true,
+          status: true,
         },
       },
     },
@@ -532,27 +669,112 @@ export async function generateAvatarBundle(
   );
 
   const jobId = `exp_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-  const manifest = participants.map(p => {
-    const firstName = p.user.firstNameLatin || p.user.firstNameCyrillic || '';
-    const lastName = p.user.lastNameLatin || p.user.lastNameCyrillic || '';
-    const teamMember = membershipMap.get(p.userId);
-    const teamPrefix = teamMember?.team?.name ? slugify(teamMember.team.name) + '_' : 'no_team_';
-    const avatarFilename = `${teamPrefix}${slugify(lastName)}_${slugify(firstName)}_${p.user.id}.jpg`;
-    const hasAvatar = !!(p.user.avatarUrl || p.user.avatarAsset);
-    const avatarUrl = p.user.avatarUrl ?? (p.user.avatarAsset ? buildPublicMediaUrl((p.user.avatarAsset as any).storageKey) : null);
+  const zip = new JSZip();
+  const usedFilenames = new Set<string>();
+  const manifest: AvatarBundleResult['participants'] = [];
+  const manifestRows: Record<string, unknown>[] = [];
+  const filteredParticipants = options.includeTeamsOnly
+    ? participants.filter(p => membershipMap.has(p.userId))
+    : participants;
 
-    return {
-      userId: p.user.id,
-      fullNameCyrillic: p.user.fullNameCyrillic ?? `${p.user.lastNameCyrillic ?? ''} ${p.user.firstNameCyrillic ?? ''}`.trim(),
-      fullNameLatin: p.user.fullNameLatin ?? `${p.user.lastNameLatin ?? ''} ${p.user.firstNameLatin ?? ''}`.trim(),
-      teamName: teamMember?.team?.name ?? null,
-      role: p.role,
-      status: p.status,
-      avatarFilename,
-      avatarUrl,
-      missingAvatar: !hasAvatar,
-    };
-  });
+  for (const p of filteredParticipants) {
+    const teamMember = membershipMap.get(p.userId);
+    const fullNameCyrillic = buildDisplayName(p.user);
+    const fullNameLatin = p.user.fullNameLatin ?? `${p.user.lastNameLatin ?? ''} ${p.user.firstNameLatin ?? ''}`.trim();
+    const teamName = teamMember?.team?.name ?? null;
+    const teamRole = teamMember?.role ?? null;
+    const assetsById = new Map<string, AvatarBundleAsset>();
+
+    for (const asset of p.user.mediaAssets) assetsById.set(asset.id, asset);
+    if (p.user.avatarAsset && p.user.avatarAsset.status === 'ACTIVE') {
+      assetsById.set(p.user.avatarAsset.id, p.user.avatarAsset);
+    }
+
+    const assets = [...assetsById.values()].sort((a, b) => {
+      if (a.id === p.user.avatarAssetId) return -1;
+      if (b.id === p.user.avatarAssetId) return 1;
+      return b.createdAt.getTime() - a.createdAt.getTime();
+    });
+
+    if (assets.length === 0) {
+      const row = {
+        userId: p.user.id,
+        fullNameCyrillic,
+        fullNameLatin,
+        teamName,
+        teamRole,
+        participantRole: p.role,
+        participantStatus: p.status,
+        avatarFilename: '',
+        missingAvatar: true,
+        missingReason: 'NO_STORED_PROFILE_PHOTO',
+      };
+      manifest.push(row);
+      manifestRows.push(row);
+      continue;
+    }
+
+    for (const asset of assets) {
+      const isCurrent = asset.id === p.user.avatarAssetId;
+      const suffix = isCurrent
+        ? 'текущее'
+        : `история ${asset.createdAt.toISOString().slice(0, 10)}`;
+      const baseName = safeArchiveSegment(
+        `${fullNameCyrillic} ${teamName ?? 'без команды'}${teamRole === 'CAPTAIN' ? ' капитан' : ''} ${suffix}`,
+        p.user.id
+      );
+      const avatarFilename = uniqueFilename(`${baseName}${getAssetExtension(asset)}`, usedFilenames);
+      const row = {
+        userId: p.user.id,
+        fullNameCyrillic,
+        fullNameLatin,
+        teamName,
+        teamRole,
+        participantRole: p.role,
+        participantStatus: p.status,
+        avatarFilename,
+        missingAvatar: false,
+      };
+
+      try {
+        zip.file(`photos/${avatarFilename}`, await readStoredFile(asset.storageKey));
+      } catch {
+        row.missingAvatar = true;
+        (row as typeof row & { missingReason: string }).missingReason = 'PHOTO_FILE_NOT_FOUND';
+      }
+
+      manifest.push(row);
+      manifestRows.push({
+        ...row,
+        assetId: asset.id,
+        originalFilename: asset.originalFilename,
+        mimeType: asset.mimeType,
+        sizeBytes: asset.sizeBytes,
+        uploadedAt: asset.createdAt.toISOString(),
+      });
+    }
+  }
+
+  zip.file('manifest.csv', `\ufeff${generateCsvContent(manifestRows, [
+    'userId',
+    'fullNameCyrillic',
+    'fullNameLatin',
+    'teamName',
+    'teamRole',
+    'participantRole',
+    'participantStatus',
+    'avatarFilename',
+    'assetId',
+    'originalFilename',
+    'mimeType',
+    'sizeBytes',
+    'uploadedAt',
+    'missingAvatar',
+    'missingReason',
+  ])}`);
+
+  const buffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+  const filename = `event_${event.id}_photos.zip`;
 
   logger.info('Avatar bundle generated', {
     module: 'exports',
@@ -561,16 +783,18 @@ export async function generateAvatarBundle(
       jobId,
       eventId,
       eventTitle: event.title,
-      participantsCount: manifest.length,
-      withAvatarsCount: manifest.filter(m => !m.missingAvatar).length,
-      withoutAvatarsCount: manifest.filter(m => m.missingAvatar).length,
+      participantsCount: filteredParticipants.length,
+      photosCount: manifest.filter(m => !m.missingAvatar).length,
+      missingAvatarsCount: manifest.filter(m => m.missingAvatar).length,
     },
   });
 
   return {
     jobId,
     format: 'zip',
-    contains: ['avatars/', 'manifest.csv'],
+    filename,
+    buffer,
+    contains: ['photos/', 'manifest.csv'],
     participants: manifest,
   };
 }
@@ -589,6 +813,96 @@ export function generateCsvContent(data: Record<string, unknown>[], columns: str
     }).join(',')
   );
   return [header, ...rows].join('\n');
+}
+
+function sanitizeXmlText(value: string) {
+  return value
+    .split('')
+    .map(char => {
+      const code = char.charCodeAt(0);
+      return code === 9 || code === 10 || code === 13 || code >= 32 ? char : ' ';
+    })
+    .join('')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function columnName(index: number) {
+  let value = index + 1;
+  let name = '';
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    name = String.fromCharCode(65 + remainder) + name;
+    value = Math.floor((value - 1) / 26);
+  }
+  return name;
+}
+
+function toInlineStringCell(value: unknown, rowIndex: number, columnIndex: number) {
+  const cellRef = `${columnName(columnIndex)}${rowIndex}`;
+  if (value === null || value === undefined) {
+    return `<c r="${cellRef}" t="inlineStr"><is><t></t></is></c>`;
+  }
+  return `<c r="${cellRef}" t="inlineStr"><is><t xml:space="preserve">${sanitizeXmlText(String(value))}</t></is></c>`;
+}
+
+export async function generateXlsxContent(data: Record<string, unknown>[], columns: string[]): Promise<Buffer> {
+  const zip = new JSZip();
+  const rowCount = Math.max(data.length + 1, 1);
+  const columnCount = Math.max(columns.length, 1);
+  const dimension = `A1:${columnName(columnCount - 1)}${rowCount}`;
+  const headerRow = columns.length > 0
+    ? `<row r="1">${columns.map((column, index) => toInlineStringCell(column, 1, index)).join('')}</row>`
+    : '<row r="1"></row>';
+  const dataRows = data.map((row, rowIndex) => {
+    const excelRowIndex = rowIndex + 2;
+    return `<row r="${excelRowIndex}">${columns.map((column, columnIndex) => toInlineStringCell(row[column], excelRowIndex, columnIndex)).join('')}</row>`;
+  });
+
+  zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>`);
+  zip.file('_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`);
+  zip.file('xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="Export" sheetId="1" r:id="rId1"/>
+  </sheets>
+</workbook>`);
+  zip.file('xl/_rels/workbook.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`);
+  zip.file('xl/styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>
+  <fills count="1"><fill><patternFill patternType="none"/></fill></fills>
+  <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>
+  <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`);
+  zip.file('xl/worksheets/sheet1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <dimension ref="${dimension}"/>
+  <sheetViews><sheetView workbookViewId="0"/></sheetViews>
+  <sheetFormatPr defaultRowHeight="15"/>
+  <sheetData>${headerRow}${dataRows.join('')}</sheetData>
+</worksheet>`);
+
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
 
 export function generateJsonContent(data: Record<string, unknown>[]): string {

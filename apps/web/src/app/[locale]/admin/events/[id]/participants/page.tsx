@@ -5,8 +5,8 @@ import { Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
-import { adminApi, adminExportsApi } from '@/lib/api';
-import { EmptyState, FieldInput, LoadingLines, MetricCard, Notice, Panel, SectionHeader, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { adminApi, adminExportsApi, type ExportDownloadFormat } from '@/lib/api';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, MetricCard, Notice, Panel, SectionHeader, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 import { EventNotFound, EventWorkspaceHeader, formatAdminDateTime, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
 
 type ParticipantMember = {
@@ -38,6 +38,7 @@ export default function EventParticipantsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [exportFilters, setExportFilters] = useState({ includeRejected: true, includeCancelled: true, includeRemoved: false });
+  const [exportFormat, setExportFormat] = useState<ExportDownloadFormat>('xlsx');
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) router.push(`/${locale}`);
@@ -117,25 +118,35 @@ export default function EventParticipantsPage() {
                 className="admin-filter-search"
               />
               <div className="export-actions">
+                <FieldSelect
+                  value={exportFormat}
+                  onChange={(inputEvent) => setExportFormat(inputEvent.target.value as ExportDownloadFormat)}
+                  className="admin-filter-select"
+                  aria-label={locale === 'ru' ? 'Формат выгрузки' : 'Export format'}
+                >
+                  <option value="xlsx">XLSX</option>
+                  <option value="csv">CSV</option>
+                  <option value="json">JSON</option>
+                </FieldSelect>
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
                   onClick={() => {
                     if (!eventId) return;
-                    adminExportsApi.downloadParticipants(eventId, 'csv', exportFilters);
+                    adminExportsApi.downloadParticipants(eventId, exportFormat, exportFilters);
                   }}
                 >
-                  {locale === 'ru' ? 'Выгрузить CSV' : 'Export CSV'}
+                  {locale === 'ru' ? 'Выгрузить участников' : 'Export participants'}
                 </button>
                 <button
                   type="button"
-                  className="btn btn-secondary btn-sm"
+                  className="btn btn-primary btn-sm"
                   onClick={() => {
                     if (!eventId) return;
-                    adminExportsApi.downloadParticipants(eventId, 'json', exportFilters);
+                    adminExportsApi.downloadAvatarBundle(eventId);
                   }}
                 >
-                  {locale === 'ru' ? 'Выгрузить JSON' : 'Export JSON'}
+                  {locale === 'ru' ? 'Скачать фото ZIP' : 'Download photos ZIP'}
                 </button>
               </div>
             </ToolbarRow>

@@ -11,6 +11,10 @@ import { useRouteParams } from '@/hooks/useRouteParams';
 import { EmptyState, LoadingLines, Notice, Panel, SectionHeader } from '@/components/ui/signal-primitives';
 import { PublicFooter } from '@/components/layout/PublicFooter';
 import { RussiaHouseQuestPage } from '@/components/events/russia-house-quest/RussiaHouseQuestPage';
+import {
+  getRegistrationClosedReason,
+  getRegistrationClosedMessage,
+} from '@/lib/registration-status';
 
 export default function EventDetailPage() {
   const t = useTranslations();
@@ -101,13 +105,14 @@ export default function EventDetailPage() {
     );
   }
 
-  const isFull = event.registrationsCount >= event.capacity;
-  const registrationEnabled = event.registrationEnabled !== false;
-  const registrationNotOpen = event.registrationOpensAt ? new Date(event.registrationOpensAt).getTime() > Date.now() : false;
-  const registrationExpired = event.registrationDeadline ? new Date(event.registrationDeadline).getTime() < Date.now() : false;
+  const registrationClosedReason = getRegistrationClosedReason(event);
+  const registrationBlocked = registrationClosedReason !== null;
+  const registrationClosedMessage = getRegistrationClosedMessage(registrationClosedReason, locale);
+
   const hasActiveVolunteer = ['PENDING', 'APPROVED', 'ACTIVE'].includes(volunteerStatus ?? '');
   const isRussiaHouseEvent = event.slug === 'dom-gde-zhivet-rossiya';
-  const spotsLeft = Math.max((event.capacity ?? 0) - (event.registrationsCount ?? 0), 0);
+  const participantTarget = event.participantTarget ?? event.capacity ?? 0;
+  const spotsLeft = Math.max(participantTarget - (event.registrationsCount ?? 0), 0);
   const eventDateRange = isRussiaHouseEvent && locale === 'ru'
     ? 'воскресенье, 3 мая 2026 г. · 10:30 – 15:30'
     : `${formatDate(event.startsAt)} · ${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}`;
@@ -115,10 +120,9 @@ export default function EventDetailPage() {
   const requireApproval = event.requireParticipantApproval;
   const showCountPublicly = event.participantCountVisibility === 'PUBLIC';
   const limitMode = event.participantLimitMode;
-  const participantTarget = event.participantTarget ?? event.capacity;
   const isStrictLimit = limitMode === 'STRICT_LIMIT';
   const isGoalLimit = limitMode === 'GOAL_LIMIT';
-  const registrationBlocked = !registrationEnabled || registrationNotOpen || registrationExpired || (isFull && isStrictLimit);
+  const isFull = participantTarget > 0 && event.registrationsCount >= participantTarget;
   
   const getParticipationStatusLabel = (status: string | null) => {
     if (!status) return null;
@@ -147,7 +151,7 @@ export default function EventDetailPage() {
 
         {showCountPublicly && (
           <>
-            {!isRussiaHouseEvent ? <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{event.capacity} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div> : null}
+            {!isRussiaHouseEvent ? <div className="signal-muted signal-gap-after-sm">{event.registrationsCount}/{participantTarget} {isFull ? (locale === 'ru' ? 'мест занято' : 'capacity reached') : (locale === 'ru' ? 'мест используется' : 'spots used')}</div> : null}
           </>
         )}
 
@@ -164,10 +168,6 @@ export default function EventDetailPage() {
             {locale === 'ru' ? `Цель: ${participantTarget} участников` : `Goal: ${participantTarget} participants`}
           </div>
         ) : null}
-
-        {!registrationEnabled ? <Notice tone="warning">{locale === 'ru' ? 'Регистрация закрыта организатором.' : 'Registration is closed by organizer.'}</Notice> : null}
-        {registrationNotOpen ? <Notice tone="warning">{locale === 'ru' ? 'Регистрация ещё не открыта.' : 'Registration is not open yet.'}</Notice> : null}
-        {registrationExpired ? <Notice tone="warning">{locale === 'ru' ? 'Дедлайн регистрации прошёл.' : 'Registration deadline has passed.'}</Notice> : null}
 
         {participationStatus === 'ACTIVE' || isRegistered ? (
           <Notice tone="success">
@@ -190,6 +190,11 @@ export default function EventDetailPage() {
               {locale === 'ru'
                 ? 'У вас активна волонтёрская заявка. Командный модуль доступен только участникам.'
                 : 'You have an active volunteer application. Team module is available only for participants.'}
+            </Notice>
+          )
+          : registrationBlocked && !participationStatus ? (
+            <Notice tone="warning">
+              {registrationClosedMessage}
             </Notice>
           )
           : (

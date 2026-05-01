@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { env } from '../config/env.js';
 
@@ -48,6 +48,16 @@ export async function saveUploadedFile(input: StoredFileInput): Promise<StoredFi
 }
 
 export async function deleteStoredFile(storageKey: string): Promise<void> {
+  const targetPath = resolveStoredFilePath(storageKey);
+
+  await rm(targetPath, { force: true });
+}
+
+export async function readStoredFile(storageKey: string): Promise<Buffer> {
+  return readFile(resolveStoredFilePath(storageKey));
+}
+
+function resolveStoredFilePath(storageKey: string) {
   const rootDir = getMediaUploadDir();
   const targetPath = path.resolve(rootDir, storageKey);
   const relativePath = path.relative(rootDir, targetPath);
@@ -56,7 +66,7 @@ export async function deleteStoredFile(storageKey: string): Promise<void> {
     throw new Error('Invalid storage key');
   }
 
-  await rm(targetPath, { force: true });
+  return targetPath;
 }
 
 function sanitizePathSegment(value: string) {

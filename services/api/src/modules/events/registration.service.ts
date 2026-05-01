@@ -12,6 +12,7 @@ import {
   notifyParticipantStatusChanged,
 } from './notifications.service.js';
 import { leaveTeam } from './teams.service.js';
+import { assertRegistrationGateOpen } from './registration-gates.js';
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
 
@@ -74,14 +75,7 @@ export async function getRegistrationPrecheck(
 ) {
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) throw new Error('EVENT_NOT_FOUND');
-  if (event.status !== 'PUBLISHED') throw new Error('EVENT_NOT_AVAILABLE');
-  if (!event.registrationEnabled) throw new Error('EVENT_NOT_AVAILABLE');
-  if (event.registrationOpensAt && event.registrationOpensAt > new Date()) {
-    throw new Error('REGISTRATION_NOT_OPEN');
-  }
-  if (event.registrationDeadline && event.registrationDeadline < new Date()) {
-    throw new Error('EVENT_NOT_AVAILABLE');
-  }
+  assertRegistrationGateOpen(event);
 
   const [participantCount, existing, user, storedAnswers] = await Promise.all([
     prisma.eventMember.count({
@@ -155,15 +149,7 @@ export async function registerForEvent(eventId: string, userId: string, answers?
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) throw new Error('EVENT_NOT_FOUND');
 
-  // Check timing gates
-  if (event.status !== 'PUBLISHED') throw new Error('EVENT_NOT_AVAILABLE');
-  if (!event.registrationEnabled) throw new Error('EVENT_NOT_AVAILABLE');
-  if (event.registrationOpensAt && event.registrationOpensAt > new Date()) {
-    throw new Error('REGISTRATION_NOT_OPEN');
-  }
-  if (event.registrationDeadline && event.registrationDeadline < new Date()) {
-    throw new Error('EVENT_NOT_AVAILABLE');
-  }
+  assertRegistrationGateOpen(event);
 
   const existing = await prisma.eventMember.findUnique({
     where: { eventId_userId_role: { eventId, userId, role: 'PARTICIPANT' } },
@@ -441,9 +427,9 @@ export async function getEventMembership(eventId: string, userId: string) {
 export async function saveRegistrationAnswers(eventId: string, userId: string, answers: Record<string, unknown>) {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { id: true },
   });
   if (!event) throw new Error('EVENT_NOT_FOUND');
+  assertRegistrationGateOpen(event);
 
   const saved = await prisma.eventRegistrationFormSubmission.upsert({
     where: { eventId_userId: { eventId, userId } },

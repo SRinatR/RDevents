@@ -33,7 +33,10 @@ export const eventsRouter = Router();
 const registrationFlowErrors: Record<string, [number, string]> = {
   EVENT_NOT_FOUND: [404, 'Event not found'],
   EVENT_NOT_AVAILABLE: [400, 'Event is not available for registration'],
+  REGISTRATION_DISABLED: [400, 'Registration is disabled for this event'],
   REGISTRATION_NOT_OPEN: [400, 'Registration is not open yet'],
+  REGISTRATION_DEADLINE_PASSED: [410, 'Registration deadline has passed'],
+
   EVENT_REQUIRES_TEAM: [400, 'This event requires team participation'],
   EVENT_NOT_TEAM_BASED: [400, 'Event is not team-based'],
   TEAM_NOT_FOUND: [404, 'Team not found'],
@@ -331,7 +334,7 @@ eventsRouter.post('/:id/teams/:teamId/join', authenticate, async (req, res) => {
   const user = (req as any).user;
   try {
     const member = await joinTeam(String(req.params['id']), String(req.params['teamId']), user.id, req.body?.code, req.body?.answers);
-    res.status(200).json({ member });
+    res.status(201).json({ member });
   } catch (err: any) {
     sendMappedError(res, err, { EVENT_NOT_AVAILABLE: [400, 'Event is not available for teams'] });
   }

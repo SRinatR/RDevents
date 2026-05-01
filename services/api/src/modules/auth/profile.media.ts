@@ -64,18 +64,9 @@ export async function createMediaAsset(
 }
 
 export async function attachAvatarToUser(userId: string, assetId: string) {
-  const [user, asset] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        avatarAssetId: true,
-        avatarAsset: { select: { id: true, storageKey: true } },
-      },
-    }),
-    prisma.mediaAsset.findFirst({
-      where: { id: assetId, ownerUserId: userId, purpose: 'AVATAR', status: 'ACTIVE' },
-    }),
-  ]);
+  const asset = await prisma.mediaAsset.findFirst({
+    where: { id: assetId, ownerUserId: userId, purpose: 'AVATAR', status: 'ACTIVE' },
+  });
 
   if (!asset) throw new ProfileMediaError('Avatar asset was not found');
 
@@ -86,11 +77,6 @@ export async function attachAvatarToUser(userId: string, assetId: string) {
       avatarUrl: buildPublicMediaUrl(asset.storageKey),
     },
   });
-
-  const previousAsset = user?.avatarAsset;
-  if (previousAsset && previousAsset.id !== asset.id) {
-    await markMediaAssetDeleted(userId, previousAsset.id);
-  }
 
   return asset;
 }

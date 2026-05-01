@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
-import { adminApi, adminExportsApi } from '@/lib/api';
+import { adminApi, adminExportsApi, type ExportDownloadFormat } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
 import { EmptyState, FieldInput, FieldSelect, LoadingLines, PageHeader, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
 
@@ -48,6 +48,7 @@ export default function AdminParticipantsPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [totalPages, setTotalPages] = useState(1);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [exportFormat, setExportFormat] = useState<ExportDownloadFormat>('xlsx');
 
   const search = searchParams.get('search') ?? '';
   const eventFilter = searchParams.get('eventId') ?? 'ALL';
@@ -201,29 +202,34 @@ export default function AdminParticipantsPage() {
           </FieldSelect>
           {eventFilter !== 'ALL' && (
             <>
+              <FieldSelect
+                value={exportFormat}
+                onChange={(e) => setExportFormat(e.target.value as ExportDownloadFormat)}
+                className="admin-filter-select"
+                aria-label={locale === 'ru' ? 'Формат выгрузки' : 'Export format'}
+              >
+                <option value="xlsx">XLSX</option>
+                <option value="csv">CSV</option>
+                <option value="json">JSON</option>
+              </FieldSelect>
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
-                onClick={() => void adminExportsApi.downloadParticipants(eventFilter, 'csv', {
+                onClick={() => void adminExportsApi.downloadParticipants(eventFilter, exportFormat, {
                   ...(statusFilter !== 'ALL' ? { status: [statusFilter] } : {}),
                   includeRejected: statusFilter === 'REJECTED',
                   includeCancelled: statusFilter === 'CANCELLED',
                   includeRemoved: statusFilter === 'REMOVED',
                 })}
               >
-                {locale === 'ru' ? 'Выгрузить участников CSV' : 'Export participants CSV'}
+                {locale === 'ru' ? 'Выгрузить участников' : 'Export participants'}
               </button>
               <button
                 type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => void adminExportsApi.downloadParticipants(eventFilter, 'json', {
-                  ...(statusFilter !== 'ALL' ? { status: [statusFilter] } : {}),
-                  includeRejected: statusFilter === 'REJECTED',
-                  includeCancelled: statusFilter === 'CANCELLED',
-                  includeRemoved: statusFilter === 'REMOVED',
-                })}
+                className="btn btn-primary btn-sm"
+                onClick={() => void adminExportsApi.downloadAvatarBundle(eventFilter)}
               >
-                {locale === 'ru' ? 'Выгрузить участников JSON' : 'Export participants JSON'}
+                {locale === 'ru' ? 'Скачать фото ZIP' : 'Download photos ZIP'}
               </button>
             </>
           )}
