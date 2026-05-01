@@ -234,7 +234,15 @@ adminUsersRouter.get('/', requirePlatformAdmin, async (req, res) => {
   const includeInactive = req.query['includeInactive'] === 'true';
 
   const where: Record<string, unknown> = {};
+  if (role === 'SUPER_ADMIN') {
+    res.json({
+      data: [],
+      meta: { total: 0, page, limit, pages: 0 },
+    });
+    return;
+  }
   if (role) where['role'] = role;
+  else where['role'] = { not: 'SUPER_ADMIN' };
   if (!includeInactive) where['isActive'] = true;
 
   if (search) {
@@ -485,22 +493,23 @@ adminUsersRouter.get('/stats', requirePlatformAdmin, async (_req, res) => {
     totalTeams,
     totalActiveTeams,
   ] = await Promise.all([
-    prisma.user.count(),
-    prisma.user.count({ where: { isActive: true } }),
-    prisma.user.count({ where: { isActive: false } }),
+    prisma.user.count({ where: { role: { not: 'SUPER_ADMIN' } } }),
+    prisma.user.count({ where: { isActive: true, role: { not: 'SUPER_ADMIN' } } }),
+    prisma.user.count({ where: { isActive: false, role: { not: 'SUPER_ADMIN' } } }),
     prisma.eventMember.findMany({
+      where: { user: { role: { not: 'SUPER_ADMIN' } } },
       select: { userId: true },
       distinct: ['userId'],
     }).then(memberships => memberships.length),
-    prisma.eventMember.count({ where: { role: 'PARTICIPANT' } }),
-    prisma.eventMember.count({ where: { role: 'PARTICIPANT', status: 'ACTIVE' } }),
-    prisma.eventMember.count({ where: { role: 'VOLUNTEER' } }),
-    prisma.eventMember.count({ where: { role: 'EVENT_ADMIN' } }),
+    prisma.eventMember.count({ where: { role: 'PARTICIPANT', user: { role: { not: 'SUPER_ADMIN' } } } }),
+    prisma.eventMember.count({ where: { role: 'PARTICIPANT', status: 'ACTIVE', user: { role: { not: 'SUPER_ADMIN' } } } }),
+    prisma.eventMember.count({ where: { role: 'VOLUNTEER', user: { role: { not: 'SUPER_ADMIN' } } } }),
+    prisma.eventMember.count({ where: { role: 'EVENT_ADMIN', user: { role: { not: 'SUPER_ADMIN' } } } }),
     prisma.eventTeam.count(),
     prisma.eventTeam.count({ where: { status: { notIn: ['ARCHIVED', 'REJECTED'] } } }),
   ]);
 
-  const totalUsersWithMemberships = await prisma.user.count();
+  const totalUsersWithMemberships = await prisma.user.count({ where: { role: { not: 'SUPER_ADMIN' } } });
   const usersWithoutMembership = totalUsersWithMemberships - usersWithEventMembership;
 
   res.json({
@@ -1261,14 +1270,27 @@ adminUsersRouter.patch('/:userId/role', requireSuperAdmin, async (req, res) => {
     res.status(400).json({ error: 'Invalid role' });
     return;
   }
+  if (role === 'SUPER_ADMIN') {
+    res.status(403).json({ error: 'SUPER_ADMIN_ASSIGNMENT_DISABLED', code: 'SUPER_ADMIN_ASSIGNMENT_DISABLED' });
+    return;
+  }
 
   const { userId } = req.params;
+  const actor = (req as any).user as User;
   const existing = await prisma.user.findFirst({
     where: { OR: [{ id: userId as string }, { email: userId as string }] },
-    select: { id: true },
+    select: { id: true, role: true },
   });
   if (!existing) {
     res.status(404).json({ error: 'User not found' });
+    return;
+  }
+  if (existing.id === actor.id) {
+    res.status(403).json({ error: 'Cannot change your own role' });
+    return;
+  }
+  if (existing.role === 'SUPER_ADMIN') {
+    res.status(403).json({ error: 'SUPER_ADMIN_ASSIGNMENT_DISABLED', code: 'SUPER_ADMIN_ASSIGNMENT_DISABLED' });
     return;
   }
 
@@ -1291,7 +1313,7 @@ adminUsersRouter.get('/search', requirePlatformAdmin, async (req, res) => {
   const limit = Math.min(100, Math.max(1, parseInt(String(req.query['limit'] ?? '20'))));
   const cursor = req.query['cursor'] as string | undefined;
 
-  const where: Record<string, unknown> = { isActive: true };
+  const where: Record<string, unknown> = { isActive: true, role: { not: 'SUPER_ADMIN' } };
 
   if (hasEmail) {
     where['email'] = { not: null };
@@ -1310,6 +1332,16 @@ adminUsersRouter.get('/search', requirePlatformAdmin, async (req, res) => {
       { lastNameCyrillic: { contains: q, mode: 'insensitive' } },
       { fullNameCyrillic: { contains: q, mode: 'insensitive' } },
       { fullNameLatin: { contains: q, mode: 'insensitive' } },
+      {
+        accounts: {
+          some: {
+            providerEmail: {
+              contains: q,
+              mode: 'insensitive',
+            },
+          },
+        },
+      },
     ];
   }
 
@@ -1329,7 +1361,15 @@ adminUsersRouter.get('/search', requirePlatformAdmin, async (req, res) => {
       id: true,
       email: true,
       name: true,
+      role: true,
       phone: true,
+      accounts: {
+        select: {
+          id: true,
+          provider: true,
+          providerEmail: true,
+        },
+      },
       isActive: true,
       emailVerifiedAt: true,
       eventMemberships: eventId ? {
@@ -1352,20 +1392,34 @@ adminUsersRouter.get('/search', requirePlatformAdmin, async (req, res) => {
   const hasMore = users.length > limit;
   const results = hasMore ? users.slice(0, -1) : users;
   const nextCursor = hasMore ? results[results.length - 1]?.id : null;
+  const normalizedQuery = q.trim().toLowerCase();
 
-  const mappedUsers = results.map(user => ({
-    id: user.id,
-    email: user.email ?? '',
-    name: user.name ?? '',
-    phone: user.phone ?? '',
-    isActive: user.isActive,
-    emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
-    eventMembership: eventId && user.eventMemberships?.length ? {
-      eventId,
-      role: user.eventMemberships[0].role,
-      status: user.eventMemberships[0].status,
-    } : null,
-  }));
+  const mappedUsers = results.map((user) => {
+    const exactProviderEmail = user.accounts.find(a => a.providerEmail?.toLowerCase() === normalizedQuery)?.providerEmail ?? null;
+    const exactUserEmail = user.email.toLowerCase() === normalizedQuery ? user.email : null;
+    const matchedEmail = exactProviderEmail ?? exactUserEmail ?? user.email;
+
+    return {
+      id: user.id,
+      email: user.email ?? '',
+      matchedEmail,
+      name: user.name ?? '',
+      phone: user.phone ?? '',
+      role: user.role,
+      accounts: user.accounts.map(account => ({
+        id: account.id,
+        provider: account.provider,
+        providerEmail: account.providerEmail ?? null,
+      })),
+      isActive: user.isActive,
+      emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
+      eventMembership: eventId && user.eventMemberships?.length ? {
+        eventId,
+        role: user.eventMemberships[0].role,
+        status: user.eventMemberships[0].status,
+      } : null,
+    };
+  });
 
   res.json({
     users: mappedUsers,

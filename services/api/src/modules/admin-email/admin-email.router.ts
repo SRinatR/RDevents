@@ -507,6 +507,7 @@ adminEmailRouter.post('/recipients/preview', withErrorHandler(async (req, res) =
 
 const sendDirectEmailSchema = z.object({
   selectedUserIds: z.array(z.string()).min(1),
+  recipientEmailByUserId: z.record(z.string()).optional(),
   excludedUserIds: z.array(z.string()).optional().default([]),
   subject: z.string().min(1).max(200),
   preheader: z.string().max(220).optional().nullable(),
@@ -537,6 +538,7 @@ adminEmailRouter.post('/direct', withErrorHandler(async (req, res) => {
       actorUserId: user.id,
       eventId: parsed.data.eventId ?? null,
       selectedUserIds: parsed.data.selectedUserIds,
+      recipientEmailByUserId: parsed.data.recipientEmailByUserId,
       excludedUserIds: parsed.data.excludedUserIds,
       subject: parsed.data.subject,
       preheader: parsed.data.preheader ?? null,

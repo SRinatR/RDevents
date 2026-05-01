@@ -118,7 +118,7 @@ export default function AdminUsersPage() {
         includeInactive: includeInactiveFilter,
       };
       const response = await adminApi.listUsers(params);
-      setUsers(response.data);
+      setUsers(response.data.filter((entry: UserListItem) => entry.role !== 'SUPER_ADMIN'));
       setTotal(response.meta.total);
       setTotalPages(response.meta.pages);
       setPage(pageNum);
@@ -245,7 +245,6 @@ export default function AdminUsersPage() {
             <option value="">{isRu ? 'Все роли' : 'All roles'}</option>
             <option value="USER">User</option>
             <option value="PLATFORM_ADMIN">Platform Admin</option>
-            <option value="SUPER_ADMIN">Super Admin</option>
           </FieldSelect>
           <FieldSelect value={hasEventMembershipFilter} onChange={(e) => setHasEventMembershipFilter(e.target.value)} className="admin-filter-select">
             <option value="">{isRu ? 'Все участники' : 'All users'}</option>
@@ -335,7 +334,7 @@ export default function AdminUsersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((entry) => (
+                  {users.filter((entry) => entry.role !== 'SUPER_ADMIN').map((entry) => (
                     <tr key={entry.id} onClick={() => handleRowClick(entry.id)} className={styles.clickableRow}>
                       <td>
                         <div className="admin-user-cell">
@@ -384,7 +383,6 @@ export default function AdminUsersPage() {
                             >
                               <option value="USER">User</option>
                               <option value="PLATFORM_ADMIN">Platform Admin</option>
-                              <option value="SUPER_ADMIN">Super Admin</option>
                             </FieldSelect>
                           )}
                         </div>
@@ -424,8 +422,8 @@ export default function AdminUsersPage() {
 
       <div className="signal-notice signal-notice--warning" style={{ marginTop: '16px' }}>
         {isRu
-          ? 'Изменение роли применяется немедленно. SUPER_ADMIN может изменять любые роли. Нельзя понизить собственную роль.'
-          : 'Role changes are applied immediately. SUPER_ADMIN can change any role. Cannot demote your own role.'}
+          ? 'Изменение роли применяется немедленно. С этой страницы можно назначать только USER и PLATFORM_ADMIN. Нельзя изменить собственную роль.'
+          : 'Role changes are applied immediately. Only USER and PLATFORM_ADMIN are assignable from this page. You cannot change your own role.'}
       </div>
     </div>
   );

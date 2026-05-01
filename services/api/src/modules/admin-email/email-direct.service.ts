@@ -5,6 +5,7 @@ export type DirectEmailInput = {
   actorUserId: string;
   eventId?: string | null;
   selectedUserIds: string[];
+  recipientEmailByUserId?: Record<string, string>;
   excludedUserIds?: string[];
   subject: string;
   preheader?: string | null;
@@ -21,6 +22,14 @@ export type RecipientPreview = {
   name: string;
   status: 'READY' | 'SKIPPED_NO_CONSENT' | 'SKIPPED_NO_EMAIL' | 'SKIPPED_EMAIL_NOT_VERIFIED' | 'SKIPPED_EXCLUDED' | 'SKIPPED_USER_NOT_FOUND';
   reason?: string;
+};
+
+type ResolvedRecipient = {
+  userId: string;
+  email: string;
+  name: string;
+  status: 'READY';
+  allowedEmails: string[];
 };
 
 export type PreviewManualRecipientsResult = {
@@ -117,10 +126,21 @@ export async function previewManualRecipients(input: {
 
   const byId = new Map(users.map(user => [user.id, user]));
 
-  const recipients: Array<{ userId: string; email: string; name: string; status: 'READY' }> = [];
+  const recipients: ResolvedRecipient[] = [];
   const skipped: RecipientPreview[] = [];
 
   for (const userId of selectedIds) {
+    if (userId.startsWith('prefill-')) {
+      skipped.push({
+        userId,
+        email: '',
+        name: '',
+        status: 'SKIPPED_USER_NOT_FOUND',
+        reason: 'Получатель передан без реального User ID. Найдите пользователя через поиск и выберите его из списка.',
+      });
+      continue;
+    }
+
     if (excludedIds.has(userId)) {
       skipped.push({
         userId,
@@ -183,6 +203,7 @@ export async function previewManualRecipients(input: {
       email: user.email,
       name: user.name ?? '',
       status: 'READY',
+      allowedEmails: [user.email.toLowerCase()],
     });
   }
 
@@ -190,7 +211,7 @@ export async function previewManualRecipients(input: {
     totalSelected: selectedIds.length,
     willSend: recipients.length,
     willSkip: skipped.length,
-    recipients,
+    recipients: recipients.map(({ allowedEmails, ...recipient }) => recipient),
     skipped,
   };
 }
@@ -214,13 +235,38 @@ export async function sendDirectEmailToUsers(input: DirectEmailInput): Promise<S
     status: 'PENDING' | 'SENT' | 'FAILED';
   }> = [];
 
+  const usersWithAccounts = await prisma.user.findMany({
+    where: { id: { in: recipients.map(r => r.userId) } },
+    select: {
+      id: true,
+      email: true,
+      accounts: {
+        select: {
+          providerEmail: true,
+        },
+      },
+    },
+  });
+
+  const allowedEmailsByUserId = new Map(usersWithAccounts.map((user) => [
+    user.id,
+    new Set([
+      user.email.toLowerCase(),
+      ...((user.accounts ?? []).map((account) => account.providerEmail?.toLowerCase()).filter(Boolean) as string[]),
+    ]),
+  ]));
+
   for (const recipient of recipients) {
+    const overrideEmailRaw = input.recipientEmailByUserId?.[recipient.userId]?.trim();
+    const overrideEmail = overrideEmailRaw?.toLowerCase();
+    const allowedEmails = allowedEmailsByUserId.get(recipient.userId);
+    const targetEmail = overrideEmail && allowedEmails?.has(overrideEmail) ? overrideEmailRaw! : recipient.email;
     const personalizedText = input.text ? renderUserTemplate(input.text, recipient) : undefined;
     const personalizedHtml = input.html ? renderUserTemplate(input.html, recipient) : undefined;
 
     try {
       const result = await sendPlatformEmail({
-        to: recipient.email,
+        to: targetEmail,
         toUserId: recipient.userId,
         subject: input.subject,
         text: personalizedText,
@@ -230,7 +276,7 @@ export async function sendDirectEmailToUsers(input: DirectEmailInput): Promise<S
 
       messages.push({
         userId: recipient.userId,
-        email: recipient.email,
+        email: targetEmail,
         messageId: result.messageId,
         providerMessageId: result.providerMessageId,
         status: result.messageId ? 'SENT' : 'PENDING',
@@ -238,7 +284,7 @@ export async function sendDirectEmailToUsers(input: DirectEmailInput): Promise<S
     } catch (error) {
       messages.push({
         userId: recipient.userId,
-        email: recipient.email,
+        email: targetEmail,
         messageId: null,
         providerMessageId: null,
         status: 'FAILED',

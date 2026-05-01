@@ -729,6 +729,9 @@ export const adminApi = {
       users: Array<{
         id: string;
         email: string;
+        role?: string;
+        matchedEmail?: string | null;
+        accounts?: Array<{ id?: string; provider?: string; providerEmail?: string | null }>;
         name: string;
         phone: string;
         isActive: boolean;
@@ -871,6 +874,7 @@ export const adminEmailApi = {
 
   sendDirectEmail: (payload: {
     selectedUserIds: string[];
+    recipientEmailByUserId?: Record<string, string>;
     excludedUserIds?: string[];
     subject: string;
     preheader?: string;

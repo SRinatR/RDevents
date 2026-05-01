@@ -98,6 +98,22 @@ describe('email-direct.service', () => {
   });
 
   describe('previewManualRecipients', () => {
+    it('prefill-* recipient id is skipped with SKIPPED_USER_NOT_FOUND', async () => {
+      vi.mocked(mockPrisma.user.findMany).mockResolvedValue([]);
+
+      const { previewManualRecipients } = await import('./email-direct.service.js');
+      const result = await previewManualRecipients({
+        selectedUserIds: ['prefill-1777664301867'],
+        emailType: 'ADMIN_DIRECT',
+        respectConsent: false,
+      });
+
+      expect(result.totalSelected).toBe(1);
+      expect(result.willSend).toBe(0);
+      expect(result.willSkip).toBe(1);
+      expect(result.skipped[0].status).toBe('SKIPPED_USER_NOT_FOUND');
+    });
+
     it('user not found -> skipped', async () => {
       vi.mocked(mockPrisma.user.findMany).mockResolvedValue([]);
 
@@ -209,6 +225,153 @@ describe('email-direct.service', () => {
   });
 
   describe('sendDirectEmailToUsers', () => {
+    it('only prefill-* recipient is fully skipped and not sent', async () => {
+      vi.mocked(mockPrisma.user.findMany).mockResolvedValue([]);
+
+      const { sendDirectEmailToUsers } = await import('./email-direct.service.js');
+      const result = await sendDirectEmailToUsers({
+        actorUserId: 'admin-1',
+        selectedUserIds: ['prefill-1777664301867'],
+        subject: 'Test Subject',
+        text: 'Test body',
+        emailType: 'ADMIN_DIRECT',
+        reason: 'Test reason',
+        respectConsent: false,
+      });
+
+      expect(result.totalSelected).toBe(1);
+      expect(result.sent).toBe(0);
+      expect(result.skipped).toBe(1);
+      expect(result.messages).toEqual([]);
+      expect(mockSendPlatformEmail).not.toHaveBeenCalled();
+    });
+
+    it('real user is sent while prefill-* is skipped', async () => {
+      vi.mocked(mockPrisma.user.findMany)
+        .mockResolvedValueOnce([
+          {
+            id: 'user-1',
+            email: 'admin@example.com',
+            name: 'Test User',
+            isActive: true,
+            emailVerifiedAt: new Date(),
+            extendedProfile: { consentMailing: true },
+          },
+        ] as any)
+        .mockResolvedValueOnce([
+          {
+            id: 'user-1',
+            email: 'admin@example.com',
+            accounts: [{ providerEmail: 'rinat200355@gmail.com' }],
+          },
+        ] as any);
+
+      vi.mocked(mockSendPlatformEmail).mockResolvedValue({
+        messageId: 'msg-1',
+        providerMessageId: 'provider-msg-1',
+      });
+
+      const { sendDirectEmailToUsers } = await import('./email-direct.service.js');
+      const result = await sendDirectEmailToUsers({
+        actorUserId: 'admin-1',
+        selectedUserIds: ['user-1', 'prefill-1777664301867'],
+        recipientEmailByUserId: { 'user-1': 'rinat200355@gmail.com' },
+        subject: 'Test Subject',
+        text: 'Test body',
+        emailType: 'ADMIN_DIRECT',
+        reason: 'Test reason',
+        respectConsent: false,
+      });
+
+      expect(result.totalSelected).toBe(2);
+      expect(result.sent).toBe(1);
+      expect(result.skipped).toBe(1);
+      expect(result.messages).toHaveLength(1);
+      expect(result.messages[0].email).toBe('rinat200355@gmail.com');
+      expect(result.skippedRecipients[0].status).toBe('SKIPPED_USER_NOT_FOUND');
+      expect(mockSendPlatformEmail).toHaveBeenCalledTimes(1);
+    });
+
+    it('uses override email only when it belongs to selected user', async () => {
+      vi.mocked(mockPrisma.user.findMany)
+        .mockResolvedValueOnce([
+          {
+            id: 'user-1',
+            email: 'admin@example.com',
+            name: 'Test User',
+            isActive: true,
+            emailVerifiedAt: new Date(),
+            extendedProfile: { consentMailing: true },
+          },
+        ] as any)
+        .mockResolvedValueOnce([
+          {
+            id: 'user-1',
+            email: 'admin@example.com',
+            accounts: [{ providerEmail: 'rinat200355@gmail.com' }],
+          },
+        ] as any);
+
+      vi.mocked(mockSendPlatformEmail).mockResolvedValue({
+        messageId: 'msg-1',
+        providerMessageId: 'provider-msg-1',
+      });
+
+      const { sendDirectEmailToUsers } = await import('./email-direct.service.js');
+      await sendDirectEmailToUsers({
+        actorUserId: 'admin-1',
+        selectedUserIds: ['user-1'],
+        recipientEmailByUserId: { 'user-1': 'evil@example.com' },
+        subject: 'Test Subject',
+        text: 'Test body',
+        emailType: 'ADMIN_DIRECT',
+        reason: 'Test reason',
+        respectConsent: false,
+      });
+
+      expect(mockSendPlatformEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'admin@example.com' }));
+    });
+
+    it('real user is sent while prefill-* is skipped', async () => {
+      vi.mocked(mockPrisma.user.findMany)
+        .mockResolvedValueOnce([
+        {
+          id: 'user-1',
+          email: 'test@example.com',
+          name: 'Test User',
+          isActive: true,
+          emailVerifiedAt: new Date(),
+          extendedProfile: { consentMailing: true },
+        },
+      ] as any)
+        .mockResolvedValueOnce([
+          { id: 'user-1', email: 'test@example.com', accounts: [] },
+        ] as any);
+
+      vi.mocked(mockSendPlatformEmail).mockResolvedValue({
+        messageId: 'msg-1',
+        providerMessageId: 'provider-msg-1',
+      });
+
+      const { sendDirectEmailToUsers } = await import('./email-direct.service.js');
+      const result = await sendDirectEmailToUsers({
+        actorUserId: 'admin-1',
+        selectedUserIds: ['user-1', 'prefill-1777664301867'],
+        subject: 'Test Subject',
+        text: 'Test body',
+        emailType: 'ADMIN_DIRECT',
+        reason: 'Test reason',
+        respectConsent: false,
+      });
+
+      expect(result.totalSelected).toBe(2);
+      expect(result.sent).toBe(1);
+      expect(result.skipped).toBe(1);
+      expect(result.messages).toHaveLength(1);
+      expect(result.skippedRecipients[0].status).toBe('SKIPPED_USER_NOT_FOUND');
+      expect(mockSendPlatformEmail).toHaveBeenCalledTimes(1);
+    });
+
     it('successful send creates EmailMessage', async () => {
       vi.mocked(mockPrisma.user.findMany).mockResolvedValue([
         {

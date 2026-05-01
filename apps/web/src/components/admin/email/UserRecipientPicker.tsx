@@ -48,12 +48,14 @@ export function UserRecipientPicker({
         eventId,
         limit: 20,
       });
-      setSearchResults(result.users.map(u => ({
-        id: u.id,
-        email: u.email,
-        name: u.name || null,
-        phone: u.phone || null,
-      })));
+      setSearchResults(result.users
+        .filter(u => u.role !== 'SUPER_ADMIN')
+        .map(u => ({
+          id: u.id,
+          email: u.matchedEmail || u.email,
+          name: u.name || null,
+          phone: u.phone || null,
+        })));
     } catch {
       setSearchResults([]);
     } finally {
