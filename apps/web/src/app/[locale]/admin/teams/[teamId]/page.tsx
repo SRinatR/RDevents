@@ -463,6 +463,7 @@ export default function AdminTeamDetailsPage() {
                   <td>
                     <FieldSelect
                       value={member.status}
+                      onMouseDown={(event) => event.stopPropagation()}
                       onChange={(event) => { event.stopPropagation(); void handleMemberStatus(member, event.target.value as TeamMemberStatus); }}
                       disabled={saving}
                     >
@@ -480,6 +481,7 @@ export default function AdminTeamDetailsPage() {
                       <button
                         type="button"
                         className="btn btn-ghost btn-sm"
+                        onMouseDown={(e) => e.stopPropagation()}
                         onClick={(e) => { e.stopPropagation(); router.push(`/${locale}/admin/users/${member.userId}?eventId=${team.eventId}`); }}
                       >
                         {isRu ? 'Профиль' : 'Profile'}
@@ -488,6 +490,7 @@ export default function AdminTeamDetailsPage() {
                         type="button"
                         className="btn btn-ghost btn-sm"
                         disabled={saving || member.userId === team.captainUserId}
+                        onMouseDown={(e) => e.stopPropagation()}
                         onClick={(e) => { e.stopPropagation(); void handleTransferCaptain(member); }}
                       >
                         {isRu ? 'Капитан' : 'Captain'}
@@ -497,6 +500,7 @@ export default function AdminTeamDetailsPage() {
                           type="button"
                           className="btn btn-secondary btn-sm"
                           disabled={saving}
+                          onMouseDown={(e) => e.stopPropagation()}
                           onClick={(e) => { e.stopPropagation(); void handleReplaceMember(member); }}
                         >
                           {isRu ? 'Заменить' : 'Replace'}
@@ -506,6 +510,7 @@ export default function AdminTeamDetailsPage() {
                         type="button"
                         className="btn btn-danger btn-sm"
                         disabled={saving}
+                        onMouseDown={(e) => e.stopPropagation()}
                         onClick={(e) => { e.stopPropagation(); void handleRemoveMember(member); }}
                       >
                         {isRu ? 'Убрать' : 'Remove'}

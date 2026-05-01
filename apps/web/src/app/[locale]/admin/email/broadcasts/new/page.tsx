@@ -737,6 +737,13 @@ export default function NewEmailBroadcastPage() {
                 {locale === 'ru' ? 'Обновить предпросмотр' : 'Refresh preview'}
               </button>
             </div>
+            {!broadcastId ? (
+              <div className="signal-muted" style={{ marginTop: 8, fontSize: '0.85rem' }}>
+                {locale === 'ru'
+                  ? 'Для реального предпросмотра по получателю и test-send сохраните рассылку как черновик (получите broadcastId).'
+                  : 'Save this broadcast as a draft first to enable recipient-aware preview and test send.'}
+              </div>
+            ) : null}
           </Panel>
           {audiencePreview?.data?.length ? (
             <Panel variant="subtle" className="admin-command-panel" style={{ marginTop: '1rem' }}>
