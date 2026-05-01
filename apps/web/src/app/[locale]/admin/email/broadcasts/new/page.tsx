@@ -128,6 +128,8 @@ export default function NewEmailBroadcastPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [previewRecipientId, setPreviewRecipientId] = useState<string>('');
+  const broadcastId = searchParams.get('broadcastId');
 
   useEffect(() => {
     let alive = true;
@@ -237,7 +239,7 @@ export default function NewEmailBroadcastPage() {
 
   const loadEmailPreview = useCallback(async () => {
     try {
-      const result = await adminEmailApi.previewEmail({
+      const payload = {
         subject: form.subject,
         preheader: form.preheader,
         textBody: form.textBody,
@@ -247,12 +249,15 @@ export default function NewEmailBroadcastPage() {
           email: form.testEmail || 'admin@example.com',
           unsubscribeUrl: `${window.location.origin}/${locale}/unsubscribe?token=preview`,
         },
-      });
+      } as any;
+      const result = broadcastId
+        ? await adminEmailApi.previewBroadcastEmail(broadcastId, { ...payload, recipientId: previewRecipientId || undefined })
+        : await adminEmailApi.previewEmail(payload);
       setEmailPreview(result);
     } catch {
       setEmailPreview(null);
     }
-  }, [form, locale]);
+  }, [form, locale, broadcastId, previewRecipientId]);
 
   const testSend = useCallback(async () => {
     if (!form.testEmail.trim()) {
@@ -264,18 +269,22 @@ export default function NewEmailBroadcastPage() {
     setNotice(null);
 
     try {
-      await adminEmailApi.testSendEmail({
+      if (broadcastId) {
+        await adminEmailApi.sendBroadcastTestEmail(broadcastId, { email: form.testEmail, recipientId: previewRecipientId || undefined });
+      } else {
+        await adminEmailApi.testSendEmail({
         toEmail: form.testEmail,
         subject: form.subject || 'Test',
         preheader: form.preheader,
         textBody: form.textBody || 'Test',
         htmlBody: form.htmlBody,
-      });
+        });
+      }
       setNotice(locale === 'ru' ? `Тест отправлен на ${form.testEmail}` : `Test sent to ${form.testEmail}`);
     } catch {
       setError(locale === 'ru' ? 'Не удалось отправить тест.' : 'Failed to send test email.');
     }
-  }, [form, locale]);
+  }, [form, locale, broadcastId, previewRecipientId]);
 
   const validateStep = useCallback((): boolean => {
     setError(null);
@@ -621,8 +630,22 @@ export default function NewEmailBroadcastPage() {
         <>
           <Panel variant="elevated" className="admin-command-panel">
             <h2>{locale === 'ru' ? 'Предпросмотр и тестирование' : 'Preview and testing'}</h2>
+            <div className="signal-kpi-grid" style={{ marginBottom: 12 }}>
+              <MetricCard label={locale === 'ru' ? 'Выбрано' : 'Selected'} value={audiencePreview?.totals?.totalMatched ?? estimate?.totalMatched ?? 0} tone="info" />
+              <MetricCard label={locale === 'ru' ? 'Будет отправлено' : 'Will send'} value={audiencePreview?.totals?.totalEligible ?? estimate?.totalEligible ?? 0} tone="success" />
+              <MetricCard label={locale === 'ru' ? 'Пропущено' : 'Skipped'} value={audiencePreview?.totals?.totalSkipped ?? estimate?.totalSkipped ?? 0} tone="warning" />
+            </div>
 
             <div className="admin-email-form-grid">
+              <label className="admin-email-form-wide">
+                <span>{locale === 'ru' ? 'Предпросмотр как получатель' : 'Preview as recipient'}</span>
+                <FieldSelect value={previewRecipientId} onChange={(e) => setPreviewRecipientId(e.target.value)}>
+                  <option value="">{locale === 'ru' ? 'Примерные переменные' : 'Sample variables'}</option>
+                  {(audiencePreview?.data ?? []).map((r: any) => (
+                    <option key={r.recipientId ?? r.userId} value={r.recipientId ?? r.userId}>{r.name || r.email || r.recipientId || r.userId}</option>
+                  ))}
+                </FieldSelect>
+              </label>
               <label className="admin-email-form-wide">
                 <span>{locale === 'ru' ? 'Email для теста' : 'Test email'}</span>
                 <FieldInput
@@ -643,6 +666,16 @@ export default function NewEmailBroadcastPage() {
               </button>
             </div>
           </Panel>
+          {audiencePreview?.data?.length ? (
+            <Panel variant="subtle" className="admin-command-panel" style={{ marginTop: '1rem' }}>
+              <TableShell>
+                <table className="signal-table">
+                  <thead><tr><th>Photo</th><th>{locale === 'ru' ? 'Имя' : 'Full name'}</th><th>Email</th><th>{locale === 'ru' ? 'Телефон' : 'Phone'}</th><th>{locale === 'ru' ? 'Роль' : 'Role'}</th><th>{locale === 'ru' ? 'Статус' : 'Status'}</th><th>{locale === 'ru' ? 'Причина' : 'Reason'}</th></tr></thead>
+                  <tbody>{audiencePreview.data.map((r: any, idx: number) => <tr key={r.recipientId ?? idx}><td>{r.avatarUrl ? <img src={r.avatarUrl} alt="" style={{ width: 24, height: 24, borderRadius: 999 }} /> : '—'}</td><td>{r.name || r.fullName || '—'}</td><td>{r.email || '—'}</td><td>{r.phone || '—'}</td><td>{r.role || '—'}</td><td>{r.deliveryStatus || r.status}</td><td>{r.skipReasonCode || r.skipReason || '—'}</td></tr>)}</tbody>
+                </table>
+              </TableShell>
+            </Panel>
+          ) : null}
 
           {emailPreview && (
             <>
