@@ -37,7 +37,7 @@ export type PreviewManualRecipientsResult = {
 };
 
 export type SendDirectEmailResult = {
-  status: 'QUEUED' | 'SENT' | 'PARTIAL';
+  status: 'QUEUED' | 'SENT' | 'PARTIAL' | 'FAILED' | 'SKIPPED';
   totalSelected: number;
   sent: number;
   skipped: number;
@@ -47,6 +47,7 @@ export type SendDirectEmailResult = {
     messageId: string | null;
     providerMessageId: string | null;
     status: 'PENDING' | 'SENT' | 'FAILED';
+    failureReason?: string | null;
   }>;
   skippedRecipients: Array<RecipientPreview>;
 };
@@ -223,6 +224,7 @@ export async function sendDirectEmailToUsers(input: DirectEmailInput): Promise<S
     messageId: string | null;
     providerMessageId: string | null;
     status: 'PENDING' | 'SENT' | 'FAILED';
+    failureReason?: string | null;
   }> = [];
 
   for (const recipient of recipients) {
@@ -245,25 +247,38 @@ export async function sendDirectEmailToUsers(input: DirectEmailInput): Promise<S
         messageId: result.messageId,
         providerMessageId: result.providerMessageId,
         status: result.messageId ? 'SENT' : 'PENDING',
+        failureReason: null,
       });
     } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
       messages.push({
         userId: recipient.userId,
         email: recipient.email,
         messageId: null,
         providerMessageId: null,
         status: 'FAILED',
+        failureReason: reason,
       });
     }
   }
 
   const sentCount = messages.filter(m => m.status === 'SENT').length;
   const pendingCount = messages.filter(m => m.status === 'PENDING').length;
+  const deliveredOrQueuedCount = sentCount + pendingCount;
+  const status: SendDirectEmailResult['status'] = messages.length === 0
+    ? 'SKIPPED'
+    : sentCount === messages.length && skipped.length === 0
+      ? 'SENT'
+      : pendingCount === messages.length && skipped.length === 0
+        ? 'QUEUED'
+      : deliveredOrQueuedCount > 0
+        ? 'PARTIAL'
+        : 'FAILED';
 
   return {
-    status: sentCount === messages.length ? 'SENT' : pendingCount === messages.length ? 'QUEUED' : 'PARTIAL',
+    status,
     totalSelected: input.selectedUserIds.length,
-    sent: sentCount + pendingCount,
+    sent: deliveredOrQueuedCount,
     skipped: skipped.length,
     messages,
     skippedRecipients: skipped,

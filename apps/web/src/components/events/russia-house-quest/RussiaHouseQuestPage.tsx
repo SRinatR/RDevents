@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { analyticsApi } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { PublicFooter } from '@/components/layout/PublicFooter';
+import { EventPhotoBank } from '@/components/events/EventPhotoBank';
 import {
   getRegistrationClosedReason,
   getRegistrationClosedMessage,
@@ -47,6 +48,7 @@ interface RussiaHouseQuestPageProps {
   onApply: () => void;
   onCopyLink: () => void;
   copied: boolean;
+  canUploadToPhotoBank?: boolean;
 }
 
 function QuestBadge({ children, inverted = false }: { children: ReactNode; inverted?: boolean }) {
@@ -85,6 +87,7 @@ export function RussiaHouseQuestPage({
   onApply,
   onCopyLink,
   copied,
+  canUploadToPhotoBank = false,
 }: RussiaHouseQuestPageProps) {
   const heroImage = event.coverImageUrl || '/dom-gde-zhivet-rossiya.jpg';
   const descriptionParts = String(event.fullDescription ?? '').split(/\n{2,}/).filter(Boolean);
@@ -349,6 +352,18 @@ export function RussiaHouseQuestPage({
                 </article>
               ))}
             </div>
+          </div>
+        </section>
+
+        <section className="rhq-section rhq-photobank-section" id="photobank">
+          <div className="rhq-container">
+            <EventPhotoBank
+              event={event}
+              locale={locale}
+              user={user}
+              isParticipant={canUploadToPhotoBank}
+              variant="quest"
+            />
           </div>
         </section>
 

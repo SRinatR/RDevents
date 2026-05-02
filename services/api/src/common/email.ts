@@ -35,6 +35,15 @@ function getResendClient() {
   return resendClient;
 }
 
+function isLogOnlyEmailDelivery() {
+  return process.env['EMAIL_PROVIDER'] === 'log-only' && !env.isProd;
+}
+
+function buildLogOnlyProviderMessageId(input: { to: string; subject: string; source: EmailDeliverySource }) {
+  const key = `${input.source}:${input.to}:${input.subject}:${Date.now()}`;
+  return `log_${Buffer.from(key).toString('base64url').slice(0, 32)}`;
+}
+
 export async function sendRegistrationCodeEmail(input: {
   to: string;
   code: string;
@@ -138,6 +147,39 @@ export async function sendPlatformEmail(input: {
   }
 
   try {
+    if (!input.text && !input.html) {
+      throw new Error('EMAIL_CONTENT_REQUIRED');
+    }
+
+    if (isLogOnlyEmailDelivery()) {
+      const providerMessageId = buildLogOnlyProviderMessageId(input);
+
+      if (messageId) {
+        await prisma.emailMessage.update({
+          where: { id: messageId },
+          data: {
+            status: 'SENT' as any,
+            sentAt: new Date(),
+            providerMessageId,
+            errorText: null,
+          },
+        });
+      }
+
+      logger.info('Email delivery handled by log-only provider', {
+        module: 'email',
+        action: 'email_log_only_sent',
+        meta: {
+          to: input.to,
+          subject: input.subject,
+          source: input.source,
+          providerMessageId,
+        },
+      });
+
+      return { messageId, providerMessageId };
+    }
+
     const client = getResendClient();
     if (!client) {
       throw new Error('EMAIL_DELIVERY_NOT_CONFIGURED');
@@ -155,9 +197,6 @@ export async function sendPlatformEmail(input: {
 
     if (input.text) payload.text = input.text;
     if (input.html) payload.html = input.html;
-    if (!payload.text && !payload.html) {
-      throw new Error('EMAIL_CONTENT_REQUIRED');
-    }
 
     const response = await client.emails.send(payload);
 

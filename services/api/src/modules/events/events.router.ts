@@ -1,6 +1,13 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { authenticate, optionalAuth } from '../../common/middleware.js';
 import { eventQuerySchema, registrationAnswersSchema } from './events.schemas.js';
+import {
+  EVENT_MEDIA_MAX_FILE_SIZE_MB,
+  EventMediaUploadError,
+  listApprovedEventMedia,
+  uploadEventMedia,
+} from './event-media.service.js';
 import {
   applyForVolunteer,
   cancelTeamInvitation,
@@ -29,6 +36,14 @@ import {
 } from './events.service.js';
 
 export const eventsRouter = Router();
+
+const eventMediaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: EVENT_MEDIA_MAX_FILE_SIZE_MB * 1024 * 1024,
+    files: 1,
+  },
+});
 
 const registrationFlowErrors: Record<string, [number, string]> = {
   EVENT_NOT_FOUND: [404, 'Event not found'],
@@ -105,6 +120,37 @@ eventsRouter.get('/:slug', optionalAuth, async (req, res) => {
   const event = await getEventBySlug(String(req.params['slug']), userId);
   if (!event) { res.status(404).json({ error: 'Event not found' }); return; }
   res.json({ event });
+});
+
+// GET /api/events/:id/media — approved public event photo bank
+eventsRouter.get('/:id/media', optionalAuth, async (req, res) => {
+  const media = await listApprovedEventMedia(String(req.params['id']));
+  res.json({ media });
+});
+
+// POST /api/events/:id/media — participant/admin media submission
+eventsRouter.post('/:id/media', authenticate, eventMediaUpload.single('file'), async (req, res) => {
+  const user = (req as any).user;
+  const file = (req as any).file as Express.Multer.File | undefined;
+
+  try {
+    const media = await uploadEventMedia(String(req.params['id']), user, file as Express.Multer.File, req.body ?? {});
+    res.status(media.status === 'APPROVED' ? 201 : 202).json({ media });
+  } catch (err: any) {
+    if (err instanceof EventMediaUploadError) {
+      res.status(400).json({ error: err.message, code: err.code });
+      return;
+    }
+    if (err.message === 'EVENT_NOT_FOUND') {
+      res.status(404).json({ error: 'Event not found', code: err.message });
+      return;
+    }
+    if (err.message === 'EVENT_MEDIA_UPLOAD_FORBIDDEN') {
+      res.status(403).json({ error: 'Only approved event participants can upload media', code: err.message });
+      return;
+    }
+    throw err;
+  }
 });
 
 // POST /api/events/:id/register — requires auth

@@ -14,6 +14,10 @@ function formatFromAddress(name: string, email: string) {
   return `${name} <${email}>`;
 }
 
+function isLogOnlyEmailProvider() {
+  return process.env['EMAIL_PROVIDER'] === 'log-only' && env.NODE_ENV !== 'production';
+}
+
 export class ResendEmailProvider implements EmailProvider {
   async sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
     const client = getResendClient();
@@ -67,7 +71,7 @@ export class LogOnlyEmailProvider implements EmailProvider {
 }
 
 export function getEmailProvider(): EmailProvider {
-  if (process.env['EMAIL_PROVIDER'] === 'log-only') {
+  if (isLogOnlyEmailProvider()) {
     return new LogOnlyEmailProvider();
   }
   return new ResendEmailProvider();

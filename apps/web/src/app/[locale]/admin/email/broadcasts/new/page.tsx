@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { adminApi, adminEmailApi } from '@/lib/api';
+import { ApiError, adminApi, adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { EmptyState, FieldInput, FieldSelect, FieldTextarea, LoadingLines, MetricCard, Notice, Panel, StatusBadge, TableShell } from '@/components/ui/signal-primitives';
@@ -145,6 +145,37 @@ function formatSkipReason(value: string | null | undefined, locale: string) {
   };
   const key = String(value ?? '').trim();
   return (map[key]?.[locale === 'ru' ? 'ru' : 'en']) || key || '—';
+}
+
+function getEmailErrorMessage(error: unknown, locale: string) {
+  const code = error instanceof ApiError ? error.code : undefined;
+  const messages: Record<string, { ru: string; en: string }> = {
+    EMAIL_DELIVERY_NOT_CONFIGURED: {
+      ru: 'Email-провайдер не настроен. Проверьте RESEND_API_KEY.',
+      en: 'Email provider is not configured. Check RESEND_API_KEY.',
+    },
+    EMAIL_SENDER_NOT_CONFIGURED: {
+      ru: 'Отправитель не настроен. Проверьте RESEND_FROM_EMAIL.',
+      en: 'Sender is not configured. Check RESEND_FROM_EMAIL.',
+    },
+    EMAIL_CONTENT_REQUIRED: {
+      ru: 'Заполните текст или HTML письма.',
+      en: 'Fill text or HTML body.',
+    },
+    EMAIL_NO_ELIGIBLE_RECIPIENTS: {
+      ru: 'В выбранной аудитории нет получателей, которым можно отправить письмо.',
+      en: 'There are no eligible recipients in the selected audience.',
+    },
+    UNSUBSCRIBE_URL_REQUIRED: {
+      ru: 'Для маркетинговой рассылки добавьте {{unsubscribeUrl}} в текст или HTML.',
+      en: 'Add {{unsubscribeUrl}} to text or HTML for marketing broadcasts.',
+    },
+  };
+
+  if (code && messages[code]) return messages[code][locale === 'ru' ? 'ru' : 'en'];
+  return error instanceof Error
+    ? error.message
+    : (locale === 'ru' ? 'Не удалось выполнить действие.' : 'Action failed.');
 }
 
 export default function NewEmailBroadcastPage() {
@@ -319,8 +350,8 @@ export default function NewEmailBroadcastPage() {
         });
       }
       setNotice(locale === 'ru' ? `Тест отправлен на ${form.testEmail}` : `Test sent to ${form.testEmail}`);
-    } catch {
-      setError(locale === 'ru' ? 'Не удалось отправить тест.' : 'Failed to send test email.');
+    } catch (e) {
+      setError(getEmailErrorMessage(e, locale));
     }
   }, [form, locale, broadcastId, previewRecipientId]);
 
@@ -391,7 +422,7 @@ export default function NewEmailBroadcastPage() {
       const response = await adminEmailApi.createBroadcast(payload);
       router.push(`/${locale}/admin/email/broadcasts/${response.data.id}`);
     } catch (e) {
-      setError(locale === 'ru' ? 'Не удалось сохранить рассылку.' : 'Failed to save broadcast.');
+      setError(getEmailErrorMessage(e, locale));
     } finally {
       setSaving(false);
     }
@@ -409,6 +440,12 @@ export default function NewEmailBroadcastPage() {
   }, [estimate]);
 
   const isEventScoped = ['event_participants', 'event_teams'].includes(form.audienceSource);
+
+  useEffect(() => {
+    if (step !== 4) return;
+    void loadEmailPreview();
+    void loadAudiencePreview();
+  }, [step, loadEmailPreview, loadAudiencePreview]);
 
   return (
     <div className="signal-page-shell admin-control-page">
@@ -730,7 +767,7 @@ export default function NewEmailBroadcastPage() {
             </div>
 
             <div className="signal-row-actions" style={{ marginTop: '1rem' }}>
-              <button className="btn btn-secondary btn-sm" onClick={() => void testSend()}>
+              <button className="btn btn-secondary btn-sm" onClick={() => void testSend()} disabled={!form.testEmail.trim()}>
                 {locale === 'ru' ? 'Отправить тест' : 'Send test'}
               </button>
               <button className="btn btn-secondary btn-sm" onClick={() => void loadEmailPreview()}>
@@ -740,8 +777,8 @@ export default function NewEmailBroadcastPage() {
             {!broadcastId ? (
               <div className="signal-muted" style={{ marginTop: 8, fontSize: '0.85rem' }}>
                 {locale === 'ru'
-                  ? 'Для реального предпросмотра по получателю и test-send сохраните рассылку как черновик (получите broadcastId).'
-                  : 'Save this broadcast as a draft first to enable recipient-aware preview and test send.'}
+                  ? 'Для предпросмотра как конкретный получатель сначала сохраните рассылку как черновик.'
+                  : 'Save this broadcast as a draft first to enable recipient-aware preview.'}
               </div>
             ) : null}
           </Panel>

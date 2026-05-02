@@ -34,6 +34,10 @@ services:
       JWT_ACCESS_SECRET: change_me_access_secret
       JWT_REFRESH_SECRET: change_me_refresh_secret
       CORS_ORIGIN: http://localhost:3000
+      APP_URL: http://localhost:3000
+      EMAIL_PROVIDER: log-only
+      RESEND_FROM_EMAIL: dev@rdevents.local
+      RESEND_FROM_NAME: RDEvents Dev
     ports:
       - "4000:4000"
     volumes:

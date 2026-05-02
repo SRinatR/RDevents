@@ -332,11 +332,24 @@ enum SupportSenderType {
 enum MediaAssetPurpose {
   AVATAR
   DOCUMENT
+  EVENT_MEDIA
 }
 
 enum MediaAssetStatus {
   ACTIVE
   DELETED
+}
+
+enum EventMediaStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  DELETED
+}
+
+enum EventMediaSource {
+  ADMIN
+  PARTICIPANT
 }
 
 enum EmailMessageStatus {
@@ -598,6 +611,9 @@ model User {
   additionalDocuments                  UserAdditionalDocument[]
   emergencyContact                     UserEmergencyContact?
   mediaAssets                          MediaAsset[]                      @relation("MediaAssetOwner")
+  uploadedEventMedia                   EventMedia[]                      @relation("EventMediaUploader")
+  approvedEventMedia                   EventMedia[]                      @relation("EventMediaApprovedBy")
+  rejectedEventMedia                   EventMedia[]                      @relation("EventMediaRejectedBy")
 
   supportThreads             SupportThread[]          @relation("SupportThreadUser")
   assignedSupportThreads     SupportThread[]          @relation("SupportThreadAdmin")
@@ -905,6 +921,7 @@ model MediaAsset {
   internationalPassportScanFor UserInternationalPassport? @relation("InternationalPassportScan")
   userAdditionalDocumentFor    UserAdditionalDocument?    @relation("UserAdditionalDocumentAsset")
   profileHistoryEntries        UserProfileHistory[]        @relation("UserProfileHistoryAsset")
+  eventMedia                   EventMedia?                @relation("EventMediaAsset")
 
   @@index([ownerUserId, purpose, status])
   @@map("media_assets")
@@ -1067,9 +1084,41 @@ model Event {
   registrationSubmissions EventRegistrationFormSubmission[]
   milestones              EventMilestone[]
   exportPresets           ExportPreset[]
+  mediaItems              EventMedia[]
 
   @@index([organizerWorkspaceId])
   @@map("events")
+}
+
+model EventMedia {
+  id                String           @id @default(cuid())
+  eventId           String
+  assetId           String           @unique
+  uploaderUserId    String
+  source            EventMediaSource @default(PARTICIPANT)
+  status            EventMediaStatus @default(PENDING)
+  title             String?
+  caption           String?          @db.Text
+  altText           String?
+  credit            String?
+  moderationNotes   String?          @db.Text
+  approvedByUserId  String?
+  approvedAt        DateTime?
+  rejectedByUserId  String?
+  rejectedAt        DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+
+  event      Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  asset      MediaAsset @relation("EventMediaAsset", fields: [assetId], references: [id], onDelete: Cascade)
+  uploader   User       @relation("EventMediaUploader", fields: [uploaderUserId], references: [id], onDelete: Cascade)
+  approvedBy User?      @relation("EventMediaApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  rejectedBy User?      @relation("EventMediaRejectedBy", fields: [rejectedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([eventId, status, createdAt])
+  @@index([uploaderUserId, status])
+  @@map("event_media")
 }
 
 model EventRegistrationFormSubmission {
