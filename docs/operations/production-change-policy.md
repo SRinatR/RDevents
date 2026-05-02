@@ -1,110 +1,132 @@
 # Production Change Policy (RDevents)
 
-## Purpose
+> Статус: **обязательная policy** для всех изменений, которые могут повлиять на production.
 
-This policy defines how to ship changes safely to production with minimal blast radius, explicit rollback paths, and measurable go/no-go criteria.
+## 1) Цель
 
-## Core principles
+Эта policy фиксирует безопасный процесс поставки изменений в production: минимальный blast radius, обязательный rollback-first подход, предсказуемые go/no-go критерии и координация при параллельной работе нескольких инженеров.
 
-1. **Rollback-first**: every production change must include a tested rollback plan.
-2. **Small batches**: avoid combining schema-breaking, API contract, and UI behavior changes in one release.
-3. **Feature flags by default**: risky behavior should be dark-launched and enabled gradually.
-4. **Observe before expand**: canary and post-deploy observation window are mandatory for medium/high risk changes.
-5. **No undocumented changes**: deployment-impacting behavior must be documented before release.
+С policy нужно применять вместе с текущим workflow деплоя в `docs/deploy-workflow.md`.
 
-## Change categories
+## 2) Область действия
+
+Policy применяется к любому изменению, которое затрагивает хотя бы один пункт:
+
+- API/runtime поведение (`services/api`),
+- web runtime поведение (`apps/web`),
+- DB schema/migrations (`services/api/prisma`),
+- deployment/infra/scripts (`ops`, `scripts`, `docker-compose`, nginx),
+- runtime конфиги и feature flags.
+
+## 3) Базовые принципы
+
+1. **Rollback-first**: до выката должен быть готов конкретный rollback сценарий.
+2. **Small-batch delivery**: не смешивать рискованные категории изменений в один релиз.
+3. **Compatibility over speed**: сначала backward-compatible релиз, затем cleanup.
+4. **Observe before expand**: разворачивать поэтапно с наблюдением метрик.
+5. **No hidden changes**: все production-impacting изменения документируются.
+
+## 4) Категории рисков
 
 ### C0 — Config-only
-Examples: toggling existing feature flag, environment variable correction.
+Примеры: изменение значения существующего env, включение уже существующего feature flag.
 
-Required:
-- peer review by 1 engineer;
-- rollback instruction in PR;
-- 15 min monitoring window.
+Требования:
+- 1 reviewer;
+- rollback инструкция в PR;
+- мониторинг после выката: 15 минут.
 
-### C1 — Code change, no schema impact
-Examples: bugfix in API handler, UI visual adjustment, logging changes.
+### C1 — Code-only, без schema impact
+Примеры: локальный bugfix в API route, UI fix без изменения контрактов и БД.
 
-Required:
-- peer review by 1 engineer;
-- smoke tests pass;
-- rollback commit identified;
-- 30 min monitoring window.
+Требования:
+- 1 reviewer;
+- smoke checks;
+- rollback commit/revert план;
+- мониторинг: 30 минут.
 
-### C2 — Schema-compatible release
-Examples: additive columns/tables, backward-compatible API fields.
+### C2 — Schema-compatible
+Примеры: additive таблицы/поля/индексы, новые optional поля в API.
 
-Required:
-- peer review by 2 engineers (including backend owner);
-- expand/contract migration plan;
-- feature flag or compatibility guard;
-- canary rollout;
-- 60 min monitoring window.
+Требования:
+- 2 reviewers (включая backend owner);
+- expand/contract план;
+- feature-flag или compatibility guard;
+- canary/поэтапный rollout;
+- мониторинг: 60 минут.
 
-### C3 — Schema-breaking / high-risk
-Examples: dropping columns, changing auth/session semantics, critical routing changes.
+### C3 — High-risk / schema-breaking
+Примеры: drop колонок, изменение auth/session semantics, критичные routing/infra изменения.
 
-Required:
-- RFC approved by tech lead;
-- staged rollout plan (at least 2 releases);
-- explicit rollback procedure tested in staging;
-- on-call owner present during rollout;
-- 120 min monitoring window.
+Требования:
+- RFC/дизайн-решение до реализации;
+- staged rollout минимум в 2 релиза;
+- проверенный rollback на staging;
+- выделенный on-call владелец релиза;
+- мониторинг: 120 минут.
 
-## Mandatory PR checklist
+## 5) Обязательный PR checklist
 
-Every PR targeting production path must include:
-- Change category (C0..C3)
-- Blast radius (which users/endpoints)
-- Feature flag name and default state
-- Data migration plan (if any)
-- Rollback plan (exact command/commit)
-- Validation plan (health, ready, release markers, business checks)
+PR, который идет в путь `main -> production`, обязан содержать:
 
-## Release gate
+- Категория изменения: C0/C1/C2/C3.
+- Blast radius: какие пользователи/роуты/домены затронуты.
+- Feature flag: имя, default state, план включения.
+- Migration plan (если есть БД/контракты).
+- Rollback plan: конкретные шаги и команда/commit для revert.
+- Validation plan: health/ready/release markers + бизнес-проверки.
+- Post-deploy owner: кто мониторит окно наблюдения.
 
-A release is blocked unless all are true:
-- CI checks pass;
-- required reviewers approved;
-- rollback plan present;
-- deploy runbook steps acknowledged by deployer;
-- post-deploy monitor owner assigned.
+## 6) Release gates (go/no-go)
 
-## Rollout strategy
+Релиз блокируется, если хотя бы одно условие не выполнено:
 
-1. Deploy in dark mode (flag off) where possible.
-2. Enable for internal/admin users first.
-3. Expand to partial audience (canary).
-4. Expand to full audience only if SLI remains within thresholds.
+- CI required checks зелёные (см. `docs/deploy-workflow.md`).
+- Есть обязательные approvals согласно категории риска.
+- В PR заполнен rollback plan.
+- Для C2/C3 есть поэтапный rollout plan.
+- Назначен ответственный за post-deploy мониторинг.
 
-## Rollback triggers
+## 7) Стратегия rollout
 
-Immediate rollback if any occurs:
-- sustained 5xx increase above baseline threshold;
-- auth success rate drop;
-- registration success rate drop;
-- failed health/ready/release marker checks;
-- data integrity risk signals.
+1. **Dark launch** (если возможно): код выкатить, feature flag оставить OFF.
+2. **Internal/admin enablement**: ограниченное включение для внутренней аудитории.
+3. **Canary**: частичное включение для production трафика.
+4. **Full rollout**: только при нормальных SLI в мониторинг-окне.
 
-## Coordination protocol (3+ simultaneous programmers)
+## 8) Триггеры немедленного rollback
 
-- Keep one **Release Captain** per deployment window.
-- Use ownership map by domain:
-  - Auth/Profile
-  - Events/Teams
-  - Admin/Backoffice
-  - Infra/Deploy
-- Freeze cross-domain refactors during active incident or hotfix window.
-- Merge order:
-  1) infrastructure/observability,
-  2) additive backend contracts,
-  3) frontend consumers,
-  4) cleanup/removal.
+Любой из пунктов — причина отката:
 
-## Definition of done for production-safe changes
+- устойчивый рост 5xx относительно baseline;
+- падение auth success rate;
+- падение registration success rate;
+- сбой обязательных `/health`, `/ready`, `version/release` контрактов;
+- риск data integrity.
 
-A change is considered done only when:
-- code merged;
-- production verification completed;
-- monitoring window passed;
-- docs/runbooks updated.
+## 9) Координация при 3+ разработчиках
+
+- На каждое окно релиза назначается **Release Captain**.
+- Рабочие зоны фиксируются заранее (Auth/Profile, Events/Teams, Admin, Infra).
+- Запрещены кросс-доменные big-bang refactor PR в один релиз.
+- Рекомендуемый порядок мержа:
+  1. observability/infra,
+  2. additive backend contracts,
+  3. frontend consumers,
+  4. cleanup/deletion.
+
+## 10) Что запрещено
+
+- Совмещать destructive DB migration и крупное поведенческое изменение в одном релизе.
+- Включать новый рискованный флоу сразу на 100% трафика.
+- Деплоить без проверяемого rollback сценария.
+- Удалять legacy путь до завершения периода совместимости.
+
+## 11) Definition of done (production-safe)
+
+Изменение считается завершенным только когда:
+
+- код смержен;
+- деплой в production подтвержден;
+- мониторинг-окно прошло без деградации;
+- документация/runbook обновлены.

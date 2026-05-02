@@ -1,42 +1,63 @@
 # Database Migration Strategy (Expand / Contract)
 
-## Goal
+> Статус: обязательная стратегия для любых изменений схемы БД в production.
 
-Allow safe schema evolution in production with zero-downtime compatible releases.
+## 1) Цель
 
-## Phase 1 — Expand
+Обеспечить безопасную эволюцию схемы БД без downtime и без несовместимости между текущей и предыдущей версией приложения.
 
-- Add new tables/columns/indexes only.
-- Keep old fields and old code path intact.
-- Deploy backend that can read/write both old and new representation when needed.
+## 2) Модель: Expand → Backfill → Switch → Contract
 
-## Phase 2 — Backfill
+### Phase A — Expand (только additive)
 
-- Backfill existing data in controlled batches.
-- Verify row counts and integrity checks.
-- Monitor DB load and lock behavior.
+Разрешено:
+- добавлять новые таблицы;
+- добавлять nullable/optional колонки;
+- добавлять индексы и технические структуры для будущего переключения.
 
-## Phase 3 — Switch
+Запрещено:
+- удалять колонки/таблицы;
+- делать несовместимые rename без промежуточного слоя совместимости.
 
-- Move reads to new schema behind a feature flag.
-- Then move writes to new schema.
-- Keep compatibility fallbacks for at least one release cycle.
+### Phase B — Backfill (контролируемо)
 
-## Phase 4 — Contract
+- Заполнять новые поля батчами.
+- Проверять row counts и инварианты после каждого шага.
+- Ограничивать нагрузку (batch size / throttle) и отслеживать lock profile.
 
-- Remove old path only after stable observation period.
-- Drop deprecated columns/tables in a separate release.
+### Phase C — Switch (через флаг/guard)
 
-## Required checklist for each migration PR
+- Сначала переключать **reads** на новую схему.
+- Затем переключать **writes**.
+- Держать fallback путь минимум один релизный цикл.
 
-- Migration type: additive / destructive
-- Expected lock profile
-- Backfill strategy and estimated duration
-- Compatibility plan across current and previous app version
-- Rollback strategy
+### Phase D — Contract (отложенное удаление legacy)
 
-## Production rules
+- Удалять старые поля/таблицы только после периода стабильности.
+- Destructive шаги — отдельным релизом, не вместе с крупной бизнес-логикой.
 
-- Never combine destructive schema change and major behavior change in one release.
-- Never run seed in production.
-- Always verify backup and readiness checks before migration.
+## 3) Требования к migration PR
+
+Каждый migration PR обязан включать:
+
+- тип миграции: additive / destructive;
+- ожидаемый lock profile;
+- план backfill (объем, скорость, длительность);
+- compatibility plan между N и N-1 версией приложения;
+- rollback strategy для кода и данных;
+- список post-migration проверок.
+
+## 4) Production checklist перед запуском миграции
+
+1. Подтвержден актуальный backup.
+2. Валидация `DATABASE_URL` и compose topology в соответствии с deploy workflow.
+3. Проверка, что migration относится к корректной фазе (A/B/C/D).
+4. Подготовлен сценарий аварийного отката.
+5. Назначен владелец мониторинга после миграции.
+
+## 5) Production rules
+
+- Никогда не объединять destructive migration и крупное поведенческое изменение в одном релизе.
+- Никогда не запускать seed в production.
+- Для критичных изменений выполнять staged rollout приложения вокруг миграции.
+- Удалять legacy артефакты только после подтвержденной стабильности.
