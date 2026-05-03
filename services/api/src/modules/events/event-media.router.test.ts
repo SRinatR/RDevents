@@ -7,6 +7,7 @@ const prismaMock = vi.hoisted(() => ({
   },
   event: {
     findUnique: vi.fn(),
+    findMany: vi.fn(),
   },
   eventMediaSettings: {
     findUnique: vi.fn(),
@@ -139,6 +140,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   prismaMock.user.findUnique.mockResolvedValue(testUser);
   prismaMock.event.findUnique.mockResolvedValue({ id: 'event-1', status: 'PUBLISHED' });
+  prismaMock.event.findMany.mockResolvedValue([]);
   prismaMock.eventMediaSettings.findUnique.mockResolvedValue(defaultSettings);
   prismaMock.eventMediaSettings.upsert.mockResolvedValue(defaultSettings);
   prismaMock.eventMember.findUnique.mockResolvedValue({ status: 'ACTIVE' });
@@ -231,6 +233,38 @@ describe('public event media privacy', () => {
     expect(query.where.event.mediaSettings).toEqual({ is: { enabled: true } });
     expect(query.include.event.select.mediaSettings).toBe(true);
     expect(query.orderBy).toEqual([{ approvedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }]);
+  });
+
+  it('GET /api/events/media lists only public media from published enabled events', async () => {
+    prismaMock.eventMedia.count.mockResolvedValue(1);
+    prismaMock.event.findMany.mockResolvedValue([{ id: 'event-1', slug: 'event-one', title: 'Event One', startsAt: new Date('2026-01-01T10:00:00.000Z') }]);
+    prismaMock.eventMedia.findMany.mockResolvedValue([
+      mediaRow({
+        event: {
+          id: 'event-1',
+          slug: 'event-one',
+          title: 'Event One',
+          startsAt: new Date('2026-01-01T10:00:00.000Z'),
+          mediaSettings: defaultSettings,
+        },
+      }),
+    ]);
+
+    const res = await request(app).get('/api/events/media?type=image&search=1');
+    const query = prismaMock.eventMedia.findMany.mock.calls[0][0];
+
+    expect(res.status).toBe(200);
+    expect(res.body.media).toHaveLength(1);
+    expect(res.body.events).toHaveLength(1);
+    expect(query.where.event).toMatchObject({
+      status: 'PUBLISHED',
+      deletedAt: null,
+      mediaSettings: { is: { enabled: true } },
+    });
+    expect(query.where.asset).toMatchObject({
+      status: 'ACTIVE',
+      mimeType: { startsWith: 'image/' },
+    });
   });
 });
 
@@ -452,5 +486,27 @@ describe('admin event media summary', () => {
     expect(regular.status).toBe(403);
     expect(eventAdmin.status).toBe(200);
     expect(platformAdmin.status).toBe(200);
+  });
+
+  it('GET /api/admin/events/:id/media/public-visibility explains why media is not public', async () => {
+    prismaMock.event.findUnique.mockResolvedValue({ id: 'event-1', status: 'DRAFT', deletedAt: null });
+    prismaMock.eventMediaSettings.findUnique.mockResolvedValue({ ...defaultSettings, enabled: true });
+    prismaMock.eventMedia.count
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(1);
+
+    const res = await request(app)
+      .get('/api/admin/events/event-1/media/public-visibility')
+      .set('Authorization', authHeader(adminUser));
+
+    expect(res.status).toBe(200);
+    expect(res.body.visibility).toMatchObject({
+      eventPublished: false,
+      mediaBankEnabled: true,
+      approvedMedia: 1,
+      activeAssets: 1,
+      visibleOnPublicPages: false,
+      reasonCode: 'EVENT_NOT_PUBLISHED',
+    });
   });
 });
