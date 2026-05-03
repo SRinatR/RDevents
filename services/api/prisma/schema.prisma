@@ -361,6 +361,30 @@ enum EventMediaHistoryAction {
   RESTORED
 }
 
+enum EventMediaImportStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  COMPLETED_WITH_ERRORS
+  FAILED
+  CANCELLED
+}
+
+enum EventMediaImportItemStatus {
+  IMPORTED
+  SKIPPED_DUPLICATE
+  SKIPPED_UNSUPPORTED_TYPE
+  SKIPPED_TOO_LARGE
+  FAILED
+}
+
+enum EventMediaCaptionSuggestionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
 enum EmailMessageStatus {
   PENDING
   SENT
@@ -629,6 +653,9 @@ model User {
   approvedEventMedia                   EventMedia[]                      @relation("EventMediaApprovedBy")
   rejectedEventMedia                   EventMedia[]                      @relation("EventMediaRejectedBy")
   eventMediaHistoryEntries             EventMediaHistory[]               @relation("EventMediaHistoryActor")
+  eventMediaImportJobs                 EventMediaImportJob[]             @relation("EventMediaImportJobCreatedBy")
+  authoredMediaCaptionSuggestions      EventMediaCaptionSuggestion[]      @relation("EventMediaCaptionSuggestionAuthor")
+  moderatedMediaCaptionSuggestions     EventMediaCaptionSuggestion[]      @relation("EventMediaCaptionSuggestionModerator")
 
   supportThreads             SupportThread[]          @relation("SupportThreadUser")
   assignedSupportThreads     SupportThread[]          @relation("SupportThreadAdmin")
@@ -938,6 +965,7 @@ model MediaAsset {
   storageDriver    String
   storageKey       String
   publicUrl        String
+  checksumSha256   String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   deletedAt        DateTime?
@@ -949,8 +977,10 @@ model MediaAsset {
   userAdditionalDocumentFor    UserAdditionalDocument?    @relation("UserAdditionalDocumentAsset")
   profileHistoryEntries        UserProfileHistory[]       @relation("UserProfileHistoryAsset")
   eventMedia                   EventMedia?                @relation("EventMediaAsset")
+  eventMediaImportArchives     EventMediaImportJob[]      @relation("EventMediaImportArchive")
 
   @@index([ownerUserId, purpose, status])
+  @@index([checksumSha256])
   @@map("media_assets")
 }
 
@@ -1123,6 +1153,9 @@ model Event {
   exportPresets           ExportPreset[]
   mediaItems              EventMedia[]
   mediaSettings           EventMediaSettings?
+  mediaImportJobs         EventMediaImportJob[]
+  mediaImportItems        EventMediaImportItem[]
+  mediaCaptionSuggestions EventMediaCaptionSuggestion[]
 
   @@index([organizerWorkspaceId])
   @@index([deletedAt])
@@ -1137,6 +1170,7 @@ model EventMedia {
   uploaderUserId   String
   source           EventMediaSource @default(PARTICIPANT)
   status           EventMediaStatus @default(PENDING)
+  displayNumber    Int?
   title            String?
   caption          String?          @db.Text
   altText          String?
@@ -1156,7 +1190,10 @@ model EventMedia {
   approvedBy User?      @relation("EventMediaApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
   rejectedBy User?      @relation("EventMediaRejectedBy", fields: [rejectedByUserId], references: [id], onDelete: SetNull)
   history    EventMediaHistory[]
+  importItems EventMediaImportItem[]
+  captionSuggestions EventMediaCaptionSuggestion[]
 
+  @@unique([eventId, displayNumber])
   @@index([eventId, status, createdAt])
   @@index([uploaderUserId, status])
   @@map("event_media")
@@ -1192,11 +1229,110 @@ model EventMediaSettings {
   allowParticipantCaption  Boolean  @default(true)
   maxFileSizeMb            Int      @default(25)
   allowedTypes             String[] @default(["image", "video"])
+  nextMediaDisplayNumber   Int      @default(1)
   updatedAt                DateTime @updatedAt
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@map("event_media_settings")
+}
+
+model EventMediaImportJob {
+  id               String                 @id @default(cuid())
+  eventId          String
+  createdByUserId  String
+  archiveAssetId   String?
+  status           EventMediaImportStatus @default(QUEUED)
+
+  originalFilename String
+  totalEntries     Int                    @default(0)
+  mediaEntries     Int                    @default(0)
+  importedCount    Int                    @default(0)
+  skippedCount     Int                    @default(0)
+  failedCount      Int                    @default(0)
+  duplicateCount   Int                    @default(0)
+
+  startedAt        DateTime?
+  completedAt      DateTime?
+  failedAt         DateTime?
+  errorMessage     String?                @db.Text
+
+  optionsJson      Json?
+  reportJson       Json?
+
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  event            Event                  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdBy        User                   @relation("EventMediaImportJobCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  archiveAsset     MediaAsset?            @relation("EventMediaImportArchive", fields: [archiveAssetId], references: [id], onDelete: SetNull)
+  items            EventMediaImportItem[]
+
+  @@index([eventId, createdAt])
+  @@index([createdByUserId])
+  @@index([status])
+  @@map("event_media_import_jobs")
+}
+
+model EventMediaImportItem {
+  id               String                     @id @default(cuid())
+  jobId            String
+  eventId          String
+  mediaId          String?
+
+  archivePath      String
+  originalFilename String
+  mimeType         String?
+  sizeBytes        Int?
+  checksumSha256   String?
+
+  status           EventMediaImportItemStatus
+  reasonCode       String?
+  reasonMessage    String?                    @db.Text
+
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  job              EventMediaImportJob        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  event            Event                      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  media            EventMedia?                @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+
+  @@index([jobId])
+  @@index([eventId])
+  @@index([mediaId])
+  @@index([checksumSha256])
+  @@map("event_media_import_items")
+}
+
+model EventMediaCaptionSuggestion {
+  id                String                            @id @default(cuid())
+  mediaId           String
+  eventId           String
+  authorUserId      String
+
+  status            EventMediaCaptionSuggestionStatus @default(PENDING)
+
+  suggestedTitle    String?
+  suggestedCaption  String?                           @db.Text
+  suggestedCredit   String?
+  suggestedAltText  String?
+
+  moderatorUserId   String?
+  moderationReason  String?                           @db.Text
+  decidedAt         DateTime?
+
+  createdAt         DateTime                          @default(now())
+  updatedAt         DateTime                          @updatedAt
+
+  media             EventMedia                        @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  event             Event                             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  author            User                              @relation("EventMediaCaptionSuggestionAuthor", fields: [authorUserId], references: [id], onDelete: Cascade)
+  moderator         User?                             @relation("EventMediaCaptionSuggestionModerator", fields: [moderatorUserId], references: [id], onDelete: SetNull)
+
+  @@index([mediaId])
+  @@index([eventId, status])
+  @@index([authorUserId])
+  @@map("event_media_caption_suggestions")
 }
 
 model EventRegistrationFormSubmission {

@@ -74,6 +74,7 @@ export type EventMediaSettings = {
   allowParticipantCaption: boolean;
   maxFileSizeMb: number;
   allowedTypes: Array<'image' | 'video'>;
+  nextMediaDisplayNumber?: number;
 };
 
 export type MediaInput = {
@@ -88,6 +89,7 @@ export type EventMediaItem = {
   eventId: string;
   source: 'ADMIN' | 'PARTICIPANT';
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELETED';
+  displayNumber?: number | null;
   kind: 'image' | 'video';
   title?: string | null;
   caption?: string | null;
@@ -107,6 +109,7 @@ export type EventMediaItem = {
     sizeBytes: number;
     publicUrl: string;
     storageKey?: string;
+    checksumSha256?: string | null;
   };
   uploader?: { id: string; name?: string | null; email?: string | null; avatarUrl?: string | null } | null;
   approvedBy?: { id: string; name?: string | null; email?: string | null } | null;
@@ -114,11 +117,84 @@ export type EventMediaItem = {
   event?: { id: string; slug: string; title: string; startsAt?: string | null };
 };
 
+export type PublicMediaEvent = {
+  id: string;
+  slug: string;
+  title: string;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  location?: string | null;
+  coverImageUrl?: string | null;
+};
+
+export type EventMediaPublicVisibility = {
+  eventPublished: boolean;
+  mediaBankEnabled: boolean;
+  approvedMedia: number;
+  activeAssets: number;
+  visibleOnPublicPages: boolean;
+  reasonCode: 'OK' | 'EVENT_NOT_PUBLISHED' | 'MEDIA_BANK_DISABLED' | 'NO_APPROVED_MEDIA' | 'NO_ACTIVE_ASSETS' | 'UNKNOWN';
+  reason: string;
+};
+
+export type EventMediaImportJob = {
+  id: string;
+  eventId: string;
+  status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'COMPLETED_WITH_ERRORS' | 'FAILED' | 'CANCELLED';
+  originalFilename: string;
+  totalEntries: number;
+  mediaEntries: number;
+  importedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  duplicateCount: number;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  failedAt?: string | null;
+  errorMessage?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items?: EventMediaImportItem[];
+};
+
+export type EventMediaImportItem = {
+  id: string;
+  archivePath: string;
+  originalFilename: string;
+  status: 'IMPORTED' | 'SKIPPED_DUPLICATE' | 'SKIPPED_UNSUPPORTED_TYPE' | 'SKIPPED_TOO_LARGE' | 'FAILED';
+  reasonCode?: string | null;
+  reasonMessage?: string | null;
+  mediaId?: string | null;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
+  checksumSha256?: string | null;
+};
+
+export type EventMediaCaptionSuggestion = {
+  id: string;
+  mediaId: string;
+  eventId: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  suggestedTitle?: string | null;
+  suggestedCaption?: string | null;
+  suggestedCredit?: string | null;
+  suggestedAltText?: string | null;
+  moderationReason?: string | null;
+  decidedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  media?: EventMediaItem;
+  author?: { id: string; name?: string | null; email?: string | null; avatarUrl?: string | null } | null;
+  moderator?: { id: string; name?: string | null; email?: string | null; avatarUrl?: string | null } | null;
+};
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, auth = false } = options;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
   };
 
   if (auth && _accessToken) {
@@ -129,6 +205,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     method,
     headers,
     credentials: 'include', // send cookies (refresh token)
+    cache: 'no-store',
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
@@ -141,7 +218,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 }
 
 async function requestForm<T>(path: string, formData: FormData, auth = false): Promise<T> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+  };
 
   if (auth && _accessToken) {
     headers['Authorization'] = `Bearer ${_accessToken}`;
@@ -151,6 +231,7 @@ async function requestForm<T>(path: string, formData: FormData, auth = false): P
     method: 'POST',
     headers,
     credentials: 'include',
+    cache: 'no-store',
     body: formData,
   });
 
@@ -163,7 +244,10 @@ async function requestForm<T>(path: string, formData: FormData, auth = false): P
 }
 
 async function downloadWithAuth(path: string, filenameFallback: string) {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+  };
   if (_accessToken) {
     headers['Authorization'] = `Bearer ${_accessToken}`;
   }
@@ -172,6 +256,7 @@ async function downloadWithAuth(path: string, filenameFallback: string) {
     method: 'GET',
     headers,
     credentials: 'include',
+    cache: 'no-store',
   });
 
   if (!res.ok) {
@@ -426,6 +511,16 @@ export type AdminMediaParams = {
   limit?: number;
 };
 
+export type SiteMediaParams = {
+  type?: 'all' | 'image' | 'video';
+  eventId?: string;
+  slug?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort?: 'newest' | 'oldest' | 'number';
+};
+
 export type AdminMediaUpdate = Partial<MediaInput> & {
   status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELETED';
   moderationNotes?: string;
@@ -440,6 +535,20 @@ function appendMediaFormFields(formData: FormData, body?: MediaInput) {
 }
 
 export const eventMediaApi = {
+  siteList: (params: SiteMediaParams = {}) =>
+    request<{
+      media: EventMediaItem[];
+      events: PublicMediaEvent[];
+      meta: { total: number; page: number; limit: number; pages: number };
+    }>(`/api/events/media${toQuery(params)}`),
+
+  eventPage: (slug: string, params: SiteMediaParams = {}) =>
+    request<{
+      event: PublicMediaEvent;
+      media: EventMediaItem[];
+      meta: { total: number; images: number; videos: number; page: number; limit: number; pages: number; settings?: EventMediaSettings };
+    }>(`/api/events/${slug}/media-bank${toQuery(params)}`),
+
   publicList: (eventId: string, params?: { type?: 'all' | 'image' | 'video'; limit?: number; cursor?: string }) => {
     const qs = toQuery(params ?? {});
     return request<{ media: EventMediaItem[]; meta: { nextCursor: string | null; settings?: EventMediaSettings } }>(`/api/events/${eventId}/media${qs}`);
@@ -463,6 +572,9 @@ export const eventMediaApi = {
 
   summary: (eventId: string) =>
     request<{ summary: EventMediaSummary }>(`/api/admin/events/${eventId}/media/summary`, { auth: true }),
+
+  publicVisibility: (eventId: string) =>
+    request<{ visibility: EventMediaPublicVisibility }>(`/api/admin/events/${eventId}/media/public-visibility`, { auth: true }),
 
   adminUpload: (eventId: string, file: File, body?: MediaInput) => {
     const formData = new FormData();
@@ -493,6 +605,36 @@ export const eventMediaApi = {
       auth: true,
       body,
     }),
+
+  imports: {
+    start: (eventId: string, formData: FormData) =>
+      requestForm<{ job: EventMediaImportJob }>(`/api/admin/events/${eventId}/media/imports`, formData, true),
+    list: (eventId: string) =>
+      request<{ jobs: EventMediaImportJob[] }>(`/api/admin/events/${eventId}/media/imports`, { auth: true }),
+    get: (eventId: string, jobId: string) =>
+      request<{ job: EventMediaImportJob }>(`/api/admin/events/${eventId}/media/imports/${jobId}`, { auth: true }),
+    cancel: (eventId: string, jobId: string) =>
+      request<{ job: EventMediaImportJob }>(`/api/admin/events/${eventId}/media/imports/${jobId}/cancel`, { method: 'POST', auth: true }),
+    reportUrl: (eventId: string, jobId: string) =>
+      `${BASE_URL}/api/admin/events/${eventId}/media/imports/${jobId}/report.csv`,
+    downloadReport: (eventId: string, jobId: string) =>
+      downloadWithAuth(`/api/admin/events/${eventId}/media/imports/${jobId}/report.csv`, `media-import-${jobId}.csv`),
+  },
+
+  captionSuggestions: {
+    listTargets: (eventId: string, params: { search?: string; number?: number; type?: 'all' | 'image' | 'video'; page?: number; limit?: number } = {}) =>
+      request<{ media: EventMediaItem[]; meta: { total: number; page: number; limit: number; pages: number } }>(`/api/me/events/${eventId}/media/caption-targets${toQuery(params)}`, { auth: true }),
+    create: (eventId: string, mediaId: string, body: { title?: string; caption?: string; credit?: string; altText?: string }) =>
+      request<{ suggestion: EventMediaCaptionSuggestion }>(`/api/me/events/${eventId}/media/${mediaId}/caption-suggestions`, { method: 'POST', auth: true, body }),
+    myList: (eventId: string) =>
+      request<{ suggestions: EventMediaCaptionSuggestion[] }>(`/api/me/events/${eventId}/media/caption-suggestions`, { auth: true }),
+    adminList: (eventId: string, params: { status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'ALL' } = {}) =>
+      request<{ suggestions: EventMediaCaptionSuggestion[] }>(`/api/admin/events/${eventId}/media/caption-suggestions${toQuery(params)}`, { auth: true }),
+    approve: (eventId: string, suggestionId: string, body: { title?: string; caption?: string; credit?: string; altText?: string } = {}) =>
+      request<{ suggestion: EventMediaCaptionSuggestion }>(`/api/admin/events/${eventId}/media/caption-suggestions/${suggestionId}/approve`, { method: 'POST', auth: true, body }),
+    reject: (eventId: string, suggestionId: string, reason: string) =>
+      request<{ suggestion: EventMediaCaptionSuggestion }>(`/api/admin/events/${eventId}/media/caption-suggestions/${suggestionId}/reject`, { method: 'POST', auth: true, body: { reason } }),
+  },
 };
 
 // ─── Admin ────────────────────────────────────────────────────────────────────

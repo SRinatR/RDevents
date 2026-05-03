@@ -1,6 +1,7 @@
 'use client';
 
 import { EventMediaBank } from './EventMediaBank';
+import { EventMediaBankPreview } from './EventMediaBankPreview';
 
 type PhotoBankEvent = {
   id: string;
@@ -18,7 +19,7 @@ type EventPhotoBankProps = {
 
 export function EventPhotoBank({ event, locale, user, isParticipant, variant = 'default' }: EventPhotoBankProps) {
   return (
-    <EventMediaBank
+    <EventMediaBankPreview
       event={event}
       locale={locale}
       user={user}

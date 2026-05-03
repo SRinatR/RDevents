@@ -1,9 +1,10 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { eventMediaApi, type EventMediaItem } from '@/lib/api';
+import { MediaPreview } from '@/components/media/MediaPreview';
+import { formatMediaDisplayNumber } from '@/components/media/MediaCard';
 import { EmptyState, LoadingLines, Notice, Panel, SectionHeader, ToolbarRow } from '@/components/ui/signal-primitives';
 
 type EventMediaBankProps = {
@@ -22,11 +23,6 @@ type MediaFilter = 'all' | 'image' | 'video';
 
 const FILTERS: MediaFilter[] = ['all', 'image', 'video'];
 
-function mediaLabel(kind: EventMediaItem['kind'], locale: string) {
-  if (kind === 'image') return locale === 'ru' ? 'Фото' : 'Photo';
-  return locale === 'ru' ? 'Видео' : 'Video';
-}
-
 function filterLabel(filter: MediaFilter, locale: string) {
   if (filter === 'image') return locale === 'ru' ? 'Фото' : 'Photo';
   if (filter === 'video') return locale === 'ru' ? 'Видео' : 'Video';
@@ -39,17 +35,15 @@ function itemTitle(item: EventMediaItem, locale: string) {
 
 function renderPreview(item: EventMediaItem, locale: string, onOpen: (item: EventMediaItem) => void) {
   const label = item.altText || itemTitle(item, locale);
-
-  if (item.kind === 'image') {
-    return (
-      <button className="media-bank-preview-button" type="button" onClick={() => onOpen(item)}>
-        <Image src={item.asset.publicUrl} alt={label} fill sizes="(max-width: 768px) 100vw, 33vw" />
-      </button>
-    );
-  }
-
   return (
-    <video src={item.asset.publicUrl} controls preload="metadata" aria-label={label} />
+    <MediaPreview
+      publicUrl={item.asset.publicUrl}
+      storageKey={item.asset.storageKey}
+      kind={item.kind}
+      alt={label}
+      sizes="(max-width: 768px) 100vw, 33vw"
+      onOpen={item.kind === 'image' ? () => onOpen(item) : undefined}
+    />
   );
 }
 
@@ -130,7 +124,7 @@ export function EventMediaBank({ event, locale, user, canUpload, variant = 'defa
           {media.map((item) => (
             <article className="event-photobank-card media-bank-card" key={item.id}>
               <div className="event-photobank-preview media-bank-preview">
-                <span className="media-bank-kind-badge">{mediaLabel(item.kind, locale)}</span>
+                <span className="media-bank-kind-badge">{formatMediaDisplayNumber(item, locale)}</span>
                 {renderPreview(item, locale, setViewerItem)}
               </div>
               <div className="event-photobank-meta media-bank-meta">
@@ -159,11 +153,13 @@ export function EventMediaBank({ event, locale, user, canUpload, variant = 'defa
               {locale === 'ru' ? 'Закрыть' : 'Close'}
             </button>
             <div className="media-bank-viewer-media">
-              {viewerItem.kind === 'image' ? (
-                <Image src={viewerItem.asset.publicUrl} alt={viewerItem.altText || itemTitle(viewerItem, locale)} fill sizes="90vw" />
-              ) : (
-                <video src={viewerItem.asset.publicUrl} controls autoPlay />
-              )}
+              <MediaPreview
+                publicUrl={viewerItem.asset.publicUrl}
+                storageKey={viewerItem.asset.storageKey}
+                kind={viewerItem.kind}
+                alt={viewerItem.altText || itemTitle(viewerItem, locale)}
+                sizes="90vw"
+              />
             </div>
             <div className="media-bank-viewer-caption">
               <strong>{itemTitle(viewerItem, locale)}</strong>

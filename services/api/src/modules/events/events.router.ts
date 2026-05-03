@@ -7,6 +7,8 @@ import {
   EventMediaUploadError,
   handleEventMediaMulterUpload,
   listEventMediaHighlights,
+  listSiteEventMedia,
+  getEventMediaBankBySlug,
   listApprovedEventMedia,
   uploadEventMedia,
 } from './event-media.service.js';
@@ -120,6 +122,40 @@ eventsRouter.get('/', optionalAuth, async (req, res) => {
 eventsRouter.get('/media/highlights', optionalAuth, async (req, res) => {
   const media = await listEventMediaHighlights(req.query['limit']);
   res.json({ media });
+});
+
+// GET /api/events/media — approved public media across all published events
+eventsRouter.get('/media', optionalAuth, async (req, res) => {
+  const result = await listSiteEventMedia({
+    type: req.query['type'],
+    eventId: req.query['eventId'],
+    slug: req.query['slug'],
+    search: req.query['search'],
+    page: req.query['page'],
+    limit: req.query['limit'],
+    sort: req.query['sort'],
+  });
+  res.json(result);
+});
+
+// GET /api/events/:slug/media-bank — public media page payload by slug
+eventsRouter.get('/:slug/media-bank', optionalAuth, async (req, res) => {
+  try {
+    const result = await getEventMediaBankBySlug(String(req.params['slug']), {
+      type: req.query['type'],
+      search: req.query['search'],
+      sort: req.query['sort'],
+      page: req.query['page'],
+      limit: req.query['limit'],
+    });
+    res.json(result);
+  } catch (err: any) {
+    if (err.message === 'EVENT_NOT_FOUND') {
+      res.status(404).json({ error: 'Event not found', code: err.message });
+      return;
+    }
+    throw err;
+  }
 });
 
 // GET /api/events/:slug

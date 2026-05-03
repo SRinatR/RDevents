@@ -1,17 +1,19 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import type { FormEvent } from 'react';
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { eventMediaApi, eventsApi, type EventMediaItem } from '@/lib/api';
+import { eventMediaApi, eventsApi, type EventMediaCaptionSuggestion, type EventMediaItem } from '@/lib/api';
+import { MediaPreview } from '@/components/media/MediaPreview';
+import { formatMediaDisplayNumber, MediaCard } from '@/components/media/MediaCard';
 import { EmptyState, FieldInput, FieldTextarea, LoadingLines, Notice, PageHeader, Panel, SectionHeader, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
 import { getFriendlyApiErrorMessage } from '@/lib/api-errors';
 
 type SubmissionFilter = 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED';
+type CabinetMediaTab = 'uploads' | 'suggest' | 'suggestions';
 
 const PARTICIPANT_UPLOAD_STATUSES = new Set(['ACTIVE', 'APPROVED', 'RESERVE']);
 
@@ -75,10 +77,15 @@ function formatDate(value: string | null | undefined, locale: string) {
 
 function renderSubmissionPreview(item: EventMediaItem) {
   const label = item.altText || item.title || item.caption || item.asset.originalFilename;
-  if (item.kind === 'image') {
-    return <Image src={item.asset.publicUrl} alt={label} fill sizes="(max-width: 768px) 100vw, 240px" />;
-  }
-  return <video src={item.asset.publicUrl} controls preload="metadata" aria-label={label} />;
+  return (
+    <MediaPreview
+      publicUrl={item.asset.publicUrl}
+      storageKey={item.asset.storageKey}
+      kind={item.kind}
+      alt={label}
+      sizes="(max-width: 768px) 100vw, 240px"
+    />
+  );
 }
 
 function getParticipantMembership(event: any, membership: any) {
@@ -97,15 +104,25 @@ export default function CabinetEventMediaPage({ params }: { params: Promise<{ sl
   const [event, setEvent] = useState<any>(null);
   const [membership, setMembership] = useState<any>(null);
   const [media, setMedia] = useState<EventMediaItem[]>([]);
+  const [captionTargets, setCaptionTargets] = useState<EventMediaItem[]>([]);
+  const [captionSuggestions, setCaptionSuggestions] = useState<EventMediaCaptionSuggestion[]>([]);
+  const [selectedCaptionTarget, setSelectedCaptionTarget] = useState<EventMediaItem | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [activeTab, setActiveTab] = useState<CabinetMediaTab>('uploads');
   const [filter, setFilter] = useState<SubmissionFilter>('ALL');
+  const [targetSearch, setTargetSearch] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [caption, setCaption] = useState('');
   const [credit, setCredit] = useState('');
+  const [suggestTitle, setSuggestTitle] = useState('');
+  const [suggestCaption, setSuggestCaption] = useState('');
+  const [suggestCredit, setSuggestCredit] = useState('');
+  const [suggestAltText, setSuggestAltText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [submittingSuggestion, setSubmittingSuggestion] = useState(false);
 
   const cabinetHref = `/${locale}/cabinet/events/${slug}`;
 
@@ -135,16 +152,42 @@ export default function CabinetEventMediaPage({ params }: { params: Promise<{ sl
     }
   }, [user, slug, locale]);
 
+  const participantMembership = getParticipantMembership(event, membership);
+  const canUpload = PARTICIPANT_UPLOAD_STATUSES.has(participantMembership?.status ?? '');
+
+  const loadCaptionData = useCallback(async () => {
+    if (!event || !canUpload) return;
+    try {
+      const [targetsResult, suggestionsResult] = await Promise.all([
+        eventMediaApi.captionSuggestions.listTargets(event.id, { search: targetSearch, limit: 24 }),
+        eventMediaApi.captionSuggestions.myList(event.id),
+      ]);
+      setCaptionTargets(targetsResult.media);
+      setCaptionSuggestions(suggestionsResult.suggestions);
+      if (selectedCaptionTarget && !targetsResult.media.some((item) => item.id === selectedCaptionTarget.id)) {
+        setSelectedCaptionTarget(null);
+      }
+    } catch (err: any) {
+      setError(getFriendlyApiErrorMessage(err, locale));
+    }
+  }, [event, canUpload, targetSearch, selectedCaptionTarget, locale]);
+
   useEffect(() => {
     void loadData();
   }, [loadData]);
 
-  const participantMembership = getParticipantMembership(event, membership);
-  const canUpload = PARTICIPANT_UPLOAD_STATUSES.has(participantMembership?.status ?? '');
   const filteredMedia = useMemo(() => {
     if (filter === 'ALL') return media;
     return media.filter((item) => item.status === filter);
   }, [filter, media]);
+
+  useEffect(() => {
+    if (activeTab === 'suggest' || activeTab === 'suggestions') {
+      const handle = window.setTimeout(() => void loadCaptionData(), 180);
+      return () => window.clearTimeout(handle);
+    }
+    return undefined;
+  }, [activeTab, loadCaptionData]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -171,6 +214,38 @@ export default function CabinetEventMediaPage({ params }: { params: Promise<{ sl
       setError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleCaptionSuggestionSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!event || !selectedCaptionTarget) {
+      setError(isRu ? 'Выберите фото или видео для подписи.' : 'Choose media to caption.');
+      return;
+    }
+
+    setSubmittingSuggestion(true);
+    setError('');
+    setNotice('');
+    try {
+      await eventMediaApi.captionSuggestions.create(event.id, selectedCaptionTarget.id, {
+        title: suggestTitle,
+        caption: suggestCaption,
+        credit: suggestCredit,
+        altText: suggestAltText,
+      });
+      setSuggestTitle('');
+      setSuggestCaption('');
+      setSuggestCredit('');
+      setSuggestAltText('');
+      setSelectedCaptionTarget(null);
+      setNotice(isRu ? 'Предложение подписи отправлено на модерацию.' : 'Caption suggestion was sent for review.');
+      await loadCaptionData();
+      setActiveTab('suggestions');
+    } catch (err: any) {
+      setError(getFriendlyApiErrorMessage(err, locale));
+    } finally {
+      setSubmittingSuggestion(false);
     }
   }
 
@@ -204,7 +279,7 @@ export default function CabinetEventMediaPage({ params }: { params: Promise<{ sl
         actions={(
           <ToolbarRow>
             <Link href={cabinetHref} className="btn btn-secondary btn-sm">{isRu ? 'ЛК события' : 'Event cabinet'}</Link>
-            <Link href={`/${locale}/events/${event.slug}#media-bank`} className="btn btn-ghost btn-sm">{isRu ? 'Публичная страница' : 'Public page'}</Link>
+            <Link href={`/${locale}/events/${event.slug}/media`} className="btn btn-ghost btn-sm">{isRu ? 'Публичный фотобанк' : 'Public media bank'}</Link>
           </ToolbarRow>
         )}
       />
@@ -212,6 +287,20 @@ export default function CabinetEventMediaPage({ params }: { params: Promise<{ sl
       {error ? <Notice tone="danger">{error}</Notice> : null}
       {notice ? <Notice tone="success">{notice}</Notice> : null}
 
+      <ToolbarRow>
+        {([
+          ['uploads', isRu ? 'Мои загрузки' : 'My uploads'],
+          ['suggest', isRu ? 'Предложить подпись' : 'Suggest caption'],
+          ['suggestions', isRu ? 'Мои предложения' : 'My suggestions'],
+        ] as Array<[CabinetMediaTab, string]>).map(([key, label]) => (
+          <button key={key} type="button" className={`btn btn-sm ${activeTab === key ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setActiveTab(key)}>
+            {label}
+          </button>
+        ))}
+      </ToolbarRow>
+
+      {activeTab === 'uploads' ? (
+      <>
       <Panel variant="elevated" className="media-upload-panel">
         <SectionHeader
           title={isRu ? 'Добавить фото или видео' : 'Add photo or video'}
@@ -285,7 +374,7 @@ export default function CabinetEventMediaPage({ params }: { params: Promise<{ sl
                   </div>
                   {item.caption ? <p>{item.caption}</p> : null}
                   <div className="media-submission-meta">
-                    <span>{item.kind === 'image' ? (isRu ? 'Фото' : 'Photo') : (isRu ? 'Видео' : 'Video')}</span>
+                    <span>{formatMediaDisplayNumber(item, locale)}</span>
                     <span>{formatDate(item.createdAt, locale)}</span>
                     {item.credit ? <span>{item.credit}</span> : null}
                   </div>
@@ -313,6 +402,89 @@ export default function CabinetEventMediaPage({ params }: { params: Promise<{ sl
           </div>
         )}
       </Panel>
+      </>
+      ) : null}
+
+      {activeTab === 'suggest' ? (
+        <Panel variant="elevated" className="media-caption-suggest-panel">
+          <SectionHeader
+            title={isRu ? 'Предложить подпись' : 'Suggest a caption'}
+            subtitle={isRu ? 'Выберите опубликованное фото или видео и отправьте подпись на модерацию.' : 'Choose published media and send a caption for review.'}
+          />
+          {!canUpload ? (
+            <Notice tone="warning">
+              {isRu
+                ? 'Предлагать подписи могут только подтверждённые участники мероприятия.'
+                : 'Caption suggestions are available only to approved event participants.'}
+            </Notice>
+          ) : (
+            <>
+              <FieldInput value={targetSearch} onChange={(event) => setTargetSearch(event.target.value)} placeholder={isRu ? 'Поиск по номеру или подписи' : 'Search by number or caption'} />
+              <div className="media-caption-target-grid">
+                {captionTargets.map((item) => (
+                  <button
+                    type="button"
+                    key={item.id}
+                    className={`media-caption-target ${selectedCaptionTarget?.id === item.id ? 'is-selected' : ''}`}
+                    onClick={() => setSelectedCaptionTarget(item)}
+                  >
+                    <MediaCard item={item} locale={locale} variant="compact" />
+                  </button>
+                ))}
+              </div>
+              {captionTargets.length === 0 ? (
+                <EmptyState title={isRu ? 'Материалы не найдены' : 'No media found'} description={isRu ? 'Попробуйте другой запрос.' : 'Try another search.'} />
+              ) : null}
+              <form className="media-upload-form" onSubmit={handleCaptionSuggestionSubmit}>
+                <FieldInput value={suggestTitle} onChange={(event) => setSuggestTitle(event.target.value)} maxLength={120} placeholder={isRu ? 'Название, необязательно' : 'Title, optional'} />
+                <FieldInput value={suggestCredit} onChange={(event) => setSuggestCredit(event.target.value)} maxLength={120} placeholder={isRu ? 'Автор / команда, необязательно' : 'Author / team, optional'} />
+                <FieldInput value={suggestAltText} onChange={(event) => setSuggestAltText(event.target.value)} maxLength={180} placeholder="Alt text" />
+                <FieldTextarea value={suggestCaption} onChange={(event) => setSuggestCaption(event.target.value)} maxLength={1000} rows={4} placeholder={isRu ? 'Подпись' : 'Caption'} />
+                <button className="btn btn-primary" type="submit" disabled={submittingSuggestion || !selectedCaptionTarget}>
+                  {submittingSuggestion ? (isRu ? 'Отправляем...' : 'Submitting...') : (isRu ? 'Отправить предложение' : 'Submit suggestion')}
+                </button>
+              </form>
+            </>
+          )}
+        </Panel>
+      ) : null}
+
+      {activeTab === 'suggestions' ? (
+        <Panel variant="elevated" className="media-submissions-panel">
+          <SectionHeader
+            title={isRu ? 'Мои предложения подписей' : 'My caption suggestions'}
+            subtitle={isRu ? 'Статусы модерации и причины отклонения' : 'Review statuses and rejection reasons'}
+          />
+          {captionSuggestions.length === 0 ? (
+            <EmptyState title={isRu ? 'Предложений пока нет' : 'No suggestions yet'} description={isRu ? 'Отправьте подпись к опубликованному материалу.' : 'Suggest a caption for published media.'} />
+          ) : (
+            <div className="media-submission-list">
+              {captionSuggestions.map((suggestion) => (
+                <article className="media-submission-card" key={suggestion.id}>
+                  {suggestion.media ? <div className="media-submission-preview">{renderSubmissionPreview(suggestion.media)}</div> : null}
+                  <div className="media-submission-body">
+                    <div className="media-submission-title-row">
+                      <strong>{suggestion.media ? formatMediaDisplayNumber(suggestion.media, locale) : suggestion.mediaId}</strong>
+                      <StatusBadge tone={suggestion.status === 'APPROVED' ? 'success' : suggestion.status === 'REJECTED' ? 'danger' : 'warning'}>{suggestion.status}</StatusBadge>
+                    </div>
+                    {suggestion.suggestedCaption ? <p>{suggestion.suggestedCaption}</p> : null}
+                    <div className="media-submission-meta">
+                      <span>{formatDate(suggestion.createdAt, locale)}</span>
+                      {suggestion.suggestedCredit ? <span>{suggestion.suggestedCredit}</span> : null}
+                    </div>
+                    {suggestion.status === 'REJECTED' && suggestion.moderationReason ? (
+                      <Notice tone="danger">
+                        {isRu ? 'Причина отклонения: ' : 'Rejection reason: '}
+                        {suggestion.moderationReason}
+                      </Notice>
+                    ) : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </Panel>
+      ) : null}
     </div>
   );
 }

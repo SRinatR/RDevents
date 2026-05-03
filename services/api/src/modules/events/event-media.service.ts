@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import multer from 'multer';
 import type { EventMediaStatus, User } from '@prisma/client';
@@ -24,6 +25,13 @@ const MEDIA_STATUS_FILTERS = new Set(['ALL', 'PENDING', 'APPROVED', 'REJECTED', 
 
 type MediaKind = 'image' | 'video';
 type MediaTypeFilter = 'all' | MediaKind;
+type PublicMediaReasonCode =
+  | 'OK'
+  | 'EVENT_NOT_PUBLISHED'
+  | 'MEDIA_BANK_DISABLED'
+  | 'NO_APPROVED_MEDIA'
+  | 'NO_ACTIVE_ASSETS'
+  | 'UNKNOWN';
 
 export type EventMediaSettingsDto = {
   enabled: boolean;
@@ -35,6 +43,7 @@ export type EventMediaSettingsDto = {
   allowParticipantCaption: boolean;
   maxFileSizeMb: number;
   allowedTypes: MediaKind[];
+  nextMediaDisplayNumber?: number;
 };
 
 export class EventMediaUploadError extends Error {
@@ -54,6 +63,7 @@ export const DEFAULT_EVENT_MEDIA_SETTINGS: EventMediaSettingsDto = {
   allowParticipantCaption: true,
   maxFileSizeMb: EVENT_MEDIA_DEFAULT_MAX_FILE_SIZE_MB,
   allowedTypes: ['image', 'video'],
+  nextMediaDisplayNumber: 1,
 };
 
 function cleanText(value: unknown, maxLength: number) {
@@ -119,6 +129,7 @@ function serializeSettings(settings: any): EventMediaSettingsDto {
     allowParticipantCaption: Boolean(settings.allowParticipantCaption),
     maxFileSizeMb: clampMaxFileSize(settings.maxFileSizeMb),
     allowedTypes: normalizeAllowedTypes(settings.allowedTypes),
+    nextMediaDisplayNumber: Number(settings.nextMediaDisplayNumber ?? 1),
   };
 }
 
@@ -159,6 +170,7 @@ function serializeEventMedia(item: any, options: { publicView?: boolean; setting
     eventId: item.eventId,
     source: item.source,
     status: item.status,
+    displayNumber: item.displayNumber,
     kind,
     title: item.title,
     caption: item.caption,
@@ -177,6 +189,7 @@ function serializeEventMedia(item: any, options: { publicView?: boolean; setting
       sizeBytes: item.asset.sizeBytes,
       publicUrl: item.asset.publicUrl,
       storageKey: item.asset.storageKey,
+      checksumSha256: publicView ? undefined : item.asset.checksumSha256,
     },
     uploader: publicView && !settings.showUploaderName ? null : serializeUser(item.uploader),
     approvedBy: publicView ? null : serializeUser(item.approvedBy),
@@ -301,12 +314,74 @@ export async function updateEventMediaSettings(eventId: string, input: Record<st
   return serializeSettings(settings);
 }
 
+function serializePublicEvent(event: any) {
+  return {
+    id: event.id,
+    slug: event.slug,
+    title: event.title,
+    startsAt: event.startsAt,
+    endsAt: event.endsAt,
+    location: event.location,
+    coverImageUrl: event.coverImageUrl,
+  };
+}
+
+function normalizePublicMediaSort(value: unknown): any {
+  const sort = String(value ?? 'newest').toLowerCase();
+  if (sort === 'oldest') return [{ approvedAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }];
+  if (sort === 'number') return [{ displayNumber: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }];
+  return [{ approvedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }];
+}
+
+function buildPublicMediaWhere(input: { eventId?: string | null; slug?: string | null; type?: unknown; search?: unknown }) {
+  const type = normalizeTypeFilter(input.type);
+  const search = cleanText(input.search, 120);
+  const where: any = {
+    ...(input.eventId ? { eventId: input.eventId } : {}),
+    status: 'APPROVED',
+    deletedAt: null,
+    asset: {
+      status: 'ACTIVE',
+      ...assetKindWhere(type),
+    },
+    event: {
+      status: 'PUBLISHED',
+      deletedAt: null,
+      mediaSettings: { is: { enabled: true } },
+      ...(input.slug ? { slug: input.slug } : {}),
+    },
+  };
+
+  if (search) {
+    const numericSearch = Number(search.replace(/^#/, ''));
+    where.OR = [
+      { title: { contains: search, mode: 'insensitive' } },
+      { caption: { contains: search, mode: 'insensitive' } },
+      { credit: { contains: search, mode: 'insensitive' } },
+      { asset: { originalFilename: { contains: search, mode: 'insensitive' } } },
+      { event: { title: { contains: search, mode: 'insensitive' } } },
+    ];
+
+    if (Number.isInteger(numericSearch) && numericSearch > 0) {
+      where.OR.push({ displayNumber: numericSearch });
+    }
+  }
+
+  return where;
+}
+
 export async function listApprovedEventMedia(
   eventId: string,
   params: { type?: unknown; limit?: unknown; cursor?: unknown } = {},
 ) {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, status: true, deletedAt: true },
+  });
+  if (!event) throw new Error('EVENT_NOT_FOUND');
+
   const settings = await getEventMediaSettings(eventId);
-  if (!settings.enabled) {
+  if (event.status !== 'PUBLISHED' || event.deletedAt || !settings.enabled) {
     return { media: [], meta: { nextCursor: null, settings } };
   }
 
@@ -330,6 +405,123 @@ export async function listApprovedEventMedia(
   const nextCursor = null;
   const media = rows.map((item) => serializeEventMedia(item, { publicView: true, settings }));
   return { media, meta: { nextCursor, settings } };
+}
+
+export async function getEventMediaBankBySlug(
+  slug: string,
+  params: { type?: unknown; search?: unknown; sort?: unknown; page?: unknown; limit?: unknown } = {},
+) {
+  const event = await prisma.event.findFirst({
+    where: { slug, status: 'PUBLISHED', deletedAt: null },
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      startsAt: true,
+      endsAt: true,
+      location: true,
+      coverImageUrl: true,
+      mediaSettings: true,
+    },
+  });
+  if (!event) throw new Error('EVENT_NOT_FOUND');
+
+  const settings = serializeSettings(event.mediaSettings);
+  if (!settings.enabled) {
+    return {
+      event: serializePublicEvent(event),
+      media: [],
+      meta: { total: 0, images: 0, videos: 0, page: 1, limit: 40, pages: 0, settings },
+    };
+  }
+
+  const page = Math.max(1, Number(params.page ?? 1) || 1);
+  const limit = Math.min(80, Math.max(1, Number(params.limit ?? 40) || 40));
+  const where = buildPublicMediaWhere({
+    eventId: event.id,
+    type: params.type,
+    search: params.search,
+  });
+
+  const orderBy = normalizePublicMediaSort(params.sort);
+  const [total, images, videos, rows] = await Promise.all([
+    prisma.eventMedia.count({ where }),
+    prisma.eventMedia.count({ where: { ...where, asset: { status: 'ACTIVE', mimeType: { startsWith: 'image/' } } } }),
+    prisma.eventMedia.count({ where: { ...where, asset: { status: 'ACTIVE', mimeType: { startsWith: 'video/' } } } }),
+    prisma.eventMedia.findMany({
+      where,
+      include: EVENT_MEDIA_INCLUDE,
+      orderBy,
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+  ]);
+
+  return {
+    event: serializePublicEvent(event),
+    media: rows.map((item) => serializeEventMedia(item, { publicView: true, settings })),
+    meta: { total, images, videos, page, limit, pages: Math.ceil(total / limit), settings },
+  };
+}
+
+export async function listSiteEventMedia(
+  params: {
+    type?: unknown;
+    eventId?: unknown;
+    slug?: unknown;
+    search?: unknown;
+    page?: unknown;
+    limit?: unknown;
+    sort?: unknown;
+  } = {},
+) {
+  const page = Math.max(1, Number(params.page ?? 1) || 1);
+  const limit = Math.min(80, Math.max(1, Number(params.limit ?? 40) || 40));
+  const where = buildPublicMediaWhere({
+    eventId: cleanText(params.eventId, 120),
+    slug: cleanText(params.slug, 160),
+    type: params.type,
+    search: params.search,
+  });
+
+  const [total, rows, events] = await Promise.all([
+    prisma.eventMedia.count({ where }),
+    prisma.eventMedia.findMany({
+      where,
+      include: EVENT_MEDIA_HIGHLIGHT_INCLUDE,
+      orderBy: normalizePublicMediaSort(params.sort),
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.event.findMany({
+      where: {
+        status: 'PUBLISHED',
+        deletedAt: null,
+        mediaSettings: { is: { enabled: true } },
+        mediaItems: {
+          some: {
+            status: 'APPROVED',
+            deletedAt: null,
+            asset: { status: 'ACTIVE', ...assetKindWhere('all') },
+          },
+        },
+      },
+      select: { id: true, slug: true, title: true, startsAt: true },
+      orderBy: { startsAt: 'desc' },
+      take: 100,
+    }),
+  ]);
+
+  return {
+    media: rows.map((item: any) =>
+      serializeEventMedia(item, {
+        publicView: true,
+        settings: serializeSettings(item.event?.mediaSettings),
+      }),
+    ),
+    events,
+    meta: { total, page, limit, pages: Math.ceil(total / limit) },
+  };
 }
 
 export async function listEventMediaHighlights(limitInput: unknown = 8) {
@@ -445,6 +637,62 @@ export async function getEventMediaSummary(eventId: string) {
   return { total, pending, approved, rejected, deleted, participant, admin, images, videos };
 }
 
+export async function getEventMediaPublicVisibility(eventId: string) {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, status: true, deletedAt: true },
+  });
+  if (!event) throw new Error('EVENT_NOT_FOUND');
+
+  const settings = await getEventMediaSettings(eventId);
+  const [approvedMedia, activeAssets] = await Promise.all([
+    prisma.eventMedia.count({
+      where: {
+        eventId,
+        status: 'APPROVED',
+        deletedAt: null,
+      },
+    }),
+    prisma.eventMedia.count({
+      where: {
+        eventId,
+        status: 'APPROVED',
+        deletedAt: null,
+        asset: { status: 'ACTIVE', ...assetKindWhere('all') },
+      },
+    }),
+  ]);
+
+  const eventPublished = event.status === 'PUBLISHED' && !event.deletedAt;
+  const visibleOnPublicPages = eventPublished && settings.enabled && approvedMedia > 0 && activeAssets > 0;
+  let reasonCode: PublicMediaReasonCode = 'OK';
+  let reason = 'Media is visible on public pages.';
+
+  if (!eventPublished) {
+    reasonCode = 'EVENT_NOT_PUBLISHED';
+    reason = 'Media will appear publicly after the event is published.';
+  } else if (!settings.enabled) {
+    reasonCode = 'MEDIA_BANK_DISABLED';
+    reason = 'Media bank is disabled in event settings.';
+  } else if (approvedMedia === 0) {
+    reasonCode = 'NO_APPROVED_MEDIA';
+    reason = 'Approve at least one media item to show it publicly.';
+  } else if (activeAssets === 0) {
+    reasonCode = 'NO_ACTIVE_ASSETS';
+    reason = 'Approved media exists, but no active media files are available.';
+  }
+
+  return {
+    eventPublished,
+    mediaBankEnabled: settings.enabled,
+    approvedMedia,
+    activeAssets,
+    visibleOnPublicPages,
+    reasonCode,
+    reason,
+  };
+}
+
 export async function uploadEventMedia(
   eventId: string,
   actor: User,
@@ -455,7 +703,7 @@ export async function uploadEventMedia(
     altText?: unknown;
     credit?: unknown;
   } = {},
-  options: { mode?: 'participant' | 'admin' | 'auto' } = {},
+  options: { mode?: 'participant' | 'admin' | 'auto'; forceStatus?: EventMediaStatus } = {},
 ) {
   const event = await prisma.event.findUnique({ where: { id: eventId }, select: { id: true, status: true } });
   if (!event) throw new Error('EVENT_NOT_FOUND');
@@ -491,6 +739,7 @@ export async function uploadEventMedia(
   }
 
   validateEventMediaFile(file, settings);
+  const checksumSha256 = createHash('sha256').update(file.buffer).digest('hex');
 
   const saved = await saveUploadedFile({
     buffer: file.buffer,
@@ -500,12 +749,23 @@ export async function uploadEventMedia(
   });
 
   const now = new Date();
-  const status = isAdminUpload || !settings.moderationEnabled ? 'APPROVED' : 'PENDING';
+  const status = options.forceStatus ?? (isAdminUpload || !settings.moderationEnabled ? 'APPROVED' : 'PENDING');
   const source = isAdminUpload ? 'ADMIN' : 'PARTICIPANT';
   const title = isAdminUpload || settings.allowParticipantTitle ? cleanText(input.title, 120) : null;
   const caption = isAdminUpload || settings.allowParticipantCaption ? cleanText(input.caption, 1000) : null;
 
   const item = await prisma.$transaction(async (tx: any) => {
+    const counter = await tx.eventMediaSettings.upsert({
+      where: { eventId },
+      create: { eventId, nextMediaDisplayNumber: 2 },
+      update: { nextMediaDisplayNumber: { increment: 1 } },
+      select: { nextMediaDisplayNumber: true },
+    });
+    const incrementedDisplayNumber = Number(counter.nextMediaDisplayNumber);
+    const displayNumber = Number.isFinite(incrementedDisplayNumber)
+      ? Math.max(1, incrementedDisplayNumber - 1)
+      : 1;
+
     const asset = await tx.mediaAsset.create({
       data: {
         ownerUserId: actor.id,
@@ -516,6 +776,7 @@ export async function uploadEventMedia(
         storageDriver: saved.storageDriver,
         storageKey: saved.storageKey,
         publicUrl: saved.publicUrl,
+        checksumSha256,
       },
     });
 
@@ -526,6 +787,7 @@ export async function uploadEventMedia(
         uploaderUserId: actor.id,
         source,
         status,
+        displayNumber,
         title,
         caption,
         altText: cleanText(input.altText, 180),
@@ -745,4 +1007,251 @@ export async function deleteEventMedia(eventId: string, mediaId: string, actor: 
   });
 
   return { ok: true };
+}
+
+function serializeCaptionSuggestion(item: any) {
+  return {
+    id: item.id,
+    mediaId: item.mediaId,
+    eventId: item.eventId,
+    authorUserId: item.authorUserId,
+    status: item.status,
+    suggestedTitle: item.suggestedTitle,
+    suggestedCaption: item.suggestedCaption,
+    suggestedCredit: item.suggestedCredit,
+    suggestedAltText: item.suggestedAltText,
+    moderationReason: item.moderationReason,
+    decidedAt: item.decidedAt,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    media: item.media ? serializeEventMedia(item.media) : undefined,
+    author: item.author ? serializeUser(item.author) : undefined,
+    moderator: item.moderator ? serializeUser(item.moderator) : undefined,
+  };
+}
+
+async function assertCanSuggestCaption(eventId: string, actor: User) {
+  const participant = await prisma.eventMember.findUnique({
+    where: { eventId_userId_role: { eventId, userId: actor.id, role: 'PARTICIPANT' } },
+    select: { status: true },
+  });
+
+  if (!PARTICIPANT_UPLOAD_STATUSES.includes(participant?.status as any)) {
+    throw new Error('EVENT_MEDIA_CAPTION_SUGGESTION_FORBIDDEN');
+  }
+}
+
+export async function listCaptionSuggestionTargets(
+  eventId: string,
+  actor: User,
+  params: { search?: unknown; number?: unknown; type?: unknown; page?: unknown; limit?: unknown } = {},
+) {
+  await assertCanSuggestCaption(eventId, actor);
+  const page = Math.max(1, Number(params.page ?? 1) || 1);
+  const limit = Math.min(60, Math.max(1, Number(params.limit ?? 30) || 30));
+  const search = cleanText(params.search, 120);
+  const number = Number(params.number);
+  const where: any = {
+    eventId,
+    status: 'APPROVED',
+    deletedAt: null,
+    asset: { status: 'ACTIVE', ...assetKindWhere(normalizeTypeFilter(params.type)) },
+  };
+
+  if (Number.isInteger(number) && number > 0) {
+    where.displayNumber = number;
+  } else if (search) {
+    where.OR = [
+      { title: { contains: search, mode: 'insensitive' } },
+      { caption: { contains: search, mode: 'insensitive' } },
+      { credit: { contains: search, mode: 'insensitive' } },
+      { asset: { originalFilename: { contains: search, mode: 'insensitive' } } },
+    ];
+    const numericSearch = Number(search.replace(/^#/, ''));
+    if (Number.isInteger(numericSearch) && numericSearch > 0) where.OR.push({ displayNumber: numericSearch });
+  }
+
+  const [total, items] = await Promise.all([
+    prisma.eventMedia.count({ where }),
+    prisma.eventMedia.findMany({
+      where,
+      include: EVENT_MEDIA_INCLUDE,
+      orderBy: [{ displayNumber: 'asc' }, { createdAt: 'asc' }],
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+  ]);
+
+  return { media: items.map((item) => serializeEventMedia(item)), meta: { total, page, limit, pages: Math.ceil(total / limit) } };
+}
+
+export async function createCaptionSuggestion(
+  eventId: string,
+  mediaId: string,
+  actor: User,
+  input: { title?: unknown; caption?: unknown; credit?: unknown; altText?: unknown },
+) {
+  await assertCanSuggestCaption(eventId, actor);
+  const media = await prisma.eventMedia.findFirst({
+    where: {
+      id: mediaId,
+      eventId,
+      deletedAt: null,
+      asset: { status: 'ACTIVE' },
+    },
+    select: { id: true },
+  });
+  if (!media) throw new Error('EVENT_MEDIA_NOT_FOUND');
+
+  const suggestedTitle = cleanText(input.title, 120);
+  const suggestedCaption = cleanText(input.caption, 1000);
+  const suggestedCredit = cleanText(input.credit, 120);
+  const suggestedAltText = cleanText(input.altText, 180);
+
+  if (!suggestedTitle && !suggestedCaption && !suggestedCredit && !suggestedAltText) {
+    throw new Error('EVENT_MEDIA_CAPTION_SUGGESTION_EMPTY');
+  }
+
+  const existing = await prisma.eventMediaCaptionSuggestion.findFirst({
+    where: { mediaId, authorUserId: actor.id, status: 'PENDING' },
+    select: { id: true },
+  });
+  if (existing) throw new Error('EVENT_MEDIA_CAPTION_SUGGESTION_PENDING_EXISTS');
+
+  const suggestion = await prisma.eventMediaCaptionSuggestion.create({
+    data: {
+      mediaId,
+      eventId,
+      authorUserId: actor.id,
+      suggestedTitle,
+      suggestedCaption,
+      suggestedCredit,
+      suggestedAltText,
+    },
+    include: { media: { include: EVENT_MEDIA_INCLUDE }, author: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+  });
+
+  return serializeCaptionSuggestion(suggestion);
+}
+
+export async function listMyCaptionSuggestions(eventId: string, actor: User) {
+  const suggestions = await prisma.eventMediaCaptionSuggestion.findMany({
+    where: { eventId, authorUserId: actor.id },
+    include: {
+      media: { include: EVENT_MEDIA_INCLUDE },
+      author: { select: { id: true, name: true, email: true, avatarUrl: true } },
+      moderator: { select: { id: true, name: true, email: true, avatarUrl: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  return suggestions.map(serializeCaptionSuggestion);
+}
+
+export async function listAdminCaptionSuggestions(eventId: string, params: { status?: unknown } = {}) {
+  const status = String(params.status ?? 'PENDING').toUpperCase();
+  if (!['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'ALL'].includes(status)) {
+    throw new Error('EVENT_MEDIA_CAPTION_SUGGESTION_INVALID_STATUS');
+  }
+
+  const suggestions = await prisma.eventMediaCaptionSuggestion.findMany({
+    where: {
+      eventId,
+      ...(status === 'ALL' ? {} : { status: status as any }),
+    },
+    include: {
+      media: { include: EVENT_MEDIA_INCLUDE },
+      author: { select: { id: true, name: true, email: true, avatarUrl: true } },
+      moderator: { select: { id: true, name: true, email: true, avatarUrl: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+  });
+  return suggestions.map(serializeCaptionSuggestion);
+}
+
+export async function approveCaptionSuggestion(
+  eventId: string,
+  suggestionId: string,
+  actor: User,
+  input: { title?: unknown; caption?: unknown; credit?: unknown; altText?: unknown } = {},
+) {
+  const suggestion = await prisma.eventMediaCaptionSuggestion.findFirst({
+    where: { id: suggestionId, eventId },
+    include: { media: true },
+  });
+  if (!suggestion) throw new Error('EVENT_MEDIA_CAPTION_SUGGESTION_NOT_FOUND');
+  if (suggestion.status !== 'PENDING') throw new Error('EVENT_MEDIA_CAPTION_SUGGESTION_ALREADY_DECIDED');
+
+  const title = input.title !== undefined ? cleanText(input.title, 120) : suggestion.suggestedTitle;
+  const caption = input.caption !== undefined ? cleanText(input.caption, 1000) : suggestion.suggestedCaption;
+  const credit = input.credit !== undefined ? cleanText(input.credit, 120) : suggestion.suggestedCredit;
+  const altText = input.altText !== undefined ? cleanText(input.altText, 180) : suggestion.suggestedAltText;
+  const now = new Date();
+
+  const updatedSuggestion = await prisma.$transaction(async (tx: any) => {
+    await tx.eventMedia.update({
+      where: { id: suggestion.mediaId },
+      data: {
+        ...(title !== null ? { title } : {}),
+        ...(caption !== null ? { caption } : {}),
+        ...(credit !== null ? { credit } : {}),
+        ...(altText !== null ? { altText } : {}),
+      },
+    });
+    await tx.eventMediaHistory.create({
+      data: {
+        mediaId: suggestion.mediaId,
+        actorUserId: actor.id,
+        action: 'UPDATED',
+        fromStatus: suggestion.media.status,
+        toStatus: suggestion.media.status,
+        reason: 'Caption suggestion approved',
+        metaJson: { suggestionId },
+      },
+    });
+    return tx.eventMediaCaptionSuggestion.update({
+      where: { id: suggestion.id },
+      data: {
+        status: 'APPROVED',
+        moderatorUserId: actor.id,
+        decidedAt: now,
+      },
+      include: {
+        media: { include: EVENT_MEDIA_INCLUDE },
+        author: { select: { id: true, name: true, email: true, avatarUrl: true } },
+        moderator: { select: { id: true, name: true, email: true, avatarUrl: true } },
+      },
+    });
+  });
+
+  return serializeCaptionSuggestion(updatedSuggestion);
+}
+
+export async function rejectCaptionSuggestion(eventId: string, suggestionId: string, actor: User, reasonInput: unknown) {
+  const reason = cleanText(reasonInput, 1000);
+  if (!reason) throw new Error('EVENT_MEDIA_CAPTION_SUGGESTION_REJECTION_REASON_REQUIRED');
+
+  const suggestion = await prisma.eventMediaCaptionSuggestion.findFirst({
+    where: { id: suggestionId, eventId },
+    select: { id: true, status: true },
+  });
+  if (!suggestion) throw new Error('EVENT_MEDIA_CAPTION_SUGGESTION_NOT_FOUND');
+  if (suggestion.status !== 'PENDING') throw new Error('EVENT_MEDIA_CAPTION_SUGGESTION_ALREADY_DECIDED');
+
+  const updated = await prisma.eventMediaCaptionSuggestion.update({
+    where: { id: suggestion.id },
+    data: {
+      status: 'REJECTED',
+      moderatorUserId: actor.id,
+      moderationReason: reason,
+      decidedAt: new Date(),
+    },
+    include: {
+      media: { include: EVENT_MEDIA_INCLUDE },
+      author: { select: { id: true, name: true, email: true, avatarUrl: true } },
+      moderator: { select: { id: true, name: true, email: true, avatarUrl: true } },
+    },
+  });
+
+  return serializeCaptionSuggestion(updated);
 }
