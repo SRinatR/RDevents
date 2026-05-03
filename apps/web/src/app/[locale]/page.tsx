@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { PublicFooter } from '../../components/layout/PublicFooter';
+import { MediaPreview } from '@/components/media/MediaPreview';
 
 type HomePageProps = Readonly<{
   params: Promise<{
@@ -22,9 +23,41 @@ type PreviewEvent = {
   coverImageUrl?: string | null;
 };
 
+type HomeMediaHighlight = {
+  id: string;
+  kind: 'image' | 'video';
+  title?: string | null;
+  caption?: string | null;
+  credit?: string | null;
+  approvedAt?: string | null;
+  asset: {
+    publicUrl: string;
+    storageKey?: string | null;
+    originalFilename: string;
+  };
+  displayNumber?: number | null;
+  event?: {
+    slug: string;
+    title: string;
+    startsAt?: string | null;
+  };
+};
+
+function formatHomeMediaDisplayNumber(item: Pick<HomeMediaHighlight, 'kind' | 'displayNumber'>, locale: string) {
+  const label = item.kind === 'image'
+    ? (locale === 'ru' ? 'Фото' : 'Photo')
+    : (locale === 'ru' ? 'Видео' : 'Video');
+
+  if (!item.displayNumber) return label;
+  return `${label} #${String(item.displayNumber).padStart(3, '0')}`;
+}
+
 export default async function HomePage({ params }: HomePageProps) {
   const { locale } = await params;
-  const previewEvents = await getPreviewEvents();
+  const [previewEvents, mediaHighlights] = await Promise.all([
+    getPreviewEvents(),
+    getMediaHighlights(),
+  ]);
   const t = await getTranslations();
   const heroEvent = previewEvents[0] ?? null;
   const hasSinglePreviewEvent = previewEvents.length === 1;
@@ -169,6 +202,54 @@ export default async function HomePage({ params }: HomePageProps) {
           </div>
         </section>
 
+        <section className="home-media-stage motion-fade-up-fast">
+          <div className="container-wide home-media-shell">
+            <div className="home-events-head">
+              <div>
+                <h2>{locale === 'ru' ? 'Медиабанк мероприятий' : 'Event media bank'}</h2>
+                <p>{locale === 'ru' ? 'Последние утверждённые фото и видео с событий' : 'Latest approved photos and videos from events'}</p>
+              </div>
+              <Link href={`/${locale}/media`} className="signal-chip-link">
+                {locale === 'ru' ? 'Открыть фотобанк' : 'Open media bank'}
+              </Link>
+            </div>
+
+            {mediaHighlights.length ? (
+              <div className="home-media-grid">
+                {mediaHighlights.map((item) => (
+                  <Link
+                    key={item.id}
+                    href={item.event?.slug ? `/${locale}/events/${item.event.slug}/media` : `/${locale}/media`}
+                    className="home-media-card"
+                  >
+                    <div className="home-media-cover">
+                      <MediaPreview
+                        publicUrl={item.asset.publicUrl}
+                        storageKey={item.asset.storageKey}
+                        kind={item.kind}
+                        alt={item.title || item.caption || item.asset.originalFilename}
+                        sizes="(max-width: 768px) 100vw, 320px"
+                        controls={false}
+                      />
+                      <span>{formatHomeMediaDisplayNumber(item, locale)}</span>
+                    </div>
+                    <div className="home-media-body">
+                      <strong>{item.event?.title ?? (locale === 'ru' ? 'Событие' : 'Event')}</strong>
+                      {item.caption || item.title ? <p>{item.caption || item.title}</p> : null}
+                      <small>{locale === 'ru' ? 'Открыть фотобанк' : 'Open media bank'}</small>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="signal-empty-state">
+                <h3>{locale === 'ru' ? 'Медиабанк скоро появится' : 'Media bank is coming soon'}</h3>
+                <p>{locale === 'ru' ? 'После модерации здесь появятся материалы мероприятий.' : 'Approved event media will appear here after moderation.'}</p>
+              </div>
+            )}
+          </div>
+        </section>
+
         <section className="home-journey-stage motion-fade-up-fast">
           <div className="container-wide home-journey-shell">
             <div className="home-journey-head">
@@ -229,6 +310,24 @@ async function getPreviewEvents(): Promise<PreviewEvent[]> {
     if (!response.ok) return [];
     const payload = await response.json();
     return Array.isArray(payload.data) ? payload.data : [];
+  } catch {
+    return [];
+  }
+}
+
+async function getMediaHighlights(): Promise<HomeMediaHighlight[]> {
+  const baseUrl =
+    process.env['API_INTERNAL_URL'] ??
+    process.env['NEXT_PUBLIC_API_BASE_URL'] ??
+    'http://localhost:4000';
+
+  try {
+    const response = await fetch(`${baseUrl}/api/events/media/highlights?limit=8`, {
+      next: { revalidate: 60 },
+    });
+    if (!response.ok) return [];
+    const payload = await response.json();
+    return Array.isArray(payload.media) ? payload.media : [];
   } catch {
     return [];
   }

@@ -1,5 +1,16 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { authenticate } from '../../common/middleware.js';
+import {
+  EVENT_MEDIA_HARD_MAX_FILE_SIZE_MB,
+  EventMediaUploadError,
+  createCaptionSuggestion,
+  handleEventMediaMulterUpload,
+  listCaptionSuggestionTargets,
+  listMyEventMedia,
+  listMyCaptionSuggestions,
+  uploadEventMedia,
+} from '../events/event-media.service.js';
 import {
   acceptTeamInvitation,
   declineTeamInvitation,
@@ -13,6 +24,14 @@ import {
 } from '../events/events.service.js';
 
 export const registrationsRouter = Router();
+
+const eventMediaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: EVENT_MEDIA_HARD_MAX_FILE_SIZE_MB * 1024 * 1024,
+    files: 1,
+  },
+});
 
 // GET /api/me/events — list current user's event registrations
 registrationsRouter.get('/events', authenticate, async (req, res) => {
@@ -48,6 +67,88 @@ registrationsRouter.get('/events/:slug/workspace', authenticate, async (req, res
     }
     res.status(500).json({ error: 'Internal error' });
   }
+});
+
+// GET /api/me/events/:eventId/media — current user's submissions for an event
+registrationsRouter.get('/events/:eventId/media', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  const media = await listMyEventMedia(String(req.params['eventId']), user);
+  res.json({ media });
+});
+
+// POST /api/me/events/:eventId/media — participant photo/video submission
+registrationsRouter.post('/events/:eventId/media', authenticate, handleEventMediaMulterUpload(eventMediaUpload.single('file')), async (req, res) => {
+  const user = (req as any).user;
+  const file = (req as any).file as Express.Multer.File | undefined;
+
+  try {
+    const media = await uploadEventMedia(String(req.params['eventId']), user, file as Express.Multer.File, req.body ?? {}, { mode: 'participant' });
+    res.status(media.status === 'APPROVED' ? 201 : 202).json({ media });
+  } catch (err: any) {
+    if (err instanceof EventMediaUploadError) {
+      res.status(400).json({ error: err.message, code: err.code });
+      return;
+    }
+    const map: Record<string, [number, string]> = {
+      EVENT_NOT_FOUND: [404, 'Event not found'],
+      EVENT_MEDIA_BANK_DISABLED: [403, 'Media bank is disabled for this event'],
+      EVENT_MEDIA_UPLOAD_FORBIDDEN: [403, 'Only approved event participants can upload media'],
+      EVENT_MEDIA_UPLOAD_DISABLED: [403, 'Media upload is disabled for this event'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
+  }
+});
+
+// GET /api/me/events/:eventId/media/caption-targets — approved media participant can annotate
+registrationsRouter.get('/events/:eventId/media/caption-targets', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  try {
+    const result = await listCaptionSuggestionTargets(String(req.params['eventId']), user, {
+      search: req.query['search'],
+      number: req.query['number'],
+      type: req.query['type'],
+      page: req.query['page'],
+      limit: req.query['limit'],
+    });
+    res.json(result);
+  } catch (err: any) {
+    const map: Record<string, [number, string]> = {
+      EVENT_MEDIA_CAPTION_SUGGESTION_FORBIDDEN: [403, 'Only approved event participants can suggest captions'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
+  }
+});
+
+// POST /api/me/events/:eventId/media/:mediaId/caption-suggestions
+registrationsRouter.post('/events/:eventId/media/:mediaId/caption-suggestions', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  try {
+    const suggestion = await createCaptionSuggestion(String(req.params['eventId']), String(req.params['mediaId']), user, {
+      title: req.body?.title,
+      caption: req.body?.caption,
+      credit: req.body?.credit,
+      altText: req.body?.altText,
+    });
+    res.status(201).json({ suggestion });
+  } catch (err: any) {
+    const map: Record<string, [number, string]> = {
+      EVENT_MEDIA_CAPTION_SUGGESTION_FORBIDDEN: [403, 'Only approved event participants can suggest captions'],
+      EVENT_MEDIA_NOT_FOUND: [404, 'Media item not found'],
+      EVENT_MEDIA_CAPTION_SUGGESTION_EMPTY: [400, 'At least one caption field is required'],
+      EVENT_MEDIA_CAPTION_SUGGESTION_PENDING_EXISTS: [409, 'You already have a pending suggestion for this media item'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
+  }
+});
+
+// GET /api/me/events/:eventId/media/caption-suggestions — current user's suggestion history
+registrationsRouter.get('/events/:eventId/media/caption-suggestions', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  const suggestions = await listMyCaptionSuggestions(String(req.params['eventId']), user);
+  res.json({ suggestions });
 });
 
 // GET /api/me/teams — current user's team memberships across events

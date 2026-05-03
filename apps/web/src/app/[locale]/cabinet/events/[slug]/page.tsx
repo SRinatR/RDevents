@@ -408,7 +408,12 @@ export default function CabinetEventEntryPage({ params }: { params: Promise<{ sl
       <PageHeader
         title={event.title}
         subtitle={isRu ? 'Личный кабинет мероприятия' : 'Event cabinet'}
-        actions={<Link href={`/${locale}/events/${event.slug}`} className="btn btn-secondary btn-sm">{isRu ? 'Публичная страница' : 'Public page'}</Link>}
+        actions={(
+          <ToolbarRow>
+            <Link href={`/${locale}/cabinet/events/${event.slug}/media`} className="btn btn-primary btn-sm">{isRu ? 'Фотобанк' : 'Media bank'}</Link>
+            <Link href={`/${locale}/events/${event.slug}`} className="btn btn-secondary btn-sm">{isRu ? 'Публичная страница' : 'Public page'}</Link>
+          </ToolbarRow>
+        )}
       />
 
       {error ? <Notice tone="danger">{error}</Notice> : null}

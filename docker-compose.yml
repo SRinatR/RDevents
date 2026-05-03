@@ -38,9 +38,13 @@ services:
       EMAIL_PROVIDER: log-only
       RESEND_FROM_EMAIL: dev@rdevents.local
       RESEND_FROM_NAME: RDEvents Dev
+      MEDIA_STORAGE_DRIVER: local
+      MEDIA_UPLOAD_DIR: /app/uploads
+      MEDIA_PUBLIC_BASE_URL: http://localhost:4000/uploads
     ports:
       - "4000:4000"
     volumes:
+      - ./uploads:/app/uploads
       - ./services/api/src:/app/services/api/src
       - ./services/api/prisma:/app/services/api/prisma
       - ./services/api/prisma.config.ts:/app/services/api/prisma.config.ts

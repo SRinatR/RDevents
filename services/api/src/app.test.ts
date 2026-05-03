@@ -20,6 +20,14 @@ describe('API health endpoints', () => {
     expect(res.body.status).toBe('ok');
   });
 
+  it('sets no-store headers for JSON API endpoints', async () => {
+    const res = await request(app).get('/api/health');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['cache-control']).toContain('no-store');
+    expect(res.headers['pragma']).toBe('no-cache');
+  });
+
   it.each(['/version', '/api/version'])('GET %s returns the release marker as plain text', async (path) => {
     const res = await request(app).get(path);
 

@@ -46,6 +46,13 @@ export function createApp() {
   app.use(express.json({ limit: '2mb' }));
   app.use('/uploads', express.static(getMediaUploadDir(), { fallthrough: true }));
 
+  app.use('/api', (_req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    next();
+  });
+
   // ─── Health check ─────────────────────────────────────────────────────────
   const healthHandler = (_req: express.Request, res: express.Response) => {
     res.json({ status: 'ok', service: 'event-platform-api', ts: new Date().toISOString() });

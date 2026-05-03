@@ -1,4 +1,8 @@
+import { mkdirSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { Router } from 'express';
+import multer from 'multer';
 import type { EventMediaStatus, EventMemberStatus, EventStaffRole, EventTeamStatus, User } from '@prisma/client';
 import { canManageEvent, requirePlatformAdmin } from '../../common/middleware.js';
 import { prisma } from '../../db/prisma.js';
@@ -37,14 +41,57 @@ import { buildAuditRequestContext, writeAuditLog } from '../access-control/acces
 import { env } from '../../config/env.js';
 import {
   deleteEventMedia,
+  EVENT_MEDIA_HARD_MAX_FILE_SIZE_MB,
+  EventMediaUploadError,
+  approveCaptionSuggestion,
+  getEventMediaSettings,
+  getEventMediaPublicVisibility,
+  getEventMediaSummary,
+  handleEventMediaMulterUpload,
+  listAdminCaptionSuggestions,
   listEventMediaForModeration,
   moderateEventMedia,
+  rejectCaptionSuggestion,
+  updateEventMediaSettings,
+  uploadEventMedia,
 } from '../events/event-media.service.js';
+import {
+  buildEventMediaImportCsv,
+  cancelEventMediaImport,
+  EventMediaImportError,
+  getEventMediaImport,
+  listEventMediaImports,
+  startEventMediaImport,
+} from '../events/event-media-import.service.js';
 
 export const adminEventsRouter = Router();
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
 const EVENT_MEDIA_STATUS_FILTERS = new Set(['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'DELETED']);
+const adminEventMediaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: EVENT_MEDIA_HARD_MAX_FILE_SIZE_MB * 1024 * 1024,
+    files: 1,
+  },
+});
+const mediaImportUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, callback) => {
+      const dir = path.join(os.tmpdir(), 'rdevents-media-imports');
+      mkdirSync(dir, { recursive: true });
+      callback(null, dir);
+    },
+    filename: (_req, file, callback) => {
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9_.-]+/g, '-').slice(-120) || 'archive.zip';
+      callback(null, `${Date.now()}-${safeName}`);
+    },
+  }),
+  limits: {
+    fileSize: 500 * 1024 * 1024,
+    files: 1,
+  },
+});
 
 function normalizeStringArray(value: unknown) {
   if (Array.isArray(value)) {
@@ -280,6 +327,8 @@ adminEventsRouter.post('/', async (req, res) => {
         },
       });
 
+      await tx.eventMediaSettings.create({ data: { eventId: createdEvent.id } });
+
       const ownerGrant = await tx.eventStaffGrant.create({
         data: {
           eventId: createdEvent.id,
@@ -364,6 +413,40 @@ adminEventsRouter.delete('/:id', requirePlatformAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// GET /admin/events/:id/media/summary — independent counters for moderation dashboard
+adminEventsRouter.get('/:id/media/summary', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  const summary = await getEventMediaSummary(eventId);
+  res.json({ summary });
+});
+
+// GET /admin/events/:id/media/public-visibility — explain public media visibility
+adminEventsRouter.get('/:id/media/public-visibility', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  try {
+    const visibility = await getEventMediaPublicVisibility(eventId);
+    res.json({ visibility });
+  } catch (err: any) {
+    if (err.message === 'EVENT_NOT_FOUND') {
+      res.status(404).json({ error: 'Event not found', code: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
 // GET /admin/events/:id/media — moderation queue and approved media bank
 adminEventsRouter.get('/:id/media', async (req, res) => {
   const user = (req as any).user as User;
@@ -379,8 +462,260 @@ adminEventsRouter.get('/:id/media', async (req, res) => {
     return;
   }
 
-  const media = await listEventMediaForModeration(eventId, status as EventMediaStatus | 'ALL');
-  res.json({ media });
+  const result = await listEventMediaForModeration(eventId, {
+    status: status as EventMediaStatus | 'ALL',
+    type: req.query['type'],
+    search: req.query['search'],
+    page: req.query['page'],
+    limit: req.query['limit'],
+  });
+  res.json(result);
+});
+
+// POST /admin/events/:id/media — organizer upload, published immediately
+adminEventsRouter.post('/:id/media', handleEventMediaMulterUpload(adminEventMediaUpload.single('file')), async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = String(req.params['id']);
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  const file = (req as any).file as Express.Multer.File | undefined;
+  try {
+    const media = await uploadEventMedia(eventId, user, file as Express.Multer.File, req.body ?? {}, { mode: 'admin' });
+    res.status(201).json({ media });
+  } catch (err: any) {
+    if (err instanceof EventMediaUploadError) {
+      res.status(400).json({ error: err.message, code: err.code });
+      return;
+    }
+    if (err.message === 'EVENT_NOT_FOUND') {
+      res.status(404).json({ error: 'Event not found', code: err.message });
+      return;
+    }
+    if (err.message === 'EVENT_MEDIA_BANK_DISABLED') {
+      res.status(403).json({ error: 'Media bank is disabled for this event', code: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+// GET /admin/events/:id/media/settings — media bank settings
+adminEventsRouter.get('/:id/media/settings', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = String(req.params['id']);
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  try {
+    const settings = await getEventMediaSettings(eventId);
+    res.json({ settings });
+  } catch (err: any) {
+    if (err.message === 'EVENT_NOT_FOUND') {
+      res.status(404).json({ error: 'Event not found', code: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+// PATCH /admin/events/:id/media/settings — update media bank settings
+adminEventsRouter.patch('/:id/media/settings', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = String(req.params['id']);
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  try {
+    const settings = await updateEventMediaSettings(eventId, req.body ?? {});
+    res.json({ settings });
+  } catch (err: any) {
+    if (err.message === 'EVENT_NOT_FOUND') {
+      res.status(404).json({ error: 'Event not found', code: err.message });
+      return;
+    }
+    if (err.message === 'EVENT_MEDIA_ALLOWED_TYPES_REQUIRED') {
+      res.status(400).json({ error: 'At least one media type must stay enabled', code: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+// POST /admin/events/:id/media/imports — upload zip archive and start async import
+adminEventsRouter.post('/:id/media/imports', handleEventMediaMulterUpload(mediaImportUpload.single('archive')), async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = String(req.params['id']);
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  try {
+    const job = await startEventMediaImport(eventId, user, (req as any).file as Express.Multer.File | undefined, req.body ?? {});
+    res.status(202).json({ job });
+  } catch (err: any) {
+    if (err instanceof EventMediaImportError) {
+      res.status(400).json({ error: err.message, code: err.code });
+      return;
+    }
+    throw err;
+  }
+});
+
+// GET /admin/events/:id/media/imports — recent import jobs
+adminEventsRouter.get('/:id/media/imports', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = String(req.params['id']);
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  const jobs = await listEventMediaImports(eventId);
+  res.json({ jobs });
+});
+
+// GET /admin/events/:id/media/imports/:jobId — import details
+adminEventsRouter.get('/:id/media/imports/:jobId', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = String(req.params['id']);
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  try {
+    const job = await getEventMediaImport(eventId, String(req.params['jobId']));
+    res.json({ job });
+  } catch (err: any) {
+    if (err.message === 'EVENT_MEDIA_IMPORT_NOT_FOUND') {
+      res.status(404).json({ error: 'Import job not found', code: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+// POST /admin/events/:id/media/imports/:jobId/cancel — cancel queued/processing import
+adminEventsRouter.post('/:id/media/imports/:jobId/cancel', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = String(req.params['id']);
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  try {
+    const job = await cancelEventMediaImport(eventId, String(req.params['jobId']));
+    res.json({ job });
+  } catch (err: any) {
+    if (err.message === 'EVENT_MEDIA_IMPORT_NOT_FOUND') {
+      res.status(404).json({ error: 'Import job not found', code: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+// GET /admin/events/:id/media/imports/:jobId/report.csv — CSV import report
+adminEventsRouter.get('/:id/media/imports/:jobId/report.csv', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = String(req.params['id']);
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  try {
+    const csv = await buildEventMediaImportCsv(eventId, String(req.params['jobId']));
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="media-import-${req.params['jobId']}.csv"`);
+    res.send(csv);
+  } catch (err: any) {
+    if (err.message === 'EVENT_MEDIA_IMPORT_NOT_FOUND') {
+      res.status(404).json({ error: 'Import job not found', code: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+// GET /admin/events/:id/media/caption-suggestions — moderation queue
+adminEventsRouter.get('/:id/media/caption-suggestions', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = String(req.params['id']);
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  try {
+    const suggestions = await listAdminCaptionSuggestions(eventId, { status: req.query['status'] });
+    res.json({ suggestions });
+  } catch (err: any) {
+    if (err.message === 'EVENT_MEDIA_CAPTION_SUGGESTION_INVALID_STATUS') {
+      res.status(400).json({ error: 'Invalid caption suggestion status', code: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+// POST /admin/events/:id/media/caption-suggestions/:suggestionId/approve
+adminEventsRouter.post('/:id/media/caption-suggestions/:suggestionId/approve', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = String(req.params['id']);
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  try {
+    const suggestion = await approveCaptionSuggestion(eventId, String(req.params['suggestionId']), user, {
+      title: req.body?.title,
+      caption: req.body?.caption,
+      credit: req.body?.credit,
+      altText: req.body?.altText,
+    });
+    res.json({ suggestion });
+  } catch (err: any) {
+    const map: Record<string, [number, string]> = {
+      EVENT_MEDIA_CAPTION_SUGGESTION_NOT_FOUND: [404, 'Caption suggestion not found'],
+      EVENT_MEDIA_CAPTION_SUGGESTION_ALREADY_DECIDED: [409, 'Caption suggestion already decided'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
+  }
+});
+
+// POST /admin/events/:id/media/caption-suggestions/:suggestionId/reject
+adminEventsRouter.post('/:id/media/caption-suggestions/:suggestionId/reject', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = String(req.params['id']);
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  try {
+    const suggestion = await rejectCaptionSuggestion(eventId, String(req.params['suggestionId']), user, req.body?.reason);
+    res.json({ suggestion });
+  } catch (err: any) {
+    const map: Record<string, [number, string]> = {
+      EVENT_MEDIA_CAPTION_SUGGESTION_NOT_FOUND: [404, 'Caption suggestion not found'],
+      EVENT_MEDIA_CAPTION_SUGGESTION_ALREADY_DECIDED: [409, 'Caption suggestion already decided'],
+      EVENT_MEDIA_CAPTION_SUGGESTION_REJECTION_REASON_REQUIRED: [400, 'Rejection reason is required'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
+  }
 });
 
 // PATCH /admin/events/:id/media/:mediaId — approve or reject media
@@ -395,8 +730,12 @@ adminEventsRouter.patch('/:id/media/:mediaId', async (req, res) => {
   const status = String(req.body?.status ?? '').toUpperCase() as EventMediaStatus;
   try {
     const media = await moderateEventMedia(eventId, String(req.params['mediaId']), user, {
-      status,
-      notes: req.body?.notes,
+      status: status || undefined,
+      title: req.body?.title,
+      caption: req.body?.caption,
+      altText: req.body?.altText,
+      credit: req.body?.credit,
+      moderationNotes: req.body?.moderationNotes ?? req.body?.notes,
     });
     res.json({ media });
   } catch (err: any) {
@@ -406,6 +745,10 @@ adminEventsRouter.patch('/:id/media/:mediaId', async (req, res) => {
     }
     if (err.message === 'EVENT_MEDIA_NOT_FOUND') {
       res.status(404).json({ error: 'Media item not found', code: err.message });
+      return;
+    }
+    if (err.message === 'EVENT_MEDIA_REJECTION_REASON_REQUIRED') {
+      res.status(400).json({ error: 'Rejection reason is required', code: err.message });
       return;
     }
     throw err;
