@@ -116,7 +116,7 @@ export default function AdminEventMediaPage() {
   const loadEvent = useCallback(async () => {
     if (!eventId) return;
     setPageLoading(true);
-    setError('');
+    setPageError('');
     try {
       const [eventResult, settingsResult] = await Promise.all([
         adminApi.listEvents({ id: eventId, limit: 1 }),
@@ -126,7 +126,8 @@ export default function AdminEventMediaPage() {
       setSettings(settingsResult.settings);
       setSettingsDraft(settingsResult.settings);
     } catch (err: any) {
-      setError(getFriendlyApiErrorMessage(err, locale));
+      console.error('[media-bank] page load failed', err);
+      setPageError(getFriendlyApiErrorMessage(err, locale));
       setEvent(null);
     } finally {
       setPageLoading(false);
@@ -135,25 +136,39 @@ export default function AdminEventMediaPage() {
 
   const loadSummary = useCallback(async () => {
     if (!eventId) return;
+    setSummaryError('');
     try {
       const result = await eventMediaApi.summary(eventId);
       setSummary(result.summary);
     } catch (err) {
-      console.warn('Failed to load media summary', err);
+      console.error('[media-bank] summary load failed', err);
+      setSummaryError(isRu ? 'Не удалось обновить счётчики медиабанка.' : 'Could not refresh media counters.');
+    }
+  }, [eventId, isRu]);
+
+  const loadVisibility = useCallback(async () => {
+    if (!eventId) return;
+    try {
+      const result = await eventMediaApi.publicVisibility(eventId);
+      setVisibility(result.visibility);
+    } catch (err) {
+      console.error('[media-bank] public visibility load failed', err);
+      setVisibility(null);
     }
   }, [eventId]);
 
   const loadMedia = useCallback(async () => {
     if (!eventId) return;
     setMediaLoading(true);
-    setError('');
+    setListError('');
     try {
       const result = await eventMediaApi.adminList(eventId, { status, type, search, limit: 50 });
       setMedia(result.media);
       setDrafts(Object.fromEntries(result.media.map((item) => [item.id, emptyDraft(item)])));
       setRejectReasons(Object.fromEntries(result.media.map((item) => [item.id, item.moderationNotes ?? ''])));
     } catch (err: any) {
-      setError(getFriendlyApiErrorMessage(err, locale));
+      console.error('[media-bank] media list failed', err);
+      setListError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setMediaLoading(false);
     }
@@ -164,8 +179,8 @@ export default function AdminEventMediaPage() {
   }, [user, isAdmin, loadEvent]);
 
   useEffect(() => {
-    if (user && isAdmin) { void loadMedia(); void loadSummary(); }
-  }, [user, isAdmin, loadMedia, loadSummary]);
+    if (user && isAdmin) { void loadMedia(); void loadSummary(); void loadVisibility(); }
+  }, [user, isAdmin, loadMedia, loadSummary, loadVisibility]);
 
   function patchDraft(mediaId: string, key: keyof MediaInput, value: string) {
     setDrafts((current) => ({
@@ -192,12 +207,12 @@ export default function AdminEventMediaPage() {
   async function handleUpload(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!eventId || !uploadFile) {
-      setError(isRu ? 'Выберите фото или видео.' : 'Choose a photo or video.');
+      setUploadError(isRu ? 'Выберите фото или видео.' : 'Choose a photo or video.');
       return;
     }
 
     setUploading(true);
-    setError('');
+    setUploadError('');
     setNotice('');
     try {
       await eventMediaApi.adminUpload(eventId, uploadFile, uploadDraft);
@@ -205,9 +220,10 @@ export default function AdminEventMediaPage() {
       setUploadDraft(emptyDraft());
       e.currentTarget.reset();
       setNotice(isRu ? 'Медиа от организатора опубликовано.' : 'Organizer media was published.');
-      await Promise.all([loadMedia(), loadSummary()]);
+      await Promise.all([loadMedia(), loadSummary(), loadVisibility()]);
     } catch (err: any) {
-      setError(getFriendlyApiErrorMessage(err, locale));
+      console.error('[media-bank] upload failed', err);
+      setUploadError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setUploading(false);
     }
@@ -217,12 +233,12 @@ export default function AdminEventMediaPage() {
     if (!eventId) return;
     const reason = rejectReasons[item.id]?.trim() ?? '';
     if (nextStatus === 'REJECTED' && !reason) {
-      setError(isRu ? 'Причина отклонения обязательна.' : 'Rejection reason is required.');
+      setActionError(isRu ? 'Причина отклонения обязательна.' : 'Rejection reason is required.');
       return;
     }
 
     setBusyId(item.id);
-    setError('');
+    setActionError('');
     setNotice('');
     try {
       await eventMediaApi.adminUpdate(eventId, item.id, {
@@ -233,9 +249,10 @@ export default function AdminEventMediaPage() {
       setNotice(nextStatus
         ? (isRu ? `Статус обновлён: ${statusLabel(nextStatus, locale)}.` : `Status updated: ${statusLabel(nextStatus, locale)}.`)
         : (isRu ? 'Подписи сохранены.' : 'Captions saved.'));
-      await Promise.all([loadMedia(), loadSummary()]);
+      await Promise.all([loadMedia(), loadSummary(), loadVisibility()]);
     } catch (err: any) {
-      setError(getFriendlyApiErrorMessage(err, locale));
+      console.error('[media-bank] media action failed', err);
+      setActionError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setBusyId('');
     }
@@ -244,14 +261,15 @@ export default function AdminEventMediaPage() {
   async function handleDelete(item: EventMediaItem) {
     if (!eventId) return;
     setBusyId(item.id);
-    setError('');
+    setActionError('');
     setNotice('');
     try {
       await eventMediaApi.adminDelete(eventId, item.id);
       setNotice(isRu ? 'Медиа скрыто из фотобанка.' : 'Media was hidden from the bank.');
-      await Promise.all([loadMedia(), loadSummary()]);
+      await Promise.all([loadMedia(), loadSummary(), loadVisibility()]);
     } catch (err: any) {
-      setError(getFriendlyApiErrorMessage(err, locale));
+      console.error('[media-bank] media delete failed', err);
+      setActionError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setBusyId('');
     }
@@ -260,15 +278,17 @@ export default function AdminEventMediaPage() {
   async function handleSaveSettings() {
     if (!eventId) return;
     setSavingSettings(true);
-    setError('');
+    setSettingsError('');
     setNotice('');
     try {
       const result = await eventMediaApi.updateSettings(eventId, settingsDraft);
       setSettings(result.settings);
       setSettingsDraft(result.settings);
       setNotice(isRu ? 'Настройки фотобанка сохранены.' : 'Media bank settings saved.');
+      await loadVisibility();
     } catch (err: any) {
-      setError(getFriendlyApiErrorMessage(err, locale));
+      console.error('[media-bank] settings save failed', err);
+      setSettingsError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setSavingSettings(false);
     }
@@ -286,7 +306,7 @@ export default function AdminEventMediaPage() {
         subtitle={event ? `${event.title} · ${statusLabel(status, locale)}` : undefined}
       />
 
-      {error ? <Notice tone="danger">{error}</Notice> : null}
+      {pageError ? <Notice tone="danger">{pageError}</Notice> : null}
       {notice ? <Notice tone="success">{notice}</Notice> : null}
 
       {pageLoading ? (
@@ -299,6 +319,26 @@ export default function AdminEventMediaPage() {
             <div className="workspace-status-card"><small>{isRu ? 'Отклонено' : 'Rejected'}</small><strong>{summary.rejected}</strong></div>
             <div className="workspace-status-card"><small>{isRu ? 'Фотобанк' : 'Media bank'}</small><strong>{settings.enabled ? (isRu ? 'Включён' : 'Enabled') : (isRu ? 'Выключен' : 'Disabled')}</strong></div>
           </div>
+          {summaryError ? <Notice tone="warning">{summaryError}</Notice> : null}
+
+          {visibility ? (
+            <Panel variant="elevated" className="admin-command-panel admin-media-visibility-panel">
+              <SectionHeader
+                title={isRu ? 'Публичная видимость' : 'Public visibility'}
+                subtitle={visibility.visibleOnPublicPages
+                  ? (isRu ? 'Материалы доступны на публичных страницах.' : 'Media is visible on public pages.')
+                  : visibility.reason}
+              />
+              <div className="admin-media-visibility-grid">
+                <div><small>{isRu ? 'Событие опубликовано' : 'Event published'}</small><strong>{visibility.eventPublished ? (isRu ? 'Да' : 'Yes') : (isRu ? 'Нет' : 'No')}</strong></div>
+                <div><small>{isRu ? 'Фотобанк включён' : 'Media bank enabled'}</small><strong>{visibility.mediaBankEnabled ? (isRu ? 'Да' : 'Yes') : (isRu ? 'Нет' : 'No')}</strong></div>
+                <div><small>{isRu ? 'Опубликованных медиа' : 'Approved media'}</small><strong>{visibility.approvedMedia}</strong></div>
+                <div><small>{isRu ? 'Активных файлов' : 'Active files'}</small><strong>{visibility.activeAssets}</strong></div>
+                <div><small>{isRu ? 'Попадает на главную' : 'Visible on home'}</small><strong>{visibility.visibleOnPublicPages ? (isRu ? 'Да' : 'Yes') : (isRu ? 'Нет' : 'No')}</strong></div>
+                <div><small>{isRu ? 'Причина' : 'Reason'}</small><strong>{visibility.reasonCode}</strong></div>
+              </div>
+            </Panel>
+          ) : null}
 
           <Panel variant="elevated" className="admin-command-panel admin-media-upload-panel">
             <SectionHeader
@@ -319,6 +359,7 @@ export default function AdminEventMediaPage() {
                 {uploading ? (isRu ? 'Публикуем...' : 'Publishing...') : (isRu ? 'Опубликовать' : 'Publish')}
               </button>
             </form>
+            {uploadError ? <Notice tone="danger">{uploadError}</Notice> : null}
           </Panel>
 
           <Panel variant="elevated" className="admin-command-panel admin-media-settings-panel">
@@ -346,6 +387,7 @@ export default function AdminEventMediaPage() {
                 {savingSettings ? (isRu ? 'Сохраняем...' : 'Saving...') : (isRu ? 'Сохранить настройки' : 'Save settings')}
               </button>
             </ToolbarRow>
+            {settingsError ? <Notice tone="danger">{settingsError}</Notice> : null}
           </Panel>
 
           <Panel variant="elevated" className="admin-command-panel admin-media-board-panel">
@@ -371,6 +413,9 @@ export default function AdminEventMediaPage() {
               </ToolbarRow>
             </div>
 
+            {listError ? <Notice tone="danger">{listError}</Notice> : null}
+            {actionError ? <Notice tone="danger">{actionError}</Notice> : null}
+
             {mediaLoading ? (
               <LoadingLines rows={6} />
             ) : media.length === 0 ? (
@@ -391,7 +436,7 @@ export default function AdminEventMediaPage() {
                           <div>
                             <strong>{item.title || item.asset.originalFilename}</strong>
                             <div className="signal-muted">
-                              {item.kind === 'image' ? (isRu ? 'Фото' : 'Photo') : (isRu ? 'Видео' : 'Video')}
+                              {formatMediaDisplayNumber(item, locale)}
                               {' · '}
                               {item.source === 'ADMIN' ? (isRu ? 'Организатор' : 'Organizer') : (isRu ? 'Участник' : 'Participant')}
                               {item.uploader?.email ? ` · ${item.uploader.email}` : ''}

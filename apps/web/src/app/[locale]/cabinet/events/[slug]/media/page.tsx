@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import type { FormEvent } from 'react';
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
@@ -8,6 +7,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteLocale } from '@/hooks/useRouteParams';
 import { eventMediaApi, eventsApi, type EventMediaItem } from '@/lib/api';
+import { MediaPreview } from '@/components/media/MediaPreview';
+import { formatMediaDisplayNumber } from '@/components/media/MediaCard';
 import { EmptyState, FieldInput, FieldTextarea, LoadingLines, Notice, PageHeader, Panel, SectionHeader, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
 import { getFriendlyApiErrorMessage } from '@/lib/api-errors';
 
@@ -75,10 +76,15 @@ function formatDate(value: string | null | undefined, locale: string) {
 
 function renderSubmissionPreview(item: EventMediaItem) {
   const label = item.altText || item.title || item.caption || item.asset.originalFilename;
-  if (item.kind === 'image') {
-    return <Image src={item.asset.publicUrl} alt={label} fill sizes="(max-width: 768px) 100vw, 240px" />;
-  }
-  return <video src={item.asset.publicUrl} controls preload="metadata" aria-label={label} />;
+  return (
+    <MediaPreview
+      publicUrl={item.asset.publicUrl}
+      storageKey={item.asset.storageKey}
+      kind={item.kind}
+      alt={label}
+      sizes="(max-width: 768px) 100vw, 240px"
+    />
+  );
 }
 
 function getParticipantMembership(event: any, membership: any) {
@@ -204,7 +210,7 @@ export default function CabinetEventMediaPage({ params }: { params: Promise<{ sl
         actions={(
           <ToolbarRow>
             <Link href={cabinetHref} className="btn btn-secondary btn-sm">{isRu ? 'ЛК события' : 'Event cabinet'}</Link>
-            <Link href={`/${locale}/events/${event.slug}#media-bank`} className="btn btn-ghost btn-sm">{isRu ? 'Публичная страница' : 'Public page'}</Link>
+            <Link href={`/${locale}/events/${event.slug}/media`} className="btn btn-ghost btn-sm">{isRu ? 'Публичный фотобанк' : 'Public media bank'}</Link>
           </ToolbarRow>
         )}
       />
@@ -285,7 +291,7 @@ export default function CabinetEventMediaPage({ params }: { params: Promise<{ sl
                   </div>
                   {item.caption ? <p>{item.caption}</p> : null}
                   <div className="media-submission-meta">
-                    <span>{item.kind === 'image' ? (isRu ? 'Фото' : 'Photo') : (isRu ? 'Видео' : 'Video')}</span>
+                    <span>{formatMediaDisplayNumber(item, locale)}</span>
                     <span>{formatDate(item.createdAt, locale)}</span>
                     {item.credit ? <span>{item.credit}</span> : null}
                   </div>

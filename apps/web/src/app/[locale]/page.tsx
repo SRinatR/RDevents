@@ -4,6 +4,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { PublicFooter } from '../../components/layout/PublicFooter';
+import { MediaPreview } from '@/components/media/MediaPreview';
+import { formatMediaDisplayNumber } from '@/components/media/MediaCard';
 
 type HomePageProps = Readonly<{
   params: Promise<{
@@ -31,8 +33,10 @@ type HomeMediaHighlight = {
   approvedAt?: string | null;
   asset: {
     publicUrl: string;
+    storageKey?: string | null;
     originalFilename: string;
   };
+  displayNumber?: number | null;
   event?: {
     slug: string;
     title: string;
@@ -197,8 +201,8 @@ export default async function HomePage({ params }: HomePageProps) {
                 <h2>{locale === 'ru' ? 'Медиабанк мероприятий' : 'Event media bank'}</h2>
                 <p>{locale === 'ru' ? 'Последние утверждённые фото и видео с событий' : 'Latest approved photos and videos from events'}</p>
               </div>
-              <Link href={`/${locale}/events`} className="signal-chip-link">
-                {locale === 'ru' ? 'Все события' : 'All events'}
+              <Link href={`/${locale}/media`} className="signal-chip-link">
+                {locale === 'ru' ? 'Открыть фотобанк' : 'Open media bank'}
               </Link>
             </div>
 
@@ -207,16 +211,19 @@ export default async function HomePage({ params }: HomePageProps) {
                 {mediaHighlights.map((item) => (
                   <Link
                     key={item.id}
-                    href={`/${locale}/events/${item.event?.slug ?? ''}#media-bank`}
+                    href={item.event?.slug ? `/${locale}/events/${item.event.slug}/media` : `/${locale}/media`}
                     className="home-media-card"
                   >
                     <div className="home-media-cover">
-                      {item.kind === 'image' ? (
-                        <Image src={item.asset.publicUrl} alt={item.title || item.caption || item.asset.originalFilename} fill sizes="(max-width: 768px) 100vw, 320px" style={{ objectFit: 'cover' }} />
-                      ) : (
-                        <video src={item.asset.publicUrl} muted preload="metadata" />
-                      )}
-                      <span>{item.kind === 'image' ? (locale === 'ru' ? 'Фото' : 'Photo') : (locale === 'ru' ? 'Видео' : 'Video')}</span>
+                      <MediaPreview
+                        publicUrl={item.asset.publicUrl}
+                        storageKey={item.asset.storageKey}
+                        kind={item.kind}
+                        alt={item.title || item.caption || item.asset.originalFilename}
+                        sizes="(max-width: 768px) 100vw, 320px"
+                        controls={false}
+                      />
+                      <span>{formatMediaDisplayNumber(item, locale)}</span>
                     </div>
                     <div className="home-media-body">
                       <strong>{item.event?.title ?? (locale === 'ru' ? 'Событие' : 'Event')}</strong>

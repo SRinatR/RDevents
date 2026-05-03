@@ -12641,6 +12641,23 @@ body {
   gap: 14px;
 }
 
+.event-mediabank-preview-panel {
+  overflow: hidden;
+}
+
+.event-mediabank-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.event-mediabank-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
 .event-photobank-card {
   overflow: hidden;
   border: 1px solid var(--color-border-soft);
@@ -13134,6 +13151,96 @@ body {
   font-weight: 800;
 }
 
+.route-media-bank-page,
+.route-site-media-page {
+  background: var(--color-bg);
+}
+
+.media-page-hero {
+  position: relative;
+  min-height: clamp(360px, 46vh, 540px);
+  overflow: hidden;
+  display: grid;
+  align-items: end;
+  color: #fff;
+}
+
+.media-page-hero .cover-fallback {
+  position: absolute;
+  inset: 0;
+  border-radius: 0;
+}
+
+.media-page-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgb(15 23 42 / 0.25), rgb(15 23 42 / 0.82));
+}
+
+.media-page-hero-inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 12px;
+  padding-top: 120px;
+  padding-bottom: clamp(34px, 7vw, 70px);
+}
+
+.media-page-hero-inner h1 {
+  max-width: 920px;
+  margin: 0;
+  font-size: clamp(2.1rem, 5vw, 4.4rem);
+  letter-spacing: 0;
+}
+
+.media-page-hero-inner p {
+  max-width: 820px;
+  margin: 0;
+  color: rgb(255 255 255 / 0.86);
+  font-size: 1.02rem;
+}
+
+.media-page-counters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.media-page-counters span {
+  border: 1px solid rgb(255 255 255 / 0.26);
+  border-radius: 999px;
+  padding: 7px 11px;
+  background: rgb(255 255 255 / 0.12);
+  color: #fff;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.media-site-hero {
+  padding-top: clamp(90px, 14vw, 150px);
+  padding-bottom: 24px;
+}
+
+.media-page-shell {
+  display: grid;
+  gap: 18px;
+}
+
+.media-page-controls {
+  display: grid;
+  gap: 10px;
+}
+
+.media-page-controls .signal-field {
+  min-width: min(360px, 100%);
+}
+
+.media-page-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+}
+
 .admin-media-page {
   display: grid;
   gap: 18px;
@@ -13141,9 +13248,37 @@ body {
 
 .admin-media-upload-panel,
 .admin-media-settings-panel,
-.admin-media-board-panel {
+.admin-media-board-panel,
+.admin-media-visibility-panel {
   display: grid;
   gap: 16px;
+}
+
+.admin-media-visibility-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.admin-media-visibility-grid div {
+  display: grid;
+  gap: 4px;
+  min-height: 74px;
+  align-content: center;
+  padding: 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-bg-subtle);
+}
+
+.admin-media-visibility-grid small {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.admin-media-visibility-grid strong {
+  overflow-wrap: anywhere;
 }
 
 .admin-media-upload-form {
