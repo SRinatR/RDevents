@@ -53,6 +53,7 @@ type ImportItemReport = {
   title?: string | null;
   caption?: string | null;
   credit?: string | null;
+  metadataJson?: Record<string, unknown> | null;
 };
 
 export class EventMediaImportError extends Error {
@@ -331,6 +332,63 @@ function humanSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
 }
 
+function metadataJsonForImport(report: ImportItemReport, options: ImportOptions, extra: Record<string, unknown>) {
+  return JSON.stringify({
+    import: {
+      archivePath: report.archivePath,
+      originalFilename: report.originalFilename,
+      capturedAtSource: report.capturedAtSource,
+      groupKey: report.groupKey,
+      groupTitle: report.groupTitle,
+      timezone: options.timezone,
+      dateMode: options.dateMode,
+      groupMode: options.groupMode,
+      captionTemplate: options.captionTemplate,
+      ...extra,
+    },
+  });
+}
+
+async function persistEventMediaMetadata(mediaId: string, report: ImportItemReport, options: ImportOptions) {
+  try {
+    await prisma.$executeRaw`
+      UPDATE "event_media"
+      SET
+        "capturedAt" = ${report.capturedAt ? new Date(report.capturedAt) : null},
+        "capturedAtSource" = ${report.capturedAtSource ?? null},
+        "capturedTimezone" = ${options.timezone ?? null},
+        "groupKey" = ${report.groupKey ?? null},
+        "groupTitle" = ${report.groupTitle ?? null},
+        "downloadEnabled" = true,
+        "metadataJson" = ${metadataJsonForImport(report, options, { persistedAt: new Date().toISOString() })}::jsonb
+      WHERE "id" = ${mediaId}
+    `;
+  } catch {
+    // Metadata persistence is additive. Keep imports working even if migrations
+    // have not been applied yet in a local/dev environment.
+  }
+}
+
+async function persistImportItemMetadata(importItemId: string, report: ImportItemReport) {
+  try {
+    await prisma.$executeRaw`
+      UPDATE "event_media_import_items"
+      SET
+        "capturedAt" = ${report.capturedAt ? new Date(report.capturedAt) : null},
+        "capturedAtSource" = ${report.capturedAtSource ?? null},
+        "groupKey" = ${report.groupKey ?? null},
+        "groupTitle" = ${report.groupTitle ?? null},
+        "title" = ${report.title ?? null},
+        "caption" = ${report.caption ?? null},
+        "credit" = ${report.credit ?? null}
+      WHERE "id" = ${importItemId}
+    `;
+  } catch {
+    // See persistEventMediaMetadata: import item metadata is best-effort until
+    // every environment has run the migration.
+  }
+}
+
 export async function startEventMediaImport(eventId: string, actor: User, file: Express.Multer.File | undefined, body: Record<string, unknown> = {}) {
   assertZipArchive(file);
   const archive = file!;
@@ -446,7 +504,7 @@ export async function buildEventMediaImportCsv(eventId: string, jobId: string) {
 }
 
 async function createImportItem(jobId: string, eventId: string, report: ImportItemReport) {
-  return prisma.eventMediaImportItem.create({
+  const created = await prisma.eventMediaImportItem.create({
     data: {
       jobId,
       eventId,
@@ -461,6 +519,8 @@ async function createImportItem(jobId: string, eventId: string, report: ImportIt
       reasonMessage: report.reasonMessage ?? null,
     },
   });
+  await persistImportItemMetadata(created.id, report);
+  return created;
 }
 
 async function processEventMediaImportJob(jobId: string, actor: User) {
@@ -639,7 +699,9 @@ async function processEventMediaImportJob(jobId: string, actor: User) {
         credit: options.defaultCredit,
         status: 'IMPORTED',
       };
+      item.metadataJson = JSON.parse(metadataJsonForImport(item, options, { mimeType, sizeBytes: buffer.length, checksumSha256 }));
       report.push(item);
+      await persistEventMediaMetadata(media.id, item, options);
       await createImportItem(job.id, job.eventId, item);
     } catch (err: any) {
       const item = {
