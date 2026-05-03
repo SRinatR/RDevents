@@ -12945,7 +12945,8 @@ body {
 
 .media-cabinet-page,
 .media-upload-panel,
-.media-submissions-panel {
+.media-submissions-panel,
+.media-caption-suggest-panel {
   display: grid;
   gap: 18px;
 }
@@ -12996,6 +12997,25 @@ body {
 .media-submission-list {
   display: grid;
   gap: 12px;
+}
+
+.media-caption-target-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.media-caption-target {
+  border: 2px solid transparent;
+  border-radius: 10px;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.media-caption-target.is-selected {
+  border-color: var(--color-accent);
 }
 
 .media-submission-card {
