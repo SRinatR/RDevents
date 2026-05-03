@@ -52,6 +52,18 @@ export type EventMediaHistoryItem = {
   } | null;
 };
 
+export type EventMediaSummary = {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+  deleted: number;
+  participant: number;
+  admin: number;
+  images: number;
+  videos: number;
+};
+
 export type EventMediaSettings = {
   enabled: boolean;
   participantUploadEnabled: boolean;
@@ -448,6 +460,9 @@ export const eventMediaApi = {
 
   adminList: (eventId: string, params: AdminMediaParams = {}) =>
     request<{ media: EventMediaItem[]; meta: { total: number; page: number; limit: number; pages: number } }>(`/api/admin/events/${eventId}/media${toQuery(params)}`, { auth: true }),
+
+  summary: (eventId: string) =>
+    request<{ summary: EventMediaSummary }>(`/api/admin/events/${eventId}/media/summary`, { auth: true }),
 
   adminUpload: (eventId: string, file: File, body?: MediaInput) => {
     const formData = new FormData();

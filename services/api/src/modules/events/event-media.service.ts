@@ -77,6 +77,11 @@ function normalizeAllowedTypes(value: unknown): MediaKind[] {
   return normalized.length ? [...new Set(normalized)] : [...DEFAULT_EVENT_MEDIA_SETTINGS.allowedTypes];
 }
 
+function normalizeAllowedTypesStrict(value: unknown): MediaKind[] {
+  const values = Array.isArray(value) ? value : typeof value === 'string' ? value.split(',') : [];
+  return [...new Set(values.map(normalizeMediaKind).filter(Boolean) as MediaKind[])];
+}
+
 function clampMaxFileSize(value: unknown) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return EVENT_MEDIA_DEFAULT_MAX_FILE_SIZE_MB;
@@ -250,7 +255,11 @@ export async function updateEventMediaSettings(eventId: string, input: Record<st
     if (input[key] !== undefined) data[key] = Boolean(input[key]);
   }
   if (input['maxFileSizeMb'] !== undefined) data['maxFileSizeMb'] = clampMaxFileSize(input['maxFileSizeMb']);
-  if (input['allowedTypes'] !== undefined) data['allowedTypes'] = normalizeAllowedTypes(input['allowedTypes']);
+  if (input['allowedTypes'] !== undefined) {
+    const allowedTypes = normalizeAllowedTypesStrict(input['allowedTypes']);
+    if (allowedTypes.length === 0) throw new Error('EVENT_MEDIA_ALLOWED_TYPES_REQUIRED');
+    data['allowedTypes'] = allowedTypes;
+  }
 
   const settings = await prisma.eventMediaSettings.upsert({
     where: { eventId },
@@ -272,7 +281,6 @@ export async function listApprovedEventMedia(
 
   const type = normalizeTypeFilter(params.type);
   const limit = Math.min(100, Math.max(1, Number(params.limit ?? 60) || 60));
-  const cursor = typeof params.cursor === 'string' && params.cursor ? params.cursor : undefined;
 
   const rows = await prisma.eventMedia.findMany({
     where: {
@@ -285,12 +293,11 @@ export async function listApprovedEventMedia(
       },
     },
     include: EVENT_MEDIA_INCLUDE,
-    orderBy: [{ approvedAt: 'desc' }, { createdAt: 'desc' }],
+    orderBy: [{ approvedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
     take: limit + 1,
-    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
   });
 
-  const nextCursor = rows.length > limit ? rows[limit - 1]?.id ?? null : null;
+  const nextCursor = null;
   const media = rows.slice(0, limit).map((item) => serializeEventMedia(item, { publicView: true, settings }));
   return { media, meta: { nextCursor, settings } };
 }
@@ -386,6 +393,23 @@ export async function listEventMediaForModeration(
   };
 }
 
+
+export async function getEventMediaSummary(eventId: string) {
+  const [total, pending, approved, rejected, deleted, participant, admin, images, videos] = await Promise.all([
+    prisma.eventMedia.count({ where: { eventId } }),
+    prisma.eventMedia.count({ where: { eventId, status: 'PENDING', deletedAt: null } }),
+    prisma.eventMedia.count({ where: { eventId, status: 'APPROVED', deletedAt: null } }),
+    prisma.eventMedia.count({ where: { eventId, status: 'REJECTED', deletedAt: null } }),
+    prisma.eventMedia.count({ where: { eventId, status: 'DELETED' } }),
+    prisma.eventMedia.count({ where: { eventId, source: 'PARTICIPANT' } }),
+    prisma.eventMedia.count({ where: { eventId, source: 'ADMIN' } }),
+    prisma.eventMedia.count({ where: { eventId, asset: { mimeType: { startsWith: 'image/' } } } }),
+    prisma.eventMedia.count({ where: { eventId, asset: { mimeType: { startsWith: 'video/' } } } }),
+  ]);
+
+  return { total, pending, approved, rejected, deleted, participant, admin, images, videos };
+}
+
 export async function uploadEventMedia(
   eventId: string,
   actor: User,
@@ -413,6 +437,9 @@ export async function uploadEventMedia(
     create: { eventId },
     update: {},
   });
+  if (!isAdminUpload && !settings.enabled) {
+    throw new Error('EVENT_MEDIA_BANK_DISABLED');
+  }
   if (!isAdminUpload && !settings.participantUploadEnabled) {
     throw new Error('EVENT_MEDIA_UPLOAD_DISABLED');
   }

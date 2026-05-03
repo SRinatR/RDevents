@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
-import { adminApi, eventMediaApi, type EventMediaItem, type EventMediaSettings, type MediaInput } from '@/lib/api';
+import { adminApi, eventMediaApi, type EventMediaItem, type EventMediaSettings, type EventMediaSummary, type MediaInput } from '@/lib/api';
 import { EmptyState, FieldInput, FieldTextarea, LoadingLines, Notice, Panel, SectionHeader, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
 import { EventNotFound, EventWorkspaceHeader, formatAdminDateTime, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
 import { getFriendlyApiErrorMessage } from '@/lib/api-errors';
@@ -82,6 +82,7 @@ export default function AdminEventMediaPage() {
   const [settings, setSettings] = useState<EventMediaSettings>(DEFAULT_SETTINGS);
   const [settingsDraft, setSettingsDraft] = useState<EventMediaSettings>(DEFAULT_SETTINGS);
   const [status, setStatus] = useState<MediaStatusFilter>('PENDING');
+  const [summary, setSummary] = useState<EventMediaSummary>({ total: 0, pending: 0, approved: 0, rejected: 0, deleted: 0, participant: 0, admin: 0, images: 0, videos: 0 });
   const [type, setType] = useState<MediaTypeFilter>('all');
   const [search, setSearch] = useState('');
   const [pageLoading, setPageLoading] = useState(true);
@@ -120,6 +121,16 @@ export default function AdminEventMediaPage() {
     }
   }, [eventId, locale]);
 
+  const loadSummary = useCallback(async () => {
+    if (!eventId) return;
+    try {
+      const result = await eventMediaApi.summary(eventId);
+      setSummary(result.summary);
+    } catch (err) {
+      console.warn('Failed to load media summary', err);
+    }
+  }, [eventId]);
+
   const loadMedia = useCallback(async () => {
     if (!eventId) return;
     setMediaLoading(true);
@@ -141,14 +152,8 @@ export default function AdminEventMediaPage() {
   }, [user, isAdmin, loadEvent]);
 
   useEffect(() => {
-    if (user && isAdmin) void loadMedia();
-  }, [user, isAdmin, loadMedia]);
-
-  const stats = useMemo(() => ({
-    pending: media.filter((item) => item.status === 'PENDING').length,
-    approved: media.filter((item) => item.status === 'APPROVED').length,
-    rejected: media.filter((item) => item.status === 'REJECTED').length,
-  }), [media]);
+    if (user && isAdmin) { void loadMedia(); void loadSummary(); }
+  }, [user, isAdmin, loadMedia, loadSummary]);
 
   function patchDraft(mediaId: string, key: keyof MediaInput, value: string) {
     setDrafts((current) => ({
@@ -165,6 +170,10 @@ export default function AdminEventMediaPage() {
     const next = checked
       ? ([...new Set([...settingsDraft.allowedTypes, kind])] as Array<'image' | 'video'>)
       : settingsDraft.allowedTypes.filter((item): item is 'image' | 'video' => item !== kind);
+    if (!checked && settingsDraft.allowedTypes.length <= 1) {
+      setNotice(isRu ? 'Нужно оставить хотя бы один тип медиа: фото или видео.' : 'At least one media type must stay enabled: photos or videos.');
+      return;
+    }
     patchSettings('allowedTypes', next);
   }
 
@@ -184,7 +193,7 @@ export default function AdminEventMediaPage() {
       setUploadDraft(emptyDraft());
       e.currentTarget.reset();
       setNotice(isRu ? 'Медиа от организатора опубликовано.' : 'Organizer media was published.');
-      await loadMedia();
+      await Promise.all([loadMedia(), loadSummary()]);
     } catch (err: any) {
       setError(getFriendlyApiErrorMessage(err, locale));
     } finally {
@@ -212,7 +221,7 @@ export default function AdminEventMediaPage() {
       setNotice(nextStatus
         ? (isRu ? `Статус обновлён: ${statusLabel(nextStatus, locale)}.` : `Status updated: ${statusLabel(nextStatus, locale)}.`)
         : (isRu ? 'Подписи сохранены.' : 'Captions saved.'));
-      await loadMedia();
+      await Promise.all([loadMedia(), loadSummary()]);
     } catch (err: any) {
       setError(getFriendlyApiErrorMessage(err, locale));
     } finally {
@@ -228,7 +237,7 @@ export default function AdminEventMediaPage() {
     try {
       await eventMediaApi.adminDelete(eventId, item.id);
       setNotice(isRu ? 'Медиа скрыто из фотобанка.' : 'Media was hidden from the bank.');
-      await loadMedia();
+      await Promise.all([loadMedia(), loadSummary()]);
     } catch (err: any) {
       setError(getFriendlyApiErrorMessage(err, locale));
     } finally {
@@ -273,9 +282,9 @@ export default function AdminEventMediaPage() {
       ) : event ? (
         <>
           <div className="workspace-status-strip workspace-status-strip-v2">
-            <div className="workspace-status-card"><small>{isRu ? 'На модерации' : 'Pending'}</small><strong>{stats.pending}</strong></div>
-            <div className="workspace-status-card"><small>{isRu ? 'Опубликовано' : 'Approved'}</small><strong>{stats.approved}</strong></div>
-            <div className="workspace-status-card"><small>{isRu ? 'Отклонено' : 'Rejected'}</small><strong>{stats.rejected}</strong></div>
+            <div className="workspace-status-card"><small>{isRu ? 'На модерации' : 'Pending'}</small><strong>{summary.pending}</strong></div>
+            <div className="workspace-status-card"><small>{isRu ? 'Опубликовано' : 'Approved'}</small><strong>{summary.approved}</strong></div>
+            <div className="workspace-status-card"><small>{isRu ? 'Отклонено' : 'Rejected'}</small><strong>{summary.rejected}</strong></div>
             <div className="workspace-status-card"><small>{isRu ? 'Фотобанк' : 'Media bank'}</small><strong>{settings.enabled ? (isRu ? 'Включён' : 'Enabled') : (isRu ? 'Выключен' : 'Disabled')}</strong></div>
           </div>
 
