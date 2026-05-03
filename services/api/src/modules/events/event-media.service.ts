@@ -311,12 +311,74 @@ export async function updateEventMediaSettings(eventId: string, input: Record<st
   return serializeSettings(settings);
 }
 
+function serializePublicEvent(event: any) {
+  return {
+    id: event.id,
+    slug: event.slug,
+    title: event.title,
+    startsAt: event.startsAt,
+    endsAt: event.endsAt,
+    location: event.location,
+    coverImageUrl: event.coverImageUrl,
+  };
+}
+
+function normalizePublicMediaSort(value: unknown) {
+  const sort = String(value ?? 'newest').toLowerCase();
+  if (sort === 'oldest') return [{ approvedAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }] as const;
+  if (sort === 'number') return [{ displayNumber: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }] as const;
+  return [{ approvedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }] as const;
+}
+
+function buildPublicMediaWhere(input: { eventId?: string | null; slug?: string | null; type?: unknown; search?: unknown }) {
+  const type = normalizeTypeFilter(input.type);
+  const search = cleanText(input.search, 120);
+  const where: any = {
+    ...(input.eventId ? { eventId: input.eventId } : {}),
+    status: 'APPROVED',
+    deletedAt: null,
+    asset: {
+      status: 'ACTIVE',
+      ...assetKindWhere(type),
+    },
+    event: {
+      status: 'PUBLISHED',
+      deletedAt: null,
+      mediaSettings: { is: { enabled: true } },
+      ...(input.slug ? { slug: input.slug } : {}),
+    },
+  };
+
+  if (search) {
+    const numericSearch = Number(search.replace(/^#/, ''));
+    where.OR = [
+      { title: { contains: search, mode: 'insensitive' } },
+      { caption: { contains: search, mode: 'insensitive' } },
+      { credit: { contains: search, mode: 'insensitive' } },
+      { asset: { originalFilename: { contains: search, mode: 'insensitive' } } },
+      { event: { title: { contains: search, mode: 'insensitive' } } },
+    ];
+
+    if (Number.isInteger(numericSearch) && numericSearch > 0) {
+      where.OR.push({ displayNumber: numericSearch });
+    }
+  }
+
+  return where;
+}
+
 export async function listApprovedEventMedia(
   eventId: string,
   params: { type?: unknown; limit?: unknown; cursor?: unknown } = {},
 ) {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, status: true, deletedAt: true },
+  });
+  if (!event) throw new Error('EVENT_NOT_FOUND');
+
   const settings = await getEventMediaSettings(eventId);
-  if (!settings.enabled) {
+  if (event.status !== 'PUBLISHED' || event.deletedAt || !settings.enabled) {
     return { media: [], meta: { nextCursor: null, settings } };
   }
 
@@ -340,6 +402,123 @@ export async function listApprovedEventMedia(
   const nextCursor = null;
   const media = rows.map((item) => serializeEventMedia(item, { publicView: true, settings }));
   return { media, meta: { nextCursor, settings } };
+}
+
+export async function getEventMediaBankBySlug(
+  slug: string,
+  params: { type?: unknown; search?: unknown; sort?: unknown; page?: unknown; limit?: unknown } = {},
+) {
+  const event = await prisma.event.findFirst({
+    where: { slug, status: 'PUBLISHED', deletedAt: null },
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      startsAt: true,
+      endsAt: true,
+      location: true,
+      coverImageUrl: true,
+      mediaSettings: true,
+    },
+  });
+  if (!event) throw new Error('EVENT_NOT_FOUND');
+
+  const settings = serializeSettings(event.mediaSettings);
+  if (!settings.enabled) {
+    return {
+      event: serializePublicEvent(event),
+      media: [],
+      meta: { total: 0, images: 0, videos: 0, page: 1, limit: 40, pages: 0, settings },
+    };
+  }
+
+  const page = Math.max(1, Number(params.page ?? 1) || 1);
+  const limit = Math.min(80, Math.max(1, Number(params.limit ?? 40) || 40));
+  const where = buildPublicMediaWhere({
+    eventId: event.id,
+    type: params.type,
+    search: params.search,
+  });
+
+  const orderBy = normalizePublicMediaSort(params.sort);
+  const [total, images, videos, rows] = await Promise.all([
+    prisma.eventMedia.count({ where }),
+    prisma.eventMedia.count({ where: { ...where, asset: { status: 'ACTIVE', mimeType: { startsWith: 'image/' } } } }),
+    prisma.eventMedia.count({ where: { ...where, asset: { status: 'ACTIVE', mimeType: { startsWith: 'video/' } } } }),
+    prisma.eventMedia.findMany({
+      where,
+      include: EVENT_MEDIA_INCLUDE,
+      orderBy,
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+  ]);
+
+  return {
+    event: serializePublicEvent(event),
+    media: rows.map((item) => serializeEventMedia(item, { publicView: true, settings })),
+    meta: { total, images, videos, page, limit, pages: Math.ceil(total / limit), settings },
+  };
+}
+
+export async function listSiteEventMedia(
+  params: {
+    type?: unknown;
+    eventId?: unknown;
+    slug?: unknown;
+    search?: unknown;
+    page?: unknown;
+    limit?: unknown;
+    sort?: unknown;
+  } = {},
+) {
+  const page = Math.max(1, Number(params.page ?? 1) || 1);
+  const limit = Math.min(80, Math.max(1, Number(params.limit ?? 40) || 40));
+  const where = buildPublicMediaWhere({
+    eventId: cleanText(params.eventId, 120),
+    slug: cleanText(params.slug, 160),
+    type: params.type,
+    search: params.search,
+  });
+
+  const [total, rows, events] = await Promise.all([
+    prisma.eventMedia.count({ where }),
+    prisma.eventMedia.findMany({
+      where,
+      include: EVENT_MEDIA_HIGHLIGHT_INCLUDE,
+      orderBy: normalizePublicMediaSort(params.sort),
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.event.findMany({
+      where: {
+        status: 'PUBLISHED',
+        deletedAt: null,
+        mediaSettings: { is: { enabled: true } },
+        mediaItems: {
+          some: {
+            status: 'APPROVED',
+            deletedAt: null,
+            asset: { status: 'ACTIVE', ...assetKindWhere('all') },
+          },
+        },
+      },
+      select: { id: true, slug: true, title: true, startsAt: true },
+      orderBy: { startsAt: 'desc' },
+      take: 100,
+    }),
+  ]);
+
+  return {
+    media: rows.map((item) =>
+      serializeEventMedia(item, {
+        publicView: true,
+        settings: serializeSettings(item.event?.mediaSettings),
+      }),
+    ),
+    events,
+    meta: { total, page, limit, pages: Math.ceil(total / limit) },
+  };
 }
 
 export async function listEventMediaHighlights(limitInput: unknown = 8) {
@@ -455,6 +634,62 @@ export async function getEventMediaSummary(eventId: string) {
   return { total, pending, approved, rejected, deleted, participant, admin, images, videos };
 }
 
+export async function getEventMediaPublicVisibility(eventId: string) {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, status: true, deletedAt: true },
+  });
+  if (!event) throw new Error('EVENT_NOT_FOUND');
+
+  const settings = await getEventMediaSettings(eventId);
+  const [approvedMedia, activeAssets] = await Promise.all([
+    prisma.eventMedia.count({
+      where: {
+        eventId,
+        status: 'APPROVED',
+        deletedAt: null,
+      },
+    }),
+    prisma.eventMedia.count({
+      where: {
+        eventId,
+        status: 'APPROVED',
+        deletedAt: null,
+        asset: { status: 'ACTIVE', ...assetKindWhere('all') },
+      },
+    }),
+  ]);
+
+  const eventPublished = event.status === 'PUBLISHED' && !event.deletedAt;
+  const visibleOnPublicPages = eventPublished && settings.enabled && approvedMedia > 0 && activeAssets > 0;
+  let reasonCode: PublicMediaReasonCode = 'OK';
+  let reason = 'Media is visible on public pages.';
+
+  if (!eventPublished) {
+    reasonCode = 'EVENT_NOT_PUBLISHED';
+    reason = 'Media will appear publicly after the event is published.';
+  } else if (!settings.enabled) {
+    reasonCode = 'MEDIA_BANK_DISABLED';
+    reason = 'Media bank is disabled in event settings.';
+  } else if (approvedMedia === 0) {
+    reasonCode = 'NO_APPROVED_MEDIA';
+    reason = 'Approve at least one media item to show it publicly.';
+  } else if (activeAssets === 0) {
+    reasonCode = 'NO_ACTIVE_ASSETS';
+    reason = 'Approved media exists, but no active media files are available.';
+  }
+
+  return {
+    eventPublished,
+    mediaBankEnabled: settings.enabled,
+    approvedMedia,
+    activeAssets,
+    visibleOnPublicPages,
+    reasonCode,
+    reason,
+  };
+}
+
 export async function uploadEventMedia(
   eventId: string,
   actor: User,
@@ -501,6 +736,7 @@ export async function uploadEventMedia(
   }
 
   validateEventMediaFile(file, settings);
+  const checksumSha256 = createHash('sha256').update(file.buffer).digest('hex');
 
   const saved = await saveUploadedFile({
     buffer: file.buffer,
@@ -516,6 +752,14 @@ export async function uploadEventMedia(
   const caption = isAdminUpload || settings.allowParticipantCaption ? cleanText(input.caption, 1000) : null;
 
   const item = await prisma.$transaction(async (tx: any) => {
+    const counter = await tx.eventMediaSettings.upsert({
+      where: { eventId },
+      create: { eventId, nextMediaDisplayNumber: 2 },
+      update: { nextMediaDisplayNumber: { increment: 1 } },
+      select: { nextMediaDisplayNumber: true },
+    });
+    const displayNumber = Math.max(1, Number(counter.nextMediaDisplayNumber) - 1);
+
     const asset = await tx.mediaAsset.create({
       data: {
         ownerUserId: actor.id,
@@ -526,6 +770,7 @@ export async function uploadEventMedia(
         storageDriver: saved.storageDriver,
         storageKey: saved.storageKey,
         publicUrl: saved.publicUrl,
+        checksumSha256,
       },
     });
 
@@ -536,6 +781,7 @@ export async function uploadEventMedia(
         uploaderUserId: actor.id,
         source,
         status,
+        displayNumber,
         title,
         caption,
         altText: cleanText(input.altText, 180),

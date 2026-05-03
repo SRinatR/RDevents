@@ -41,6 +41,7 @@ import {
   EVENT_MEDIA_HARD_MAX_FILE_SIZE_MB,
   EventMediaUploadError,
   getEventMediaSettings,
+  getEventMediaPublicVisibility,
   getEventMediaSummary,
   handleEventMediaMulterUpload,
   listEventMediaForModeration,
@@ -392,6 +393,27 @@ adminEventsRouter.get('/:id/media/summary', async (req, res) => {
 
   const summary = await getEventMediaSummary(eventId);
   res.json({ summary });
+});
+
+// GET /admin/events/:id/media/public-visibility — explain public media visibility
+adminEventsRouter.get('/:id/media/public-visibility', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  try {
+    const visibility = await getEventMediaPublicVisibility(eventId);
+    res.json({ visibility });
+  } catch (err: any) {
+    if (err.message === 'EVENT_NOT_FOUND') {
+      res.status(404).json({ error: 'Event not found', code: err.message });
+      return;
+    }
+    throw err;
+  }
 });
 
 // GET /admin/events/:id/media — moderation queue and approved media bank
