@@ -269,6 +269,9 @@ export async function getMyEvents(userId: string) {
       userId,
       role: 'PARTICIPANT',
       status: { in: [...ACTIVE_MEMBER_STATUSES] },
+      event: {
+        deletedAt: null,
+      },
     },
     include: {
       event: {
@@ -312,6 +315,9 @@ export async function getMyParticipantApplications(userId: string) {
       userId,
       role: 'PARTICIPANT',
       status: { not: 'REMOVED' },
+      event: {
+        deletedAt: null,
+      },
     },
     include: {
       event: {
@@ -365,8 +371,8 @@ export async function getMyParticipantApplications(userId: string) {
 }
 
 export async function getMyEventWorkspace(userId: string, slug: string) {
-  const event = await prisma.event.findUnique({
-    where: { slug },
+  const event = await prisma.event.findFirst({
+    where: { slug, deletedAt: null },
     include: {
       createdBy: { select: { id: true, name: true, avatarUrl: true } },
     },
@@ -444,7 +450,16 @@ export async function getMyEventWorkspace(userId: string, slug: string) {
 
 export async function getMyTeams(userId: string) {
   return prisma.eventTeamMember.findMany({
-    where: { userId, status: { notIn: ['REMOVED', 'LEFT'] } },
+    where: {
+      userId,
+      status: { notIn: ['REMOVED', 'LEFT'] },
+      team: {
+        deletedAt: null,
+        event: {
+          deletedAt: null,
+        },
+      },
+    },
     include: {
       team: {
         include: {
@@ -471,7 +486,14 @@ export async function getMyTeams(userId: string) {
 
 export async function getMyVolunteerApplications(userId: string) {
   return prisma.eventMember.findMany({
-    where: { userId, role: 'VOLUNTEER', status: { not: 'REMOVED' } },
+    where: {
+      userId,
+      role: 'VOLUNTEER',
+      status: { not: 'REMOVED' },
+      event: {
+        deletedAt: null,
+      },
+    },
     include: {
       event: {
         select: {

@@ -565,7 +565,7 @@ adminEventsRouter.get('/:id/teams', async (req, res) => {
   }
 
   const teams = await prisma.eventTeam.findMany({
-    where: { eventId },
+    where: { eventId, deletedAt: null },
     include: {
       captainUser: { select: { id: true, name: true, email: true, avatarUrl: true } },
       members: {

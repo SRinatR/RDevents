@@ -484,15 +484,23 @@ authRouter.post('/google', async (req, res) => {
     return;
   }
 
-  const { providerAccountId, providerEmail, providerUsername, providerAvatarUrl } = parsed.data;
-  const result = await loginWithProvider('GOOGLE', providerAccountId, {
-    email: providerEmail,
-    username: providerUsername,
-    avatarUrl: providerAvatarUrl,
-  });
+  try {
+    const { providerAccountId, providerEmail, providerUsername, providerAvatarUrl } = parsed.data;
+    const result = await loginWithProvider('GOOGLE', providerAccountId, {
+      email: providerEmail,
+      username: providerUsername,
+      avatarUrl: providerAvatarUrl,
+    });
 
-  setRefreshCookie(res, result.refreshToken);
-  res.json({ user: result.user, accessToken: result.accessToken });
+    setRefreshCookie(res, result.refreshToken);
+    res.json({ user: result.user, accessToken: result.accessToken });
+  } catch (err: any) {
+    if (err.message === 'ACCOUNT_INACTIVE') {
+      res.status(403).json({ error: 'Account is disabled', code: 'ACCOUNT_DISABLED' });
+      return;
+    }
+    throw err;
+  }
 });
 
 // POST /api/auth/yandex
@@ -508,15 +516,23 @@ authRouter.post('/yandex', async (req, res) => {
     return;
   }
 
-  const { providerAccountId, providerEmail, providerUsername, providerAvatarUrl } = parsed.data;
-  const result = await loginWithProvider('YANDEX', providerAccountId, {
-    email: providerEmail,
-    username: providerUsername,
-    avatarUrl: providerAvatarUrl,
-  });
+  try {
+    const { providerAccountId, providerEmail, providerUsername, providerAvatarUrl } = parsed.data;
+    const result = await loginWithProvider('YANDEX', providerAccountId, {
+      email: providerEmail,
+      username: providerUsername,
+      avatarUrl: providerAvatarUrl,
+    });
 
-  setRefreshCookie(res, result.refreshToken);
-  res.json({ user: result.user, accessToken: result.accessToken });
+    setRefreshCookie(res, result.refreshToken);
+    res.json({ user: result.user, accessToken: result.accessToken });
+  } catch (err: any) {
+    if (err.message === 'ACCOUNT_INACTIVE') {
+      res.status(403).json({ error: 'Account is disabled', code: 'ACCOUNT_DISABLED' });
+      return;
+    }
+    throw err;
+  }
 });
 
 // POST /api/auth/telegram
@@ -532,13 +548,21 @@ authRouter.post('/telegram', async (req, res) => {
     return;
   }
 
-  const { providerAccountId, providerEmail, providerUsername, providerAvatarUrl } = parsed.data;
-  const result = await loginWithProvider('TELEGRAM', providerAccountId, {
-    email: providerEmail,
-    username: providerUsername,
-    avatarUrl: providerAvatarUrl,
-  });
+  try {
+    const { providerAccountId, providerEmail, providerUsername, providerAvatarUrl } = parsed.data;
+    const result = await loginWithProvider('TELEGRAM', providerAccountId, {
+      email: providerEmail,
+      username: providerUsername,
+      avatarUrl: providerAvatarUrl,
+    });
 
-  setRefreshCookie(res, result.refreshToken);
-  res.json({ user: result.user, accessToken: result.accessToken });
+    setRefreshCookie(res, result.refreshToken);
+    res.json({ user: result.user, accessToken: result.accessToken });
+  } catch (err: any) {
+    if (err.message === 'ACCOUNT_INACTIVE') {
+      res.status(403).json({ error: 'Account is disabled', code: 'ACCOUNT_DISABLED' });
+      return;
+    }
+    throw err;
+  }
 });

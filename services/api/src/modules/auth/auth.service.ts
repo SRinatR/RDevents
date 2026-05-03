@@ -291,6 +291,10 @@ export async function loginWithProvider(
   });
 
   if (account) {
+    if (!account.user.isActive || account.user.deletedAt) {
+      throw new Error('ACCOUNT_INACTIVE');
+    }
+
     // Update last used and return existing user
     await prisma.userAccount.update({
       where: { id: account.id },
@@ -323,6 +327,10 @@ export async function loginWithProvider(
     : null;
 
   const isNewUser = !user;
+  if (user && (!user.isActive || user.deletedAt)) {
+    throw new Error('ACCOUNT_INACTIVE');
+  }
+
   if (!user) {
     // Create new user
     user = await prisma.user.create({
