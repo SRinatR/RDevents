@@ -1,0 +1,28 @@
+.previewLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 1fr);
+  gap: 20px;
+  margin-top: 28px;
+}
+
+.previewSideGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.previewTile {
+  position: relative;
+}
+
+@media (max-width: 980px) {
+  .previewLayout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .previewSideGrid {
+    grid-template-columns: 1fr;
+  }
+}
