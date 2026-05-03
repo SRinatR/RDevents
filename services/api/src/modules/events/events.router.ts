@@ -148,7 +148,7 @@ eventsRouter.get('/:id/media', optionalAuth, async (req, res) => {
   }
 });
 
-// POST /api/events/:id/media — participant/admin media submission
+// POST /api/events/:id/media — @deprecated backward-compatible media submission endpoint
 eventsRouter.post('/:id/media', authenticate, handleEventMediaMulterUpload(eventMediaUpload.single('file')), async (req, res) => {
   const user = (req as any).user;
   const file = (req as any).file as Express.Multer.File | undefined;

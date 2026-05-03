@@ -295,6 +295,8 @@ adminEventsRouter.post('/', async (req, res) => {
         },
       });
 
+      await tx.eventMediaSettings.create({ data: { eventId: createdEvent.id } });
+
       const ownerGrant = await tx.eventStaffGrant.create({
         data: {
           eventId: createdEvent.id,
@@ -379,6 +381,19 @@ adminEventsRouter.delete('/:id', requirePlatformAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// GET /admin/events/:id/media/summary — independent counters for moderation dashboard
+adminEventsRouter.get('/:id/media/summary', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  const summary = await getEventMediaSummary(eventId);
+  res.json({ summary });
+});
+
 // GET /admin/events/:id/media — moderation queue and approved media bank
 adminEventsRouter.get('/:id/media', async (req, res) => {
   const user = (req as any).user as User;
@@ -402,19 +417,6 @@ adminEventsRouter.get('/:id/media', async (req, res) => {
     limit: req.query['limit'],
   });
   res.json(result);
-});
-
-// GET /admin/events/:id/media/summary — event-scoped media bank counters
-adminEventsRouter.get('/:id/media/summary', async (req, res) => {
-  const user = (req as any).user as User;
-  const eventId = req.params['id']!;
-  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
-    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
-    return;
-  }
-
-  const summary = await getEventMediaSummary(eventId);
-  res.json({ summary });
 });
 
 // POST /admin/events/:id/media — organizer upload, published immediately
