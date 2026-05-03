@@ -637,7 +637,15 @@ set_stage "$CURRENT_STAGE"
 compose up -d postgres
 wait_for_postgres_healthy
 
-run_backup
+CURRENT_STAGE="create-predeploy-backup-package"
+set_stage "$CURRENT_STAGE"
+BACKUP_DIR="$(RELEASE_SHA="$RELEASE_SHA" DEPLOY_ROOT="$DEPLOY_ROOT" APP_DIR="$APP_DIR" ENV_FILE="$ENV_FILE" COMPOSE_FILE="$COMPOSE_FILE" bash "$APP_DIR/ops/create-predeploy-backup.sh")"
+echo "Backup package created at: $BACKUP_DIR"
+
+CURRENT_STAGE="restore-test-backup"
+set_stage "$CURRENT_STAGE"
+bash "$APP_DIR/ops/test-db-backup-restore.sh" "$BACKUP_DIR/db.sql.gz" "$BACKUP_DIR/restore-test.log"
+echo "DB backup restore test passed."
 
 echo "Checking DATABASE_URL in production env..."
 if ! grep -Eq '^DATABASE_URL=.*@postgres:5432/' "$ENV_FILE" 2>/dev/null; then
