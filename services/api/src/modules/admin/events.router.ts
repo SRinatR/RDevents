@@ -1,3 +1,6 @@
+import { mkdirSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { Router } from 'express';
 import multer from 'multer';
 import type { EventMediaStatus, EventMemberStatus, EventStaffRole, EventTeamStatus, User } from '@prisma/client';
@@ -49,6 +52,14 @@ import {
   updateEventMediaSettings,
   uploadEventMedia,
 } from '../events/event-media.service.js';
+import {
+  buildEventMediaImportCsv,
+  cancelEventMediaImport,
+  EventMediaImportError,
+  getEventMediaImport,
+  listEventMediaImports,
+  startEventMediaImport,
+} from '../events/event-media-import.service.js';
 
 export const adminEventsRouter = Router();
 
@@ -58,6 +69,23 @@ const adminEventMediaUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: EVENT_MEDIA_HARD_MAX_FILE_SIZE_MB * 1024 * 1024,
+    files: 1,
+  },
+});
+const mediaImportUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, callback) => {
+      const dir = path.join(os.tmpdir(), 'rdevents-media-imports');
+      mkdirSync(dir, { recursive: true });
+      callback(null, dir);
+    },
+    filename: (_req, file, callback) => {
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9_.-]+/g, '-').slice(-120) || 'archive.zip';
+      callback(null, `${Date.now()}-${safeName}`);
+    },
+  }),
+  limits: {
+    fileSize: 500 * 1024 * 1024,
     files: 1,
   },
 });

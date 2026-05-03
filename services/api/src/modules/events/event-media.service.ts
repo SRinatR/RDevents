@@ -43,6 +43,7 @@ export type EventMediaSettingsDto = {
   allowParticipantCaption: boolean;
   maxFileSizeMb: number;
   allowedTypes: MediaKind[];
+  nextMediaDisplayNumber?: number;
 };
 
 export class EventMediaUploadError extends Error {
@@ -62,6 +63,7 @@ export const DEFAULT_EVENT_MEDIA_SETTINGS: EventMediaSettingsDto = {
   allowParticipantCaption: true,
   maxFileSizeMb: EVENT_MEDIA_DEFAULT_MAX_FILE_SIZE_MB,
   allowedTypes: ['image', 'video'],
+  nextMediaDisplayNumber: 1,
 };
 
 function cleanText(value: unknown, maxLength: number) {
@@ -127,6 +129,7 @@ function serializeSettings(settings: any): EventMediaSettingsDto {
     allowParticipantCaption: Boolean(settings.allowParticipantCaption),
     maxFileSizeMb: clampMaxFileSize(settings.maxFileSizeMb),
     allowedTypes: normalizeAllowedTypes(settings.allowedTypes),
+    nextMediaDisplayNumber: Number(settings.nextMediaDisplayNumber ?? 1),
   };
 }
 
@@ -700,7 +703,7 @@ export async function uploadEventMedia(
     altText?: unknown;
     credit?: unknown;
   } = {},
-  options: { mode?: 'participant' | 'admin' | 'auto' } = {},
+  options: { mode?: 'participant' | 'admin' | 'auto'; forceStatus?: EventMediaStatus } = {},
 ) {
   const event = await prisma.event.findUnique({ where: { id: eventId }, select: { id: true, status: true } });
   if (!event) throw new Error('EVENT_NOT_FOUND');
@@ -746,7 +749,7 @@ export async function uploadEventMedia(
   });
 
   const now = new Date();
-  const status = isAdminUpload || !settings.moderationEnabled ? 'APPROVED' : 'PENDING';
+  const status = options.forceStatus ?? (isAdminUpload || !settings.moderationEnabled ? 'APPROVED' : 'PENDING');
   const source = isAdminUpload ? 'ADMIN' : 'PARTICIPANT';
   const title = isAdminUpload || settings.allowParticipantTitle ? cleanText(input.title, 120) : null;
   const caption = isAdminUpload || settings.allowParticipantCaption ? cleanText(input.caption, 1000) : null;
