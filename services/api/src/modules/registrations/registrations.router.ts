@@ -89,6 +89,7 @@ registrationsRouter.post('/events/:eventId/media', authenticate, eventMediaUploa
       EVENT_NOT_FOUND: [404, 'Event not found'],
       EVENT_MEDIA_UPLOAD_FORBIDDEN: [403, 'Only approved event participants can upload media'],
       EVENT_MEDIA_UPLOAD_DISABLED: [403, 'Media upload is disabled for this event'],
+      EVENT_MEDIA_BANK_DISABLED: [403, 'Media bank is disabled for this event'],
     };
     const [status, message] = map[err.message] ?? [500, 'Internal error'];
     res.status(status).json({ error: message, code: err.message });
