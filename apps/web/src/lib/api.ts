@@ -137,6 +137,57 @@ export type EventMediaPublicVisibility = {
   reason: string;
 };
 
+export type EventMediaImportJob = {
+  id: string;
+  eventId: string;
+  status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'COMPLETED_WITH_ERRORS' | 'FAILED' | 'CANCELLED';
+  originalFilename: string;
+  totalEntries: number;
+  mediaEntries: number;
+  importedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  duplicateCount: number;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  failedAt?: string | null;
+  errorMessage?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items?: EventMediaImportItem[];
+};
+
+export type EventMediaImportItem = {
+  id: string;
+  archivePath: string;
+  originalFilename: string;
+  status: 'IMPORTED' | 'SKIPPED_DUPLICATE' | 'SKIPPED_UNSUPPORTED_TYPE' | 'SKIPPED_TOO_LARGE' | 'FAILED';
+  reasonCode?: string | null;
+  reasonMessage?: string | null;
+  mediaId?: string | null;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
+  checksumSha256?: string | null;
+};
+
+export type EventMediaCaptionSuggestion = {
+  id: string;
+  mediaId: string;
+  eventId: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  suggestedTitle?: string | null;
+  suggestedCaption?: string | null;
+  suggestedCredit?: string | null;
+  suggestedAltText?: string | null;
+  moderationReason?: string | null;
+  decidedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  media?: EventMediaItem;
+  author?: { id: string; name?: string | null; email?: string | null; avatarUrl?: string | null } | null;
+  moderator?: { id: string; name?: string | null; email?: string | null; avatarUrl?: string | null } | null;
+};
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, auth = false } = options;
 
@@ -554,6 +605,36 @@ export const eventMediaApi = {
       auth: true,
       body,
     }),
+
+  imports: {
+    start: (eventId: string, formData: FormData) =>
+      requestForm<{ job: EventMediaImportJob }>(`/api/admin/events/${eventId}/media/imports`, formData, true),
+    list: (eventId: string) =>
+      request<{ jobs: EventMediaImportJob[] }>(`/api/admin/events/${eventId}/media/imports`, { auth: true }),
+    get: (eventId: string, jobId: string) =>
+      request<{ job: EventMediaImportJob }>(`/api/admin/events/${eventId}/media/imports/${jobId}`, { auth: true }),
+    cancel: (eventId: string, jobId: string) =>
+      request<{ job: EventMediaImportJob }>(`/api/admin/events/${eventId}/media/imports/${jobId}/cancel`, { method: 'POST', auth: true }),
+    reportUrl: (eventId: string, jobId: string) =>
+      `${BASE_URL}/api/admin/events/${eventId}/media/imports/${jobId}/report.csv`,
+    downloadReport: (eventId: string, jobId: string) =>
+      downloadWithAuth(`/api/admin/events/${eventId}/media/imports/${jobId}/report.csv`, `media-import-${jobId}.csv`),
+  },
+
+  captionSuggestions: {
+    listTargets: (eventId: string, params: { search?: string; number?: number; type?: 'all' | 'image' | 'video'; page?: number; limit?: number } = {}) =>
+      request<{ media: EventMediaItem[]; meta: { total: number; page: number; limit: number; pages: number } }>(`/api/me/events/${eventId}/media/caption-targets${toQuery(params)}`, { auth: true }),
+    create: (eventId: string, mediaId: string, body: { title?: string; caption?: string; credit?: string; altText?: string }) =>
+      request<{ suggestion: EventMediaCaptionSuggestion }>(`/api/me/events/${eventId}/media/${mediaId}/caption-suggestions`, { method: 'POST', auth: true, body }),
+    myList: (eventId: string) =>
+      request<{ suggestions: EventMediaCaptionSuggestion[] }>(`/api/me/events/${eventId}/media/caption-suggestions`, { auth: true }),
+    adminList: (eventId: string, params: { status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'ALL' } = {}) =>
+      request<{ suggestions: EventMediaCaptionSuggestion[] }>(`/api/admin/events/${eventId}/media/caption-suggestions${toQuery(params)}`, { auth: true }),
+    approve: (eventId: string, suggestionId: string, body: { title?: string; caption?: string; credit?: string; altText?: string } = {}) =>
+      request<{ suggestion: EventMediaCaptionSuggestion }>(`/api/admin/events/${eventId}/media/caption-suggestions/${suggestionId}/approve`, { method: 'POST', auth: true, body }),
+    reject: (eventId: string, suggestionId: string, reason: string) =>
+      request<{ suggestion: EventMediaCaptionSuggestion }>(`/api/admin/events/${eventId}/media/caption-suggestions/${suggestionId}/reject`, { method: 'POST', auth: true, body: { reason } }),
+  },
 };
 
 // ─── Admin ────────────────────────────────────────────────────────────────────

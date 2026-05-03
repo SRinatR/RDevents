@@ -1005,3 +1005,250 @@ export async function deleteEventMedia(eventId: string, mediaId: string, actor: 
 
   return { ok: true };
 }
+
+function serializeCaptionSuggestion(item: any) {
+  return {
+    id: item.id,
+    mediaId: item.mediaId,
+    eventId: item.eventId,
+    authorUserId: item.authorUserId,
+    status: item.status,
+    suggestedTitle: item.suggestedTitle,
+    suggestedCaption: item.suggestedCaption,
+    suggestedCredit: item.suggestedCredit,
+    suggestedAltText: item.suggestedAltText,
+    moderationReason: item.moderationReason,
+    decidedAt: item.decidedAt,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    media: item.media ? serializeEventMedia(item.media) : undefined,
+    author: item.author ? serializeUser(item.author) : undefined,
+    moderator: item.moderator ? serializeUser(item.moderator) : undefined,
+  };
+}
+
+async function assertCanSuggestCaption(eventId: string, actor: User) {
+  const participant = await prisma.eventMember.findUnique({
+    where: { eventId_userId_role: { eventId, userId: actor.id, role: 'PARTICIPANT' } },
+    select: { status: true },
+  });
+
+  if (!PARTICIPANT_UPLOAD_STATUSES.includes(participant?.status as any)) {
+    throw new Error('EVENT_MEDIA_CAPTION_SUGGESTION_FORBIDDEN');
+  }
+}
+
+export async function listCaptionSuggestionTargets(
+  eventId: string,
+  actor: User,
+  params: { search?: unknown; number?: unknown; type?: unknown; page?: unknown; limit?: unknown } = {},
+) {
+  await assertCanSuggestCaption(eventId, actor);
+  const page = Math.max(1, Number(params.page ?? 1) || 1);
+  const limit = Math.min(60, Math.max(1, Number(params.limit ?? 30) || 30));
+  const search = cleanText(params.search, 120);
+  const number = Number(params.number);
+  const where: any = {
+    eventId,
+    status: 'APPROVED',
+    deletedAt: null,
+    asset: { status: 'ACTIVE', ...assetKindWhere(normalizeTypeFilter(params.type)) },
+  };
+
+  if (Number.isInteger(number) && number > 0) {
+    where.displayNumber = number;
+  } else if (search) {
+    where.OR = [
+      { title: { contains: search, mode: 'insensitive' } },
+      { caption: { contains: search, mode: 'insensitive' } },
+      { credit: { contains: search, mode: 'insensitive' } },
+      { asset: { originalFilename: { contains: search, mode: 'insensitive' } } },
+    ];
+    const numericSearch = Number(search.replace(/^#/, ''));
+    if (Number.isInteger(numericSearch) && numericSearch > 0) where.OR.push({ displayNumber: numericSearch });
+  }
+
+  const [total, items] = await Promise.all([
+    prisma.eventMedia.count({ where }),
+    prisma.eventMedia.findMany({
+      where,
+      include: EVENT_MEDIA_INCLUDE,
+      orderBy: [{ displayNumber: 'asc' }, { createdAt: 'asc' }],
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+  ]);
+
+  return { media: items.map((item) => serializeEventMedia(item)), meta: { total, page, limit, pages: Math.ceil(total / limit) } };
+}
+
+export async function createCaptionSuggestion(
+  eventId: string,
+  mediaId: string,
+  actor: User,
+  input: { title?: unknown; caption?: unknown; credit?: unknown; altText?: unknown },
+) {
+  await assertCanSuggestCaption(eventId, actor);
+  const media = await prisma.eventMedia.findFirst({
+    where: {
+      id: mediaId,
+      eventId,
+      deletedAt: null,
+      asset: { status: 'ACTIVE' },
+    },
+    select: { id: true },
+  });
+  if (!media) throw new Error('EVENT_MEDIA_NOT_FOUND');
+
+  const suggestedTitle = cleanText(input.title, 120);
+  const suggestedCaption = cleanText(input.caption, 1000);
+  const suggestedCredit = cleanText(input.credit, 120);
+  const suggestedAltText = cleanText(input.altText, 180);
+
+  if (!suggestedTitle && !suggestedCaption && !suggestedCredit && !suggestedAltText) {
+    throw new Error('EVENT_MEDIA_CAPTION_SUGGESTION_EMPTY');
+  }
+
+  const existing = await prisma.eventMediaCaptionSuggestion.findFirst({
+    where: { mediaId, authorUserId: actor.id, status: 'PENDING' },
+    select: { id: true },
+  });
+  if (existing) throw new Error('EVENT_MEDIA_CAPTION_SUGGESTION_PENDING_EXISTS');
+
+  const suggestion = await prisma.eventMediaCaptionSuggestion.create({
+    data: {
+      mediaId,
+      eventId,
+      authorUserId: actor.id,
+      suggestedTitle,
+      suggestedCaption,
+      suggestedCredit,
+      suggestedAltText,
+    },
+    include: { media: { include: EVENT_MEDIA_INCLUDE }, author: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+  });
+
+  return serializeCaptionSuggestion(suggestion);
+}
+
+export async function listMyCaptionSuggestions(eventId: string, actor: User) {
+  const suggestions = await prisma.eventMediaCaptionSuggestion.findMany({
+    where: { eventId, authorUserId: actor.id },
+    include: {
+      media: { include: EVENT_MEDIA_INCLUDE },
+      author: { select: { id: true, name: true, email: true, avatarUrl: true } },
+      moderator: { select: { id: true, name: true, email: true, avatarUrl: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  return suggestions.map(serializeCaptionSuggestion);
+}
+
+export async function listAdminCaptionSuggestions(eventId: string, params: { status?: unknown } = {}) {
+  const status = String(params.status ?? 'PENDING').toUpperCase();
+  if (!['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'ALL'].includes(status)) {
+    throw new Error('EVENT_MEDIA_CAPTION_SUGGESTION_INVALID_STATUS');
+  }
+
+  const suggestions = await prisma.eventMediaCaptionSuggestion.findMany({
+    where: {
+      eventId,
+      ...(status === 'ALL' ? {} : { status }),
+    },
+    include: {
+      media: { include: EVENT_MEDIA_INCLUDE },
+      author: { select: { id: true, name: true, email: true, avatarUrl: true } },
+      moderator: { select: { id: true, name: true, email: true, avatarUrl: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+  });
+  return suggestions.map(serializeCaptionSuggestion);
+}
+
+export async function approveCaptionSuggestion(
+  eventId: string,
+  suggestionId: string,
+  actor: User,
+  input: { title?: unknown; caption?: unknown; credit?: unknown; altText?: unknown } = {},
+) {
+  const suggestion = await prisma.eventMediaCaptionSuggestion.findFirst({
+    where: { id: suggestionId, eventId },
+    include: { media: true },
+  });
+  if (!suggestion) throw new Error('EVENT_MEDIA_CAPTION_SUGGESTION_NOT_FOUND');
+  if (suggestion.status !== 'PENDING') throw new Error('EVENT_MEDIA_CAPTION_SUGGESTION_ALREADY_DECIDED');
+
+  const title = input.title !== undefined ? cleanText(input.title, 120) : suggestion.suggestedTitle;
+  const caption = input.caption !== undefined ? cleanText(input.caption, 1000) : suggestion.suggestedCaption;
+  const credit = input.credit !== undefined ? cleanText(input.credit, 120) : suggestion.suggestedCredit;
+  const altText = input.altText !== undefined ? cleanText(input.altText, 180) : suggestion.suggestedAltText;
+  const now = new Date();
+
+  const updatedSuggestion = await prisma.$transaction(async (tx: any) => {
+    await tx.eventMedia.update({
+      where: { id: suggestion.mediaId },
+      data: {
+        ...(title !== null ? { title } : {}),
+        ...(caption !== null ? { caption } : {}),
+        ...(credit !== null ? { credit } : {}),
+        ...(altText !== null ? { altText } : {}),
+      },
+    });
+    await tx.eventMediaHistory.create({
+      data: {
+        mediaId: suggestion.mediaId,
+        actorUserId: actor.id,
+        action: 'UPDATED',
+        fromStatus: suggestion.media.status,
+        toStatus: suggestion.media.status,
+        reason: 'Caption suggestion approved',
+        metaJson: { suggestionId },
+      },
+    });
+    return tx.eventMediaCaptionSuggestion.update({
+      where: { id: suggestion.id },
+      data: {
+        status: 'APPROVED',
+        moderatorUserId: actor.id,
+        decidedAt: now,
+      },
+      include: {
+        media: { include: EVENT_MEDIA_INCLUDE },
+        author: { select: { id: true, name: true, email: true, avatarUrl: true } },
+        moderator: { select: { id: true, name: true, email: true, avatarUrl: true } },
+      },
+    });
+  });
+
+  return serializeCaptionSuggestion(updatedSuggestion);
+}
+
+export async function rejectCaptionSuggestion(eventId: string, suggestionId: string, actor: User, reasonInput: unknown) {
+  const reason = cleanText(reasonInput, 1000);
+  if (!reason) throw new Error('EVENT_MEDIA_CAPTION_SUGGESTION_REJECTION_REASON_REQUIRED');
+
+  const suggestion = await prisma.eventMediaCaptionSuggestion.findFirst({
+    where: { id: suggestionId, eventId },
+    select: { id: true, status: true },
+  });
+  if (!suggestion) throw new Error('EVENT_MEDIA_CAPTION_SUGGESTION_NOT_FOUND');
+  if (suggestion.status !== 'PENDING') throw new Error('EVENT_MEDIA_CAPTION_SUGGESTION_ALREADY_DECIDED');
+
+  const updated = await prisma.eventMediaCaptionSuggestion.update({
+    where: { id: suggestion.id },
+    data: {
+      status: 'REJECTED',
+      moderatorUserId: actor.id,
+      moderationReason: reason,
+      decidedAt: new Date(),
+    },
+    include: {
+      media: { include: EVENT_MEDIA_INCLUDE },
+      author: { select: { id: true, name: true, email: true, avatarUrl: true } },
+      moderator: { select: { id: true, name: true, email: true, avatarUrl: true } },
+    },
+  });
+
+  return serializeCaptionSuggestion(updated);
+}

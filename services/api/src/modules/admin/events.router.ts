@@ -43,12 +43,15 @@ import {
   deleteEventMedia,
   EVENT_MEDIA_HARD_MAX_FILE_SIZE_MB,
   EventMediaUploadError,
+  approveCaptionSuggestion,
   getEventMediaSettings,
   getEventMediaPublicVisibility,
   getEventMediaSummary,
   handleEventMediaMulterUpload,
+  listAdminCaptionSuggestions,
   listEventMediaForModeration,
   moderateEventMedia,
+  rejectCaptionSuggestion,
   updateEventMediaSettings,
   uploadEventMedia,
 } from '../events/event-media.service.js';
@@ -641,6 +644,77 @@ adminEventsRouter.get('/:id/media/imports/:jobId/report.csv', async (req, res) =
       return;
     }
     throw err;
+  }
+});
+
+// GET /admin/events/:id/media/caption-suggestions — moderation queue
+adminEventsRouter.get('/:id/media/caption-suggestions', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = String(req.params['id']);
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  try {
+    const suggestions = await listAdminCaptionSuggestions(eventId, { status: req.query['status'] });
+    res.json({ suggestions });
+  } catch (err: any) {
+    if (err.message === 'EVENT_MEDIA_CAPTION_SUGGESTION_INVALID_STATUS') {
+      res.status(400).json({ error: 'Invalid caption suggestion status', code: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+// POST /admin/events/:id/media/caption-suggestions/:suggestionId/approve
+adminEventsRouter.post('/:id/media/caption-suggestions/:suggestionId/approve', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = String(req.params['id']);
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  try {
+    const suggestion = await approveCaptionSuggestion(eventId, String(req.params['suggestionId']), user, {
+      title: req.body?.title,
+      caption: req.body?.caption,
+      credit: req.body?.credit,
+      altText: req.body?.altText,
+    });
+    res.json({ suggestion });
+  } catch (err: any) {
+    const map: Record<string, [number, string]> = {
+      EVENT_MEDIA_CAPTION_SUGGESTION_NOT_FOUND: [404, 'Caption suggestion not found'],
+      EVENT_MEDIA_CAPTION_SUGGESTION_ALREADY_DECIDED: [409, 'Caption suggestion already decided'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
+  }
+});
+
+// POST /admin/events/:id/media/caption-suggestions/:suggestionId/reject
+adminEventsRouter.post('/:id/media/caption-suggestions/:suggestionId/reject', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = String(req.params['id']);
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  try {
+    const suggestion = await rejectCaptionSuggestion(eventId, String(req.params['suggestionId']), user, req.body?.reason);
+    res.json({ suggestion });
+  } catch (err: any) {
+    const map: Record<string, [number, string]> = {
+      EVENT_MEDIA_CAPTION_SUGGESTION_NOT_FOUND: [404, 'Caption suggestion not found'],
+      EVENT_MEDIA_CAPTION_SUGGESTION_ALREADY_DECIDED: [409, 'Caption suggestion already decided'],
+      EVENT_MEDIA_CAPTION_SUGGESTION_REJECTION_REASON_REQUIRED: [400, 'Rejection reason is required'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
   }
 });
 
