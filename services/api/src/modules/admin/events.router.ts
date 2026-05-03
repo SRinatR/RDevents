@@ -41,6 +41,7 @@ import {
   EVENT_MEDIA_HARD_MAX_FILE_SIZE_MB,
   EventMediaUploadError,
   getEventMediaSettings,
+  getEventMediaSummary,
   listEventMediaForModeration,
   moderateEventMedia,
   updateEventMediaSettings,
@@ -293,6 +294,8 @@ adminEventsRouter.post('/', async (req, res) => {
         },
       });
 
+      await tx.eventMediaSettings.create({ data: { eventId: createdEvent.id } });
+
       const ownerGrant = await tx.eventStaffGrant.create({
         data: {
           eventId: createdEvent.id,
@@ -377,6 +380,19 @@ adminEventsRouter.delete('/:id', requirePlatformAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// GET /admin/events/:id/media/summary — independent counters for moderation dashboard
+adminEventsRouter.get('/:id/media/summary', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  const summary = await getEventMediaSummary(eventId);
+  res.json({ summary });
+});
+
 // GET /admin/events/:id/media — moderation queue and approved media bank
 adminEventsRouter.get('/:id/media', async (req, res) => {
   const user = (req as any).user as User;
@@ -422,6 +438,10 @@ adminEventsRouter.post('/:id/media', adminEventMediaUpload.single('file'), async
     }
     if (err.message === 'EVENT_NOT_FOUND') {
       res.status(404).json({ error: 'Event not found', code: err.message });
+      return;
+    }
+    if (err.message === 'EVENT_MEDIA_ALLOWED_TYPES_REQUIRED') {
+      res.status(400).json({ error: 'At least one media type must be enabled', code: err.message });
       return;
     }
     throw err;

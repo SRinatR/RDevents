@@ -147,7 +147,7 @@ eventsRouter.get('/:id/media', optionalAuth, async (req, res) => {
   }
 });
 
-// POST /api/events/:id/media — participant/admin media submission
+// POST /api/events/:id/media — @deprecated backward-compatible media submission endpoint
 eventsRouter.post('/:id/media', authenticate, eventMediaUpload.single('file'), async (req, res) => {
   const user = (req as any).user;
   const file = (req as any).file as Express.Multer.File | undefined;
@@ -170,6 +170,10 @@ eventsRouter.post('/:id/media', authenticate, eventMediaUpload.single('file'), a
     }
     if (err.message === 'EVENT_MEDIA_UPLOAD_DISABLED') {
       res.status(403).json({ error: 'Media upload is disabled for this event', code: err.message });
+      return;
+    }
+    if (err.message === 'EVENT_MEDIA_BANK_DISABLED') {
+      res.status(403).json({ error: 'Media bank is disabled for this event', code: err.message });
       return;
     }
     throw err;
