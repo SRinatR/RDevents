@@ -472,7 +472,7 @@ export async function uploadEventMedia(
     create: { eventId },
     update: {},
   });
-  if (!settings.enabled) {
+  if (!isAdminUpload && !settings.enabled) {
     throw new Error('EVENT_MEDIA_BANK_DISABLED');
   }
   if (!isAdminUpload && !settings.participantUploadEnabled) {

@@ -17,7 +17,9 @@ const prismaMock = vi.hoisted(() => ({
   },
   eventMedia: {
     count: vi.fn(),
+    create: vi.fn(),
     findMany: vi.fn(),
+    findUnique: vi.fn(),
   },
   mediaAsset: {
     create: vi.fn(),
@@ -40,6 +42,10 @@ const accessMocks = vi.hoisted(() => ({
   revokeEventStaffGrant: vi.fn(),
 }));
 
+const storageMocks = vi.hoisted(() => ({
+  saveUploadedFile: vi.fn(),
+}));
+
 vi.mock('../../db/prisma.js', () => ({
   prisma: prismaMock,
 }));
@@ -49,7 +55,7 @@ vi.mock('../access-control/access-control.service.js', () => accessMocks);
 vi.mock('../../common/storage.js', () => ({
   buildPublicMediaUrl: vi.fn((key: string) => `https://cdn.example.test/${key}`),
   getMediaUploadDir: vi.fn(() => 'uploads'),
-  saveUploadedFile: vi.fn(),
+  saveUploadedFile: storageMocks.saveUploadedFile,
 }));
 
 const { createApp } = await import('../../app.js');
@@ -135,7 +141,17 @@ beforeEach(() => {
   prismaMock.eventMediaSettings.upsert.mockResolvedValue(defaultSettings);
   prismaMock.eventMember.findUnique.mockResolvedValue({ status: 'ACTIVE' });
   prismaMock.eventMedia.count.mockResolvedValue(0);
+  prismaMock.eventMedia.create.mockResolvedValue({ id: 'media-created' });
   prismaMock.eventMedia.findMany.mockResolvedValue([]);
+  prismaMock.eventMedia.findUnique.mockResolvedValue(mediaRow({ id: 'media-created' }));
+  prismaMock.eventMediaHistory.create.mockResolvedValue({});
+  prismaMock.mediaAsset.create.mockResolvedValue({ id: 'asset-created' });
+  prismaMock.$transaction.mockImplementation(async (callback: any) => callback(prismaMock));
+  storageMocks.saveUploadedFile.mockResolvedValue({
+    storageDriver: 'local',
+    storageKey: 'events/event-1/media/photo.jpg',
+    publicUrl: 'https://cdn.example.test/events/event-1/media/photo.jpg',
+  });
   accessMocks.canAccessEvent.mockResolvedValue(false);
 });
 
@@ -164,6 +180,20 @@ describe('public event media privacy', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.media[0].credit).toBe('Author Name');
+  });
+
+  it('GET /api/events/:eventId/media returns empty media when the media bank is disabled', async () => {
+    prismaMock.eventMediaSettings.findUnique.mockResolvedValue({ ...defaultSettings, enabled: false });
+
+    const res = await request(app).get('/api/events/event-1/media');
+
+    expect(res.status).toBe(200);
+    expect(res.body.media).toEqual([]);
+    expect(res.body.meta).toMatchObject({
+      nextCursor: null,
+      settings: { enabled: false },
+    });
+    expect(prismaMock.eventMedia.findMany).not.toHaveBeenCalled();
   });
 
   it('GET /api/events/media/highlights applies event media settings', async () => {
@@ -196,6 +226,7 @@ describe('public event media privacy', () => {
       title: 'Event One',
       startsAt: '2026-01-01T10:00:00.000Z',
     });
+    expect(query.where.event.mediaSettings).toEqual({ is: { enabled: true } });
     expect(query.include.event.select.mediaSettings).toBe(true);
     expect(query.orderBy).toEqual([{ approvedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }]);
   });
@@ -236,6 +267,75 @@ describe('participant media upload errors', () => {
 
     expect(res.status).toBe(403);
     expect(res.body.code).toBe('EVENT_MEDIA_UPLOAD_FORBIDDEN');
+  });
+});
+
+describe('admin media upload', () => {
+  beforeEach(() => {
+    prismaMock.user.findUnique.mockResolvedValue(adminUser);
+    accessMocks.canAccessEvent.mockResolvedValue(true);
+  });
+
+  it('POST /api/admin/events/:id/media allows organizer upload when the media bank is disabled', async () => {
+    prismaMock.eventMediaSettings.findUnique.mockResolvedValue({ ...defaultSettings, enabled: false });
+    prismaMock.eventMedia.findUnique.mockResolvedValue(mediaRow({
+      id: 'media-created',
+      source: 'ADMIN',
+      status: 'APPROVED',
+      uploader: {
+        id: adminUser.id,
+        name: adminUser.name,
+        email: adminUser.email,
+        avatarUrl: null,
+      },
+      approvedBy: {
+        id: adminUser.id,
+        name: adminUser.name,
+        email: adminUser.email,
+        avatarUrl: null,
+      },
+    }));
+
+    const res = await request(app)
+      .post('/api/admin/events/event-1/media')
+      .set('Authorization', authHeader(adminUser))
+      .attach('file', Buffer.from('photo'), { filename: 'photo.jpg', contentType: 'image/jpeg' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.media.source).toBe('ADMIN');
+    expect(res.body.media.status).toBe('APPROVED');
+    expect(prismaMock.eventMedia.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        source: 'ADMIN',
+        status: 'APPROVED',
+      }),
+    }));
+  });
+
+  it('POST /api/admin/events/:id/media still rejects invalid file types when the media bank is disabled', async () => {
+    prismaMock.eventMediaSettings.findUnique.mockResolvedValue({ ...defaultSettings, enabled: false });
+
+    const res = await request(app)
+      .post('/api/admin/events/event-1/media')
+      .set('Authorization', authHeader(adminUser))
+      .attach('file', Buffer.from('pdf'), { filename: 'doc.pdf', contentType: 'application/pdf' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('EVENT_MEDIA_FILE_TYPE_NOT_ALLOWED');
+    expect(storageMocks.saveUploadedFile).not.toHaveBeenCalled();
+  });
+
+  it('POST /api/admin/events/:id/media still rejects files above the event max size when the media bank is disabled', async () => {
+    prismaMock.eventMediaSettings.findUnique.mockResolvedValue({ ...defaultSettings, enabled: false, maxFileSizeMb: 1 });
+
+    const res = await request(app)
+      .post('/api/admin/events/event-1/media')
+      .set('Authorization', authHeader(adminUser))
+      .attach('file', Buffer.alloc(1024 * 1024 + 1), { filename: 'large.jpg', contentType: 'image/jpeg' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('EVENT_MEDIA_FILE_TOO_LARGE');
+    expect(storageMocks.saveUploadedFile).not.toHaveBeenCalled();
   });
 });
 
