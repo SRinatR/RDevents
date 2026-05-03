@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const eventMediaMocks = vi.hoisted(() => ({
   listMyEventMedia: vi.fn(),
   uploadEventMedia: vi.fn(),
+  handleEventMediaMulterUpload: vi.fn(() => (_req: any, _res: any, next: () => void) => next()),
   EventMediaUploadError: class EventMediaUploadError extends Error {
     code: string;
     constructor(message: string, code = 'INVALID_MEDIA') {
@@ -24,6 +25,7 @@ vi.mock('../../common/middleware.js', () => ({
 vi.mock('../events/event-media.service.js', () => ({
   EVENT_MEDIA_HARD_MAX_FILE_SIZE_MB: 50,
   EventMediaUploadError: eventMediaMocks.EventMediaUploadError,
+  handleEventMediaMulterUpload: eventMediaMocks.handleEventMediaMulterUpload,
   listMyEventMedia: eventMediaMocks.listMyEventMedia,
   uploadEventMedia: eventMediaMocks.uploadEventMedia,
 }));
