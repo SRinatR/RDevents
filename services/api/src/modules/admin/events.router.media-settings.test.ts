@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mediaServiceMocks = vi.hoisted(() => ({
   updateEventMediaSettings: vi.fn(),
+  handleEventMediaMulterUpload: vi.fn(() => (_req: any, _res: any, next: () => void) => next()),
 }));
 
 vi.mock('../../common/middleware.js', () => ({

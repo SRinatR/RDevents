@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const eventMediaMocks = vi.hoisted(() => ({
   listMyEventMedia: vi.fn(),
   uploadEventMedia: vi.fn(),
+  handleEventMediaMulterUpload: vi.fn(() => (_req: any, _res: any, next: () => void) => next()),
   EventMediaUploadError: class EventMediaUploadError extends Error {
     code: string;
     constructor(message: string, code = 'INVALID_MEDIA') {
