@@ -1,5 +1,12 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { authenticate } from '../../common/middleware.js';
+import {
+  EVENT_MEDIA_HARD_MAX_FILE_SIZE_MB,
+  EventMediaUploadError,
+  listMyEventMedia,
+  uploadEventMedia,
+} from '../events/event-media.service.js';
 import {
   acceptTeamInvitation,
   declineTeamInvitation,
@@ -13,6 +20,14 @@ import {
 } from '../events/events.service.js';
 
 export const registrationsRouter = Router();
+
+const eventMediaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: EVENT_MEDIA_HARD_MAX_FILE_SIZE_MB * 1024 * 1024,
+    files: 1,
+  },
+});
 
 // GET /api/me/events — list current user's event registrations
 registrationsRouter.get('/events', authenticate, async (req, res) => {
@@ -47,6 +62,36 @@ registrationsRouter.get('/events/:slug/workspace', authenticate, async (req, res
       return;
     }
     res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+// GET /api/me/events/:eventId/media — current user's submissions for an event
+registrationsRouter.get('/events/:eventId/media', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  const media = await listMyEventMedia(String(req.params['eventId']), user);
+  res.json({ media });
+});
+
+// POST /api/me/events/:eventId/media — participant photo/video submission
+registrationsRouter.post('/events/:eventId/media', authenticate, eventMediaUpload.single('file'), async (req, res) => {
+  const user = (req as any).user;
+  const file = (req as any).file as Express.Multer.File | undefined;
+
+  try {
+    const media = await uploadEventMedia(String(req.params['eventId']), user, file as Express.Multer.File, req.body ?? {}, { mode: 'participant' });
+    res.status(media.status === 'APPROVED' ? 201 : 202).json({ media });
+  } catch (err: any) {
+    if (err instanceof EventMediaUploadError) {
+      res.status(400).json({ error: err.message, code: err.code });
+      return;
+    }
+    const map: Record<string, [number, string]> = {
+      EVENT_NOT_FOUND: [404, 'Event not found'],
+      EVENT_MEDIA_UPLOAD_FORBIDDEN: [403, 'Only approved event participants can upload media'],
+      EVENT_MEDIA_UPLOAD_DISABLED: [403, 'Media upload is disabled for this event'],
+    };
+    const [status, message] = map[err.message] ?? [500, 'Internal error'];
+    res.status(status).json({ error: message, code: err.message });
   }
 });
 

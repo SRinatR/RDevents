@@ -352,6 +352,15 @@ enum EventMediaSource {
   PARTICIPANT
 }
 
+enum EventMediaHistoryAction {
+  SUBMITTED
+  APPROVED
+  REJECTED
+  UPDATED
+  DELETED
+  RESTORED
+}
+
 enum EmailMessageStatus {
   PENDING
   SENT
@@ -619,6 +628,7 @@ model User {
   uploadedEventMedia                   EventMedia[]                      @relation("EventMediaUploader")
   approvedEventMedia                   EventMedia[]                      @relation("EventMediaApprovedBy")
   rejectedEventMedia                   EventMedia[]                      @relation("EventMediaRejectedBy")
+  eventMediaHistoryEntries             EventMediaHistory[]               @relation("EventMediaHistoryActor")
 
   supportThreads             SupportThread[]          @relation("SupportThreadUser")
   assignedSupportThreads     SupportThread[]          @relation("SupportThreadAdmin")
@@ -1112,6 +1122,7 @@ model Event {
   milestones              EventMilestone[]
   exportPresets           ExportPreset[]
   mediaItems              EventMedia[]
+  mediaSettings           EventMediaSettings?
 
   @@index([organizerWorkspaceId])
   @@index([deletedAt])
@@ -1144,10 +1155,48 @@ model EventMedia {
   uploader   User       @relation("EventMediaUploader", fields: [uploaderUserId], references: [id], onDelete: Cascade)
   approvedBy User?      @relation("EventMediaApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
   rejectedBy User?      @relation("EventMediaRejectedBy", fields: [rejectedByUserId], references: [id], onDelete: SetNull)
+  history    EventMediaHistory[]
 
   @@index([eventId, status, createdAt])
   @@index([uploaderUserId, status])
   @@map("event_media")
+}
+
+model EventMediaHistory {
+  id          String                   @id @default(cuid())
+  mediaId     String
+  actorUserId String?
+  action      EventMediaHistoryAction
+  fromStatus  EventMediaStatus?
+  toStatus    EventMediaStatus?
+  reason      String?                  @db.Text
+  metaJson    Json?
+  createdAt   DateTime                 @default(now())
+
+  media EventMedia @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  actor User?      @relation("EventMediaHistoryActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([mediaId, createdAt])
+  @@index([actorUserId])
+  @@map("event_media_history")
+}
+
+model EventMediaSettings {
+  eventId                  String   @id
+  enabled                  Boolean  @default(true)
+  participantUploadEnabled Boolean  @default(true)
+  moderationEnabled        Boolean  @default(true)
+  showUploaderName         Boolean  @default(false)
+  showCredit               Boolean  @default(true)
+  allowParticipantTitle    Boolean  @default(true)
+  allowParticipantCaption  Boolean  @default(true)
+  maxFileSizeMb            Int      @default(25)
+  allowedTypes             String[] @default(["image", "video"])
+  updatedAt                DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("event_media_settings")
 }
 
 model EventRegistrationFormSubmission {

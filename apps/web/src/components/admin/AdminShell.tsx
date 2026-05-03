@@ -185,6 +185,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           { href: `${eventBase}/analytics`, label: t('admin.analytics'), icon: <ChartIcon />, allow: true },
           { href: `${eventBase}/forms`, label: locale === 'ru' ? 'Формы' : 'Forms', icon: <FormIcon />, allow: true },
           { href: `${eventBase}/content`, label: locale === 'ru' ? 'Контент' : 'Content', icon: <TemplateIcon />, allow: true },
+          { href: `${eventBase}/media`, label: locale === 'ru' ? 'Фотобанк' : 'Media bank', icon: <TemplateIcon />, allow: true },
           { href: `${eventBase}/communications`, label: locale === 'ru' ? 'Коммуникации' : 'Communications', icon: <BroadcastIcon />, allow: true },
           { href: `${eventBase}/settings`, label: t('admin.settings'), icon: <SettingsIcon />, allow: true },
           { href: `${eventBase}/audit`, label: t('admin.audit'), icon: <AuditIcon />, allow: true },
@@ -282,6 +283,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <div className="admin-event-context-actions">
               {currentEvent.slug ? <Link href={`/${locale}/events/${currentEvent.slug}`} className="btn btn-ghost btn-sm">{locale === 'ru' ? 'Публичная' : 'Public'}</Link> : null}
               <Link href={`/${locale}/admin/events/${currentEvent.id}/overview`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Обзор' : 'Overview'}</Link>
+              <Link href={`/${locale}/admin/events/${currentEvent.id}/media`} className="btn btn-secondary btn-sm">{locale === 'ru' ? 'Фотобанк' : 'Media'}</Link>
               <Link href={`/${locale}/admin/events/${currentEvent.id}/analytics`} className="btn btn-secondary btn-sm">{t('admin.analytics')}</Link>
               <Link href={`/${locale}/admin/events/${currentEvent.id}/edit`} className="btn btn-primary btn-sm">{t('common.edit')}</Link>
             </div>

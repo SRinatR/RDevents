@@ -26,14 +26,7 @@ function renderAdminMediaPreview(item: EventMediaItem) {
   if (item.kind === 'video') {
     return <video src={item.asset.publicUrl} controls preload="metadata" />;
   }
-  if (item.kind === 'audio') {
-    return <audio src={item.asset.publicUrl} controls />;
-  }
-  return (
-    <a href={item.asset.publicUrl} target="_blank" rel="noreferrer">
-      {item.asset.originalFilename}
-    </a>
-  );
+  return null;
 }
 
 export default function EventContentPage() {
@@ -233,7 +226,7 @@ export default function EventContentPage() {
             <form className="admin-event-media-upload" onSubmit={handleAdminMediaUpload}>
               <label>
                 <span>{locale === 'ru' ? 'Файл организатора' : 'Organizer file'}</span>
-                <input type="file" accept="image/*,video/*,audio/*,application/pdf" onChange={(e) => setMediaFile(e.currentTarget.files?.[0] ?? null)} />
+                <input type="file" accept="image/*,video/*" onChange={(e) => setMediaFile(e.currentTarget.files?.[0] ?? null)} />
               </label>
               <label>
                 <span>{locale === 'ru' ? 'Название' : 'Title'}</span>

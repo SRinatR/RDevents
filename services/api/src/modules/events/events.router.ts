@@ -3,8 +3,9 @@ import multer from 'multer';
 import { authenticate, optionalAuth } from '../../common/middleware.js';
 import { eventQuerySchema, registrationAnswersSchema } from './events.schemas.js';
 import {
-  EVENT_MEDIA_MAX_FILE_SIZE_MB,
+  EVENT_MEDIA_HARD_MAX_FILE_SIZE_MB,
   EventMediaUploadError,
+  listEventMediaHighlights,
   listApprovedEventMedia,
   uploadEventMedia,
 } from './event-media.service.js';
@@ -40,7 +41,7 @@ export const eventsRouter = Router();
 const eventMediaUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: EVENT_MEDIA_MAX_FILE_SIZE_MB * 1024 * 1024,
+    fileSize: EVENT_MEDIA_HARD_MAX_FILE_SIZE_MB * 1024 * 1024,
     files: 1,
   },
 });
@@ -114,6 +115,12 @@ eventsRouter.get('/', optionalAuth, async (req, res) => {
   res.json(result);
 });
 
+// GET /api/events/media/highlights — latest approved public media across events
+eventsRouter.get('/media/highlights', optionalAuth, async (req, res) => {
+  const media = await listEventMediaHighlights(req.query['limit']);
+  res.json({ media });
+});
+
 // GET /api/events/:slug
 eventsRouter.get('/:slug', optionalAuth, async (req, res) => {
   const userId = (req as any).user?.id;
@@ -124,8 +131,20 @@ eventsRouter.get('/:slug', optionalAuth, async (req, res) => {
 
 // GET /api/events/:id/media — approved public event photo bank
 eventsRouter.get('/:id/media', optionalAuth, async (req, res) => {
-  const media = await listApprovedEventMedia(String(req.params['id']));
-  res.json({ media });
+  try {
+    const result = await listApprovedEventMedia(String(req.params['id']), {
+      type: req.query['type'],
+      limit: req.query['limit'],
+      cursor: req.query['cursor'],
+    });
+    res.json(result);
+  } catch (err: any) {
+    if (err.message === 'EVENT_NOT_FOUND') {
+      res.status(404).json({ error: 'Event not found', code: err.message });
+      return;
+    }
+    throw err;
+  }
 });
 
 // POST /api/events/:id/media — participant/admin media submission
@@ -147,6 +166,10 @@ eventsRouter.post('/:id/media', authenticate, eventMediaUpload.single('file'), a
     }
     if (err.message === 'EVENT_MEDIA_UPLOAD_FORBIDDEN') {
       res.status(403).json({ error: 'Only approved event participants can upload media', code: err.message });
+      return;
+    }
+    if (err.message === 'EVENT_MEDIA_UPLOAD_DISABLED') {
+      res.status(403).json({ error: 'Media upload is disabled for this event', code: err.message });
       return;
     }
     throw err;

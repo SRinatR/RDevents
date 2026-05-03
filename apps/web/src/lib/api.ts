@@ -38,11 +38,45 @@ export class ApiError extends Error {
   }
 }
 
+export type EventMediaHistoryItem = {
+  id: string;
+  action: 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'UPDATED' | 'DELETED' | 'RESTORED';
+  fromStatus?: string | null;
+  toStatus?: string | null;
+  reason?: string | null;
+  createdAt: string;
+  actor?: {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+  } | null;
+};
+
+export type EventMediaSettings = {
+  enabled: boolean;
+  participantUploadEnabled: boolean;
+  moderationEnabled: boolean;
+  showUploaderName: boolean;
+  showCredit: boolean;
+  allowParticipantTitle: boolean;
+  allowParticipantCaption: boolean;
+  maxFileSizeMb: number;
+  allowedTypes: Array<'image' | 'video'>;
+};
+
+export type MediaInput = {
+  title?: string;
+  caption?: string;
+  altText?: string;
+  credit?: string;
+};
+
 export type EventMediaItem = {
   id: string;
   eventId: string;
   source: 'ADMIN' | 'PARTICIPANT';
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELETED';
+  kind: 'image' | 'video';
   title?: string | null;
   caption?: string | null;
   altText?: string | null;
@@ -50,20 +84,22 @@ export type EventMediaItem = {
   moderationNotes?: string | null;
   approvedAt?: string | null;
   rejectedAt?: string | null;
+  deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
-  kind: 'image' | 'video' | 'audio' | 'document';
+  history?: EventMediaHistoryItem[];
   asset: {
     id: string;
     originalFilename: string;
     mimeType: string;
     sizeBytes: number;
     publicUrl: string;
-    storageKey: string;
+    storageKey?: string;
   };
   uploader?: { id: string; name?: string | null; email?: string | null; avatarUrl?: string | null } | null;
   approvedBy?: { id: string; name?: string | null; email?: string | null } | null;
   rejectedBy?: { id: string; name?: string | null; email?: string | null } | null;
+  event?: { id: string; slug: string; title: string; startsAt?: string | null };
 };
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -370,6 +406,80 @@ export const eventsApi = {
   },
 };
 
+export type AdminMediaParams = {
+  status?: 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELETED';
+  type?: 'all' | 'image' | 'video';
+  search?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type AdminMediaUpdate = Partial<MediaInput> & {
+  status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELETED';
+  moderationNotes?: string;
+  notes?: string;
+};
+
+function appendMediaFormFields(formData: FormData, body?: MediaInput) {
+  if (body?.title) formData.append('title', body.title);
+  if (body?.caption) formData.append('caption', body.caption);
+  if (body?.altText) formData.append('altText', body.altText);
+  if (body?.credit) formData.append('credit', body.credit);
+}
+
+export const eventMediaApi = {
+  publicList: (eventId: string, params?: { type?: 'all' | 'image' | 'video'; limit?: number; cursor?: string }) => {
+    const qs = toQuery(params ?? {});
+    return request<{ media: EventMediaItem[]; meta: { nextCursor: string | null; settings?: EventMediaSettings } }>(`/api/events/${eventId}/media${qs}`);
+  },
+
+  highlights: (limit = 8) =>
+    request<{ media: EventMediaItem[] }>(`/api/events/media/highlights${toQuery({ limit })}`),
+
+  myList: (eventId: string) =>
+    request<{ media: EventMediaItem[] }>(`/api/me/events/${eventId}/media`, { auth: true }),
+
+  submit: (eventId: string, file: File, body?: MediaInput) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    appendMediaFormFields(formData, body);
+    return requestForm<{ media: EventMediaItem }>(`/api/me/events/${eventId}/media`, formData, true);
+  },
+
+  adminList: (eventId: string, params: AdminMediaParams = {}) =>
+    request<{ media: EventMediaItem[]; meta: { total: number; page: number; limit: number; pages: number } }>(`/api/admin/events/${eventId}/media${toQuery(params)}`, { auth: true }),
+
+  adminUpload: (eventId: string, file: File, body?: MediaInput) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    appendMediaFormFields(formData, body);
+    return requestForm<{ media: EventMediaItem }>(`/api/admin/events/${eventId}/media`, formData, true);
+  },
+
+  adminUpdate: (eventId: string, mediaId: string, body: AdminMediaUpdate) =>
+    request<{ media: EventMediaItem }>(`/api/admin/events/${eventId}/media/${mediaId}`, {
+      method: 'PATCH',
+      auth: true,
+      body,
+    }),
+
+  adminDelete: (eventId: string, mediaId: string) =>
+    request<{ ok: boolean }>(`/api/admin/events/${eventId}/media/${mediaId}`, {
+      method: 'DELETE',
+      auth: true,
+    }),
+
+  getSettings: (eventId: string) =>
+    request<{ settings: EventMediaSettings }>(`/api/admin/events/${eventId}/media/settings`, { auth: true }),
+
+  updateSettings: (eventId: string, body: Partial<EventMediaSettings>) =>
+    request<{ settings: EventMediaSettings }>(`/api/admin/events/${eventId}/media/settings`, {
+      method: 'PATCH',
+      auth: true,
+      body,
+    }),
+};
+
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
 export const adminApi = {
@@ -402,23 +512,17 @@ export const adminApi = {
   },
 
   listEventMedia: (eventId: string, status: 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELETED' = 'PENDING') =>
-    request<{ media: EventMediaItem[] }>(`/api/admin/events/${eventId}/media?${new URLSearchParams({ status }).toString()}`, { auth: true }),
+    eventMediaApi.adminList(eventId, { status }),
 
   uploadEventMedia: (eventId: string, file: File, body?: { title?: string; caption?: string; altText?: string; credit?: string }) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    if (body?.title) formData.append('title', body.title);
-    if (body?.caption) formData.append('caption', body.caption);
-    if (body?.altText) formData.append('altText', body.altText);
-    if (body?.credit) formData.append('credit', body.credit);
-    return requestForm<{ media: EventMediaItem }>(`/api/events/${eventId}/media`, formData, true);
+    return eventMediaApi.adminUpload(eventId, file, body);
   },
 
   moderateEventMedia: (eventId: string, mediaId: string, body: { status: 'APPROVED' | 'REJECTED'; notes?: string }) =>
-    request<{ media: EventMediaItem }>(`/api/admin/events/${eventId}/media/${mediaId}`, { method: 'PATCH', auth: true, body }),
+    eventMediaApi.adminUpdate(eventId, mediaId, body),
 
   deleteEventMedia: (eventId: string, mediaId: string) =>
-    request<{ ok: boolean }>(`/api/admin/events/${eventId}/media/${mediaId}`, { method: 'DELETE', auth: true }),
+    eventMediaApi.adminDelete(eventId, mediaId),
 
   deleteEvent: (id: string) =>
     request<{ ok: boolean }>(`/api/admin/events/${id}`, { method: 'DELETE', auth: true }),
