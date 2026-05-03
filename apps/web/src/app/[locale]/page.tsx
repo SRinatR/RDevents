@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { PublicFooter } from '../../components/layout/PublicFooter';
 import { MediaPreview } from '@/components/media/MediaPreview';
-import { formatMediaDisplayNumber } from '@/components/media/MediaCard';
 
 type HomePageProps = Readonly<{
   params: Promise<{
@@ -43,6 +42,15 @@ type HomeMediaHighlight = {
     startsAt?: string | null;
   };
 };
+
+function formatHomeMediaDisplayNumber(item: Pick<HomeMediaHighlight, 'kind' | 'displayNumber'>, locale: string) {
+  const label = item.kind === 'image'
+    ? (locale === 'ru' ? 'Фото' : 'Photo')
+    : (locale === 'ru' ? 'Видео' : 'Video');
+
+  if (!item.displayNumber) return label;
+  return `${label} #${String(item.displayNumber).padStart(3, '0')}`;
+}
 
 export default async function HomePage({ params }: HomePageProps) {
   const { locale } = await params;
@@ -223,7 +231,7 @@ export default async function HomePage({ params }: HomePageProps) {
                         sizes="(max-width: 768px) 100vw, 320px"
                         controls={false}
                       />
-                      <span>{formatMediaDisplayNumber(item, locale)}</span>
+                      <span>{formatHomeMediaDisplayNumber(item, locale)}</span>
                     </div>
                     <div className="home-media-body">
                       <strong>{item.event?.title ?? (locale === 'ru' ? 'Событие' : 'Event')}</strong>
