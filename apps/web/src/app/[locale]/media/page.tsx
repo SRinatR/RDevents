@@ -212,7 +212,7 @@ export default function SiteMediaPage({ params }: { params: Promise<{ locale: st
         </section>
       </main>
 
-      <style jsx>{`
+      <style>{`
         @media (max-width: 980px) {
           .media-bank-preview-layout {
             grid-template-columns: 1fr !important;
