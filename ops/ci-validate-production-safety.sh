@@ -80,6 +80,19 @@ require_grep 'docker[[:space:]]+inspect.*\.Image' ops/rollback-code.sh \
 require_grep 'check-production-business-health\.sh' ops/rollback-code.sh \
   "rollback-code.sh must run the business health check"
 
+require_grep 'get_container_release_sha' ops/deploy-production.sh \
+  "deploy-production.sh must inspect running container release markers before updating release registry"
+require_grep 'find_earliest_manifest_for_release' ops/deploy-production.sh \
+  "deploy-production.sh must be able to recover previous image IDs from an earlier same-release manifest"
+require_grep 'recover_previous_images_from_manifest' ops/deploy-production.sh \
+  "deploy-production.sh must recover previous release images from manifest during reruns"
+require_grep 'Detected rerun after containers already switched to target release' ops/deploy-production.sh \
+  "deploy-production.sh must log partial-deploy rerun detection"
+require_grep 'FORCE_UPDATE_PREVIOUS_RELEASE_IMAGES' ops/deploy-production.sh \
+  "deploy-production.sh must require an explicit force flag before overwriting complete previous release images"
+require_grep 'Not overwriting previous release registry entry' ops/deploy-production.sh \
+  "deploy-production.sh must avoid overwriting previous release registry entries when image mapping is unsafe"
+
 require_grep 'deploy\.lock' ops/rollback-production.sh \
   "rollback-production.sh must coordinate with deploy lock"
 require_grep 'rollback\.lock' ops/rollback-production.sh \
