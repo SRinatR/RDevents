@@ -1,24 +1,32 @@
 'use client';
 
 import type { FormEvent } from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
-import { adminApi, eventMediaApi, type EventMediaCaptionSuggestion, type EventMediaImportJob, type EventMediaItem, type EventMediaPublicVisibility, type EventMediaSettings, type EventMediaSummary, type MediaInput } from '@/lib/api';
+import {
+  adminApi,
+  eventMediaApi,
+  type AdminMediaUpdate,
+  type EventMediaItem,
+  type EventMediaPublicVisibility,
+  type EventMediaSettings,
+  type EventMediaSummary,
+  type MediaInput,
+} from '@/lib/api';
 import { MediaPreview } from '@/components/media/MediaPreview';
 import { formatMediaDisplayNumber } from '@/components/media/MediaCard';
 import { EmptyState, FieldInput, FieldTextarea, LoadingLines, Notice, Panel, SectionHeader, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
-import { EventNotFound, EventWorkspaceHeader, formatAdminDateTime, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
+import { EventNotFound, EventWorkspaceHeader, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
 import { getFriendlyApiErrorMessage } from '@/lib/api-errors';
 
 type MediaStatusFilter = 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELETED' | 'ALL';
 type MediaTypeFilter = 'all' | 'image' | 'video';
-type AdminMediaTab = 'media' | 'imports' | 'captions' | 'settings';
-type CaptionSuggestionStatusFilter = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'ALL';
+type AdminMediaTab = 'media' | 'settings';
 
 const STATUS_FILTERS: MediaStatusFilter[] = ['PENDING', 'APPROVED', 'REJECTED', 'DELETED', 'ALL'];
-const ADMIN_MEDIA_TABS: AdminMediaTab[] = ['media', 'imports', 'captions', 'settings'];
+const TYPE_FILTERS: MediaTypeFilter[] = ['all', 'image', 'video'];
 
 const DEFAULT_SETTINGS: EventMediaSettings = {
   enabled: true,
@@ -31,6 +39,15 @@ const DEFAULT_SETTINGS: EventMediaSettings = {
   maxFileSizeMb: 25,
   allowedTypes: ['image', 'video'],
 };
+
+function emptyDraft(item?: EventMediaItem): MediaInput {
+  return {
+    title: item?.title ?? '',
+    caption: item?.caption ?? '',
+    credit: item?.credit ?? '',
+    altText: item?.altText ?? '',
+  };
+}
 
 function statusLabel(status: MediaStatusFilter | EventMediaItem['status'], locale: string) {
   const ru: Record<string, string> = {
@@ -50,6 +67,12 @@ function statusLabel(status: MediaStatusFilter | EventMediaItem['status'], local
   return (locale === 'ru' ? ru : en)[status] ?? status;
 }
 
+function typeLabel(type: MediaTypeFilter, locale: string) {
+  const ru: Record<MediaTypeFilter, string> = { all: 'Все типы', image: 'Фото', video: 'Видео' };
+  const en: Record<MediaTypeFilter, string> = { all: 'All types', image: 'Photos', video: 'Videos' };
+  return (locale === 'ru' ? ru : en)[type];
+}
+
 function statusTone(status: EventMediaItem['status']): 'success' | 'warning' | 'danger' | 'neutral' {
   if (status === 'APPROVED') return 'success';
   if (status === 'PENDING') return 'warning';
@@ -65,34 +88,9 @@ function renderPreview(item: EventMediaItem) {
       storageKey={item.asset.storageKey}
       kind={item.kind}
       alt={label}
-      sizes="220px"
+      sizes="(max-width: 768px) 100vw, 280px"
     />
   );
-}
-
-function tabLabel(tab: AdminMediaTab, locale: string) {
-  const ru: Record<AdminMediaTab, string> = {
-    media: 'Медиа',
-    imports: 'Импорты',
-    captions: 'Предложения подписей',
-    settings: 'Настройки',
-  };
-  const en: Record<AdminMediaTab, string> = {
-    media: 'Media',
-    imports: 'Imports',
-    captions: 'Caption suggestions',
-    settings: 'Settings',
-  };
-  return (locale === 'ru' ? ru : en)[tab];
-}
-
-function emptyDraft(item?: EventMediaItem): MediaInput {
-  return {
-    title: item?.title ?? '',
-    caption: item?.caption ?? '',
-    credit: item?.credit ?? '',
-    altText: item?.altText ?? '',
-  };
 }
 
 export default function AdminEventMediaPage() {
@@ -107,43 +105,26 @@ export default function AdminEventMediaPage() {
   const [media, setMedia] = useState<EventMediaItem[]>([]);
   const [settings, setSettings] = useState<EventMediaSettings>(DEFAULT_SETTINGS);
   const [settingsDraft, setSettingsDraft] = useState<EventMediaSettings>(DEFAULT_SETTINGS);
-  const [status, setStatus] = useState<MediaStatusFilter>('PENDING');
   const [summary, setSummary] = useState<EventMediaSummary>({ total: 0, pending: 0, approved: 0, rejected: 0, deleted: 0, participant: 0, admin: 0, images: 0, videos: 0 });
   const [visibility, setVisibility] = useState<EventMediaPublicVisibility | null>(null);
+  const [status, setStatus] = useState<MediaStatusFilter>('PENDING');
   const [type, setType] = useState<MediaTypeFilter>('all');
   const [search, setSearch] = useState('');
-  const [pageLoading, setPageLoading] = useState(true);
-  const [mediaLoading, setMediaLoading] = useState(true);
-  const [pageError, setPageError] = useState('');
-  const [uploadError, setUploadError] = useState('');
-  const [settingsError, setSettingsError] = useState('');
-  const [listError, setListError] = useState('');
-  const [actionError, setActionError] = useState('');
-  const [summaryError, setSummaryError] = useState('');
-  const [notice, setNotice] = useState('');
-  const [busyId, setBusyId] = useState('');
   const [drafts, setDrafts] = useState<Record<string, MediaInput>>({});
   const [rejectReasons, setRejectReasons] = useState<Record<string, string>>({});
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadDraft, setUploadDraft] = useState<MediaInput>(emptyDraft());
-  const [uploading, setUploading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [mediaLoading, setMediaLoading] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
-  const [importFile, setImportFile] = useState<File | null>(null);
-  const [importJobs, setImportJobs] = useState<EventMediaImportJob[]>([]);
-  const [importError, setImportError] = useState('');
-  const [importUploading, setImportUploading] = useState(false);
-  const [importOptions, setImportOptions] = useState({
-    publishMode: 'approved' as 'approved' | 'pending',
-    useFilenameAsTitle: true,
-    skipDuplicates: true,
-    preserveFolders: false,
-  });
-  const [captionStatus, setCaptionStatus] = useState<CaptionSuggestionStatusFilter>('PENDING');
-  const [captionSuggestions, setCaptionSuggestions] = useState<EventMediaCaptionSuggestion[]>([]);
-  const [captionError, setCaptionError] = useState('');
-  const [captionBusyId, setCaptionBusyId] = useState('');
-  const [captionDrafts, setCaptionDrafts] = useState<Record<string, MediaInput>>({});
-  const [captionRejectReasons, setCaptionRejectReasons] = useState<Record<string, string>>({});
+  const [uploading, setUploading] = useState(false);
+  const [busyId, setBusyId] = useState('');
+  const [pageError, setPageError] = useState('');
+  const [listError, setListError] = useState('');
+  const [uploadError, setUploadError] = useState('');
+  const [settingsError, setSettingsError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) router.push(`/${locale}`);
@@ -172,15 +153,13 @@ export default function AdminEventMediaPage() {
 
   const loadSummary = useCallback(async () => {
     if (!eventId) return;
-    setSummaryError('');
     try {
       const result = await eventMediaApi.summary(eventId);
       setSummary(result.summary);
     } catch (err) {
       console.error('[media-bank] summary load failed', err);
-      setSummaryError(isRu ? 'Не удалось обновить счётчики медиабанка.' : 'Could not refresh media counters.');
     }
-  }, [eventId, isRu]);
+  }, [eventId]);
 
   const loadVisibility = useCallback(async () => {
     if (!eventId) return;
@@ -210,66 +189,16 @@ export default function AdminEventMediaPage() {
     }
   }, [eventId, status, type, search, locale]);
 
-  const loadImports = useCallback(async () => {
-    if (!eventId) return;
-    setImportError('');
-    try {
-      const result = await eventMediaApi.imports.list(eventId);
-      setImportJobs(result.jobs);
-    } catch (err: any) {
-      console.error('[media-bank] imports list failed', err);
-      setImportError(getFriendlyApiErrorMessage(err, locale));
-    }
-  }, [eventId, locale]);
-
-  const loadCaptionSuggestions = useCallback(async () => {
-    if (!eventId) return;
-    setCaptionError('');
-    try {
-      const result = await eventMediaApi.captionSuggestions.adminList(eventId, { status: captionStatus });
-      setCaptionSuggestions(result.suggestions);
-      setCaptionDrafts(Object.fromEntries(result.suggestions.map((item) => [item.id, {
-        title: item.suggestedTitle ?? '',
-        caption: item.suggestedCaption ?? '',
-        credit: item.suggestedCredit ?? '',
-        altText: item.suggestedAltText ?? '',
-      }])));
-      setCaptionRejectReasons(Object.fromEntries(result.suggestions.map((item) => [item.id, item.moderationReason ?? ''])));
-    } catch (err: any) {
-      console.error('[media-bank] caption suggestions list failed', err);
-      setCaptionError(getFriendlyApiErrorMessage(err, locale));
-    }
-  }, [eventId, captionStatus, locale]);
-
   useEffect(() => {
     if (user && isAdmin) void loadEvent();
   }, [user, isAdmin, loadEvent]);
 
   useEffect(() => {
-    if (user && isAdmin) { void loadMedia(); void loadSummary(); void loadVisibility(); }
+    if (user && isAdmin) void Promise.all([loadMedia(), loadSummary(), loadVisibility()]);
   }, [user, isAdmin, loadMedia, loadSummary, loadVisibility]);
 
-  useEffect(() => {
-    if (user && isAdmin && activeTab === 'imports') void loadImports();
-  }, [user, isAdmin, activeTab, loadImports]);
-
-  useEffect(() => {
-    if (user && isAdmin && activeTab === 'imports' && importJobs.some((job) => job.status === 'QUEUED' || job.status === 'PROCESSING')) {
-      const handle = window.setInterval(() => void loadImports(), 2500);
-      return () => window.clearInterval(handle);
-    }
-    return undefined;
-  }, [user, isAdmin, activeTab, importJobs, loadImports]);
-
-  useEffect(() => {
-    if (user && isAdmin && activeTab === 'captions') void loadCaptionSuggestions();
-  }, [user, isAdmin, activeTab, loadCaptionSuggestions]);
-
   function patchDraft(mediaId: string, key: keyof MediaInput, value: string) {
-    setDrafts((current) => ({
-      ...current,
-      [mediaId]: { ...current[mediaId], [key]: value },
-    }));
+    setDrafts((current) => ({ ...current, [mediaId]: { ...current[mediaId], [key]: value } }));
   }
 
   function patchSettings(key: keyof EventMediaSettings, value: boolean | number | Array<'image' | 'video'>) {
@@ -281,7 +210,7 @@ export default function AdminEventMediaPage() {
       ? ([...new Set([...settingsDraft.allowedTypes, kind])] as Array<'image' | 'video'>)
       : settingsDraft.allowedTypes.filter((item): item is 'image' | 'video' => item !== kind);
     if (!checked && settingsDraft.allowedTypes.length <= 1) {
-      setNotice(isRu ? 'Нужно оставить хотя бы один тип медиа: фото или видео.' : 'At least one media type must stay enabled: photos or videos.');
+      setNotice(isRu ? 'Нужно оставить хотя бы один тип медиа.' : 'At least one media type must stay enabled.');
       return;
     }
     patchSettings('allowedTypes', next);
@@ -289,6 +218,8 @@ export default function AdminEventMediaPage() {
 
   async function handleUpload(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const form = e.currentTarget;
+
     if (!eventId || !uploadFile) {
       setUploadError(isRu ? 'Выберите фото или видео.' : 'Choose a photo or video.');
       return;
@@ -301,7 +232,7 @@ export default function AdminEventMediaPage() {
       await eventMediaApi.adminUpload(eventId, uploadFile, uploadDraft);
       setUploadFile(null);
       setUploadDraft(emptyDraft());
-      e.currentTarget.reset();
+      form.reset();
       setNotice(isRu ? 'Медиа от организатора опубликовано.' : 'Organizer media was published.');
       await Promise.all([loadMedia(), loadSummary(), loadVisibility()]);
     } catch (err: any) {
@@ -320,15 +251,17 @@ export default function AdminEventMediaPage() {
       return;
     }
 
+    const body: AdminMediaUpdate = {
+      ...drafts[item.id],
+      status: nextStatus,
+      moderationNotes: nextStatus === 'REJECTED' ? reason : reason || undefined,
+    };
+
     setBusyId(item.id);
     setActionError('');
     setNotice('');
     try {
-      await eventMediaApi.adminUpdate(eventId, item.id, {
-        ...drafts[item.id],
-        status: nextStatus,
-        moderationNotes: nextStatus === 'REJECTED' ? reason : reason || undefined,
-      });
+      await eventMediaApi.adminUpdate(eventId, item.id, body);
       setNotice(nextStatus
         ? (isRu ? `Статус обновлён: ${statusLabel(nextStatus, locale)}.` : `Status updated: ${statusLabel(nextStatus, locale)}.`)
         : (isRu ? 'Подписи сохранены.' : 'Captions saved.'));
@@ -368,90 +301,12 @@ export default function AdminEventMediaPage() {
       setSettings(result.settings);
       setSettingsDraft(result.settings);
       setNotice(isRu ? 'Настройки фотобанка сохранены.' : 'Media bank settings saved.');
-      await loadVisibility();
+      await Promise.all([loadSummary(), loadVisibility()]);
     } catch (err: any) {
       console.error('[media-bank] settings save failed', err);
       setSettingsError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setSavingSettings(false);
-    }
-  }
-
-  async function handleStartImport(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!eventId || !importFile) {
-      setImportError(isRu ? 'Выберите .zip архив.' : 'Choose a .zip archive.');
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append('archive', importFile);
-    formData.append('publishMode', importOptions.publishMode);
-    formData.append('useFilenameAsTitle', String(importOptions.useFilenameAsTitle));
-    formData.append('skipDuplicates', String(importOptions.skipDuplicates));
-    formData.append('preserveFolders', String(importOptions.preserveFolders));
-
-    setImportUploading(true);
-    setImportError('');
-    setNotice('');
-    try {
-      await eventMediaApi.imports.start(eventId, formData);
-      setImportFile(null);
-      e.currentTarget.reset();
-      setNotice(isRu ? 'Импорт поставлен в очередь.' : 'Import job was queued.');
-      await loadImports();
-    } catch (err: any) {
-      console.error('[media-bank] import start failed', err);
-      setImportError(getFriendlyApiErrorMessage(err, locale));
-    } finally {
-      setImportUploading(false);
-    }
-  }
-
-  function patchCaptionDraft(suggestionId: string, key: keyof MediaInput, value: string) {
-    setCaptionDrafts((current) => ({
-      ...current,
-      [suggestionId]: { ...current[suggestionId], [key]: value },
-    }));
-  }
-
-  async function handleApproveCaption(suggestion: EventMediaCaptionSuggestion) {
-    if (!eventId) return;
-    setCaptionBusyId(suggestion.id);
-    setCaptionError('');
-    setNotice('');
-    try {
-      await eventMediaApi.captionSuggestions.approve(eventId, suggestion.id, captionDrafts[suggestion.id] ?? {});
-      setNotice(isRu ? 'Предложение подписи утверждено.' : 'Caption suggestion approved.');
-      await Promise.all([loadCaptionSuggestions(), loadMedia(), loadSummary(), loadVisibility()]);
-    } catch (err: any) {
-      console.error('[media-bank] caption approve failed', err);
-      setCaptionError(getFriendlyApiErrorMessage(err, locale));
-    } finally {
-      setCaptionBusyId('');
-    }
-  }
-
-  async function handleRejectCaption(suggestion: EventMediaCaptionSuggestion) {
-    if (!eventId) return;
-    const reason = captionRejectReasons[suggestion.id]?.trim() ?? '';
-    if (!reason) {
-      setCaptionError(isRu ? 'Причина отклонения обязательна.' : 'Rejection reason is required.');
-      return;
-    }
-
-    setCaptionBusyId(suggestion.id);
-    setCaptionError('');
-    setNotice('');
-    try {
-      await eventMediaApi.captionSuggestions.reject(eventId, suggestion.id, reason);
-      setNotice(isRu ? 'Предложение подписи отклонено.' : 'Caption suggestion rejected.');
-      await loadCaptionSuggestions();
-    } catch (err: any) {
-      console.error('[media-bank] caption reject failed', err);
-      setCaptionError(getFriendlyApiErrorMessage(err, locale));
-    } finally {
-      setCaptionBusyId('');
     }
   }
 
@@ -475,25 +330,11 @@ export default function AdminEventMediaPage() {
       ) : event ? (
         <>
           <div className="workspace-status-strip workspace-status-strip-v2">
+            <div className="workspace-status-card"><small>{isRu ? 'Всего' : 'Total'}</small><strong>{summary.total}</strong></div>
             <div className="workspace-status-card"><small>{isRu ? 'На модерации' : 'Pending'}</small><strong>{summary.pending}</strong></div>
             <div className="workspace-status-card"><small>{isRu ? 'Опубликовано' : 'Approved'}</small><strong>{summary.approved}</strong></div>
-            <div className="workspace-status-card"><small>{isRu ? 'Отклонено' : 'Rejected'}</small><strong>{summary.rejected}</strong></div>
             <div className="workspace-status-card"><small>{isRu ? 'Фотобанк' : 'Media bank'}</small><strong>{settings.enabled ? (isRu ? 'Включён' : 'Enabled') : (isRu ? 'Выключен' : 'Disabled')}</strong></div>
           </div>
-          {summaryError ? <Notice tone="warning">{summaryError}</Notice> : null}
-
-          <ToolbarRow>
-            {ADMIN_MEDIA_TABS.map((item) => (
-              <button
-                key={item}
-                type="button"
-                className={`btn btn-sm ${activeTab === item ? 'btn-primary' : 'btn-ghost'}`}
-                onClick={() => setActiveTab(item)}
-              >
-                {tabLabel(item, locale)}
-              </button>
-            ))}
-          </ToolbarRow>
 
           {visibility ? (
             <Panel variant="elevated" className="admin-command-panel admin-media-visibility-panel">
@@ -508,301 +349,129 @@ export default function AdminEventMediaPage() {
                 <div><small>{isRu ? 'Фотобанк включён' : 'Media bank enabled'}</small><strong>{visibility.mediaBankEnabled ? (isRu ? 'Да' : 'Yes') : (isRu ? 'Нет' : 'No')}</strong></div>
                 <div><small>{isRu ? 'Опубликованных медиа' : 'Approved media'}</small><strong>{visibility.approvedMedia}</strong></div>
                 <div><small>{isRu ? 'Активных файлов' : 'Active files'}</small><strong>{visibility.activeAssets}</strong></div>
-                <div><small>{isRu ? 'Попадает на главную' : 'Visible on home'}</small><strong>{visibility.visibleOnPublicPages ? (isRu ? 'Да' : 'Yes') : (isRu ? 'Нет' : 'No')}</strong></div>
+                <div><small>{isRu ? 'Публично' : 'Public'}</small><strong>{visibility.visibleOnPublicPages ? (isRu ? 'Да' : 'Yes') : (isRu ? 'Нет' : 'No')}</strong></div>
                 <div><small>{isRu ? 'Причина' : 'Reason'}</small><strong>{visibility.reasonCode}</strong></div>
               </div>
             </Panel>
           ) : null}
 
+          <ToolbarRow>
+            <button type="button" className={`btn btn-sm ${activeTab === 'media' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setActiveTab('media')}>
+              {isRu ? 'Медиа' : 'Media'}
+            </button>
+            <button type="button" className={`btn btn-sm ${activeTab === 'settings' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setActiveTab('settings')}>
+              {isRu ? 'Настройки' : 'Settings'}
+            </button>
+          </ToolbarRow>
+
           {activeTab === 'media' ? (
-          <Panel variant="elevated" className="admin-command-panel admin-media-upload-panel">
-            <SectionHeader
-              title={isRu ? 'Загрузить от организатора' : 'Upload as organizer'}
-              subtitle={isRu ? 'Материал сразу публикуется в фотобанке' : 'Organizer uploads are published immediately'}
-            />
-            <form className="admin-media-upload-form" onSubmit={handleUpload}>
-              <label className="media-upload-dropzone">
-                <span>{uploadFile ? uploadFile.name : (isRu ? 'Файл фото или видео' : 'Photo or video file')}</span>
-                <small>{isRu ? 'image/* или video/*' : 'image/* or video/*'}</small>
-                <input type="file" accept="image/*,video/*" onChange={(event) => setUploadFile(event.currentTarget.files?.[0] ?? null)} />
-              </label>
-              <FieldInput value={uploadDraft.title ?? ''} onChange={(event) => setUploadDraft((current) => ({ ...current, title: event.target.value }))} maxLength={120} placeholder={isRu ? 'Название' : 'Title'} />
-              <FieldInput value={uploadDraft.credit ?? ''} onChange={(event) => setUploadDraft((current) => ({ ...current, credit: event.target.value }))} maxLength={120} placeholder={isRu ? 'Автор / credit' : 'Author / credit'} />
-              <FieldInput value={uploadDraft.altText ?? ''} onChange={(event) => setUploadDraft((current) => ({ ...current, altText: event.target.value }))} maxLength={180} placeholder="Alt text" />
-              <FieldTextarea value={uploadDraft.caption ?? ''} onChange={(event) => setUploadDraft((current) => ({ ...current, caption: event.target.value }))} maxLength={1000} rows={3} placeholder={isRu ? 'Подпись' : 'Caption'} />
-              <button className="btn btn-primary btn-sm" type="submit" disabled={uploading || !uploadFile}>
-                {uploading ? (isRu ? 'Публикуем...' : 'Publishing...') : (isRu ? 'Опубликовать' : 'Publish')}
-              </button>
-            </form>
-            {uploadError ? <Notice tone="danger">{uploadError}</Notice> : null}
-          </Panel>
+            <>
+              <Panel variant="elevated" className="admin-command-panel admin-media-upload-panel">
+                <SectionHeader
+                  title={isRu ? 'Загрузить от организатора' : 'Upload as organizer'}
+                  subtitle={isRu ? 'Материал сразу публикуется в фотобанке' : 'Organizer uploads are published immediately'}
+                />
+                <form className="admin-media-upload-form" onSubmit={handleUpload}>
+                  <label className="media-upload-dropzone">
+                    <span>{uploadFile ? uploadFile.name : (isRu ? 'Файл фото или видео' : 'Photo or video file')}</span>
+                    <small>{isRu ? 'image/* или video/*' : 'image/* or video/*'}</small>
+                    <input type="file" accept="image/*,video/*" onChange={(event) => setUploadFile(event.currentTarget.files?.[0] ?? null)} />
+                  </label>
+                  <FieldInput value={uploadDraft.title ?? ''} onChange={(event) => setUploadDraft((current) => ({ ...current, title: event.target.value }))} maxLength={120} placeholder={isRu ? 'Название' : 'Title'} />
+                  <FieldInput value={uploadDraft.credit ?? ''} onChange={(event) => setUploadDraft((current) => ({ ...current, credit: event.target.value }))} maxLength={120} placeholder={isRu ? 'Автор / credit' : 'Author / credit'} />
+                  <FieldInput value={uploadDraft.altText ?? ''} onChange={(event) => setUploadDraft((current) => ({ ...current, altText: event.target.value }))} maxLength={180} placeholder="Alt text" />
+                  <FieldTextarea value={uploadDraft.caption ?? ''} onChange={(event) => setUploadDraft((current) => ({ ...current, caption: event.target.value }))} maxLength={1000} rows={3} placeholder={isRu ? 'Подпись' : 'Caption'} />
+                  <button className="btn btn-primary btn-sm" type="submit" disabled={uploading || !uploadFile}>
+                    {uploading ? (isRu ? 'Публикуем...' : 'Publishing...') : (isRu ? 'Опубликовать' : 'Publish')}
+                  </button>
+                </form>
+                {uploadError ? <Notice tone="danger">{uploadError}</Notice> : null}
+              </Panel>
+
+              <Panel variant="elevated" className="admin-command-panel admin-media-list-panel">
+                <SectionHeader title={isRu ? 'Материалы фотобанка' : 'Media bank items'} subtitle={isRu ? 'Фильтры, подписи и модерация' : 'Filters, captions, and moderation'} />
+                {actionError ? <Notice tone="danger">{actionError}</Notice> : null}
+                {listError ? <Notice tone="danger">{listError}</Notice> : null}
+                <ToolbarRow>
+                  {STATUS_FILTERS.map((item) => (
+                    <button key={item} type="button" className={`btn btn-sm ${status === item ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setStatus(item)}>
+                      {statusLabel(item, locale)}
+                    </button>
+                  ))}
+                </ToolbarRow>
+                <ToolbarRow>
+                  {TYPE_FILTERS.map((item) => (
+                    <button key={item} type="button" className={`btn btn-sm ${type === item ? 'btn-secondary' : 'btn-ghost'}`} onClick={() => setType(item)}>
+                      {typeLabel(item, locale)}
+                    </button>
+                  ))}
+                  <FieldInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder={isRu ? 'Поиск' : 'Search'} />
+                </ToolbarRow>
+
+                {mediaLoading ? <LoadingLines rows={6} /> : media.length === 0 ? (
+                  <EmptyState title={isRu ? 'Материалов нет' : 'No media yet'} description={isRu ? 'Загрузите первый файл или измените фильтры.' : 'Upload the first file or change filters.'} />
+                ) : (
+                  <div className="admin-event-media-list">
+                    {media.map((item) => {
+                      const draft = drafts[item.id] ?? emptyDraft(item);
+                      return (
+                        <article className="admin-event-media-card" key={item.id}>
+                          <div className="admin-event-media-preview">{renderPreview(item)}</div>
+                          <div className="admin-event-media-body">
+                            <div className="admin-event-media-title-row">
+                              <strong>{item.title || item.asset.originalFilename}</strong>
+                              <StatusBadge tone={statusTone(item.status)}>{statusLabel(item.status, locale)}</StatusBadge>
+                            </div>
+                            <div className="signal-muted">
+                              {formatMediaDisplayNumber(item, locale)} · {item.kind} · {item.source}
+                              {item.uploader?.email ? ` · ${item.uploader.email}` : ''}
+                            </div>
+                            <FieldInput value={draft.title ?? ''} onChange={(event) => patchDraft(item.id, 'title', event.target.value)} maxLength={120} placeholder={isRu ? 'Название' : 'Title'} />
+                            <FieldInput value={draft.credit ?? ''} onChange={(event) => patchDraft(item.id, 'credit', event.target.value)} maxLength={120} placeholder={isRu ? 'Автор / credit' : 'Author / credit'} />
+                            <FieldInput value={draft.altText ?? ''} onChange={(event) => patchDraft(item.id, 'altText', event.target.value)} maxLength={180} placeholder="Alt text" />
+                            <FieldTextarea value={draft.caption ?? ''} onChange={(event) => patchDraft(item.id, 'caption', event.target.value)} rows={3} maxLength={1000} placeholder={isRu ? 'Подпись' : 'Caption'} />
+                            <FieldTextarea value={rejectReasons[item.id] ?? ''} onChange={(event) => setRejectReasons((current) => ({ ...current, [item.id]: event.target.value }))} rows={2} maxLength={1000} placeholder={isRu ? 'Причина / заметка модератора' : 'Rejection reason / moderator note'} />
+                            <div className="admin-event-media-actions">
+                              <button className="btn btn-secondary btn-sm" type="button" disabled={busyId === item.id} onClick={() => handleUpdate(item)}>{isRu ? 'Сохранить' : 'Save'}</button>
+                              <button className="btn btn-secondary btn-sm" type="button" disabled={busyId === item.id} onClick={() => handleUpdate(item, 'APPROVED')}>{isRu ? 'Одобрить' : 'Approve'}</button>
+                              <button className="btn btn-ghost btn-sm" type="button" disabled={busyId === item.id} onClick={() => handleUpdate(item, 'REJECTED')}>{isRu ? 'Отклонить' : 'Reject'}</button>
+                              <button className="btn btn-ghost btn-sm" type="button" disabled={busyId === item.id} onClick={() => handleDelete(item)}>{isRu ? 'Удалить' : 'Delete'}</button>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </Panel>
+            </>
           ) : null}
 
           {activeTab === 'settings' ? (
-          <Panel variant="elevated" className="admin-command-panel admin-media-settings-panel">
-            <SectionHeader
-              title={isRu ? 'Настройки фотобанка' : 'Media bank settings'}
-              subtitle={isRu ? 'Видимость, премодерация и правила загрузки' : 'Visibility, moderation, and upload rules'}
-            />
-            <div className="admin-media-settings-grid">
-              <label><input type="checkbox" checked={settingsDraft.enabled} onChange={(event) => patchSettings('enabled', event.target.checked)} /> {isRu ? 'Фотобанк включён' : 'Media bank enabled'}</label>
-              <label><input type="checkbox" checked={settingsDraft.participantUploadEnabled} onChange={(event) => patchSettings('participantUploadEnabled', event.target.checked)} /> {isRu ? 'Загрузка участниками включена' : 'Participant upload enabled'}</label>
-              <label><input type="checkbox" checked={settingsDraft.moderationEnabled} onChange={(event) => patchSettings('moderationEnabled', event.target.checked)} /> {isRu ? 'Премодерация включена' : 'Pre-moderation enabled'}</label>
-              <label><input type="checkbox" checked={settingsDraft.showUploaderName} onChange={(event) => patchSettings('showUploaderName', event.target.checked)} /> {isRu ? 'Показывать автора / uploader' : 'Show uploader name'}</label>
-              <label><input type="checkbox" checked={settingsDraft.showCredit} onChange={(event) => patchSettings('showCredit', event.target.checked)} /> {isRu ? 'Показывать credit' : 'Show credit'}</label>
-              <label><input type="checkbox" checked={settingsDraft.allowParticipantTitle} onChange={(event) => patchSettings('allowParticipantTitle', event.target.checked)} /> {isRu ? 'Участник задаёт название' : 'Participants can set title'}</label>
-              <label><input type="checkbox" checked={settingsDraft.allowParticipantCaption} onChange={(event) => patchSettings('allowParticipantCaption', event.target.checked)} /> {isRu ? 'Участник задаёт подпись' : 'Participants can set caption'}</label>
-              <label className="admin-media-settings-size">
-                <span>{isRu ? 'Максимальный размер, MB' : 'Max file size, MB'}</span>
-                <FieldInput type="number" min={1} max={100} value={settingsDraft.maxFileSizeMb} onChange={(event) => patchSettings('maxFileSizeMb', Number(event.target.value))} />
-              </label>
-              <label><input type="checkbox" checked={settingsDraft.allowedTypes.includes('image')} onChange={(event) => toggleAllowedType('image', event.target.checked)} /> {isRu ? 'Фото' : 'Photos'}</label>
-              <label><input type="checkbox" checked={settingsDraft.allowedTypes.includes('video')} onChange={(event) => toggleAllowedType('video', event.target.checked)} /> {isRu ? 'Видео' : 'Videos'}</label>
-            </div>
-            <ToolbarRow>
-              <button className="btn btn-secondary btn-sm" type="button" disabled={savingSettings} onClick={handleSaveSettings}>
-                {savingSettings ? (isRu ? 'Сохраняем...' : 'Saving...') : (isRu ? 'Сохранить настройки' : 'Save settings')}
-              </button>
-            </ToolbarRow>
-            {settingsError ? <Notice tone="danger">{settingsError}</Notice> : null}
-          </Panel>
-          ) : null}
-
-          {activeTab === 'imports' ? (
-            <Panel variant="elevated" className="admin-command-panel admin-media-imports-panel">
-              <SectionHeader
-                title={isRu ? 'Массовая загрузка архива' : 'Bulk archive upload'}
-                subtitle={isRu ? '.zip архив обрабатывается в фоне, с прогрессом и CSV-отчётом' : '.zip archive is processed in the background with progress and CSV report'}
-              />
-              <form className="admin-media-import-form" onSubmit={handleStartImport}>
-                <label className="media-upload-dropzone">
-                  <span>{importFile ? importFile.name : (isRu ? 'Выберите .zip архив' : 'Choose .zip archive')}</span>
-                  <small>{isRu ? 'До 500 MB, до 1000 файлов' : 'Up to 500 MB, up to 1000 files'}</small>
-                  <input type="file" accept=".zip,application/zip,application/x-zip-compressed" onChange={(event) => setImportFile(event.currentTarget.files?.[0] ?? null)} />
+            <Panel variant="elevated" className="admin-command-panel admin-media-settings-panel">
+              <SectionHeader title={isRu ? 'Настройки фотобанка' : 'Media bank settings'} subtitle={isRu ? 'Видимость, премодерация и правила загрузки' : 'Visibility, moderation, and upload rules'} />
+              <div className="admin-media-settings-grid">
+                <label><input type="checkbox" checked={settingsDraft.enabled} onChange={(event) => patchSettings('enabled', event.target.checked)} /> {isRu ? 'Фотобанк включён' : 'Media bank enabled'}</label>
+                <label><input type="checkbox" checked={settingsDraft.participantUploadEnabled} onChange={(event) => patchSettings('participantUploadEnabled', event.target.checked)} /> {isRu ? 'Загрузка участниками включена' : 'Participant upload enabled'}</label>
+                <label><input type="checkbox" checked={settingsDraft.moderationEnabled} onChange={(event) => patchSettings('moderationEnabled', event.target.checked)} /> {isRu ? 'Премодерация включена' : 'Pre-moderation enabled'}</label>
+                <label><input type="checkbox" checked={settingsDraft.showUploaderName} onChange={(event) => patchSettings('showUploaderName', event.target.checked)} /> {isRu ? 'Показывать uploader' : 'Show uploader name'}</label>
+                <label><input type="checkbox" checked={settingsDraft.showCredit} onChange={(event) => patchSettings('showCredit', event.target.checked)} /> {isRu ? 'Показывать credit' : 'Show credit'}</label>
+                <label><input type="checkbox" checked={settingsDraft.allowParticipantTitle} onChange={(event) => patchSettings('allowParticipantTitle', event.target.checked)} /> {isRu ? 'Участник задаёт название' : 'Participants can set title'}</label>
+                <label><input type="checkbox" checked={settingsDraft.allowParticipantCaption} onChange={(event) => patchSettings('allowParticipantCaption', event.target.checked)} /> {isRu ? 'Участник задаёт подпись' : 'Participants can set caption'}</label>
+                <label className="admin-media-settings-size">
+                  <span>{isRu ? 'Максимальный размер, MB' : 'Max file size, MB'}</span>
+                  <FieldInput type="number" min={1} max={100} value={settingsDraft.maxFileSizeMb} onChange={(event) => patchSettings('maxFileSizeMb', Number(event.target.value))} />
                 </label>
-                <div className="admin-media-import-options">
-                  <label>
-                    <span>{isRu ? 'Режим публикации' : 'Publish mode'}</span>
-                    <select className="signal-field signal-select" value={importOptions.publishMode} onChange={(event) => setImportOptions((current) => ({ ...current, publishMode: event.target.value as 'approved' | 'pending' }))}>
-                      <option value="approved">{isRu ? 'Сразу опубликовано' : 'Approved immediately'}</option>
-                      <option value="pending">{isRu ? 'На модерацию' : 'Pending review'}</option>
-                    </select>
-                  </label>
-                  <label><input type="checkbox" checked={importOptions.useFilenameAsTitle} onChange={(event) => setImportOptions((current) => ({ ...current, useFilenameAsTitle: event.target.checked }))} /> {isRu ? 'Использовать имя файла как название' : 'Use filename as title'}</label>
-                  <label><input type="checkbox" checked={importOptions.skipDuplicates} onChange={(event) => setImportOptions((current) => ({ ...current, skipDuplicates: event.target.checked }))} /> {isRu ? 'Пропускать дубликаты' : 'Skip duplicates'}</label>
-                  <label><input type="checkbox" checked={importOptions.preserveFolders} onChange={(event) => setImportOptions((current) => ({ ...current, preserveFolders: event.target.checked }))} /> {isRu ? 'Сохранять путь папок в отчёте' : 'Keep folder paths in report'}</label>
-                </div>
-                <ToolbarRow>
-                  <button className="btn btn-primary btn-sm" type="submit" disabled={importUploading || !importFile}>
-                    {importUploading ? (isRu ? 'Ставим в очередь...' : 'Queueing...') : (isRu ? 'Начать импорт' : 'Start import')}
-                  </button>
-                  <button className="btn btn-ghost btn-sm" type="button" onClick={() => void loadImports()}>{isRu ? 'Обновить' : 'Refresh'}</button>
-                </ToolbarRow>
-              </form>
-              {importError ? <Notice tone="danger">{importError}</Notice> : null}
-
-              <div className="admin-media-import-list">
-                {importJobs.length === 0 ? (
-                  <EmptyState title={isRu ? 'Импортов пока нет' : 'No imports yet'} description={isRu ? 'После загрузки архива job появится здесь.' : 'Upload a zip archive to create an import job.'} />
-                ) : importJobs.map((job) => (
-                  <article className="admin-media-import-card" key={job.id}>
-                    <div>
-                      <strong>{job.originalFilename}</strong>
-                      <div className="signal-muted">{job.status} · {formatAdminDateTime(job.createdAt, locale)}</div>
-                    </div>
-                    <div className="admin-media-import-progress">
-                      <span>{isRu ? 'Импортировано' : 'Imported'}: {job.importedCount}</span>
-                      <span>{isRu ? 'Пропущено' : 'Skipped'}: {job.skippedCount}</span>
-                      <span>{isRu ? 'Ошибок' : 'Failed'}: {job.failedCount}</span>
-                      <span>{isRu ? 'Дубликатов' : 'Duplicates'}: {job.duplicateCount}</span>
-                    </div>
-                    {job.errorMessage ? <Notice tone="danger">{job.errorMessage}</Notice> : null}
-                    <ToolbarRow>
-                      <button className="btn btn-secondary btn-sm" type="button" onClick={() => void eventMediaApi.imports.downloadReport(String(eventId), job.id)}>{isRu ? 'CSV отчёт' : 'CSV report'}</button>
-                      {job.status === 'QUEUED' || job.status === 'PROCESSING' ? (
-                        <button className="btn btn-ghost btn-sm" type="button" onClick={async () => { await eventMediaApi.imports.cancel(String(eventId), job.id); await loadImports(); }}>{isRu ? 'Отменить' : 'Cancel'}</button>
-                      ) : null}
-                    </ToolbarRow>
-                  </article>
-                ))}
+                <label><input type="checkbox" checked={settingsDraft.allowedTypes.includes('image')} onChange={(event) => toggleAllowedType('image', event.target.checked)} /> {isRu ? 'Фото' : 'Photos'}</label>
+                <label><input type="checkbox" checked={settingsDraft.allowedTypes.includes('video')} onChange={(event) => toggleAllowedType('video', event.target.checked)} /> {isRu ? 'Видео' : 'Videos'}</label>
               </div>
+              <ToolbarRow>
+                <button className="btn btn-secondary btn-sm" type="button" disabled={savingSettings} onClick={handleSaveSettings}>
+                  {savingSettings ? (isRu ? 'Сохраняем...' : 'Saving...') : (isRu ? 'Сохранить настройки' : 'Save settings')}
+                </button>
+              </ToolbarRow>
+              {settingsError ? <Notice tone="danger">{settingsError}</Notice> : null}
             </Panel>
-          ) : null}
-
-          {activeTab === 'captions' ? (
-            <Panel variant="elevated" className="admin-command-panel admin-media-caption-panel">
-              <SectionHeader
-                title={isRu ? 'Предложения подписей' : 'Caption suggestions'}
-                subtitle={isRu ? 'Участники предлагают подписи, админ утверждает или отклоняет с причиной' : 'Participants suggest captions; admins approve or reject with a reason'}
-              />
-              <ToolbarRow>
-                {(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'ALL'] as CaptionSuggestionStatusFilter[]).map((item) => (
-                  <button key={item} type="button" className={`btn btn-sm ${captionStatus === item ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setCaptionStatus(item)}>
-                    {statusLabel(item as any, locale)}
-                  </button>
-                ))}
-              </ToolbarRow>
-              {captionError ? <Notice tone="danger">{captionError}</Notice> : null}
-              <div className="admin-media-caption-list">
-                {captionSuggestions.length === 0 ? (
-                  <EmptyState title={isRu ? 'Предложений нет' : 'No suggestions'} description={isRu ? 'Новые предложения появятся здесь после отправки участниками.' : 'New participant suggestions will appear here.'} />
-                ) : captionSuggestions.map((suggestion) => {
-                  const draft = captionDrafts[suggestion.id] ?? {};
-                  const rejectReason = captionRejectReasons[suggestion.id] ?? '';
-                  const mediaItem = suggestion.media;
-                  return (
-                    <article className="admin-media-caption-card" key={suggestion.id}>
-                      {mediaItem ? <div className="admin-media-preview">{renderPreview(mediaItem)}</div> : null}
-                      <div className="admin-media-card-body">
-                        <div className="admin-media-title-row">
-                          <div>
-                            <strong>{mediaItem ? formatMediaDisplayNumber(mediaItem, locale) : suggestion.mediaId}</strong>
-                            <div className="signal-muted">{suggestion.author?.email ?? suggestion.author?.name ?? (isRu ? 'Участник' : 'Participant')}</div>
-                          </div>
-                          <StatusBadge tone={suggestion.status === 'APPROVED' ? 'success' : suggestion.status === 'REJECTED' ? 'danger' : 'warning'}>{suggestion.status}</StatusBadge>
-                        </div>
-                        <div className="admin-media-edit-grid">
-                          <FieldInput value={draft.title ?? ''} onChange={(event) => patchCaptionDraft(suggestion.id, 'title', event.target.value)} maxLength={120} placeholder={isRu ? 'Название' : 'Title'} />
-                          <FieldInput value={draft.credit ?? ''} onChange={(event) => patchCaptionDraft(suggestion.id, 'credit', event.target.value)} maxLength={120} placeholder="Credit" />
-                          <FieldInput value={draft.altText ?? ''} onChange={(event) => patchCaptionDraft(suggestion.id, 'altText', event.target.value)} maxLength={180} placeholder="Alt text" />
-                          <FieldTextarea value={draft.caption ?? ''} onChange={(event) => patchCaptionDraft(suggestion.id, 'caption', event.target.value)} maxLength={1000} rows={3} placeholder={isRu ? 'Подпись' : 'Caption'} />
-                        </div>
-                        {suggestion.status === 'REJECTED' && suggestion.moderationReason ? <Notice tone="danger">{suggestion.moderationReason}</Notice> : null}
-                        {suggestion.status === 'PENDING' ? (
-                          <>
-                            <FieldTextarea
-                              value={rejectReason}
-                              onChange={(event) => setCaptionRejectReasons((current) => ({ ...current, [suggestion.id]: event.target.value }))}
-                              maxLength={1000}
-                              rows={2}
-                              placeholder={isRu ? 'Причина отклонения' : 'Rejection reason'}
-                            />
-                            <ToolbarRow>
-                              <button className="btn btn-primary btn-sm" type="button" disabled={captionBusyId === suggestion.id} onClick={() => handleApproveCaption(suggestion)}>{isRu ? 'Утвердить' : 'Approve'}</button>
-                              <button className="btn btn-ghost btn-sm" type="button" disabled={captionBusyId === suggestion.id || !rejectReason.trim()} onClick={() => handleRejectCaption(suggestion)}>{isRu ? 'Отклонить' : 'Reject'}</button>
-                            </ToolbarRow>
-                          </>
-                        ) : null}
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </Panel>
-          ) : null}
-
-          {activeTab === 'media' ? (
-          <Panel variant="elevated" className="admin-command-panel admin-media-board-panel">
-            <SectionHeader
-              title={isRu ? 'Очередь и история' : 'Queue and history'}
-              subtitle={isRu ? 'Автор, подписи, статусы и действия модерации' : 'Uploader, captions, statuses, and moderation actions'}
-            />
-            <div className="admin-media-filters">
-              <ToolbarRow>
-                {STATUS_FILTERS.map((item) => (
-                  <button key={item} type="button" className={`btn btn-sm ${status === item ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setStatus(item)}>
-                    {statusLabel(item, locale)}
-                  </button>
-                ))}
-              </ToolbarRow>
-              <ToolbarRow>
-                {(['all', 'image', 'video'] as MediaTypeFilter[]).map((item) => (
-                  <button key={item} type="button" className={`btn btn-sm ${type === item ? 'btn-secondary' : 'btn-ghost'}`} onClick={() => setType(item)}>
-                    {item === 'all' ? (isRu ? 'Все типы' : 'All types') : item === 'image' ? (isRu ? 'Фото' : 'Photos') : (isRu ? 'Видео' : 'Videos')}
-                  </button>
-                ))}
-                <FieldInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder={isRu ? 'Поиск по автору, подписи, файлу' : 'Search author, caption, file'} />
-              </ToolbarRow>
-            </div>
-
-            {listError ? <Notice tone="danger">{listError}</Notice> : null}
-            {actionError ? <Notice tone="danger">{actionError}</Notice> : null}
-
-            {mediaLoading ? (
-              <LoadingLines rows={6} />
-            ) : media.length === 0 ? (
-              <EmptyState
-                title={isRu ? 'Нет материалов' : 'No media'}
-                description={isRu ? 'В выбранном фильтре ничего нет.' : 'Nothing matches the selected filter.'}
-              />
-            ) : (
-              <div className="admin-media-card-list">
-                {media.map((item) => {
-                  const draft = drafts[item.id] ?? emptyDraft(item);
-                  const rejectReason = rejectReasons[item.id] ?? '';
-                  return (
-                    <article className="admin-media-card" key={item.id}>
-                      <div className="admin-media-preview">{renderPreview(item)}</div>
-                      <div className="admin-media-card-body">
-                        <div className="admin-media-title-row">
-                          <div>
-                            <strong>{item.title || item.asset.originalFilename}</strong>
-                            <div className="signal-muted">
-                              {formatMediaDisplayNumber(item, locale)}
-                              {' · '}
-                              {item.source === 'ADMIN' ? (isRu ? 'Организатор' : 'Organizer') : (isRu ? 'Участник' : 'Participant')}
-                              {item.uploader?.email ? ` · ${item.uploader.email}` : ''}
-                            </div>
-                          </div>
-                          <StatusBadge tone={statusTone(item.status)}>{statusLabel(item.status, locale)}</StatusBadge>
-                        </div>
-
-                        <div className="admin-media-edit-grid">
-                          <FieldInput value={draft.title ?? ''} onChange={(event) => patchDraft(item.id, 'title', event.target.value)} maxLength={120} placeholder={isRu ? 'Название' : 'Title'} />
-                          <FieldInput value={draft.credit ?? ''} onChange={(event) => patchDraft(item.id, 'credit', event.target.value)} maxLength={120} placeholder="Credit" />
-                          <FieldInput value={draft.altText ?? ''} onChange={(event) => patchDraft(item.id, 'altText', event.target.value)} maxLength={180} placeholder="Alt text" />
-                          <FieldTextarea value={draft.caption ?? ''} onChange={(event) => patchDraft(item.id, 'caption', event.target.value)} maxLength={1000} rows={3} placeholder={isRu ? 'Подпись' : 'Caption'} />
-                        </div>
-
-                        <div className="admin-media-decision-grid">
-                          <FieldTextarea
-                            value={rejectReason}
-                            onChange={(event) => setRejectReasons((current) => ({ ...current, [item.id]: event.target.value }))}
-                            maxLength={1000}
-                            rows={2}
-                            placeholder={isRu ? 'Причина отклонения или комментарий модератора' : 'Rejection reason or moderator note'}
-                          />
-                          <div className="admin-media-meta-line">
-                            <span>{isRu ? 'Отправлено' : 'Submitted'}: {formatAdminDateTime(item.createdAt, locale)}</span>
-                            {item.approvedAt ? <span>{isRu ? 'Решение' : 'Decision'}: {formatAdminDateTime(item.approvedAt, locale)}</span> : null}
-                            {item.rejectedAt ? <span>{isRu ? 'Решение' : 'Decision'}: {formatAdminDateTime(item.rejectedAt, locale)}</span> : null}
-                          </div>
-                        </div>
-
-                        <details className="media-history-details">
-                          <summary>{isRu ? 'История' : 'History'}</summary>
-                          <div className="media-history-timeline">
-                            {(item.history ?? []).map((entry) => (
-                              <div className="media-history-entry" key={entry.id}>
-                                <strong>{entry.action}</strong>
-                                <span>{formatAdminDateTime(entry.createdAt, locale)}{entry.actor?.email ? ` · ${entry.actor.email}` : ''}</span>
-                                {entry.reason ? <p>{entry.reason}</p> : null}
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-
-                        <ToolbarRow>
-                          <button className="btn btn-secondary btn-sm" type="button" disabled={busyId === item.id} onClick={() => handleUpdate(item)}>
-                            {isRu ? 'Сохранить подписи' : 'Save captions'}
-                          </button>
-                          <button className="btn btn-primary btn-sm" type="button" disabled={busyId === item.id} onClick={() => handleUpdate(item, 'APPROVED')}>
-                            {isRu ? 'Утвердить' : 'Approve'}
-                          </button>
-                          <button className="btn btn-ghost btn-sm" type="button" disabled={busyId === item.id || !rejectReason.trim()} onClick={() => handleUpdate(item, 'REJECTED')}>
-                            {isRu ? 'Отклонить' : 'Reject'}
-                          </button>
-                          <button className="btn btn-ghost btn-sm" type="button" disabled={busyId === item.id} onClick={() => handleDelete(item)}>
-                            {isRu ? 'Удалить / скрыть' : 'Delete / hide'}
-                          </button>
-                        </ToolbarRow>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
-          </Panel>
           ) : null}
         </>
       ) : null}
