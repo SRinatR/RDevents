@@ -31,7 +31,7 @@ vi.mock('../events/event-media.service.js', () => ({
   EventMediaUploadError: class EventMediaUploadError extends Error {},
   getEventMediaSettings: vi.fn(),
   getEventMediaSummary: vi.fn(),
-  handleEventMediaMulterUpload: mediaServiceMocks.handleEventMediaMulterUpload,
+  handleEventMediaMulterUpload: vi.fn(() => (_req: any, _res: any, next: () => void) => next()),
   listEventMediaForModeration: vi.fn(),
   moderateEventMedia: vi.fn(),
   updateEventMediaSettings: mediaServiceMocks.updateEventMediaSettings,

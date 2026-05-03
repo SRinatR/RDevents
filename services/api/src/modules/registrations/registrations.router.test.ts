@@ -25,7 +25,10 @@ vi.mock('../../common/middleware.js', () => ({
 vi.mock('../events/event-media.service.js', () => ({
   EVENT_MEDIA_HARD_MAX_FILE_SIZE_MB: 50,
   EventMediaUploadError: eventMediaMocks.EventMediaUploadError,
-  handleEventMediaMulterUpload: eventMediaMocks.handleEventMediaMulterUpload,
+  handleEventMediaMulterUpload: vi.fn(() => (_req: any, _res: any, next: () => void) => next()),
+  listCaptionSuggestionTargets: vi.fn(),
+  listMyCaptionSuggestions: vi.fn(),
+  createCaptionSuggestion: vi.fn(),
   listMyEventMedia: eventMediaMocks.listMyEventMedia,
   uploadEventMedia: eventMediaMocks.uploadEventMedia,
 }));
