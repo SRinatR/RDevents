@@ -655,10 +655,13 @@ set_stage "$CURRENT_STAGE"
 
 compose run --rm --no-deps --entrypoint sh api -lc 'cd /app/services/api && pnpm exec prisma migrate deploy'
 
-# CURRENT_STAGE="cleanup-mock-data"
-# set_stage "$CURRENT_STAGE"
-
-# compose run --rm --no-deps --entrypoint sh api -lc 'cd /app/services/api && pnpm run db:cleanup-mock'
+if [ "${RUN_PRODUCTION_MOCK_CLEANUP:-false}" = "true" ]; then
+  CURRENT_STAGE="cleanup-mock-data"
+  set_stage "$CURRENT_STAGE"
+  compose run --rm --no-deps --entrypoint sh api -lc 'cd /app/services/api && CLEANUP_DEFAULT_MOCK_EVENTS=false CLEANUP_MOCK_EVENT_SLUGS="" pnpm run db:cleanup-mock'
+else
+  echo "Skipping mock cleanup in production deploy."
+fi
 
 CURRENT_STAGE="recreate-api-web-report-worker"
 set_stage "$CURRENT_STAGE"
