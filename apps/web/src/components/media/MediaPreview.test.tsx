@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { MediaPreview } from './MediaPreview';
 
 vi.mock('next/image', () => ({
+  // eslint-disable-next-line @next/next/no-img-element
   default: (props: any) => <img {...props} />,
 }));
 
