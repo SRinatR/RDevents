@@ -3,13 +3,25 @@
 import Link from 'next/link';
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import { eventMediaApi, type EventMediaItem, type PublicMediaEvent } from '@/lib/api';
-import { MediaCard, formatMediaDisplayNumber } from '@/components/media/MediaCard';
+import { formatMediaDisplayNumber } from '@/components/media/MediaCard';
 import { MediaPreview } from '@/components/media/MediaPreview';
-import { EmptyState, FieldInput, LoadingLines, Panel, ToolbarRow } from '@/components/ui/signal-primitives';
+import { EmptyState, FieldInput, LoadingLines, Panel } from '@/components/ui/signal-primitives';
 import styles from './media-page.module.css';
 
 type MediaFilter = 'all' | 'image' | 'video' | 'organizers';
 type MediaSort = 'newest' | 'oldest' | 'number';
+
+type EventAlbum = {
+  key: string;
+  title: string;
+  slug?: string | null;
+  startsAt?: string | null;
+  items: EventMediaItem[];
+  photos: number;
+  videos: number;
+  organizers: number;
+  totalSize: number;
+};
 
 const FILTERS: MediaFilter[] = ['all', 'image', 'video', 'organizers'];
 const SORTS: MediaSort[] = ['newest', 'oldest', 'number'];
@@ -27,37 +39,15 @@ function sortLabel(value: MediaSort, isRu: boolean) {
   return isRu ? 'Сначала новые' : 'Newest first';
 }
 
-function mediaTitle(item: EventMediaItem, isRu: boolean) {
-  return item.title || item.caption || item.event?.title || item.asset.originalFilename || (isRu ? 'Материал медиабанка' : 'Media item');
-}
-
-function mediaSubtitle(item: EventMediaItem, locale: string) {
-  const extended = item as EventMediaItem & { capturedAt?: string | null; durationSeconds?: number | null; groupTitle?: string | null };
-  const parts = [
-    extended.groupTitle,
-    formatShortDateTime(extended.capturedAt ?? item.approvedAt ?? item.createdAt, locale),
-    item.kind === 'video' && extended.durationSeconds ? formatDuration(extended.durationSeconds) : null,
-    formatFileSize(item.asset.sizeBytes),
-  ].filter(Boolean);
-  return parts.join(' · ');
-}
-
-function formatShortDateTime(value: string | null | undefined, locale: string) {
+function formatDate(value: string | null | undefined, locale: string) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
   return date.toLocaleDateString(locale === 'ru' ? 'ru-RU' : 'en-US', {
     day: '2-digit',
-    month: '2-digit',
+    month: 'short',
     year: 'numeric',
   });
-}
-
-function formatDuration(seconds: number) {
-  const rounded = Math.max(0, Math.round(seconds));
-  const minutes = Math.floor(rounded / 60);
-  const rest = rounded % 60;
-  return `${minutes}:${String(rest).padStart(2, '0')}`;
 }
 
 function formatFileSize(bytes: number | null | undefined) {
@@ -72,12 +62,44 @@ function filterMedia(items: EventMediaItem[], filter: MediaFilter) {
   return items;
 }
 
+function groupIntoAlbums(items: EventMediaItem[], locale: string): EventAlbum[] {
+  const fallbackTitle = locale === 'ru' ? 'Материалы без мероприятия' : 'Ungrouped media';
+  const map = new Map<string, EventAlbum>();
+
+  for (const item of items) {
+    const key = item.event?.id ?? item.eventId ?? 'ungrouped';
+    const album = map.get(key) ?? {
+      key,
+      title: item.event?.title ?? fallbackTitle,
+      slug: item.event?.slug,
+      startsAt: item.event?.startsAt,
+      items: [],
+      photos: 0,
+      videos: 0,
+      organizers: 0,
+      totalSize: 0,
+    };
+
+    album.items.push(item);
+    if (item.kind === 'image') album.photos += 1;
+    if (item.kind === 'video') album.videos += 1;
+    if (item.source === 'ADMIN') album.organizers += 1;
+    album.totalSize += Number(item.asset.sizeBytes ?? 0);
+    map.set(key, album);
+  }
+
+  return Array.from(map.values()).sort((a, b) => {
+    const aDate = new Date(a.startsAt ?? a.items[0]?.approvedAt ?? a.items[0]?.createdAt ?? 0).getTime();
+    const bDate = new Date(b.startsAt ?? b.items[0]?.approvedAt ?? b.items[0]?.createdAt ?? 0).getTime();
+    return bDate - aDate;
+  });
+}
+
 export default function SiteMediaPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = use(params);
   const isRu = locale === 'ru';
   const [media, setMedia] = useState<EventMediaItem[]>([]);
   const [events, setEvents] = useState<PublicMediaEvent[]>([]);
-  const [total, setTotal] = useState(0);
   const [filter, setFilter] = useState<MediaFilter>('all');
   const [sort, setSort] = useState<MediaSort>('newest');
   const [eventId, setEventId] = useState('');
@@ -88,14 +110,11 @@ export default function SiteMediaPage({ params }: { params: Promise<{ locale: st
     setLoading(true);
     try {
       const apiType = filter === 'image' || filter === 'video' ? filter : 'all';
-      const result = await eventMediaApi.siteList({ type: apiType, sort, eventId, search, limit: 40 });
-      const visibleMedia = filterMedia(result.media, filter);
-      setMedia(visibleMedia);
+      const result = await eventMediaApi.siteList({ type: apiType, sort, eventId, search, limit: 80 });
+      setMedia(filterMedia(result.media, filter));
       setEvents(result.events);
-      setTotal(filter === 'organizers' ? visibleMedia.length : result.meta.total);
     } catch {
       setMedia([]);
-      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -109,32 +128,30 @@ export default function SiteMediaPage({ params }: { params: Promise<{ locale: st
   const photoCount = useMemo(() => media.filter((item) => item.kind === 'image').length, [media]);
   const videoCount = useMemo(() => media.filter((item) => item.kind === 'video').length, [media]);
   const organizerCount = useMemo(() => media.filter((item) => item.source === 'ADMIN').length, [media]);
-  const previewItems = media.slice(0, 5);
-  const featured = previewItems[0];
-  const supporting = previewItems.slice(1, 5);
+  const albums = useMemo(() => groupIntoAlbums(media, locale), [media, locale]);
 
   return (
     <div className="public-page-shell route-shell route-site-media-page">
       <main className="public-main">
-        <section className="public-section media-site-hero" style={{ paddingTop: 'clamp(2rem, 5vw, 4.5rem)', paddingBottom: '1.5rem' }}>
-          <div className="container-wide media-site-hero-inner">
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
+        <section className={styles.page}>
+          <div className="container-wide">
+            <div className={styles.header}>
               <div>
-                <p className="label-ui" style={{ marginBottom: 10 }}>{isRu ? 'Фото и видео с событий' : 'Photos and videos from events'}</p>
-                <h1 className="display-title" style={{ margin: 0 }}>{isRu ? 'Медиабанк мероприятий' : 'Event media bank'}</h1>
-                <p className="section-subtitle" style={{ marginTop: 12 }}>
+                <p className={styles.kicker}>{isRu ? 'Фото и видео с событий' : 'Photos and videos from events'}</p>
+                <h1 className={styles.title}>{isRu ? 'Медиабанк мероприятий' : 'Event media bank'}</h1>
+                <p className={styles.stats}>
                   {isRu
-                    ? `${total} материалов · ${photoCount} фото · ${videoCount} видео`
-                    : `${total} items · ${photoCount} photos · ${videoCount} videos`}
+                    ? `${media.length} материалов · ${photoCount} фото · ${videoCount} видео`
+                    : `${media.length} items · ${photoCount} photos · ${videoCount} videos`}
                 </p>
               </div>
 
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <div className={styles.typeChips}>
                 {FILTERS.map((item) => (
                   <button
                     key={item}
                     type="button"
-                    className={`btn btn-sm ${filter === item ? 'btn-primary' : 'btn-secondary'}`}
+                    className={`${styles.chip} ${filter === item ? styles.chipActive : ''}`}
                     onClick={() => setFilter(item)}
                     title={item === 'organizers' ? `${organizerCount}` : undefined}
                   >
@@ -144,19 +161,42 @@ export default function SiteMediaPage({ params }: { params: Promise<{ locale: st
               </div>
             </div>
 
+            <div className={styles.filtersCard}>
+              <div className={styles.sortGroup}>
+                {SORTS.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    className={`${styles.sortButton} ${sort === item ? styles.sortButtonActive : ''}`}
+                    onClick={() => setSort(item)}
+                  >
+                    {sortLabel(item, isRu)}
+                  </button>
+                ))}
+              </div>
+
+              <select className={styles.select} value={eventId} onChange={(event) => setEventId(event.target.value)}>
+                <option value="">{isRu ? 'Все мероприятия' : 'All events'}</option>
+                {events.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+              </select>
+
+              <div className={styles.searchInput}>
+                <FieldInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder={isRu ? 'Поиск по номеру, подписи, автору' : 'Search by number, caption, credit'} />
+              </div>
+            </div>
+
             {loading ? (
-              <Panel style={{ marginTop: 28 }}><LoadingLines rows={8} /></Panel>
-            ) : featured ? (
-              <div className={styles.previewLayout}>
-                <MediaPreviewTile item={featured} locale={locale} isLarge />
-                <div className={styles.previewSideGrid}>
-                  {supporting.map((item) => (
-                    <MediaPreviewTile key={item.id} item={item} locale={locale} />
-                  ))}
-                </div>
+              <div className={styles.loadingWrap}>
+                <Panel><LoadingLines rows={8} /></Panel>
+              </div>
+            ) : albums.length ? (
+              <div className={styles.albumGrid}>
+                {albums.map((album) => (
+                  <EventAlbumCard key={album.key} album={album} locale={locale} />
+                ))}
               </div>
             ) : (
-              <div style={{ marginTop: 28 }}>
+              <div className={styles.emptyWrap}>
                 <EmptyState
                   title={isRu ? 'Медиабанк скоро появится' : 'Media bank is coming soon'}
                   description={isRu
@@ -168,89 +208,55 @@ export default function SiteMediaPage({ params }: { params: Promise<{ locale: st
             )}
           </div>
         </section>
-
-        <section className="public-section" style={{ paddingTop: '1rem' }}>
-          <div className="container-wide media-page-shell">
-            <Panel className="media-page-controls">
-              <ToolbarRow>
-                {SORTS.map((item) => (
-                  <button key={item} type="button" className={`btn btn-sm ${sort === item ? 'btn-secondary' : 'btn-ghost'}`} onClick={() => setSort(item)}>
-                    {sortLabel(item, isRu)}
-                  </button>
-                ))}
-                <select className="signal-field signal-select" value={eventId} onChange={(event) => setEventId(event.target.value)}>
-                  <option value="">{isRu ? 'Все мероприятия' : 'All events'}</option>
-                  {events.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
-                </select>
-                <FieldInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder={isRu ? 'Поиск по номеру, подписи, автору' : 'Search by number, caption, credit'} />
-              </ToolbarRow>
-            </Panel>
-
-            {loading ? (
-              <Panel><LoadingLines rows={8} /></Panel>
-            ) : media.length ? (
-              <div className="media-page-grid">
-                {media.map((item) => (
-                  <MediaCard
-                    key={item.id}
-                    item={item}
-                    locale={locale}
-                    showEvent
-                    href={item.event?.slug ? `/${locale}/events/${item.event.slug}/media` : undefined}
-                  />
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                title={isRu ? 'Материалы не найдены' : 'No media found'}
-                description={isRu
-                  ? 'Попробуйте изменить фильтры или открыть каталог мероприятий.'
-                  : 'Try changing filters or open the event catalog.'}
-                actions={<Link href={`/${locale}/events`} className="btn btn-primary">{isRu ? 'Смотреть мероприятия' : 'Browse events'}</Link>}
-              />
-            )}
-          </div>
-        </section>
       </main>
     </div>
   );
 }
 
-function MediaPreviewTile({ item, locale, isLarge = false }: { item: EventMediaItem; locale: string; isLarge?: boolean }) {
+function EventAlbumCard({ album, locale }: { album: EventAlbum; locale: string }) {
   const isRu = locale === 'ru';
-  const title = mediaTitle(item, isRu);
-  const subtitle = mediaSubtitle(item, locale);
+  const href = album.slug ? `/${locale}/events/${album.slug}/media` : `/${locale}/media`;
+  const previewItems = album.items.slice(0, 4);
+  const hiddenCount = Math.max(0, album.items.length - previewItems.length);
+  const size = formatFileSize(album.totalSize);
+  const date = formatDate(album.startsAt ?? album.items[0]?.approvedAt ?? album.items[0]?.createdAt, locale);
 
   return (
-    <Link
-      href={item.event?.slug ? `/${locale}/events/${item.event.slug}/media` : `/${locale}/media`}
-      style={{
-        position: 'relative',
-        minHeight: isLarge ? 520 : 245,
-        borderRadius: 28,
-        overflow: 'hidden',
-        boxShadow: '0 22px 55px rgba(15, 23, 42, 0.18)',
-        background: item.kind === 'video'
-          ? 'linear-gradient(135deg, #0f766e, #0ea5e9)'
-          : 'linear-gradient(135deg, #705df2, #a78bfa)',
-      }}
-      className={styles.previewTile}
-    >
-      <MediaPreview
-        publicUrl={item.asset.publicUrl}
-        storageKey={item.asset.storageKey}
-        kind={item.kind}
-        alt={item.altText || title}
-        sizes={isLarge ? '(max-width: 980px) 100vw, 56vw' : '(max-width: 980px) 50vw, 320px'}
-        controls={false}
-      />
-      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.02) 35%, rgba(15, 23, 42, 0.82) 100%)' }} />
-      <span style={{ position: 'absolute', top: 20, left: 20, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 999, background: 'rgba(15, 23, 42, 0.68)', color: '#fff', fontWeight: 800, fontSize: 13 }}>
-        {formatMediaDisplayNumber(item, locale)}
-      </span>
-      <div style={{ position: 'absolute', left: isLarge ? 24 : 18, right: isLarge ? 24 : 18, bottom: isLarge ? 24 : 18, color: '#fff' }}>
-        <h2 style={{ margin: 0, fontSize: isLarge ? 'clamp(1.5rem, 3vw, 2rem)' : '1.15rem', lineHeight: 1.15, fontWeight: 850, letterSpacing: '-0.03em' }}>{title}</h2>
-        {subtitle ? <p style={{ margin: '8px 0 0', color: 'rgba(255,255,255,0.82)', fontWeight: 700 }}>{subtitle}</p> : null}
+    <Link href={href} className={styles.albumCard}>
+      <div className={`${styles.albumPreviewGrid} ${previewItems.length === 1 ? styles.albumPreviewGridSingle : ''}`}>
+        {previewItems.map((item, index) => (
+          <div key={item.id} className={styles.thumb}>
+            <MediaPreview
+              publicUrl={item.asset.publicUrl}
+              storageKey={item.asset.storageKey}
+              kind={item.kind}
+              alt={item.altText || item.title || item.caption || album.title}
+              sizes="(max-width: 640px) 100vw, 340px"
+              controls={false}
+            />
+            {index === 0 ? <span className={styles.thumbBadge}>{formatMediaDisplayNumber(item, locale)}</span> : null}
+            {index === previewItems.length - 1 && hiddenCount > 0 ? <span className={styles.moreThumb}>+{hiddenCount}</span> : null}
+          </div>
+        ))}
+      </div>
+
+      <div className={styles.albumBody}>
+        <div className={styles.albumTitleRow}>
+          <h2 className={styles.albumTitle}>{album.title}</h2>
+          <span className={styles.albumCount}>{album.items.length}</span>
+        </div>
+
+        <div className={styles.albumMeta}>
+          {date ? <span>{date}</span> : null}
+          <span>{isRu ? `${album.photos} фото` : `${album.photos} photos`}</span>
+          <span>{isRu ? `${album.videos} видео` : `${album.videos} videos`}</span>
+          {size ? <span>{size}</span> : null}
+        </div>
+
+        <div className={styles.albumFooter}>
+          <span>{isRu ? 'Открыть альбом' : 'Open album'}</span>
+          <span aria-hidden="true">→</span>
+        </div>
       </div>
     </Link>
   );
