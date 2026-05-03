@@ -465,6 +465,13 @@ adminEventsRouter.get('/:id/media/settings', async (req, res) => {
       res.status(404).json({ error: 'Event not found', code: err.message });
       return;
     }
+    if (err.message === 'EVENT_MEDIA_ALLOWED_TYPES_REQUIRED') {
+      res.status(400).json({
+        error: 'At least one media type must be enabled',
+        code: err.message,
+      });
+      return;
+    }
     throw err;
   }
 });
@@ -484,6 +491,13 @@ adminEventsRouter.patch('/:id/media/settings', async (req, res) => {
   } catch (err: any) {
     if (err.message === 'EVENT_NOT_FOUND') {
       res.status(404).json({ error: 'Event not found', code: err.message });
+      return;
+    }
+    if (err.message === 'EVENT_MEDIA_ALLOWED_TYPES_REQUIRED') {
+      res.status(400).json({
+        error: 'At least one media type must be enabled',
+        code: err.message,
+      });
       return;
     }
     throw err;
