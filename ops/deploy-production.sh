@@ -25,8 +25,12 @@ LOG_DIR="$DEPLOY_ROOT/deploy-logs"
 RUNTIME_DIR="$DEPLOY_ROOT/runtime"
 STATE_FILE="$RUNTIME_DIR/deploy-state.json"
 LOCK_FILE="$RUNTIME_DIR/deploy.lock"
+RELEASES_REGISTRY_FILE="$RUNTIME_DIR/releases.json"
 COMPOSE_FILE="$APP_DIR/docker-compose.prod.yml"
 ENV_FILE="$DEPLOY_ROOT/.env"
+MANIFEST_FILE=""
+BACKUP_DIR=""
+PREVIOUS_RELEASE_SHA=""
 
 mkdir -p "$LOG_DIR" "$RUNTIME_DIR"
 
@@ -41,7 +45,7 @@ json_get() {
   local key="$2"
 
   if command -v jq >/dev/null 2>&1; then
-    printf '%s' "$json" | jq -er --arg key "$key" '.[$key] // empty' 2>/dev/null || true
+    printf '%s' "$json" | jq -er "--arg" key "$key" '.[$key] // empty' 2>/dev/null || true
     return 0
   fi
 
@@ -63,6 +67,148 @@ set_stage() {
 
 compose() {
   docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
+}
+
+safe_release_tag() {
+  printf '%s' "$1" | tr -cd 'A-Za-z0-9_.-' | cut -c1-128
+}
+
+get_running_image_id() {
+  local service="$1"
+  local cid
+
+  cid="$(compose ps -q "$service" 2>/dev/null || true)"
+  if [ -z "$cid" ]; then
+    return 0
+  fi
+
+  docker inspect "$cid" --format '{{.Image}}' 2>/dev/null || true
+}
+
+get_current_release_sha() {
+  local current
+
+  current="$(jq -r '.current // empty' "$RELEASES_REGISTRY_FILE" 2>/dev/null || true)"
+  if [ -n "$current" ]; then
+    printf '%s' "$current"
+    return 0
+  fi
+
+  if [ -f "$APP_DIR/.release-commit" ]; then
+    tr -d '\r\n' < "$APP_DIR/.release-commit"
+  fi
+}
+
+update_release_registry() {
+  local release_sha="$1"
+  local api_image_id="$2"
+  local web_image_id="$3"
+  local report_worker_image_id="$4"
+  local email_broadcast_worker_image_id="$5"
+  local updated_at current_before tmp base_file
+
+  command -v jq >/dev/null 2>&1 || {
+    echo "ERROR: jq is required to update $RELEASES_REGISTRY_FILE"
+    exit 1
+  }
+
+  updated_at="$(date -u +%FT%TZ)"
+  current_before="$(jq -r '.current // empty' "$RELEASES_REGISTRY_FILE" 2>/dev/null || true)"
+  tmp="$(mktemp)"
+  base_file="$RELEASES_REGISTRY_FILE"
+
+  if [ ! -f "$RELEASES_REGISTRY_FILE" ] || ! jq -e . "$RELEASES_REGISTRY_FILE" >/dev/null 2>&1; then
+    base_file="$(mktemp)"
+    printf '{"current":null,"previous":null,"updatedAt":null,"releases":{}}\n' > "$base_file"
+  fi
+
+  jq \
+    "--arg" releaseSha "$release_sha" \
+    "--arg" currentBefore "$current_before" \
+    "--arg" apiImageId "$api_image_id" \
+    "--arg" webImageId "$web_image_id" \
+    "--arg" reportWorkerImageId "$report_worker_image_id" \
+    "--arg" emailBroadcastWorkerImageId "$email_broadcast_worker_image_id" \
+    "--arg" updatedAt "$updated_at" \
+    '
+      .releases = (.releases // {}) |
+      (.releases[$releaseSha] // {}) as $existing |
+      .previous = (
+        if $currentBefore != "" and $currentBefore != $releaseSha
+        then $currentBefore
+        else (.previous // null)
+        end
+      ) |
+      .current = $releaseSha |
+      .updatedAt = $updatedAt |
+      .releases[$releaseSha] = {
+        releaseSha: $releaseSha,
+        apiImageId: $apiImageId,
+        webImageId: $webImageId,
+        reportWorkerImageId: $reportWorkerImageId,
+        emailBroadcastWorkerImageId: $emailBroadcastWorkerImageId,
+        createdAt: ($existing.createdAt // $updatedAt)
+      }
+    ' "$base_file" > "$tmp"
+
+  mv "$tmp" "$RELEASES_REGISTRY_FILE"
+  [ "$base_file" = "$RELEASES_REGISTRY_FILE" ] || rm -f "$base_file"
+}
+
+manifest_update() {
+  [ -n "$MANIFEST_FILE" ] || return 0
+  [ -f "$MANIFEST_FILE" ] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+
+  local expression="$1"
+  local tmp
+  tmp="$(mktemp)"
+  jq "$expression" "$MANIFEST_FILE" > "$tmp"
+  mv "$tmp" "$MANIFEST_FILE"
+}
+
+manifest_set_restore_test_passed() {
+  manifest_update '.restoreTestStatus = "PASSED" | .updatedAt = (now | todateiso8601) | .deployStatus = "RESTORE_TEST_PASSED"'
+}
+
+manifest_set_migration_started() {
+  manifest_update '.migrationStarted = true | .updatedAt = (now | todateiso8601) | .deployStatus = "MIGRATION_RUNNING"'
+}
+
+manifest_set_migration_finished() {
+  manifest_update '.migrationFinished = true | .updatedAt = (now | todateiso8601) | .deployStatus = "MIGRATION_FINISHED"'
+}
+
+manifest_set_services_healthy() {
+  manifest_update '.servicesHealthy = true | .updatedAt = (now | todateiso8601) | .deployStatus = "SERVICES_HEALTHY"'
+}
+
+manifest_set_business_after() {
+  local after_file="$1"
+  [ -n "$MANIFEST_FILE" ] || return 0
+  [ -f "$MANIFEST_FILE" ] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+
+  local tmp
+  tmp="$(mktemp)"
+  jq "--arg" afterFile "$after_file" \
+    '.businessHealthAfter = $afterFile | .updatedAt = (now | todateiso8601) | .deployStatus = "BUSINESS_HEALTH_PASSED"' \
+    "$MANIFEST_FILE" > "$tmp"
+  mv "$tmp" "$MANIFEST_FILE"
+}
+
+manifest_set_failed() {
+  local failed_stage="$1"
+  [ -n "$MANIFEST_FILE" ] || return 0
+  [ -f "$MANIFEST_FILE" ] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+
+  local tmp
+  tmp="$(mktemp)"
+  jq "--arg" failedStage "$failed_stage" \
+    '.deployStatus = "FAILED" | .failedStage = $failedStage | .updatedAt = (now | todateiso8601)' \
+    "$MANIFEST_FILE" > "$tmp" || return 0
+  mv "$tmp" "$MANIFEST_FILE"
 }
 
 get_last_deploy_log() {
@@ -141,6 +287,7 @@ on_exit() {
     fi
 
     set +e
+    manifest_set_failed "$CURRENT_STAGE"
     set_stage "$CURRENT_STAGE" "failed"
     echo ""
     echo "========== DEPLOY FAILED =========="
@@ -561,6 +708,32 @@ mark_stale_running_state_if_needed
 
 set_stage "$CURRENT_STAGE"
 
+PREVIOUS_RELEASE_SHA="$(get_current_release_sha)"
+API_IMAGE_ID_BEFORE="$(get_running_image_id api)"
+WEB_IMAGE_ID_BEFORE="$(get_running_image_id web)"
+REPORT_WORKER_IMAGE_ID_BEFORE="$(get_running_image_id report-worker)"
+EMAIL_BROADCAST_WORKER_IMAGE_ID_BEFORE="$(get_running_image_id email-broadcast-worker)"
+
+echo "Previous release SHA: ${PREVIOUS_RELEASE_SHA:-unknown}"
+echo "API_IMAGE_ID_BEFORE=${API_IMAGE_ID_BEFORE:-}"
+echo "WEB_IMAGE_ID_BEFORE=${WEB_IMAGE_ID_BEFORE:-}"
+echo "REPORT_WORKER_IMAGE_ID_BEFORE=${REPORT_WORKER_IMAGE_ID_BEFORE:-}"
+echo "EMAIL_BROADCAST_WORKER_IMAGE_ID_BEFORE=${EMAIL_BROADCAST_WORKER_IMAGE_ID_BEFORE:-}"
+
+if [ -n "$PREVIOUS_RELEASE_SHA" ] && [ -n "$API_IMAGE_ID_BEFORE" ] && [ -n "$WEB_IMAGE_ID_BEFORE" ]; then
+  SAFE_PREVIOUS_TAG="$(safe_release_tag "$PREVIOUS_RELEASE_SHA")"
+  if [ -n "$SAFE_PREVIOUS_TAG" ]; then
+    docker tag "$API_IMAGE_ID_BEFORE" "app-api:$SAFE_PREVIOUS_TAG" || true
+    docker tag "$WEB_IMAGE_ID_BEFORE" "app-web:$SAFE_PREVIOUS_TAG" || true
+  fi
+  update_release_registry \
+    "$PREVIOUS_RELEASE_SHA" \
+    "$API_IMAGE_ID_BEFORE" \
+    "$WEB_IMAGE_ID_BEFORE" \
+    "${REPORT_WORKER_IMAGE_ID_BEFORE:-$API_IMAGE_ID_BEFORE}" \
+    "${EMAIL_BROADCAST_WORKER_IMAGE_ID_BEFORE:-$API_IMAGE_ID_BEFORE}"
+fi
+
 mkdir -p "$APP_DIR"
 find "$APP_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 
@@ -629,6 +802,12 @@ fi
 EXPECTED_REPORT_WORKER_IMAGE_ID="$EXPECTED_API_IMAGE_ID"
 EXPECTED_EMAIL_BROADCAST_WORKER_IMAGE_ID="$EXPECTED_API_IMAGE_ID"
 
+SAFE_RELEASE_TAG="$(safe_release_tag "$RELEASE_SHA")"
+if [ -n "$SAFE_RELEASE_TAG" ]; then
+  docker tag "$EXPECTED_API_IMAGE_ID" "app-api:$SAFE_RELEASE_TAG" || true
+  docker tag "$EXPECTED_WEB_IMAGE_ID" "app-web:$SAFE_RELEASE_TAG" || true
+fi
+
 echo "Images built for release SHA=$RELEASE_SHA"
 
 CURRENT_STAGE="images-ready"
@@ -637,7 +816,33 @@ set_stage "$CURRENT_STAGE"
 compose up -d postgres
 wait_for_postgres_healthy
 
-run_backup
+CURRENT_STAGE="create-predeploy-backup-package"
+set_stage "$CURRENT_STAGE"
+BACKUP_DIR="$(
+  RELEASE_SHA="$RELEASE_SHA" \
+  PREVIOUS_RELEASE_SHA="$PREVIOUS_RELEASE_SHA" \
+  DEPLOY_ROOT="$DEPLOY_ROOT" \
+  APP_DIR="$APP_DIR" \
+  ENV_FILE="$ENV_FILE" \
+  COMPOSE_FILE="$COMPOSE_FILE" \
+  API_IMAGE_ID_BEFORE="$API_IMAGE_ID_BEFORE" \
+  WEB_IMAGE_ID_BEFORE="$WEB_IMAGE_ID_BEFORE" \
+  REPORT_WORKER_IMAGE_ID_BEFORE="$REPORT_WORKER_IMAGE_ID_BEFORE" \
+  EMAIL_BROADCAST_WORKER_IMAGE_ID_BEFORE="$EMAIL_BROADCAST_WORKER_IMAGE_ID_BEFORE" \
+  API_IMAGE_ID_AFTER="$EXPECTED_API_IMAGE_ID" \
+  WEB_IMAGE_ID_AFTER="$EXPECTED_WEB_IMAGE_ID" \
+  REPORT_WORKER_IMAGE_ID_AFTER="$EXPECTED_REPORT_WORKER_IMAGE_ID" \
+  EMAIL_BROADCAST_WORKER_IMAGE_ID_AFTER="$EXPECTED_EMAIL_BROADCAST_WORKER_IMAGE_ID" \
+  bash "$APP_DIR/ops/create-predeploy-backup.sh"
+)"
+MANIFEST_FILE="$BACKUP_DIR/deploy-manifest.json"
+echo "Backup package created at: $BACKUP_DIR"
+
+CURRENT_STAGE="restore-test-backup"
+set_stage "$CURRENT_STAGE"
+bash "$APP_DIR/ops/test-db-backup-restore.sh" "$BACKUP_DIR/db.sql.gz" "$BACKUP_DIR/restore-test.log"
+manifest_set_restore_test_passed
+echo "DB backup restore test passed."
 
 echo "Checking DATABASE_URL in production env..."
 if ! grep -Eq '^DATABASE_URL=.*@postgres:5432/' "$ENV_FILE" 2>/dev/null; then
@@ -652,13 +857,12 @@ fi
 
 CURRENT_STAGE="migrate"
 set_stage "$CURRENT_STAGE"
+manifest_set_migration_started
 
 compose run --rm --no-deps --entrypoint sh api -lc 'cd /app/services/api && pnpm exec prisma migrate deploy'
+manifest_set_migration_finished
 
-CURRENT_STAGE="cleanup-mock-data"
-set_stage "$CURRENT_STAGE"
-
-compose run --rm --no-deps --entrypoint sh api -lc 'cd /app/services/api && pnpm run db:cleanup-mock'
+echo "Skipping mock cleanup in production deploy."
 
 CURRENT_STAGE="recreate-api-web-report-worker"
 set_stage "$CURRENT_STAGE"
@@ -680,6 +884,7 @@ wait_for_service_healthy report-worker 90
 CURRENT_STAGE="wait-email-broadcast-worker-healthy"
 set_stage "$CURRENT_STAGE"
 wait_for_service_healthy email-broadcast-worker 90
+manifest_set_services_healthy
 
 CURRENT_STAGE="verify-running-image-ids"
 set_stage "$CURRENT_STAGE"
@@ -695,7 +900,28 @@ set_stage "$CURRENT_STAGE"
 run_privileged mkdir -p "$RUNTIME_DIR"
 run_privileged mkdir -p "$RUNTIME_DIR/reports"
 run_privileged mkdir -p /var/log/rdevents
+run_privileged mkdir -p "$DEPLOY_ROOT/ops"
+run_privileged rsync -a --delete "$APP_DIR/ops/" "$DEPLOY_ROOT/ops/"
+run_privileged chmod +x "$DEPLOY_ROOT/ops/"*.sh
+run_privileged cp "$APP_DIR/systemd/rdevents-backup.service" /etc/systemd/system/
+run_privileged cp "$APP_DIR/systemd/rdevents-backup.timer" /etc/systemd/system/
 run_privileged systemctl daemon-reload
+run_privileged systemctl enable --now rdevents-backup.timer
+run_privileged systemctl is-enabled rdevents-backup.timer
+run_privileged systemctl is-active rdevents-backup.timer
+SCHEDULED_BACKUP_STARTED_AT="$(date +%s)"
+run_privileged systemctl start rdevents-backup.service
+LATEST_SCHEDULED_BACKUP="$(
+  find "$DEPLOY_ROOT/backups/releases" -path '*/scheduled-*/*/deploy-manifest.json' -type f -printf '%T@ %p\n' 2>/dev/null |
+    sort -n |
+    tail -1 |
+    cut -d' ' -f2-
+)"
+if [ -z "$LATEST_SCHEDULED_BACKUP" ] || [ "$(stat -c %Y "$LATEST_SCHEDULED_BACKUP" 2>/dev/null || echo 0)" -lt "$SCHEDULED_BACKUP_STARTED_AT" ]; then
+  echo "ERROR: manual scheduled backup test did not create a fresh backup manifest."
+  exit 1
+fi
+echo "Scheduled backup timer verified; manual backup manifest: $LATEST_SCHEDULED_BACKUP"
 
 CURRENT_STAGE="local-verification"
 set_stage "$CURRENT_STAGE"
@@ -780,6 +1006,17 @@ verify_http_sha_plain "http://127.0.0.1:3000/version.txt" "Required check: Web l
 verify_http_sha_plain "http://127.0.0.1:4000/version" "Required check: API local /version" || FAILED=1
 verify_http_sha_plain "https://rdevents.uz/version.txt" "Required check: Web public /version.txt" || FAILED=1
 verify_http_sha_plain "https://api.rdevents.uz/version" "Required check: API public /version" || FAILED=1
+BUSINESS_BASELINE_AFTER="$BACKUP_DIR/business-baseline-after.json"
+bash "$APP_DIR/ops/check-production-business-health.sh" \
+  --output "$BUSINESS_BASELINE_AFTER" \
+  --compare "$BACKUP_DIR/business-baseline-before.json" || {
+  if [ "${ALLOW_BUSINESS_CHECK_FAILURE:-false}" != "true" ]; then
+    FAILED=1
+  fi
+}
+if [ -f "$BUSINESS_BASELINE_AFTER" ]; then
+  manifest_set_business_after "$BUSINESS_BASELINE_AFTER"
+fi
 
 if [ "$FAILED" -ne 0 ]; then
   echo ""
@@ -807,6 +1044,14 @@ printf '{"releaseSha":"%s","completedAt":"%s"}\n' \
   "$RELEASE_SHA" \
   "$(date -u +%FT%TZ)" > "$APP_DIR/.release-completed"
 
+update_release_registry \
+  "$RELEASE_SHA" \
+  "$EXPECTED_API_IMAGE_ID" \
+  "$EXPECTED_WEB_IMAGE_ID" \
+  "$EXPECTED_REPORT_WORKER_IMAGE_ID" \
+  "$EXPECTED_EMAIL_BROADCAST_WORKER_IMAGE_ID"
+manifest_update '.deployStatus = "SUCCESS" | .failedStage = null | .updatedAt = (now | todateiso8601)'
+
 DEPLOY_SUCCESS=true
 set_stage "success" "success"
 
@@ -816,5 +1061,5 @@ echo "DEPLOYMENT SUCCESS: All containers, worker, markers, and public endpoints 
 echo "Release SHA: $RELEASE_SHA"
 echo "=========================================="
 
-docker image prune -f || true
+echo "Skipping docker image prune to preserve locally registered rollback images."
 compose ps

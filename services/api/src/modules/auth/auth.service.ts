@@ -256,7 +256,7 @@ export async function loginWithEmail(
   const valid = await verifyPassword(user.passwordHash, input.password);
   if (!valid) throw new Error('WRONG_CREDENTIALS');
 
-  if (!user.isActive) throw new Error('ACCOUNT_INACTIVE');
+  if (!user.isActive || user.deletedAt) throw new Error('ACCOUNT_INACTIVE');
 
   await prisma.user.update({
     where: { id: user.id },
@@ -291,6 +291,10 @@ export async function loginWithProvider(
   });
 
   if (account) {
+    if (!account.user.isActive || account.user.deletedAt) {
+      throw new Error('ACCOUNT_INACTIVE');
+    }
+
     // Update last used and return existing user
     await prisma.userAccount.update({
       where: { id: account.id },
@@ -323,6 +327,10 @@ export async function loginWithProvider(
     : null;
 
   const isNewUser = !user;
+  if (user && (!user.isActive || user.deletedAt)) {
+    throw new Error('ACCOUNT_INACTIVE');
+  }
+
   if (!user) {
     // Create new user
     user = await prisma.user.create({

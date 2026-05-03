@@ -14,7 +14,7 @@ json_get() {
   local key="$2"
 
   if command -v jq >/dev/null 2>&1; then
-    printf '%s' "$json" | jq -er --arg key "$key" '.[$key] // empty' 2>/dev/null || true
+    printf '%s' "$json" | jq -er "--arg" key "$key" '.[$key] // empty' 2>/dev/null || true
     return 0
   fi
 

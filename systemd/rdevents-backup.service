@@ -1,0 +1,6 @@
+[Unit]
+Description=RDevents scheduled backup
+
+[Service]
+Type=oneshot
+ExecStart=/opt/rdevents/ops/scheduled-backup.sh
