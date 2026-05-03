@@ -545,6 +545,105 @@ adminEventsRouter.patch('/:id/media/settings', async (req, res) => {
   }
 });
 
+// POST /admin/events/:id/media/imports — upload zip archive and start async import
+adminEventsRouter.post('/:id/media/imports', handleEventMediaMulterUpload(mediaImportUpload.single('archive')), async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = String(req.params['id']);
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  try {
+    const job = await startEventMediaImport(eventId, user, (req as any).file as Express.Multer.File | undefined, req.body ?? {});
+    res.status(202).json({ job });
+  } catch (err: any) {
+    if (err instanceof EventMediaImportError) {
+      res.status(400).json({ error: err.message, code: err.code });
+      return;
+    }
+    throw err;
+  }
+});
+
+// GET /admin/events/:id/media/imports — recent import jobs
+adminEventsRouter.get('/:id/media/imports', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = String(req.params['id']);
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  const jobs = await listEventMediaImports(eventId);
+  res.json({ jobs });
+});
+
+// GET /admin/events/:id/media/imports/:jobId — import details
+adminEventsRouter.get('/:id/media/imports/:jobId', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = String(req.params['id']);
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  try {
+    const job = await getEventMediaImport(eventId, String(req.params['jobId']));
+    res.json({ job });
+  } catch (err: any) {
+    if (err.message === 'EVENT_MEDIA_IMPORT_NOT_FOUND') {
+      res.status(404).json({ error: 'Import job not found', code: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+// POST /admin/events/:id/media/imports/:jobId/cancel — cancel queued/processing import
+adminEventsRouter.post('/:id/media/imports/:jobId/cancel', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = String(req.params['id']);
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  try {
+    const job = await cancelEventMediaImport(eventId, String(req.params['jobId']));
+    res.json({ job });
+  } catch (err: any) {
+    if (err.message === 'EVENT_MEDIA_IMPORT_NOT_FOUND') {
+      res.status(404).json({ error: 'Import job not found', code: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+// GET /admin/events/:id/media/imports/:jobId/report.csv — CSV import report
+adminEventsRouter.get('/:id/media/imports/:jobId/report.csv', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = String(req.params['id']);
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  try {
+    const csv = await buildEventMediaImportCsv(eventId, String(req.params['jobId']));
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="media-import-${req.params['jobId']}.csv"`);
+    res.send(csv);
+  } catch (err: any) {
+    if (err.message === 'EVENT_MEDIA_IMPORT_NOT_FOUND') {
+      res.status(404).json({ error: 'Import job not found', code: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
 // PATCH /admin/events/:id/media/:mediaId — approve or reject media
 adminEventsRouter.patch('/:id/media/:mediaId', async (req, res) => {
   const user = (req as any).user as User;
