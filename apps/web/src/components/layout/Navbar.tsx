@@ -54,8 +54,11 @@ export function Navbar({ locale }: NavbarProps) {
     return pathname === href || pathname.startsWith(href + '/');
   }
 
+  const mediaBankLabel = locale === 'ru' ? 'Медиабанк мероприятий' : 'Event media bank';
+
   const navLinks = [
     { href: `/${locale}/events`, label: t('nav.events') || 'Events' },
+    { href: `/${locale}/media`, label: mediaBankLabel },
     ...(user ? [{ href: `/${locale}/cabinet`, label: t('nav.cabinet') || 'Cabinet' }] : []),
     ...(isAdmin ? [{ href: `/${locale}/admin`, label: t('nav.admin') || 'Admin' }] : []),
   ];
