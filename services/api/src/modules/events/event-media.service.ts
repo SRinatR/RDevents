@@ -326,11 +326,11 @@ function serializePublicEvent(event: any) {
   };
 }
 
-function normalizePublicMediaSort(value: unknown) {
+function normalizePublicMediaSort(value: unknown): any {
   const sort = String(value ?? 'newest').toLowerCase();
-  if (sort === 'oldest') return [{ approvedAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }] as const;
-  if (sort === 'number') return [{ displayNumber: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }] as const;
-  return [{ approvedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }] as const;
+  if (sort === 'oldest') return [{ approvedAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }];
+  if (sort === 'number') return [{ displayNumber: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }];
+  return [{ approvedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }];
 }
 
 function buildPublicMediaWhere(input: { eventId?: string | null; slug?: string | null; type?: unknown; search?: unknown }) {
@@ -513,7 +513,7 @@ export async function listSiteEventMedia(
   ]);
 
   return {
-    media: rows.map((item) =>
+    media: rows.map((item: any) =>
       serializeEventMedia(item, {
         publicView: true,
         settings: serializeSettings(item.event?.mediaSettings),
@@ -761,7 +761,10 @@ export async function uploadEventMedia(
       update: { nextMediaDisplayNumber: { increment: 1 } },
       select: { nextMediaDisplayNumber: true },
     });
-    const displayNumber = Math.max(1, Number(counter.nextMediaDisplayNumber) - 1);
+    const incrementedDisplayNumber = Number(counter.nextMediaDisplayNumber);
+    const displayNumber = Number.isFinite(incrementedDisplayNumber)
+      ? Math.max(1, incrementedDisplayNumber - 1)
+      : 1;
 
     const asset = await tx.mediaAsset.create({
       data: {
@@ -1153,7 +1156,7 @@ export async function listAdminCaptionSuggestions(eventId: string, params: { sta
   const suggestions = await prisma.eventMediaCaptionSuggestion.findMany({
     where: {
       eventId,
-      ...(status === 'ALL' ? {} : { status }),
+      ...(status === 'ALL' ? {} : { status: status as any }),
     },
     include: {
       media: { include: EVENT_MEDIA_INCLUDE },

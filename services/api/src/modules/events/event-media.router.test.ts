@@ -73,6 +73,7 @@ const defaultSettings = {
   allowParticipantCaption: true,
   maxFileSizeMb: 25,
   allowedTypes: ['image', 'video'],
+  nextMediaDisplayNumber: 2,
 };
 
 const testUser = {
@@ -101,6 +102,7 @@ function mediaRow(overrides: Record<string, unknown> = {}) {
     eventId: 'event-1',
     source: 'PARTICIPANT',
     status: 'APPROVED',
+    displayNumber: 1,
     title: null,
     caption: null,
     altText: null,
@@ -308,6 +310,7 @@ describe('admin media upload', () => {
       data: expect.objectContaining({
         source: 'ADMIN',
         status: 'APPROVED',
+        displayNumber: 1,
       }),
     }));
   });
