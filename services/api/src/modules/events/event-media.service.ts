@@ -1,3 +1,5 @@
+import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import multer from 'multer';
 import type { EventMediaStatus, User } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
 import { saveUploadedFile } from '../../common/storage.js';
@@ -71,10 +73,15 @@ function normalizeTypeFilter(value: unknown): MediaTypeFilter {
   return MEDIA_TYPE_FILTERS.has(type) ? type as MediaTypeFilter : 'all';
 }
 
-function normalizeAllowedTypes(value: unknown): MediaKind[] {
+function normalizeAllowedTypesInput(value: unknown): MediaKind[] {
   const values = Array.isArray(value) ? value : typeof value === 'string' ? value.split(',') : [];
   const normalized = values.map(normalizeMediaKind).filter(Boolean) as MediaKind[];
-  return normalized.length ? [...new Set(normalized)] : [...DEFAULT_EVENT_MEDIA_SETTINGS.allowedTypes];
+  return [...new Set(normalized)];
+}
+
+function normalizeAllowedTypes(value: unknown): MediaKind[] {
+  const normalized = normalizeAllowedTypesInput(value);
+  return normalized.length ? normalized : [...DEFAULT_EVENT_MEDIA_SETTINGS.allowedTypes];
 }
 
 function clampMaxFileSize(value: unknown) {
@@ -200,8 +207,37 @@ const EVENT_MEDIA_HIGHLIGHT_INCLUDE = {
   uploader: { select: { id: true, name: true, email: true, avatarUrl: true } },
   approvedBy: { select: { id: true, name: true, email: true, avatarUrl: true } },
   rejectedBy: { select: { id: true, name: true, email: true, avatarUrl: true } },
-  event: { select: { id: true, slug: true, title: true, startsAt: true } },
+  event: {
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      startsAt: true,
+      mediaSettings: true,
+    },
+  },
 } as const;
+
+export function handleEventMediaMulterUpload(upload: RequestHandler): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction) => {
+    upload(req, res, (err: unknown) => {
+      if (!err) {
+        next();
+        return;
+      }
+
+      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+        res.status(400).json({
+          error: 'File is too large',
+          code: 'EVENT_MEDIA_FILE_TOO_LARGE',
+        });
+        return;
+      }
+
+      next(err);
+    });
+  };
+}
 
 export function validateEventMediaFile(file: Express.Multer.File | undefined, settings: EventMediaSettingsDto = DEFAULT_EVENT_MEDIA_SETTINGS) {
   if (!file || !file.buffer || file.size <= 0) {
@@ -250,7 +286,11 @@ export async function updateEventMediaSettings(eventId: string, input: Record<st
     if (input[key] !== undefined) data[key] = Boolean(input[key]);
   }
   if (input['maxFileSizeMb'] !== undefined) data['maxFileSizeMb'] = clampMaxFileSize(input['maxFileSizeMb']);
-  if (input['allowedTypes'] !== undefined) data['allowedTypes'] = normalizeAllowedTypes(input['allowedTypes']);
+  if (input['allowedTypes'] !== undefined) {
+    const allowedTypes = normalizeAllowedTypesInput(input['allowedTypes']);
+    if (allowedTypes.length === 0) throw new Error('EVENT_MEDIA_ALLOWED_TYPES_REQUIRED');
+    data['allowedTypes'] = allowedTypes;
+  }
 
   const settings = await prisma.eventMediaSettings.upsert({
     where: { eventId },
@@ -272,8 +312,6 @@ export async function listApprovedEventMedia(
 
   const type = normalizeTypeFilter(params.type);
   const limit = Math.min(100, Math.max(1, Number(params.limit ?? 60) || 60));
-  const cursor = typeof params.cursor === 'string' && params.cursor ? params.cursor : undefined;
-
   const rows = await prisma.eventMedia.findMany({
     where: {
       eventId,
@@ -285,13 +323,12 @@ export async function listApprovedEventMedia(
       },
     },
     include: EVENT_MEDIA_INCLUDE,
-    orderBy: [{ approvedAt: 'desc' }, { createdAt: 'desc' }],
-    take: limit + 1,
-    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    orderBy: [{ approvedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+    take: limit,
   });
 
-  const nextCursor = rows.length > limit ? rows[limit - 1]?.id ?? null : null;
-  const media = rows.slice(0, limit).map((item) => serializeEventMedia(item, { publicView: true, settings }));
+  const nextCursor = null;
+  const media = rows.map((item) => serializeEventMedia(item, { publicView: true, settings }));
   return { media, meta: { nextCursor, settings } };
 }
 
@@ -312,11 +349,16 @@ export async function listEventMediaHighlights(limitInput: unknown = 8) {
       },
     },
     include: EVENT_MEDIA_HIGHLIGHT_INCLUDE,
-    orderBy: [{ approvedAt: 'desc' }, { createdAt: 'desc' }],
+    orderBy: [{ approvedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
     take: limit,
   });
 
-  return rows.map((item) => serializeEventMedia(item, { publicView: true }));
+  return rows.map((item) =>
+    serializeEventMedia(item, {
+      publicView: true,
+      settings: serializeSettings(item.event?.mediaSettings),
+    }),
+  );
 }
 
 export async function listMyEventMedia(eventId: string, actor: User) {
@@ -413,6 +455,9 @@ export async function uploadEventMedia(
     create: { eventId },
     update: {},
   });
+  if (!settings.enabled) {
+    throw new Error('EVENT_MEDIA_BANK_DISABLED');
+  }
   if (!isAdminUpload && !settings.participantUploadEnabled) {
     throw new Error('EVENT_MEDIA_UPLOAD_DISABLED');
   }
@@ -503,6 +548,47 @@ export async function uploadEventMedia(
   });
 
   return serializeEventMedia(item);
+}
+
+export async function getEventMediaSummary(eventId: string) {
+  const [statusRows, sourceRows, mediaItems] = await Promise.all([
+    prisma.eventMedia.groupBy({
+      by: ['status'],
+      where: { eventId },
+      _count: { _all: true },
+    }),
+    prisma.eventMedia.groupBy({
+      by: ['source'],
+      where: { eventId },
+      _count: { _all: true },
+    }),
+    prisma.eventMedia.findMany({
+      where: { eventId },
+      select: {
+        asset: {
+          select: {
+            mimeType: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  const statusCounts = new Map(statusRows.map((row: any) => [row.status, row._count._all]));
+  const sourceCounts = new Map(sourceRows.map((row: any) => [row.source, row._count._all]));
+  const images = mediaItems.filter((item: any) => item.asset?.mimeType?.startsWith('image/')).length;
+  const videos = mediaItems.filter((item: any) => item.asset?.mimeType?.startsWith('video/')).length;
+
+  return {
+    pending: statusCounts.get('PENDING') ?? 0,
+    approved: statusCounts.get('APPROVED') ?? 0,
+    rejected: statusCounts.get('REJECTED') ?? 0,
+    deleted: statusCounts.get('DELETED') ?? 0,
+    participant: sourceCounts.get('PARTICIPANT') ?? 0,
+    admin: sourceCounts.get('ADMIN') ?? 0,
+    images,
+    videos,
+  };
 }
 
 export async function moderateEventMedia(

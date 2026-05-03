@@ -4,6 +4,7 @@ import { authenticate } from '../../common/middleware.js';
 import {
   EVENT_MEDIA_HARD_MAX_FILE_SIZE_MB,
   EventMediaUploadError,
+  handleEventMediaMulterUpload,
   listMyEventMedia,
   uploadEventMedia,
 } from '../events/event-media.service.js';
@@ -73,7 +74,7 @@ registrationsRouter.get('/events/:eventId/media', authenticate, async (req, res)
 });
 
 // POST /api/me/events/:eventId/media — participant photo/video submission
-registrationsRouter.post('/events/:eventId/media', authenticate, eventMediaUpload.single('file'), async (req, res) => {
+registrationsRouter.post('/events/:eventId/media', authenticate, handleEventMediaMulterUpload(eventMediaUpload.single('file')), async (req, res) => {
   const user = (req as any).user;
   const file = (req as any).file as Express.Multer.File | undefined;
 
@@ -87,6 +88,7 @@ registrationsRouter.post('/events/:eventId/media', authenticate, eventMediaUploa
     }
     const map: Record<string, [number, string]> = {
       EVENT_NOT_FOUND: [404, 'Event not found'],
+      EVENT_MEDIA_BANK_DISABLED: [403, 'Media bank is disabled for this event'],
       EVENT_MEDIA_UPLOAD_FORBIDDEN: [403, 'Only approved event participants can upload media'],
       EVENT_MEDIA_UPLOAD_DISABLED: [403, 'Media upload is disabled for this event'],
     };

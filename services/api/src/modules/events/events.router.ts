@@ -5,6 +5,7 @@ import { eventQuerySchema, registrationAnswersSchema } from './events.schemas.js
 import {
   EVENT_MEDIA_HARD_MAX_FILE_SIZE_MB,
   EventMediaUploadError,
+  handleEventMediaMulterUpload,
   listEventMediaHighlights,
   listApprovedEventMedia,
   uploadEventMedia,
@@ -148,7 +149,7 @@ eventsRouter.get('/:id/media', optionalAuth, async (req, res) => {
 });
 
 // POST /api/events/:id/media — participant/admin media submission
-eventsRouter.post('/:id/media', authenticate, eventMediaUpload.single('file'), async (req, res) => {
+eventsRouter.post('/:id/media', authenticate, handleEventMediaMulterUpload(eventMediaUpload.single('file')), async (req, res) => {
   const user = (req as any).user;
   const file = (req as any).file as Express.Multer.File | undefined;
 
@@ -162,6 +163,10 @@ eventsRouter.post('/:id/media', authenticate, eventMediaUpload.single('file'), a
     }
     if (err.message === 'EVENT_NOT_FOUND') {
       res.status(404).json({ error: 'Event not found', code: err.message });
+      return;
+    }
+    if (err.message === 'EVENT_MEDIA_BANK_DISABLED') {
+      res.status(403).json({ error: 'Media bank is disabled for this event', code: err.message });
       return;
     }
     if (err.message === 'EVENT_MEDIA_UPLOAD_FORBIDDEN') {
