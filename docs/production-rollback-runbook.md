@@ -1,5 +1,7 @@
 # Production rollback runbook
 
+Production merge gate: complete [production-readiness-staging-checklist.md](production-readiness-staging-checklist.md) before deploying this safety release to production.
+
 ## Active release
 - `cat /opt/rdevents/app/.release-commit`
 - `cat /opt/rdevents/runtime/deploy-state.json`
