@@ -350,6 +350,7 @@ Do not merge to production until all are true:
 - Staging code-only rollback succeeded.
 - Staging code and DB rollback succeeded.
 - Staging full rollback with uploads succeeded.
+- Staging deploy rerun release-registry regression drill succeeded. See [production-deploy-rerun-registry-regression.md](production-deploy-rerun-registry-regression.md).
 - Scheduled backup timer succeeded on staging.
 - Business health passed after deploy and rollback.
 - Production cleanup is absent from deploy.
