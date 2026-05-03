@@ -568,6 +568,11 @@ model User {
   avatarAssetId         String?
   role                  UserRole  @default(USER)
   isActive              Boolean   @default(true)
+  isSeedData            Boolean   @default(false)
+  protectedFromCleanup  Boolean   @default(true)
+  deletedAt             DateTime?
+  deletedByUserId       String?
+  deleteReason          String?
   emailVerifiedAt       DateTime?
   registeredAt          DateTime  @default(now())
   lastLoginAt           DateTime?
@@ -635,7 +640,19 @@ model User {
   emailBroadcastEvents          EmailBroadcastEvent[]           @relation("EmailBroadcastEventActor")
   communicationConsents         UserCommunicationConsent[]
   createdEmailAudiences         EmailAudience[]                 @relation("EmailAudienceCreatedBy")
+  deletedBy                     User?                           @relation("UserDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+  deletedUsers                  User[]                          @relation("UserDeletedBy")
+  deletedEvents                 Event[]                         @relation("EventDeletedBy")
+  restoredEvents                Event[]                         @relation("EventRestoredBy")
+  statusChangedEventMembers     EventMember[]                   @relation("EventMemberStatusChangedBy")
+  createdEventTeamsAsUser       EventTeam[]                     @relation("EventTeamCreatedByUser")
+  createdEventTeamsAsAdmin      EventTeam[]                     @relation("EventTeamCreatedByAdmin")
+  deletedEventTeams             EventTeam[]                     @relation("EventTeamDeletedBy")
+  restoredEventTeams            EventTeam[]                     @relation("EventTeamRestoredBy")
+  maintenanceJobRuns            MaintenanceJobRun[]
 
+  @@index([deletedAt])
+  @@index([isSeedData, protectedFromCleanup])
   @@map("users")
 }
 
@@ -920,7 +937,7 @@ model MediaAsset {
   identityDocumentScanFor      UserIdentityDocument?      @relation("IdentityDocumentScan")
   internationalPassportScanFor UserInternationalPassport? @relation("InternationalPassportScan")
   userAdditionalDocumentFor    UserAdditionalDocument?    @relation("UserAdditionalDocumentAsset")
-  profileHistoryEntries        UserProfileHistory[]        @relation("UserProfileHistoryAsset")
+  profileHistoryEntries        UserProfileHistory[]       @relation("UserProfileHistoryAsset")
   eventMedia                   EventMedia?                @relation("EventMediaAsset")
 
   @@index([ownerUserId, purpose, status])
@@ -1070,10 +1087,20 @@ model Event {
   publishedAt          DateTime?
   createdById          String?
   organizerWorkspaceId String?
+  isSeedData           Boolean   @default(false)
+  protectedFromCleanup Boolean   @default(true)
+  deletedAt            DateTime?
+  deletedByUserId      String?
+  deleteReason         String?
+  restoredAt           DateTime?
+  restoredByUserId     String?
+  restoredFromBackup   String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
   createdBy               User?                             @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  deletedBy               User?                             @relation("EventDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+  restoredBy              User?                             @relation("EventRestoredBy", fields: [restoredByUserId], references: [id], onDelete: SetNull)
   organizerWorkspace      OrganizerWorkspace?               @relation(fields: [organizerWorkspaceId], references: [id], onDelete: SetNull)
   members                 EventMember[]
   staffGrants             EventStaffGrant[]
@@ -1087,28 +1114,30 @@ model Event {
   mediaItems              EventMedia[]
 
   @@index([organizerWorkspaceId])
+  @@index([deletedAt])
+  @@index([isSeedData, protectedFromCleanup])
   @@map("events")
 }
 
 model EventMedia {
-  id                String           @id @default(cuid())
-  eventId           String
-  assetId           String           @unique
-  uploaderUserId    String
-  source            EventMediaSource @default(PARTICIPANT)
-  status            EventMediaStatus @default(PENDING)
-  title             String?
-  caption           String?          @db.Text
-  altText           String?
-  credit            String?
-  moderationNotes   String?          @db.Text
-  approvedByUserId  String?
-  approvedAt        DateTime?
-  rejectedByUserId  String?
-  rejectedAt        DateTime?
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  deletedAt         DateTime?
+  id               String           @id @default(cuid())
+  eventId          String
+  assetId          String           @unique
+  uploaderUserId   String
+  source           EventMediaSource @default(PARTICIPANT)
+  status           EventMediaStatus @default(PENDING)
+  title            String?
+  caption          String?          @db.Text
+  altText          String?
+  credit           String?
+  moderationNotes  String?          @db.Text
+  approvedByUserId String?
+  approvedAt       DateTime?
+  rejectedByUserId String?
+  rejectedAt       DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  deletedAt        DateTime?
 
   event      Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
   asset      MediaAsset @relation("EventMediaAsset", fields: [assetId], references: [id], onDelete: Cascade)
@@ -1139,27 +1168,33 @@ model EventRegistrationFormSubmission {
 }
 
 model EventMember {
-  id               String            @id @default(cuid())
-  eventId          String
-  userId           String
-  role             EventMemberRole
-  status           EventMemberStatus @default(PENDING)
-  assignedByUserId String?
-  assignedAt       DateTime          @default(now())
-  approvedAt       DateTime?
-  rejectedAt       DateTime?
-  removedAt        DateTime?
-  notes            String?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  id                    String            @id @default(cuid())
+  eventId               String
+  userId                String
+  role                  EventMemberRole
+  status                EventMemberStatus @default(PENDING)
+  assignedByUserId      String?
+  assignedAt            DateTime          @default(now())
+  approvedAt            DateTime?
+  rejectedAt            DateTime?
+  removedAt             DateTime?
+  notes                 String?
+  statusChangedAt       DateTime?
+  statusChangedByUserId String?
+  statusReason          String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
 
-  event          Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user           User  @relation("EventMemberUser", fields: [userId], references: [id], onDelete: Cascade)
-  assignedByUser User? @relation("EventMemberAssignedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+  event           Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user            User  @relation("EventMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedByUser  User? @relation("EventMemberAssignedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+  statusChangedBy User? @relation("EventMemberStatusChangedBy", fields: [statusChangedByUserId], references: [id], onDelete: SetNull)
 
   @@unique([eventId, userId, role])
   @@index([userId, role, status])
   @@index([eventId, role, status])
+  @@index([statusChangedAt])
+  @@index([statusChangedByUserId])
   @@map("event_members")
 }
 
@@ -1258,20 +1293,33 @@ model EventStaffAccess {
 }
 
 model EventTeam {
-  id            String          @id @default(cuid())
-  eventId       String
-  name          String
-  slug          String          @unique
-  joinCode      String?         @unique
-  description   String?
-  captainUserId String
-  status        EventTeamStatus @default(ACTIVE)
-  maxSize       Int             @default(5)
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  id                 String          @id @default(cuid())
+  eventId            String
+  name               String
+  slug               String          @unique
+  joinCode           String?         @unique
+  description        String?
+  captainUserId      String
+  createdByUserId    String?
+  createdByAdminId   String?
+  source             String?
+  status             EventTeamStatus @default(ACTIVE)
+  maxSize            Int             @default(5)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  deletedAt          DateTime?
+  deletedByUserId    String?
+  deleteReason       String?
+  restoredAt         DateTime?
+  restoredByUserId   String?
+  restoredFromBackup String?
 
   event          Event                    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   captainUser    User                     @relation("TeamCaptain", fields: [captainUserId], references: [id], onDelete: Cascade)
+  createdByUser  User?                    @relation("EventTeamCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByAdmin User?                    @relation("EventTeamCreatedByAdmin", fields: [createdByAdminId], references: [id], onDelete: SetNull)
+  deletedBy      User?                    @relation("EventTeamDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+  restoredBy     User?                    @relation("EventTeamRestoredBy", fields: [restoredByUserId], references: [id], onDelete: SetNull)
   members        EventTeamMember[]
   invitations    EventTeamInvitation[]
   changeRequests EventTeamChangeRequest[]
@@ -1279,14 +1327,16 @@ model EventTeam {
 
   @@index([eventId])
   @@index([captainUserId])
+  @@index([deletedAt])
+  @@index([source])
   @@map("event_teams")
 }
 
 model EventTeamChangeRequest {
-  id                    String                        @id @default(cuid())
+  id                    String                       @id @default(cuid())
   teamId                String
-  type                  EventTeamChangeRequestType    @default(DETAILS_UPDATE)
-  status                EventTeamChangeRequestStatus  @default(DRAFT)
+  type                  EventTeamChangeRequestType   @default(DETAILS_UPDATE)
+  status                EventTeamChangeRequestStatus @default(DRAFT)
   requestedByUserId     String
   decidedByUserId       String?
   reason                String?
@@ -1298,16 +1348,16 @@ model EventTeamChangeRequest {
   proposedMemberUserIds String[]
   beforeSnapshotJson    Json?
   afterSnapshotJson     Json?
-  createdAt             DateTime                      @default(now())
-  updatedAt             DateTime                      @updatedAt
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
   submittedAt           DateTime?
   decidedAt             DateTime?
   cancelledAt           DateTime?
   expiresAt             DateTime?
 
-  team            EventTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  requestedByUser User      @relation("TeamChangeRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Cascade)
-  decidedByUser   User?     @relation("TeamChangeDecidedBy", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+  team            EventTeam                    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  requestedByUser User                         @relation("TeamChangeRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Cascade)
+  decidedByUser   User?                        @relation("TeamChangeDecidedBy", fields: [decidedByUserId], references: [id], onDelete: SetNull)
   items           EventTeamChangeRequestItem[]
   history         EventTeamHistory[]
 
@@ -1372,6 +1422,8 @@ model EventTeamMember {
   role       EventTeamRole         @default(MEMBER)
   status     EventTeamMemberStatus @default(PENDING)
   joinedAt   DateTime              @default(now())
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
   approvedAt DateTime?
   removedAt  DateTime?
 
@@ -1381,7 +1433,30 @@ model EventTeamMember {
   @@unique([teamId, userId])
   @@index([teamId, status])
   @@index([userId, status])
+  @@index([updatedAt])
   @@map("event_team_members")
+}
+
+model MaintenanceJobRun {
+  id           String    @id @default(cuid())
+  type         String
+  status       String
+  actorUserId  String?
+  actorEmail   String?
+  releaseSha   String?
+  environment  String?
+  command      String?
+  dryRun       Boolean   @default(false)
+  metaJson     Json?
+  errorMessage String?
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+
+  actor User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([type, startedAt])
+  @@index([status])
+  @@map("maintenance_job_runs")
 }
 
 model EventTeamInvitation {
@@ -1723,7 +1798,7 @@ model EmailBroadcast {
 model EmailBroadcastRecipient {
   id                    String               @id @default(cuid())
   broadcastId           String
-  recipientKind         EmailRecipientKind    @default(USER)
+  recipientKind         EmailRecipientKind   @default(USER)
   userId                String?
   eventMemberId         String?
   teamMemberId          String?
@@ -1786,7 +1861,7 @@ model EmailBroadcastRecipient {
 
 model EmailMessage {
   id                String             @id @default(cuid())
-  toEmail           String              @db.Citext
+  toEmail           String             @db.Citext
   toUserId          String?
   subject           String
   source            EmailMessageSource

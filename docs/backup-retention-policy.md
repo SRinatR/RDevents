@@ -1,0 +1,12 @@
+# Backup retention policy
+- Keep all backups for 7 days.
+- Keep daily snapshots for 30 days.
+- Keep weekly snapshots for 90 days.
+- Keep monthly snapshots for 365 days.
+- Any backup with `KEEP` file is never auto-deleted.
+- RPO/RTO targets:
+  - DB RPO: 1 hour.
+  - Uploads RPO: 24 hours (target 1 hour).
+  - Code rollback RTO: 5 min.
+  - Code+DB rollback RTO: 20 min.
+  - Full rollback RTO: 40 min.

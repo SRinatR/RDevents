@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+fail() {
+  echo "ERROR: $1"
+  exit 1
+}
+
+require_file() {
+  [ -f "$1" ] || fail "Required file is missing: $1"
+}
+
+require_grep() {
+  local pattern="$1"
+  local file="$2"
+  local message="$3"
+  grep -Eq "$pattern" "$file" || fail "$message"
+}
+
+reject_grep() {
+  local pattern="$1"
+  local file="$2"
+  local message="$3"
+  if grep -Eq "$pattern" "$file"; then
+    fail "$message"
+  fi
+}
+
+bash -n ops/*.sh
+
+require_file ops/deploy-production.sh
+require_file ops/create-predeploy-backup.sh
+require_file ops/test-db-backup-restore.sh
+require_file ops/rollback-production.sh
+require_file ops/rollback-code.sh
+require_file ops/restore-db-from-backup.sh
+require_file ops/restore-uploads-from-backup.sh
+require_file docs/production-rollback-runbook.md
+require_file docs/production-data-safety-runbook.md
+require_file docs/backup-retention-policy.md
+
+require_grep 'create-predeploy-backup\.sh' ops/deploy-production.sh \
+  "deploy-production.sh must create a predeploy backup package"
+require_grep 'test-db-backup-restore\.sh' ops/deploy-production.sh \
+  "deploy-production.sh must run DB restore-test before migrations"
+require_grep 'prisma migrate deploy' ops/deploy-production.sh \
+  "deploy-production.sh must run migrations explicitly"
+
+backup_line="$(grep -n 'create-predeploy-backup\.sh' ops/deploy-production.sh | head -1 | cut -d: -f1)"
+restore_line="$(grep -n 'test-db-backup-restore\.sh' ops/deploy-production.sh | head -1 | cut -d: -f1)"
+migrate_line="$(grep -n 'prisma migrate deploy' ops/deploy-production.sh | head -1 | cut -d: -f1)"
+
+[ "$backup_line" -lt "$migrate_line" ] || fail "predeploy backup must run before migrations"
+[ "$restore_line" -lt "$migrate_line" ] || fail "restore-test must run before migrations"
+
+reject_grep 'pnpm[[:space:]]+run[[:space:]]+db:cleanup-mock' ops/deploy-production.sh \
+  "production deploy must not run db:cleanup-mock"
+
+require_grep 'ON_ERROR_STOP=1' ops/restore-db-from-backup.sh \
+  "restore-db-from-backup.sh must restore with ON_ERROR_STOP=1"
+require_grep 'emergency-before-rollback' ops/restore-db-from-backup.sh \
+  "restore-db-from-backup.sh must create an emergency backup"
+require_grep 'docker[[:space:]]+volume[[:space:]]+ls' ops/restore-uploads-from-backup.sh \
+  "restore-uploads-from-backup.sh must detect Docker uploads volume"
+require_grep 'api_uploads\$' ops/restore-uploads-from-backup.sh \
+  "restore-uploads-from-backup.sh must target the api_uploads Docker volume"
+require_grep 'emergency-before-uploads-rollback' ops/restore-uploads-from-backup.sh \
+  "restore-uploads-from-backup.sh must create an emergency uploads backup"
+reject_grep 'tar[[:space:]]+-xzf[[:space:]]+"\$ARCHIVE"[[:space:]]+-C[[:space:]]+/' ops/restore-uploads-from-backup.sh \
+  "restore-uploads-from-backup.sh must not extract uploads to host root"
+
+require_grep 'releases\.json' ops/rollback-code.sh \
+  "rollback-code.sh must use the release registry"
+require_grep 'docker[[:space:]]+image[[:space:]]+inspect' ops/rollback-code.sh \
+  "rollback-code.sh must verify target image IDs exist before changing services"
+require_grep 'docker[[:space:]]+tag' ops/rollback-code.sh \
+  "rollback-code.sh must retag target images for compose rollback"
+require_grep 'docker[[:space:]]+inspect.*\.Image' ops/rollback-code.sh \
+  "rollback-code.sh must verify running container image IDs"
+require_grep 'check-production-business-health\.sh' ops/rollback-code.sh \
+  "rollback-code.sh must run the business health check"
+
+require_grep 'deploy\.lock' ops/rollback-production.sh \
+  "rollback-production.sh must coordinate with deploy lock"
+require_grep 'rollback\.lock' ops/rollback-production.sh \
+  "rollback-production.sh must coordinate with rollback lock"
+
+ripgrep_command_pattern='r''g '
+if grep -R "$ripgrep_command_pattern" ops/ >/dev/null; then
+  fail "Ops scripts must not depend on ripgrep"
+fi
+
+echo "Production safety validation passed"

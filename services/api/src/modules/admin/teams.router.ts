@@ -194,7 +194,7 @@ adminTeamsRouter.get('/', async (req, res) => {
     return;
   }
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { deletedAt: null };
 
   if (managedEventIds) {
     where['eventId'] = eventId ? { in: managedEventIds.filter(id => id === eventId) } : { in: managedEventIds };

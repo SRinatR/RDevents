@@ -32,6 +32,18 @@ env:
   PNPM_VERSION: '10.33.2'
 
 jobs:
+  production-safety:
+    name: Production Safety
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run production safety validation
+        run: bash ops/ci-validate-production-safety.sh
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -215,6 +227,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs:
+      - production-safety
       - lint
       - typecheck
       - test
@@ -327,6 +340,7 @@ jobs:
     runs-on: ubuntu-latest
     if: always()
     needs:
+      - production-safety
       - lint
       - typecheck
       - test
@@ -340,12 +354,14 @@ jobs:
           set -euo pipefail
 
           echo "lint=${{ needs.lint.result }}"
+          echo "production-safety=${{ needs.production-safety.result }}"
           echo "typecheck=${{ needs.typecheck.result }}"
           echo "test=${{ needs.test.result }}"
           echo "build=${{ needs.build.result }}"
           echo "docker-build=${{ needs.docker-build.result }}"
           echo "container-smoke=${{ needs.container-smoke.result }}"
 
+          [ "${{ needs.production-safety.result }}" = "success" ] || exit 1
           [ "${{ needs.lint.result }}" = "success" ] || exit 1
           [ "${{ needs.typecheck.result }}" = "success" ] || exit 1
           [ "${{ needs.test.result }}" = "success" ] || exit 1
