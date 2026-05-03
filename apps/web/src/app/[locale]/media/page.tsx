@@ -6,6 +6,7 @@ import { eventMediaApi, type EventMediaItem, type PublicMediaEvent } from '@/lib
 import { MediaCard, formatMediaDisplayNumber } from '@/components/media/MediaCard';
 import { MediaPreview } from '@/components/media/MediaPreview';
 import { EmptyState, FieldInput, LoadingLines, Panel, ToolbarRow } from '@/components/ui/signal-primitives';
+import styles from './media-page.module.css';
 
 type MediaFilter = 'all' | 'image' | 'video' | 'organizers';
 type MediaSort = 'newest' | 'oldest' | 'number';
@@ -146,9 +147,9 @@ export default function SiteMediaPage({ params }: { params: Promise<{ locale: st
             {loading ? (
               <Panel style={{ marginTop: 28 }}><LoadingLines rows={8} /></Panel>
             ) : featured ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.35fr) minmax(340px, 1fr)', gap: 20, marginTop: 28 }} className="media-bank-preview-layout">
+              <div className={styles.previewLayout}>
                 <MediaPreviewTile item={featured} locale={locale} isLarge />
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 20 }} className="media-bank-preview-side-grid">
+                <div className={styles.previewSideGrid}>
                   {supporting.map((item) => (
                     <MediaPreviewTile key={item.id} item={item} locale={locale} />
                   ))}
@@ -211,19 +212,6 @@ export default function SiteMediaPage({ params }: { params: Promise<{ locale: st
           </div>
         </section>
       </main>
-
-      <style>{`
-        @media (max-width: 980px) {
-          .media-bank-preview-layout {
-            grid-template-columns: 1fr !important;
-          }
-        }
-        @media (max-width: 640px) {
-          .media-bank-preview-side-grid {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }
@@ -246,7 +234,7 @@ function MediaPreviewTile({ item, locale, isLarge = false }: { item: EventMediaI
           ? 'linear-gradient(135deg, #0f766e, #0ea5e9)'
           : 'linear-gradient(135deg, #705df2, #a78bfa)',
       }}
-      className="media-bank-preview-tile"
+      className={styles.previewTile}
     >
       <MediaPreview
         publicUrl={item.asset.publicUrl}
