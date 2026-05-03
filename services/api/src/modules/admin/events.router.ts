@@ -157,6 +157,7 @@ adminEventsRouter.get('/', async (req, res) => {
   const status = req.query['status'] as string | undefined;
   const id = req.query['id'] as string | undefined;
   const organizerWorkspaceId = req.query['organizerWorkspaceId'] as string | undefined;
+  const includeDeleted = String(req.query['includeDeleted'] ?? 'false') === 'true';
 
   const isPlatformAdmin = ['PLATFORM_ADMIN', 'SUPER_ADMIN'].includes(user.role);
 
@@ -169,6 +170,7 @@ adminEventsRouter.get('/', async (req, res) => {
     }
 
     const where: Record<string, unknown> = {};
+    where['deletedAt'] = null;
     if (id) where['id'] = id;
     if (status) where['status'] = status;
     if (organizerWorkspaceId) where['organizerWorkspaceId'] = organizerWorkspaceId;
@@ -200,6 +202,7 @@ adminEventsRouter.get('/', async (req, res) => {
   }
 
   const where: Record<string, unknown> = {};
+  if (!includeDeleted || user.role !== 'SUPER_ADMIN') where['deletedAt'] = null;
   if (id) where['id'] = id;
   if (status) where['status'] = status;
   if (organizerWorkspaceId) where['organizerWorkspaceId'] = organizerWorkspaceId;
@@ -349,7 +352,15 @@ adminEventsRouter.patch('/:id', async (req, res) => {
 
 // DELETE /admin/events/:id
 adminEventsRouter.delete('/:id', requirePlatformAdmin, async (req, res) => {
-  await prisma.event.delete({ where: { id: String(req.params['id']) } });
+  const user = (req as any).user as User;
+  await prisma.event.update({
+    where: { id: String(req.params['id']) },
+    data: {
+      deletedAt: new Date(),
+      deletedByUserId: user.id,
+      deleteReason: String(req.body?.reason ?? 'admin-delete'),
+    },
+  });
   res.json({ ok: true });
 });
 

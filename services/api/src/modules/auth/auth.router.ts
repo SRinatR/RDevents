@@ -261,7 +261,7 @@ authRouter.post('/refresh', authRateLimits.refresh, async (req, res) => {
 
     // Fetch fresh user data for access token
     const user = await prisma.user.findUnique({ where: { id: verifiedUserId } });
-    if (!user || !user.isActive) {
+    if (!user || !user.isActive || user.deletedAt) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }

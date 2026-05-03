@@ -663,13 +663,7 @@ set_stage "$CURRENT_STAGE"
 
 compose run --rm --no-deps --entrypoint sh api -lc 'cd /app/services/api && pnpm exec prisma migrate deploy'
 
-if [ "${RUN_PRODUCTION_MOCK_CLEANUP:-false}" = "true" ]; then
-  CURRENT_STAGE="cleanup-mock-data"
-  set_stage "$CURRENT_STAGE"
-  compose run --rm --no-deps --entrypoint sh api -lc 'cd /app/services/api && CLEANUP_DEFAULT_MOCK_EVENTS=false CLEANUP_MOCK_EVENT_SLUGS="" pnpm run db:cleanup-mock'
-else
-  echo "Skipping mock cleanup in production deploy."
-fi
+echo "Skipping mock cleanup in production deploy."
 
 CURRENT_STAGE="recreate-api-web-report-worker"
 set_stage "$CURRENT_STAGE"
@@ -706,7 +700,13 @@ set_stage "$CURRENT_STAGE"
 run_privileged mkdir -p "$RUNTIME_DIR"
 run_privileged mkdir -p "$RUNTIME_DIR/reports"
 run_privileged mkdir -p /var/log/rdevents
+run_privileged mkdir -p "$DEPLOY_ROOT/ops"
+run_privileged rsync -a --delete "$APP_DIR/ops/" "$DEPLOY_ROOT/ops/"
+run_privileged chmod +x "$DEPLOY_ROOT/ops/"*.sh
+run_privileged cp "$APP_DIR/systemd/rdevents-backup.service" /etc/systemd/system/
+run_privileged cp "$APP_DIR/systemd/rdevents-backup.timer" /etc/systemd/system/
 run_privileged systemctl daemon-reload
+run_privileged systemctl enable --now rdevents-backup.timer
 
 CURRENT_STAGE="local-verification"
 set_stage "$CURRENT_STAGE"
@@ -791,6 +791,11 @@ verify_http_sha_plain "http://127.0.0.1:3000/version.txt" "Required check: Web l
 verify_http_sha_plain "http://127.0.0.1:4000/version" "Required check: API local /version" || FAILED=1
 verify_http_sha_plain "https://rdevents.uz/version.txt" "Required check: Web public /version.txt" || FAILED=1
 verify_http_sha_plain "https://api.rdevents.uz/version" "Required check: API public /version" || FAILED=1
+bash "$APP_DIR/ops/check-production-business-health.sh" || {
+  if [ "${ALLOW_BUSINESS_CHECK_FAILURE:-false}" != "true" ]; then
+    FAILED=1
+  fi
+}
 
 if [ "$FAILED" -ne 0 ]; then
   echo ""

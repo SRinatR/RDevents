@@ -256,7 +256,7 @@ export async function loginWithEmail(
   const valid = await verifyPassword(user.passwordHash, input.password);
   if (!valid) throw new Error('WRONG_CREDENTIALS');
 
-  if (!user.isActive) throw new Error('ACCOUNT_INACTIVE');
+  if (!user.isActive || user.deletedAt) throw new Error('ACCOUNT_INACTIVE');
 
   await prisma.user.update({
     where: { id: user.id },

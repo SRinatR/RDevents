@@ -29,6 +29,7 @@ export async function listEvents(query: EventQuery, userId?: string) {
   } else {
     where['status'] = 'PUBLISHED';
   }
+  where['deletedAt'] = null;
 
   if (query.search) {
     where['OR'] = [
@@ -99,8 +100,8 @@ export async function listEvents(query: EventQuery, userId?: string) {
 }
 
 export async function getEventBySlug(slug: string, userId?: string) {
-  const event = await prisma.event.findUnique({
-    where: { slug },
+  const event = await prisma.event.findFirst({
+    where: { slug, deletedAt: null },
     include: {
       createdBy: { select: { id: true, name: true, avatarUrl: true } },
     },
