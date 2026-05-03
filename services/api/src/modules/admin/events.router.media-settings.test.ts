@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mediaServiceMocks = vi.hoisted(() => ({
   updateEventMediaSettings: vi.fn(),
+  handleEventMediaMulterUpload: vi.fn(() => (_req: any, _res: any, next: () => void) => next()),
 }));
 
 vi.mock('../../common/middleware.js', () => ({
@@ -30,6 +31,7 @@ vi.mock('../events/event-media.service.js', () => ({
   EventMediaUploadError: class EventMediaUploadError extends Error {},
   getEventMediaSettings: vi.fn(),
   getEventMediaSummary: vi.fn(),
+  handleEventMediaMulterUpload: mediaServiceMocks.handleEventMediaMulterUpload,
   listEventMediaForModeration: vi.fn(),
   moderateEventMedia: vi.fn(),
   updateEventMediaSettings: mediaServiceMocks.updateEventMediaSettings,
