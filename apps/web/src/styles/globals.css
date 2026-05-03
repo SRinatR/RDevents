@@ -13249,7 +13249,9 @@ body {
 .admin-media-upload-panel,
 .admin-media-settings-panel,
 .admin-media-board-panel,
-.admin-media-visibility-panel {
+.admin-media-visibility-panel,
+.admin-media-imports-panel,
+.admin-media-caption-panel {
   display: grid;
   gap: 16px;
 }
@@ -13295,6 +13297,69 @@ body {
 
 .admin-media-upload-form .btn {
   justify-self: start;
+}
+
+.admin-media-import-form,
+.admin-media-import-list,
+.admin-media-caption-list {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-media-import-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.admin-media-import-options label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+.admin-media-import-options label:first-child {
+  display: grid;
+  align-items: stretch;
+}
+
+.admin-media-import-options label:first-child span {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.admin-media-import-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.admin-media-import-progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--color-text-muted);
+  font-size: 0.84rem;
+}
+
+.admin-media-caption-card {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
 }
 
 .admin-media-settings-grid {
@@ -13406,6 +13471,7 @@ body {
   .media-submission-card,
   .admin-media-upload-form,
   .admin-media-card,
+  .admin-media-caption-card,
   .admin-media-edit-grid {
     grid-template-columns: 1fr;
   }
