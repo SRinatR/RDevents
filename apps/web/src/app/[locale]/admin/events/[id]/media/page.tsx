@@ -19,11 +19,12 @@ import { MediaPreview } from '@/components/media/MediaPreview';
 import { formatMediaDisplayNumber } from '@/components/media/MediaCard';
 import { EmptyState, FieldInput, FieldTextarea, LoadingLines, Notice, Panel, SectionHeader, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
 import { EventNotFound, EventWorkspaceHeader, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
+import { AdminMediaBulkUploadPanel } from '@/components/admin/media/AdminMediaBulkUploadPanel';
 import { getFriendlyApiErrorMessage } from '@/lib/api-errors';
 
 type MediaStatusFilter = 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELETED' | 'ALL';
 type MediaTypeFilter = 'all' | 'image' | 'video';
-type AdminMediaTab = 'media' | 'settings';
+type AdminMediaTab = 'media' | 'bulk' | 'settings';
 
 const STATUS_FILTERS: MediaStatusFilter[] = ['PENDING', 'APPROVED', 'REJECTED', 'DELETED', 'ALL'];
 const TYPE_FILTERS: MediaTypeFilter[] = ['all', 'image', 'video'];
@@ -189,13 +190,17 @@ export default function AdminEventMediaPage() {
     }
   }, [eventId, status, type, search, locale]);
 
+  const refreshMediaState = useCallback(async () => {
+    await Promise.all([loadMedia(), loadSummary(), loadVisibility()]);
+  }, [loadMedia, loadSummary, loadVisibility]);
+
   useEffect(() => {
     if (user && isAdmin) void loadEvent();
   }, [user, isAdmin, loadEvent]);
 
   useEffect(() => {
-    if (user && isAdmin) void Promise.all([loadMedia(), loadSummary(), loadVisibility()]);
-  }, [user, isAdmin, loadMedia, loadSummary, loadVisibility]);
+    if (user && isAdmin) void refreshMediaState();
+  }, [user, isAdmin, refreshMediaState]);
 
   function patchDraft(mediaId: string, key: keyof MediaInput, value: string) {
     setDrafts((current) => ({ ...current, [mediaId]: { ...current[mediaId], [key]: value } }));
@@ -234,7 +239,7 @@ export default function AdminEventMediaPage() {
       setUploadDraft(emptyDraft());
       form.reset();
       setNotice(isRu ? 'Медиа от организатора опубликовано.' : 'Organizer media was published.');
-      await Promise.all([loadMedia(), loadSummary(), loadVisibility()]);
+      await refreshMediaState();
     } catch (err: any) {
       console.error('[media-bank] upload failed', err);
       setUploadError(getFriendlyApiErrorMessage(err, locale));
@@ -265,7 +270,7 @@ export default function AdminEventMediaPage() {
       setNotice(nextStatus
         ? (isRu ? `Статус обновлён: ${statusLabel(nextStatus, locale)}.` : `Status updated: ${statusLabel(nextStatus, locale)}.`)
         : (isRu ? 'Подписи сохранены.' : 'Captions saved.'));
-      await Promise.all([loadMedia(), loadSummary(), loadVisibility()]);
+      await refreshMediaState();
     } catch (err: any) {
       console.error('[media-bank] media action failed', err);
       setActionError(getFriendlyApiErrorMessage(err, locale));
@@ -282,7 +287,7 @@ export default function AdminEventMediaPage() {
     try {
       await eventMediaApi.adminDelete(eventId, item.id);
       setNotice(isRu ? 'Медиа скрыто из фотобанка.' : 'Media was hidden from the bank.');
-      await Promise.all([loadMedia(), loadSummary(), loadVisibility()]);
+      await refreshMediaState();
     } catch (err: any) {
       console.error('[media-bank] media delete failed', err);
       setActionError(getFriendlyApiErrorMessage(err, locale));
@@ -359,17 +364,24 @@ export default function AdminEventMediaPage() {
             <button type="button" className={`btn btn-sm ${activeTab === 'media' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setActiveTab('media')}>
               {isRu ? 'Медиа' : 'Media'}
             </button>
+            <button type="button" className={`btn btn-sm ${activeTab === 'bulk' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setActiveTab('bulk')}>
+              {isRu ? 'Массовая загрузка' : 'Bulk upload'}
+            </button>
             <button type="button" className={`btn btn-sm ${activeTab === 'settings' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setActiveTab('settings')}>
               {isRu ? 'Настройки' : 'Settings'}
             </button>
           </ToolbarRow>
 
+          {activeTab === 'bulk' ? (
+            <AdminMediaBulkUploadPanel eventId={eventId} locale={locale} onDone={refreshMediaState} />
+          ) : null}
+
           {activeTab === 'media' ? (
             <>
               <Panel variant="elevated" className="admin-command-panel admin-media-upload-panel">
                 <SectionHeader
-                  title={isRu ? 'Загрузить от организатора' : 'Upload as organizer'}
-                  subtitle={isRu ? 'Материал сразу публикуется в фотобанке' : 'Organizer uploads are published immediately'}
+                  title={isRu ? 'Загрузить один файл' : 'Upload one file'}
+                  subtitle={isRu ? 'Для массовой загрузки используйте вкладку «Массовая загрузка»' : 'Use the Bulk upload tab for multiple files and ZIP archives'}
                 />
                 <form className="admin-media-upload-form" onSubmit={handleUpload}>
                   <label className="media-upload-dropzone">
