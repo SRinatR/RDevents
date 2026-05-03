@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import multer from 'multer';
 import type { EventMediaStatus, User } from '@prisma/client';
@@ -24,6 +25,13 @@ const MEDIA_STATUS_FILTERS = new Set(['ALL', 'PENDING', 'APPROVED', 'REJECTED', 
 
 type MediaKind = 'image' | 'video';
 type MediaTypeFilter = 'all' | MediaKind;
+type PublicMediaReasonCode =
+  | 'OK'
+  | 'EVENT_NOT_PUBLISHED'
+  | 'MEDIA_BANK_DISABLED'
+  | 'NO_APPROVED_MEDIA'
+  | 'NO_ACTIVE_ASSETS'
+  | 'UNKNOWN';
 
 export type EventMediaSettingsDto = {
   enabled: boolean;
@@ -159,6 +167,7 @@ function serializeEventMedia(item: any, options: { publicView?: boolean; setting
     eventId: item.eventId,
     source: item.source,
     status: item.status,
+    displayNumber: item.displayNumber,
     kind,
     title: item.title,
     caption: item.caption,
@@ -177,6 +186,7 @@ function serializeEventMedia(item: any, options: { publicView?: boolean; setting
       sizeBytes: item.asset.sizeBytes,
       publicUrl: item.asset.publicUrl,
       storageKey: item.asset.storageKey,
+      checksumSha256: publicView ? undefined : item.asset.checksumSha256,
     },
     uploader: publicView && !settings.showUploaderName ? null : serializeUser(item.uploader),
     approvedBy: publicView ? null : serializeUser(item.approvedBy),

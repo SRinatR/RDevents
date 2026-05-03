@@ -119,6 +119,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
   };
 
   if (auth && _accessToken) {
@@ -129,6 +131,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     method,
     headers,
     credentials: 'include', // send cookies (refresh token)
+    cache: 'no-store',
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
@@ -141,7 +144,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 }
 
 async function requestForm<T>(path: string, formData: FormData, auth = false): Promise<T> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+  };
 
   if (auth && _accessToken) {
     headers['Authorization'] = `Bearer ${_accessToken}`;
@@ -151,6 +157,7 @@ async function requestForm<T>(path: string, formData: FormData, auth = false): P
     method: 'POST',
     headers,
     credentials: 'include',
+    cache: 'no-store',
     body: formData,
   });
 
@@ -163,7 +170,10 @@ async function requestForm<T>(path: string, formData: FormData, auth = false): P
 }
 
 async function downloadWithAuth(path: string, filenameFallback: string) {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+  };
   if (_accessToken) {
     headers['Authorization'] = `Bearer ${_accessToken}`;
   }
@@ -172,6 +182,7 @@ async function downloadWithAuth(path: string, filenameFallback: string) {
     method: 'GET',
     headers,
     credentials: 'include',
+    cache: 'no-store',
   });
 
   if (!res.ok) {
