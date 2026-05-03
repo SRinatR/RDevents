@@ -655,6 +655,11 @@ set_stage "$CURRENT_STAGE"
 
 compose run --rm --no-deps --entrypoint sh api -lc 'cd /app/services/api && pnpm exec prisma migrate deploy'
 
+CURRENT_STAGE="cleanup-mock-data"
+set_stage "$CURRENT_STAGE"
+
+compose run --rm --no-deps --entrypoint sh api -lc 'cd /app/services/api && pnpm run db:cleanup-mock'
+
 CURRENT_STAGE="recreate-api-web-report-worker"
 set_stage "$CURRENT_STAGE"
 

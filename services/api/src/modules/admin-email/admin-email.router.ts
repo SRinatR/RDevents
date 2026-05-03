@@ -108,9 +108,14 @@ function mapServiceError(message: string) {
     EMAIL_SUBJECT_REQUIRED: [400, 'Subject is required'],
     EMAIL_TEXT_BODY_REQUIRED: [400, 'Text body is required'],
     EMAIL_HTML_BODY_REQUIRED: [400, 'HTML body is required'],
+    EMAIL_CONTENT_REQUIRED: [400, 'Text or HTML body is required'],
+    EMAIL_REQUIRED: [400, 'Recipient email is required'],
     UNSUBSCRIBE_URL_REQUIRED: [400, 'Marketing/event broadcasts must include {{unsubscribeUrl}} in HTML or text'],
     SCHEDULED_AT_IN_PAST: [400, 'scheduledAt must be in the future'],
     EMAIL_BROADCAST_MAX_RECIPIENTS_EXCEEDED: [400, 'Broadcast recipient limit exceeded'],
+    EMAIL_NO_ELIGIBLE_RECIPIENTS: [400, 'No eligible recipients found for this audience'],
+    EMAIL_DELIVERY_NOT_CONFIGURED: [503, 'Email delivery is not configured'],
+    EMAIL_SENDER_NOT_CONFIGURED: [503, 'Email sender is not configured'],
 
     EMAIL_TEST_SEND_RATE_LIMITED: [429, 'Test send rate limit exceeded'],
   };
@@ -563,6 +568,7 @@ function mapDirectEmailError(code: string): [number, string] {
     EMAIL_CONTENT_REQUIRED: [400, 'Text or HTML is required'],
     REASON_REQUIRED: [400, 'Reason is required'],
     TOO_MANY_RECIPIENTS: [400, 'Too many recipients'],
+    EMAIL_REQUIRED: [400, 'Recipient email is required'],
     EMAIL_DELIVERY_NOT_CONFIGURED: [503, 'Email delivery is not configured'],
     EMAIL_SENDER_NOT_CONFIGURED: [503, 'Email sender is not configured'],
   };

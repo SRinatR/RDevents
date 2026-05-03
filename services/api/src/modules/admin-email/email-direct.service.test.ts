@@ -242,6 +242,7 @@ describe('email-direct.service', () => {
       expect(result.totalSelected).toBe(1);
       expect(result.sent).toBe(0);
       expect(result.skipped).toBe(1);
+      expect(result.status).toBe('SKIPPED');
       expect(result.messages).toEqual([]);
       expect(mockSendPlatformEmail).not.toHaveBeenCalled();
     });
@@ -349,6 +350,8 @@ describe('email-direct.service', () => {
       });
 
       expect(result.messages[0].status).toBe('FAILED');
+      expect(result.messages[0].failureReason).toBe('SMTP_ERROR');
+      expect(result.status).toBe('FAILED');
     });
 
     it('duplicate selectedUserIds sends once', async () => {

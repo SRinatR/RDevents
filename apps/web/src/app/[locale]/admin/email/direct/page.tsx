@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { adminApi, adminEmailApi } from '@/lib/api';
+import { ApiError, adminApi, adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { UserRecipientPicker, type SelectedUser } from '@/components/admin/email/UserRecipientPicker';
@@ -47,6 +47,59 @@ type PreviewResult = {
   skipped: Array<{ userId: string; email: string; name: string; status: string; reason?: string }>;
 };
 
+type SendResult = {
+  status: string;
+  sent: number;
+  skipped: number;
+  messages: Array<{ email: string; status: string; failureReason?: string | null }>;
+  skippedRecipients: Array<{ userId: string; email: string; name: string; status: string; reason?: string }>;
+};
+
+function getEmailErrorMessage(error: unknown, locale: string) {
+  const code = error instanceof ApiError ? error.code : undefined;
+  const fallback = locale === 'ru' ? 'Не удалось выполнить действие.' : 'Action failed.';
+  const messages: Record<string, { ru: string; en: string }> = {
+    EMAIL_DELIVERY_NOT_CONFIGURED: {
+      ru: 'Email-провайдер не настроен. Проверьте RESEND_API_KEY.',
+      en: 'Email provider is not configured. Check RESEND_API_KEY.',
+    },
+    EMAIL_SENDER_NOT_CONFIGURED: {
+      ru: 'Отправитель не настроен. Проверьте RESEND_FROM_EMAIL.',
+      en: 'Sender is not configured. Check RESEND_FROM_EMAIL.',
+    },
+    EMAIL_REQUIRED: {
+      ru: 'Укажите email получателя.',
+      en: 'Enter recipient email.',
+    },
+    EMAIL_CONTENT_REQUIRED: {
+      ru: 'Заполните текст или HTML письма.',
+      en: 'Fill text or HTML body.',
+    },
+  };
+
+  if (code && messages[code]) return messages[code][locale === 'ru' ? 'ru' : 'en'];
+  return error instanceof Error ? error.message : fallback;
+}
+
+function getEmailFailureReason(reason: string | null | undefined, locale: string) {
+  const messages: Record<string, { ru: string; en: string }> = {
+    EMAIL_DELIVERY_NOT_CONFIGURED: {
+      ru: 'Email-провайдер не настроен',
+      en: 'Email provider is not configured',
+    },
+    EMAIL_SENDER_NOT_CONFIGURED: {
+      ru: 'Отправитель не настроен',
+      en: 'Sender is not configured',
+    },
+    EMAIL_CONTENT_REQUIRED: {
+      ru: 'Нет текста письма',
+      en: 'Email body is empty',
+    },
+  };
+  const key = String(reason ?? '').trim();
+  return messages[key]?.[locale === 'ru' ? 'ru' : 'en'] ?? key;
+}
+
 export default function DirectEmailPage() {
   const locale = useRouteLocale();
   const router = useRouter();
@@ -56,15 +109,28 @@ export default function DirectEmailPage() {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
-  const [sendResult, setSendResult] = useState<{
-    sent: number;
-    skipped: number;
-    messages: Array<{ email: string; status: string }>;
-  } | null>(null);
+  const [sendResult, setSendResult] = useState<SendResult | null>(null);
+  const [overview, setOverview] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   const prefillEmail = searchParams.get('to');
   const prefillName = searchParams.get('name');
+
+  useEffect(() => {
+    let alive = true;
+
+    adminEmailApi.getOverview()
+      .then((data) => {
+        if (alive) setOverview(data);
+      })
+      .catch(() => {
+        if (alive) setOverview(null);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     const hydratePrefillRecipient = async () => {
@@ -152,6 +218,10 @@ export default function DirectEmailPage() {
       return locale === 'ru' ? 'Нет получателей с согласием на рассылку.' : 'No recipients with mailing consent.';
     }
 
+    if (preview && preview.willSend === 0) {
+      return locale === 'ru' ? 'Нет готовых получателей для отправки.' : 'No ready recipients to send.';
+    }
+
     return null;
   }, [form, preview, locale]);
 
@@ -180,35 +250,74 @@ export default function DirectEmailPage() {
 
       setSent(true);
       setSendResult({
+        status: result.status,
         sent: result.sent,
         skipped: result.skipped,
         messages: result.messages.map(m => ({
           email: m.email,
           status: m.status,
+          failureReason: m.failureReason ?? null,
         })),
+        skippedRecipients: result.skippedRecipients ?? [],
       });
-    } catch (e: any) {
-      setError(e?.message || (locale === 'ru' ? 'Не удалось отправить письмо.' : 'Failed to send email.'));
+    } catch (e) {
+      setError(getEmailErrorMessage(e, locale));
     } finally {
       setSending(false);
     }
   }, [form, validate, locale]);
 
+  const readyToSendCount = preview?.willSend ?? form.selectedUsers.length;
+  const sendDisabled = sending || form.selectedUsers.length === 0 || (preview?.willSend === 0);
+  const providerNotice = overview?.provider === 'log-only'
+    ? (locale === 'ru'
+        ? 'Локальный режим: письма не уходят наружу, но сохраняются в истории как отправленные.'
+        : 'Local mode: emails are not delivered externally, but are stored in history as sent.')
+    : overview && overview.providerStatus !== 'connected'
+      ? (locale === 'ru'
+          ? 'Email-провайдер не настроен. Отправка завершится ошибкой, пока не заданы RESEND_API_KEY и RESEND_FROM_EMAIL.'
+          : 'Email provider is not configured. Sending will fail until RESEND_API_KEY and RESEND_FROM_EMAIL are set.')
+      : null;
+
+  const contentPreview = useMemo(() => {
+    const text = form.text.trim();
+    const html = form.html.trim();
+    return {
+      subject: form.subject.trim() || (locale === 'ru' ? 'Без темы' : 'No subject'),
+      preheader: form.preheader.trim(),
+      body: text || html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+    };
+  }, [form.subject, form.preheader, form.text, form.html, locale]);
+
   if (sent && sendResult) {
+    const resultTone = sendResult.status === 'FAILED' || sendResult.status === 'SKIPPED'
+      ? 'danger'
+      : sendResult.status === 'PARTIAL'
+        ? 'warning'
+        : 'success';
+    const resultText = locale === 'ru'
+      ? sendResult.status === 'FAILED'
+        ? 'Письмо не отправлено. Проверьте ошибки ниже.'
+        : sendResult.status === 'SKIPPED'
+          ? `Отправка не выполнена: все выбранные получатели пропущены (${sendResult.skipped}).`
+          : `Письмо отправлено ${sendResult.sent} получателям${sendResult.skipped > 0 ? `, пропущено ${sendResult.skipped}` : ''}.`
+      : sendResult.status === 'FAILED'
+        ? 'Email was not sent. Check errors below.'
+        : sendResult.status === 'SKIPPED'
+          ? `Email was not sent: all selected recipients were skipped (${sendResult.skipped}).`
+          : `Email sent to ${sendResult.sent} recipient(s)${sendResult.skipped > 0 ? `, ${sendResult.skipped} skipped` : ''}.`;
+
     return (
       <div className="signal-page-shell">
         <AdminPageHeader
-        title={locale === 'ru' ? 'Письмо отправлено' : 'Email sent'}
-      />
+          title={resultTone === 'success'
+            ? (locale === 'ru' ? 'Письмо отправлено' : 'Email sent')
+            : (locale === 'ru' ? 'Результат отправки' : 'Send result')}
+        />
 
         <Panel variant="elevated" className="admin-command-panel">
           <div className="space-y-4">
-            <Notice tone="success">
-              {locale === 'ru'
-                ? `Письмо отправлено ${sendResult.sent} получателям${sendResult.skipped > 0 ? `, пропущено ${sendResult.skipped}` : ''}.`
-                : `Email sent to ${sendResult.sent} recipient(s)${sendResult.skipped > 0 ? `, ${sendResult.skipped} skipped` : ''}.`
-              }
-            </Notice>
+            <Notice tone={resultTone}>{resultText}</Notice>
 
             <div>
               <h3 className="text-sm font-medium text-gray-700 mb-2">
@@ -223,10 +332,32 @@ export default function DirectEmailPage() {
                     >
                       {msg.status}
                     </StatusBadge>
+                    {msg.failureReason ? (
+                      <span className="text-xs text-red-600">{getEmailFailureReason(msg.failureReason, locale)}</span>
+                    ) : null}
                   </div>
                 ))}
               </div>
             </div>
+
+            {sendResult.skippedRecipients.length > 0 ? (
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">
+                  {locale === 'ru' ? 'Пропущенные получатели' : 'Skipped recipients'}
+                </h3>
+                <div className="space-y-1">
+                  {sendResult.skippedRecipients.map((recipient) => (
+                    <div key={recipient.userId} className="flex items-center justify-between text-sm">
+                      <span className="truncate max-w-[300px]">{recipient.name || recipient.email || recipient.userId}</span>
+                      <StatusBadge tone="warning">{recipient.status.replace('SKIPPED_', '')}</StatusBadge>
+                      {recipient.reason ? (
+                        <span className="text-xs text-yellow-700">{recipient.reason}</span>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             <div className="flex gap-2 pt-4">
               <button
@@ -259,12 +390,20 @@ export default function DirectEmailPage() {
         subtitle={locale === 'ru' ? 'Отправка email конкретным пользователям' : 'Send email to specific users'}
       />
 
+      {providerNotice ? (
+        <Notice tone={overview?.provider === 'log-only' ? 'warning' : 'danger'}>{providerNotice}</Notice>
+      ) : null}
       {error ? <Notice tone="danger">{error}</Notice> : null}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-6">
           <Panel variant="elevated" className="admin-command-panel">
             <h2>{locale === 'ru' ? 'Получатели' : 'Recipients'}</h2>
+            <p className="signal-muted" style={{ marginTop: 4, marginBottom: 12 }}>
+              {locale === 'ru'
+                ? 'Найдите пользователя, выберите получателя и обновите предпросмотр перед отправкой.'
+                : 'Search for users, select recipients, then refresh the preview before sending.'}
+            </p>
 
             <UserRecipientPicker
               selectedUsers={form.selectedUsers}
@@ -471,6 +610,14 @@ export default function DirectEmailPage() {
               </div>
             )}
 
+            {!loadingPreview && form.selectedUsers.length > 0 && !preview && (
+              <Notice tone="warning">
+                {locale === 'ru'
+                  ? 'Обновите предпросмотр, чтобы увидеть, кому письмо действительно уйдёт.'
+                  : 'Refresh preview to see who will actually receive the email.'}
+              </Notice>
+            )}
+
             {!loadingPreview && !preview && form.selectedUsers.length === 0 && (
               <p className="text-sm text-gray-500 text-center py-8">
                 {locale === 'ru' ? 'Выберите получателей для предпросмотра' : 'Select recipients to preview'}
@@ -478,20 +625,30 @@ export default function DirectEmailPage() {
             )}
           </Panel>
 
+          <Panel variant="subtle" className="admin-command-panel">
+            <h2>{locale === 'ru' ? 'Как будет выглядеть' : 'Email content'}</h2>
+            <div style={{ border: '1px solid var(--signal-border)', borderRadius: 8, padding: '1rem', background: '#fff' }}>
+              <p style={{ fontWeight: 700, margin: 0 }}>{contentPreview.subject}</p>
+              {contentPreview.preheader ? (
+                <p className="signal-muted" style={{ margin: '0.25rem 0 0.75rem' }}>{contentPreview.preheader}</p>
+              ) : null}
+              <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.9375rem', lineHeight: 1.6 }}>
+                {contentPreview.body || (locale === 'ru' ? 'Текст письма пока пуст.' : 'Email body is empty.')}
+              </div>
+            </div>
+          </Panel>
+
           <div className="flex flex-col gap-3">
             <button
               className="btn btn-primary w-full"
               onClick={() => void handleSend()}
-              disabled={sending || form.selectedUsers.length === 0}
+              disabled={sendDisabled}
             >
-              {sending ? (
-                <span className="flex items-center justify-center gap-2">
-                  <LoadingLines />
-                  {locale === 'ru' ? 'Отправка...' : 'Sending...'}
-                </span>
-              ) : (
-                locale === 'ru' ? `Отправить ${form.selectedUsers.length} получателям` : `Send to ${form.selectedUsers.length} recipient(s)`
-              )}
+              {sending
+                ? (locale === 'ru' ? 'Отправка...' : 'Sending...')
+                : locale === 'ru'
+                  ? `Отправить ${readyToSendCount} получателям`
+                  : `Send to ${readyToSendCount} recipient(s)`}
             </button>
 
             <button

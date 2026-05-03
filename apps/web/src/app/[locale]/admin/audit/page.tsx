@@ -5,7 +5,18 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteLocale } from '@/hooks/useRouteParams';
-import { EmptyState, FieldInput, FieldSelect, LoadingLines, PageHeader, Panel, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+import { adminApi } from '@/lib/api';
+import { EmptyState, FieldInput, FieldSelect, LoadingLines, Notice, PageHeader, Panel, StatusBadge, TableShell, ToolbarRow } from '@/components/ui/signal-primitives';
+
+type AuditLogRow = {
+  id: string;
+  actor: string;
+  action: string;
+  entity: string;
+  entityId: string;
+  timestamp: string;
+  status: string;
+};
 
 export default function AdminAuditPage() {
   const t = useTranslations();
@@ -13,8 +24,9 @@ export default function AdminAuditPage() {
   const router = useRouter();
   const locale = useRouteLocale();
 
-  const [logs, setLogs] = useState<any[]>([]);
+  const [logs, setLogs] = useState<AuditLogRow[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState('ALL');
 
@@ -25,18 +37,32 @@ export default function AdminAuditPage() {
   }, [user, loading, isAdmin, router, locale]);
 
   useEffect(() => {
-    if (!user || !isAdmin) return;
-
-    // Stub data for audit log
-    setTimeout(() => {
-      setLogs([
-        { id: '1', actor: 'admin@example.com', action: 'USER_ROLE_CHANGE', entity: 'User', entityId: 'user-123', timestamp: new Date().toISOString(), status: 'success' },
-        { id: '2', actor: 'admin@example.com', action: 'EVENT_CREATE', entity: 'Event', entityId: 'evt-456', timestamp: new Date(Date.now() - 3600000).toISOString(), status: 'success' },
-        { id: '3', actor: 'admin@example.com', action: 'EVENT_PUBLISH', entity: 'Event', entityId: 'evt-456', timestamp: new Date(Date.now() - 1800000).toISOString(), status: 'success' },
-      ]);
+    if (!user || !isPlatformAdmin) {
       setLoadingData(false);
-    }, 500);
-  }, [user, isAdmin]);
+      return;
+    }
+
+    let active = true;
+    setLoadingData(true);
+    setError('');
+
+    adminApi.listAuditLogs({ limit: 100 })
+      .then((response) => {
+        if (!active) return;
+        setLogs(response.data);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setError(err.message || 'Failed to load audit log');
+      })
+      .finally(() => {
+        if (active) setLoadingData(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [user, isPlatformAdmin]);
 
   if (loading || !user || !isAdmin) {
     return <div className="admin-loading-screen"><div className="spinner" /></div>;
@@ -62,11 +88,8 @@ export default function AdminAuditPage() {
     return searchPass && actionPass;
   });
 
-  const toneByStatus: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
-    success: 'success',
-    failed: 'danger',
-    pending: 'warning',
-  };
+  const actionOptions = Array.from(new Set(logs.map((log) => log.action))).sort();
+  const formatAction = (value: string) => value.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
 
   return (
     <div className="signal-page-shell admin-control-page">
@@ -85,15 +108,16 @@ export default function AdminAuditPage() {
           />
           <FieldSelect value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} className="admin-filter-select">
             <option value="ALL">{locale === 'ru' ? 'Все действия' : 'All actions'}</option>
-            <option value="USER_ROLE_CHANGE">{locale === 'ru' ? 'Смена роли' : 'Role change'}</option>
-            <option value="EVENT_CREATE">{locale === 'ru' ? 'Создание события' : 'Event create'}</option>
-            <option value="EVENT_PUBLISH">{locale === 'ru' ? 'Публикация' : 'Publish'}</option>
-            <option value="EVENT_DELETE">{locale === 'ru' ? 'Удаление' : 'Delete'}</option>
+            {actionOptions.map((action) => (
+              <option key={action} value={action}>{formatAction(action)}</option>
+            ))}
           </FieldSelect>
           
         </ToolbarRow>
 
-        {loadingData ? (
+        {error ? (
+          <Notice tone="danger">{error}</Notice>
+        ) : loadingData ? (
           <LoadingLines rows={8} />
         ) : filteredLogs.length === 0 ? (
           <EmptyState
@@ -117,11 +141,11 @@ export default function AdminAuditPage() {
                 {filteredLogs.map((log) => (
                   <tr key={log.id}>
                     <td className="signal-overflow-ellipsis">{log.actor}</td>
-                    <td></td>
+                    <td><StatusBadge tone="info">{formatAction(log.action)}</StatusBadge></td>
                     <td>{log.entity}</td>
                     <td className="signal-muted signal-overflow-ellipsis">{log.entityId}</td>
                     <td className="signal-muted">{new Date(log.timestamp).toLocaleString()}</td>
-                    <td></td>
+                    <td><StatusBadge tone="success">{log.status}</StatusBadge></td>
                   </tr>
                 ))}
               </tbody>

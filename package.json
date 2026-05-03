@@ -23,6 +23,7 @@
     "db:deploy": "corepack pnpm --filter @event-platform/api prisma migrate deploy",
     "db:push": "corepack pnpm --filter @event-platform/api prisma db push",
     "db:seed": "corepack pnpm --filter @event-platform/api prisma db seed",
+    "db:cleanup-mock": "corepack pnpm --filter @event-platform/api run db:cleanup-mock",
     "db:studio": "corepack pnpm --filter @event-platform/api prisma studio",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",

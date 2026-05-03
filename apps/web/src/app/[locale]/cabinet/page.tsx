@@ -11,12 +11,8 @@ import {
   CabinetDashboardHeader,
   CabinetActiveEventCard,
   CabinetTeamCard,
-  CabinetMissingDataCard,
-  CabinetDeadlinesCard,
   CabinetInvitationsCard,
   CabinetOtherEventsList,
-  CabinetQuickActions,
-  CabinetQuickLinks,
   type DashboardResponse,
 } from '@/components/cabinet/dashboard';
 
@@ -171,9 +167,6 @@ export default function CabinetPage() {
             {locale === 'ru' ? 'Обновить' : 'Refresh'}
           </button>
         </div>
-        <div className="cabinet-empty-quick-links">
-          <CabinetQuickLinks locale={locale} />
-        </div>
         <div style={{ marginTop: '32px' }}>
           <h3 style={{ marginBottom: '16px' }}>
             {locale === 'ru' ? 'Ваши мероприятия' : 'Your events'}
@@ -215,9 +208,6 @@ export default function CabinetPage() {
             </Link>
           }
         />
-        <div className="cabinet-empty-quick-links">
-          <CabinetQuickLinks locale={locale} />
-        </div>
       </div>
     );
   }
@@ -225,7 +215,7 @@ export default function CabinetPage() {
   const activeEvent = dashboard.events.find(e => e.eventId === dashboard.activeEventId) || dashboard.events[0];
 
   return (
-    <div className="cabinet-workspace-page">
+    <div className="cabinet-workspace-page cabinet-dashboard-page">
       <CabinetDashboardHeader
         locale={locale}
         events={dashboard.events}
@@ -261,31 +251,14 @@ export default function CabinetPage() {
 
       <CabinetActiveEventCard event={activeEvent} locale={locale} />
 
-      <div className="cabinet-workspace-grid">
-        <div className="cabinet-workspace-main">
-          <CabinetQuickActions quickActions={activeEvent.quickActions} event={activeEvent} locale={locale} />
-
-          {activeEvent.isTeamBased && (
-            <CabinetTeamCard team={activeEvent.team} event={activeEvent} locale={locale} onTeamChanged={fetchDashboard} />
-          )}
-          {activeEvent.isTeamBased && activeEvent.invitations && activeEvent.invitations.length > 0 && (
+      {activeEvent.isTeamBased && (
+        <div className="cabinet-dashboard-detail-grid">
+          <CabinetTeamCard team={activeEvent.team} event={activeEvent} locale={locale} onTeamChanged={fetchDashboard} />
+          {activeEvent.invitations && activeEvent.invitations.length > 0 && (
             <CabinetInvitationsCard invitations={activeEvent.invitations} locale={locale} />
           )}
-          {!activeEvent.isTeamBased && (
-            <Notice tone="info">
-              {locale === 'ru'
-                ? 'Для этого мероприятия командный модуль не используется.'
-                : 'This event does not use the team module.'}
-            </Notice>
-          )}
         </div>
-
-        <div className="cabinet-workspace-sidebar">
-          <CabinetQuickLinks locale={locale} />
-          <CabinetMissingDataCard missingFields={activeEvent.missingProfileFields} event={activeEvent} locale={locale} />
-          <CabinetDeadlinesCard deadlines={activeEvent.deadlines} locale={locale} />
-        </div>
-      </div>
+      )}
 
       <CabinetOtherEventsList 
         events={dashboard.events} 

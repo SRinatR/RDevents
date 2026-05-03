@@ -156,8 +156,8 @@ export default function AdminEmailBroadcastsPage() {
         setError(response.data.errorText || (locale === 'ru' ? 'Рассылка не была отправлена.' : 'Broadcast was not sent.'));
       } else {
         setNotice(locale === 'ru'
-          ? `Рассылка обработана: ${response.data.sentCount ?? 0}/${response.data.totalRecipients ?? 0}`
-          : `Broadcast processed: ${response.data.sentCount ?? 0}/${response.data.totalRecipients ?? 0}`);
+          ? `Рассылка поставлена в очередь: ${response.data.totalRecipients ?? 0} получателей`
+          : `Broadcast queued: ${response.data.totalRecipients ?? 0} recipient(s)`);
       }
       await loadData();
     } catch {

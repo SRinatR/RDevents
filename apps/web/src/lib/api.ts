@@ -38,6 +38,34 @@ export class ApiError extends Error {
   }
 }
 
+export type EventMediaItem = {
+  id: string;
+  eventId: string;
+  source: 'ADMIN' | 'PARTICIPANT';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELETED';
+  title?: string | null;
+  caption?: string | null;
+  altText?: string | null;
+  credit?: string | null;
+  moderationNotes?: string | null;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  kind: 'image' | 'video' | 'audio' | 'document';
+  asset: {
+    id: string;
+    originalFilename: string;
+    mimeType: string;
+    sizeBytes: number;
+    publicUrl: string;
+    storageKey: string;
+  };
+  uploader?: { id: string; name?: string | null; email?: string | null; avatarUrl?: string | null } | null;
+  approvedBy?: { id: string; name?: string | null; email?: string | null } | null;
+  rejectedBy?: { id: string; name?: string | null; email?: string | null } | null;
+};
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, auth = false } = options;
 
@@ -327,11 +355,35 @@ export const eventsApi = {
 
   setActiveEvent: (eventId: string | null) =>
     request<{ ok: boolean }>('/api/me/dashboard/active-event', { method: 'PATCH', auth: true, body: { eventId } }),
+
+  listMedia: (eventId: string) =>
+    request<{ media: EventMediaItem[] }>(`/api/events/${eventId}/media`, { auth: true }),
+
+  uploadMedia: (eventId: string, file: File, body?: { title?: string; caption?: string; altText?: string; credit?: string }) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (body?.title) formData.append('title', body.title);
+    if (body?.caption) formData.append('caption', body.caption);
+    if (body?.altText) formData.append('altText', body.altText);
+    if (body?.credit) formData.append('credit', body.credit);
+    return requestForm<{ media: EventMediaItem }>(`/api/events/${eventId}/media`, formData, true);
+  },
 };
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
 export const adminApi = {
+  listAuditLogs: (params?: { search?: string; action?: string; limit?: number }) => {
+    const entries: [string, string][] = [];
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined && value !== '') entries.push([key, String(value)]);
+      }
+    }
+    const qs = entries.length ? '?' + new URLSearchParams(entries).toString() : '';
+    return request<{ data: any[]; meta: any }>(`/api/admin/audit${qs}`, { auth: true });
+  },
+
   listEvents: (params?: Record<string, string | number>) => {
     const qs = params ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';
     return request<{ data: any[]; meta: any }>(`/api/admin/events${qs}`, { auth: true });
@@ -348,6 +400,25 @@ export const adminApi = {
     formData.append('file', file);
     return requestForm<{ publicUrl: string; storageKey: string }>('/api/uploads/event-cover', formData, true);
   },
+
+  listEventMedia: (eventId: string, status: 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELETED' = 'PENDING') =>
+    request<{ media: EventMediaItem[] }>(`/api/admin/events/${eventId}/media?${new URLSearchParams({ status }).toString()}`, { auth: true }),
+
+  uploadEventMedia: (eventId: string, file: File, body?: { title?: string; caption?: string; altText?: string; credit?: string }) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (body?.title) formData.append('title', body.title);
+    if (body?.caption) formData.append('caption', body.caption);
+    if (body?.altText) formData.append('altText', body.altText);
+    if (body?.credit) formData.append('credit', body.credit);
+    return requestForm<{ media: EventMediaItem }>(`/api/events/${eventId}/media`, formData, true);
+  },
+
+  moderateEventMedia: (eventId: string, mediaId: string, body: { status: 'APPROVED' | 'REJECTED'; notes?: string }) =>
+    request<{ media: EventMediaItem }>(`/api/admin/events/${eventId}/media/${mediaId}`, { method: 'PATCH', auth: true, body }),
+
+  deleteEventMedia: (eventId: string, mediaId: string) =>
+    request<{ ok: boolean }>(`/api/admin/events/${eventId}/media/${mediaId}`, { method: 'DELETE', auth: true }),
 
   deleteEvent: (id: string) =>
     request<{ ok: boolean }>(`/api/admin/events/${id}`, { method: 'DELETE', auth: true }),
@@ -886,7 +957,7 @@ export const adminEmailApi = {
       totalSelected: number;
       sent: number;
       skipped: number;
-      messages: Array<{ userId: string; email: string; messageId: string | null; status: string }>;
+      messages: Array<{ userId: string; email: string; messageId: string | null; providerMessageId: string | null; status: string; failureReason?: string | null }>;
       skippedRecipients: Array<{ userId: string; email: string; name: string; status: string; reason?: string }>;
     }>('/api/admin/email/direct', { method: 'POST', auth: true, body: payload }),
 };

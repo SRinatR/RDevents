@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
 import { EmptyState, LoadingLines, Notice, Panel, SectionHeader } from '@/components/ui/signal-primitives';
 import { PublicFooter } from '@/components/layout/PublicFooter';
+import { EventPhotoBank } from '@/components/events/EventPhotoBank';
 import { RussiaHouseQuestPage } from '@/components/events/russia-house-quest/RussiaHouseQuestPage';
 import {
   getRegistrationClosedReason,
@@ -110,6 +111,7 @@ export default function EventDetailPage() {
   const registrationClosedMessage = getRegistrationClosedMessage(registrationClosedReason, locale);
 
   const hasActiveVolunteer = ['PENDING', 'APPROVED', 'ACTIVE'].includes(volunteerStatus ?? '');
+  const canUploadToPhotoBank = ['ACTIVE', 'APPROVED', 'RESERVE'].includes(participationStatus ?? '') || isRegistered;
   const isRussiaHouseEvent = event.slug === 'dom-gde-zhivet-rossiya';
   const participantTarget = event.participantTarget ?? event.capacity ?? 0;
   const spotsLeft = Math.max(participantTarget - (event.registrationsCount ?? 0), 0);
@@ -230,6 +232,7 @@ export default function EventDetailPage() {
         onApply={handleApplyCtaClick}
         onCopyLink={handleCopyLink}
         copied={copied}
+        canUploadToPhotoBank={canUploadToPhotoBank}
       />
     );
   }
@@ -270,6 +273,12 @@ export default function EventDetailPage() {
                   <SectionHeader title={t('events.description')} subtitle={locale === 'ru' ? 'Полная программа и содержание события' : 'Full story, context, and event structure'} />
                   <div className="signal-prose-copy">{event.fullDescription}</div>
                 </Panel>
+                <EventPhotoBank
+                  event={event}
+                  locale={locale}
+                  user={user}
+                  isParticipant={canUploadToPhotoBank}
+                />
               </div>
               <section id="event-participation" className="event-v4-registration-stack motion-fade-up-fast">
                 {renderParticipationPanel('public-participation-panel event-v4-participation-panel')}

@@ -99,11 +99,6 @@ export default function Sidebar({ locale, userName, userEmail, userAvatar }: Sid
         <div className="cabinet-nav-label">{locale === 'ru' ? 'Событийный контур' : 'Event loop'}</div>
         {eventItems.map((item) => <NavItem key={item.href} item={item} pathname={pathname} />)}
       </nav>
-
-      <div className="cabinet-side-note workspace-side-note-v2">
-        <strong>{locale === 'ru' ? 'Что дальше' : 'What next'}</strong>
-        <span>{locale === 'ru' ? 'Проверьте профиль, затем откройте каталог или продолжите текущие участия.' : 'Confirm profile readiness, then open catalog or continue current participations.'}</span>
-      </div>
     </aside>
   );
 }

@@ -9,6 +9,21 @@ import { adminEmailApi } from '@/lib/api';
 import { useRouteLocale } from '@/hooks/useRouteParams';
 import { EmptyState, LoadingLines, MetricCard, Notice, PageHeader, Panel, StatusBadge } from '@/components/ui/signal-primitives';
 
+function statusLabel(value: string | null | undefined, locale: string) {
+  const labels: Record<string, { ru: string; en: string }> = {
+    connected: { ru: 'Подключён', en: 'Connected' },
+    not_configured: { ru: 'Не настроен', en: 'Not configured' },
+    verified: { ru: 'Подтверждён', en: 'Verified' },
+    pending: { ru: 'Ожидает', en: 'Pending' },
+    failed: { ru: 'Ошибка', en: 'Failed' },
+    active: { ru: 'Активен', en: 'Active' },
+    inactive: { ru: 'Неактивен', en: 'Inactive' },
+    unknown: { ru: 'Неизвестно', en: 'Unknown' },
+  };
+  const key = String(value ?? 'unknown');
+  return labels[key]?.[locale === 'ru' ? 'ru' : 'en'] ?? key;
+}
+
 export default function AdminEmailPage() {
   const t = useTranslations();
   const { user, loading, isAdmin, isPlatformAdmin } = useAuth();
@@ -67,7 +82,17 @@ export default function AdminEmailPage() {
       <PageHeader
         title={t('admin.email') ?? 'Email'}
         subtitle={locale === 'ru' ? 'Центр управления коммуникациями' : 'Communication control center'}
-        actions={<button className="btn btn-secondary btn-sm" onClick={() => void loadOverview()} disabled={loadingData}>{locale === 'ru' ? 'Обновить' : 'Refresh'}</button>}
+        actions={(
+          <div className="signal-row-actions">
+            <Link className="btn btn-primary btn-sm" href={`/${locale}/admin/email/broadcasts/new`}>
+              {locale === 'ru' ? 'Создать рассылку' : 'Create broadcast'}
+            </Link>
+            <Link className="btn btn-secondary btn-sm" href={`/${locale}/admin/email/direct`}>
+              {locale === 'ru' ? 'Прямое письмо' : 'Direct email'}
+            </Link>
+            <button className="btn btn-secondary btn-sm" onClick={() => void loadOverview()} disabled={loadingData}>{locale === 'ru' ? 'Обновить' : 'Refresh'}</button>
+          </div>
+        )}
       />
 
       {error ? <Notice tone="danger">{error}</Notice> : null}
@@ -80,6 +105,13 @@ export default function AdminEmailPage() {
               {locale === 'ru'
                 ? 'Email-провайдер не настроен. Рассылки не будут отправляться.'
                 : 'Email provider is not configured. Broadcasts will not be sent.'}
+            </Notice>
+          )}
+          {overview.provider === 'log-only' && (
+            <Notice tone="warning">
+              {locale === 'ru'
+                ? 'Включён локальный log-only режим: письма сохраняются в истории, но не отправляются наружу.'
+                : 'Local log-only mode is enabled: emails are stored in history but not delivered externally.'}
             </Notice>
           )}
           {overview.providerStatus === 'connected' && overview.sendingDomainStatus !== 'verified' && (
@@ -108,17 +140,17 @@ export default function AdminEmailPage() {
             <MetricCard
               tone={overview.providerStatus === 'connected' ? 'success' : 'warning'}
               label={locale === 'ru' ? 'Статус провайдера' : 'Provider status'}
-              value={overview.providerStatus ?? 'unknown'}
+              value={overview.provider === 'log-only' ? 'Log-only' : statusLabel(overview.providerStatus, locale)}
             />
             <MetricCard
               tone={overview.sendingDomainStatus === 'verified' ? 'success' : 'warning'}
               label={locale === 'ru' ? 'Sending домен' : 'Sending domain'}
-              value={overview.sendingDomainStatus ?? 'unknown'}
+              value={statusLabel(overview.sendingDomainStatus, locale)}
             />
             <MetricCard
               tone={overview.webhookStatus === 'active' ? 'success' : 'neutral'}
               label={locale === 'ru' ? 'Webhook статус' : 'Webhook status'}
-              value={overview.webhookStatus ?? 'inactive'}
+              value={statusLabel(overview.webhookStatus, locale)}
             />
             <MetricCard tone="info" label={locale === 'ru' ? 'Отправлено 24ч' : 'Sent 24h'} value={overview.sent24h ?? 0} />
             <MetricCard tone="success" label={locale === 'ru' ? 'Доставлено 24ч' : 'Delivered 24h'} value={overview.delivered24h ?? 0} />
@@ -139,6 +171,7 @@ export default function AdminEmailPage() {
 
       {/* Quick links */}
       <div className="admin-quick-links-row">
+        <Link href={`/${locale}/admin/email/direct`} className="signal-chip-link">{locale === 'ru' ? 'Прямое письмо' : 'Direct email'}</Link>
         <Link href={`/${locale}/admin/email/messages`} className="signal-chip-link">{locale === 'ru' ? 'Сообщения' : 'Messages'}</Link>
         <Link href={`/${locale}/admin/email/templates`} className="signal-chip-link">{locale === 'ru' ? 'Шаблоны' : 'Templates'}</Link>
         <Link href={`/${locale}/admin/email/broadcasts`} className="signal-chip-link">{locale === 'ru' ? 'Рассылки' : 'Broadcasts'}</Link>
@@ -162,7 +195,7 @@ export default function AdminEmailPage() {
           <div className="signal-stack">
             <div className="signal-ranked-item">
               <span>{locale === 'ru' ? 'Провайдер' : 'Provider'}</span>
-              <StatusBadge tone={overview.providerStatus === 'connected' ? 'success' : 'warning'}>{overview.provider ?? overview.providerStatus}</StatusBadge>
+              <StatusBadge tone={overview.providerStatus === 'connected' ? 'success' : 'warning'}>{overview.provider ?? statusLabel(overview.providerStatus, locale)}</StatusBadge>
             </div>
             <div className="signal-ranked-item">
               <span>{locale === 'ru' ? 'Отправляющий домен' : 'Sending domain'}</span>

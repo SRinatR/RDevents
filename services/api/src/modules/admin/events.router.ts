@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import type { EventMemberStatus, EventStaffRole, EventTeamStatus, User } from '@prisma/client';
+import type { EventMediaStatus, EventMemberStatus, EventStaffRole, EventTeamStatus, User } from '@prisma/client';
 import { canManageEvent, requirePlatformAdmin } from '../../common/middleware.js';
 import { prisma } from '../../db/prisma.js';
 import { buildPublicMediaUrl } from '../../common/storage.js';
@@ -35,10 +35,16 @@ import {
 } from '../access-control/access-control.service.js';
 import { buildAuditRequestContext, writeAuditLog } from '../access-control/access-control.audit.js';
 import { env } from '../../config/env.js';
+import {
+  deleteEventMedia,
+  listEventMediaForModeration,
+  moderateEventMedia,
+} from '../events/event-media.service.js';
 
 export const adminEventsRouter = Router();
 
 const ACTIVE_MEMBER_STATUSES = ['ACTIVE'] as const;
+const EVENT_MEDIA_STATUS_FILTERS = new Set(['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'DELETED']);
 
 function normalizeStringArray(value: unknown) {
   if (Array.isArray(value)) {
@@ -345,6 +351,75 @@ adminEventsRouter.patch('/:id', async (req, res) => {
 adminEventsRouter.delete('/:id', requirePlatformAdmin, async (req, res) => {
   await prisma.event.delete({ where: { id: String(req.params['id']) } });
   res.json({ ok: true });
+});
+
+// GET /admin/events/:id/media — moderation queue and approved media bank
+adminEventsRouter.get('/:id/media', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  const status = String(req.query['status'] ?? 'PENDING').toUpperCase();
+  if (!EVENT_MEDIA_STATUS_FILTERS.has(status)) {
+    res.status(400).json({ error: 'Invalid media status', code: 'EVENT_MEDIA_INVALID_STATUS' });
+    return;
+  }
+
+  const media = await listEventMediaForModeration(eventId, status as EventMediaStatus | 'ALL');
+  res.json({ media });
+});
+
+// PATCH /admin/events/:id/media/:mediaId — approve or reject media
+adminEventsRouter.patch('/:id/media/:mediaId', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  const status = String(req.body?.status ?? '').toUpperCase() as EventMediaStatus;
+  try {
+    const media = await moderateEventMedia(eventId, String(req.params['mediaId']), user, {
+      status,
+      notes: req.body?.notes,
+    });
+    res.json({ media });
+  } catch (err: any) {
+    if (err.message === 'EVENT_MEDIA_INVALID_STATUS') {
+      res.status(400).json({ error: 'Invalid media status', code: err.message });
+      return;
+    }
+    if (err.message === 'EVENT_MEDIA_NOT_FOUND') {
+      res.status(404).json({ error: 'Media item not found', code: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+// DELETE /admin/events/:id/media/:mediaId — soft delete media and asset
+adminEventsRouter.delete('/:id/media/:mediaId', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = req.params['id']!;
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  try {
+    const result = await deleteEventMedia(eventId, String(req.params['mediaId']), user);
+    res.json(result);
+  } catch (err: any) {
+    if (err.message === 'EVENT_MEDIA_NOT_FOUND') {
+      res.status(404).json({ error: 'Media item not found', code: err.message });
+      return;
+    }
+    throw err;
+  }
 });
 
 // GET /admin/events/:id/participants (backward compatible)

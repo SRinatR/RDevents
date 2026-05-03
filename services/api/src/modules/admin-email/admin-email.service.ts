@@ -145,8 +145,9 @@ type ResendWebhookEvent = {
 };
 
 function getEmailConfig() {
+  const isLogOnly = process.env['EMAIL_PROVIDER'] === 'log-only' && !env.isProd;
   return {
-    provider: env.RESEND_API_KEY ? 'resend' : null,
+    provider: isLogOnly ? 'log-only' : env.RESEND_API_KEY ? 'resend' : null,
     sendingDomain: env.RESEND_FROM_EMAIL ? env.RESEND_FROM_EMAIL.split('@')[1] ?? null : null,
     webhookEndpoint: env.RESEND_WEBHOOK_ENDPOINT || (env.RESEND_WEBHOOK_SECRET ? 'https://api.rdevents.uz/webhooks/resend' : null),
   };
@@ -207,8 +208,9 @@ async function ensureBroadcastAccess(actor: User | undefined, broadcast: any) {
 
 function validateSendableContent(broadcast: any) {
   if (!String(broadcast.subject ?? '').trim()) throw new Error('EMAIL_SUBJECT_REQUIRED');
-  if (!String(broadcast.textBody ?? '').trim()) throw new Error('EMAIL_TEXT_BODY_REQUIRED');
-  if (!String(broadcast.htmlBody ?? '').trim()) throw new Error('EMAIL_HTML_BODY_REQUIRED');
+  if (!String(broadcast.textBody ?? '').trim() && !String(broadcast.htmlBody ?? '').trim()) {
+    throw new Error('EMAIL_CONTENT_REQUIRED');
+  }
   if (requiresUnsubscribeVariable(String(broadcast.type ?? 'MARKETING')) && !hasUnsubscribeVariable(broadcast)) {
     throw new Error('UNSUBSCRIBE_URL_REQUIRED');
   }
@@ -678,7 +680,8 @@ export async function sendEmailBroadcast(id: string, input: SendBroadcastInput =
     });
     if (updated.count === 0) throw new Error('NO_FAILED_RECIPIENTS_TO_RETRY');
   } else {
-    await createEmailBroadcastSnapshot(id, actor);
+    const snapshot = await createEmailBroadcastSnapshot(id, actor);
+    if (snapshot.totalEligible <= 0) throw new Error('EMAIL_NO_ELIGIBLE_RECIPIENTS');
   }
 
   const queued = await prisma.emailBroadcast.update({
@@ -776,7 +779,8 @@ export async function scheduleEmailBroadcast(id: string, input: ScheduleBroadcas
   validateSendableContent(broadcast);
   const scheduledAt = new Date(input.scheduledAt);
   if (scheduledAt.getTime() <= Date.now()) throw new Error('SCHEDULED_AT_IN_PAST');
-  await createEmailBroadcastSnapshot(id, actor);
+  const snapshot = await createEmailBroadcastSnapshot(id, actor);
+  if (snapshot.totalEligible <= 0) throw new Error('EMAIL_NO_ELIGIBLE_RECIPIENTS');
   const row = await prisma.emailBroadcast.update({
     where: { id },
     data: { status: 'SCHEDULED' as any, sendMode: 'SCHEDULED' as any, scheduledAt, timezone: input.timezone, errorText: null },
@@ -1096,7 +1100,8 @@ export async function previewBroadcastContent(id: string, input: { recipientId?:
 
 export async function sendTestEmail(input: EmailTestSendInput, actor?: User) {
   if (!isPlatformAdmin(actor)) throw new Error('FORBIDDEN');
-  const toEmail = input.toEmail ?? input.email ?? 'admin@example.com';
+  const toEmail = input.toEmail ?? input.email ?? actor?.email;
+  if (!toEmail) throw new Error('EMAIL_REQUIRED');
   const since = new Date(Date.now() - 60 * 60 * 1000);
   const sentRecently = await prisma.emailMessage.count({ where: { source: 'ADMIN_TEST' as any, toEmail, createdAt: { gte: since } } });
   if (sentRecently >= EMAIL_TEST_SEND_RATE_LIMIT_PER_HOUR) throw new Error('EMAIL_TEST_SEND_RATE_LIMITED');
@@ -1105,7 +1110,7 @@ export async function sendTestEmail(input: EmailTestSendInput, actor?: User) {
     preheader: input.preheader,
     textBody: input.textBody ?? 'Test',
     htmlBody: input.htmlBody ?? '<p>Test</p>',
-    sampleVariables: { name: 'Admin', email: toEmail, unsubscribeUrl: `${env.APP_URL}/ru/unsubscribe?token=test` },
+    sampleVariables: { name: actor?.name ?? 'Admin', email: toEmail, unsubscribeUrl: `${env.APP_URL}/ru/unsubscribe?token=test` },
   });
   await sendPlatformEmail({ to: toEmail, subject: preview.subjectPreview, text: preview.textPreview, html: preview.htmlPreview, source: 'admin_test' });
   return { ok: true, toEmail, warnings: preview.warnings };
@@ -1212,7 +1217,7 @@ export async function emailBroadcastWorkerTick() {
   await prisma.emailBroadcastRecipient.updateMany({
     where: {
       status: 'SENDING' as any,
-      sendingStartedAt: {
+      sendingAt: {
         lt: new Date(Date.now() - 15 * 60 * 1000),
       },
       retryCount: { lt: 3 },
@@ -1245,7 +1250,7 @@ export async function emailBroadcastWorkerTick() {
         },
         data: {
           status: 'SENDING' as any,
-          sendingStartedAt: new Date(),
+          sendingAt: new Date(),
         },
       });
 

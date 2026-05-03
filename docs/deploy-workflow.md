@@ -119,11 +119,12 @@ The deploy step on the server follows this exact order to keep the database safe
 6. **Backup** — runs `pg_dump | gzip` inside the postgres container using the container's own `POSTGRES_USER` and `POSTGRES_DB`, then writes the compressed dump to `$DEPLOY_ROOT/backups/pre-migrate-<timestamp>.sql.gz`. The deploy aborts if the backup fails or the file is empty.
 7. **Validate DATABASE_URL** — before running migrations, the deploy validates that `$DEPLOY_ROOT/.env` contains `DATABASE_URL` with host `postgres:5432` (not `127.0.0.1`, not `localhost`). Prisma connects from inside the `api` container, where `postgres` resolves to the database service in the Docker Compose network. The deploy aborts immediately if the host is wrong.
 8. **Migrate** — runs `pnpm prisma:deploy` inside a one-off API container (`docker compose run --rm --no-deps api`). The deploy aborts if any migration fails; the previously running api/web containers were not stopped by the deploy workflow. **Seed (`db:seed`) is never run here.**
-9. **Recreate api and web** — `docker compose up -d --no-build --force-recreate --remove-orphans api web` replaces the app containers using the images built in step 2. This step is only reached if backup and migration succeeded.
-10. **Update runtime fallbacks** — writes the deployed SHA into `/opt/rdevents/runtime/version.txt`, `/opt/rdevents/runtime/version`, and `/opt/rdevents/runtime/release.json`.
-11. **Validate and reload nginx** — runs `nginx -t` and then `systemctl reload nginx` so nginx fallback aliases pick up the fresh runtime files.
-12. **Verify release markers** — the deploy is considered failed unless all required SHA endpoints return the new release after reload.
-13. **Prune** — removes dangling Docker images.
+9. **Clean mock data** — runs `pnpm run db:cleanup-mock` in the production API container. This removes old demo/example users and seeded event data, then promotes `rinat200355@gmail.com` to `SUPER_ADMIN`; the command refuses to run outside `NODE_ENV=production` unless explicitly overridden.
+10. **Recreate api and web** — `docker compose up -d --no-build --force-recreate --remove-orphans api web` replaces the app containers using the images built in step 2. This step is only reached if backup, migration, and mock cleanup succeeded.
+11. **Update runtime fallbacks** — writes the deployed SHA into `/opt/rdevents/runtime/version.txt`, `/opt/rdevents/runtime/version`, and `/opt/rdevents/runtime/release.json`.
+12. **Validate and reload nginx** — runs `nginx -t` and then `systemctl reload nginx` so nginx fallback aliases pick up the fresh runtime files.
+13. **Verify release markers** — the deploy is considered failed unless all required SHA endpoints return the new release after reload.
+14. **Prune** — removes dangling Docker images.
 
 ### Production .env contract
 
@@ -191,7 +192,7 @@ If a public ingress check fails, the workflow prints the last public response he
 
 The production API container CMD is `node dist/main.js`. It never runs `prisma migrate deploy` on startup. Migrations are exclusively the responsibility of the deploy workflow.
 
-Seed data (`db:seed`) must never be run in production as part of the deploy. It is a local development tool only.
+Seed data (`db:seed`) must never be run in production as part of the deploy. It is a local development tool only and fails under `NODE_ENV=production`.
 
 The deploy workflow must not run from `main`, feature branches, or PRs.
 

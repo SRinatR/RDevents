@@ -109,6 +109,10 @@ async function seedReferenceData() {
 }
 
 async function main() {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Refusing to run development seed in production.');
+  }
+
   console.log('Seeding database...');
 
   await prisma.analyticsEvent.deleteMany();
@@ -221,14 +225,14 @@ async function main() {
     bio: 'Demo account for rejected application states.',
   });
 
-  const incompleteUser = await createUser({
+  await createUser({
     email: 'incomplete@example.com',
     password: 'incomplete123',
     name: 'Incomplete Profile',
     bio: 'Missing phone, city, telegram, and birth date for registration requirement tests.',
   });
 
-  const teamApplicant = await createUser({
+  await createUser({
     email: 'teamjoiner@example.com',
     password: 'teamjoiner123',
     name: 'Team Joiner',
@@ -239,7 +243,7 @@ async function main() {
     bio: 'Demo account for team join request flows.',
   });
 
-  const inactiveUser = await createUser({
+  await createUser({
     email: 'disabled@example.com',
     password: 'disabled123',
     name: 'Disabled Account',

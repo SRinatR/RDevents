@@ -3,6 +3,7 @@ export const QUEST_NAV_ITEMS = [
   { label: 'Станции', href: '#stations' },
   { label: 'Программа', href: '#program' },
   { label: 'Регистрация', href: '#registration' },
+  { label: 'Фотобанк', href: '#photobank' },
   { label: 'FAQ', href: '#contacts' },
 ] as const;
 
