@@ -31,6 +31,7 @@ ENV_FILE="$DEPLOY_ROOT/.env"
 MANIFEST_FILE=""
 BACKUP_DIR=""
 PREVIOUS_RELEASE_SHA=""
+PREVIOUS_IMAGE_SOURCE=""
 
 mkdir -p "$LOG_DIR" "$RUNTIME_DIR"
 
@@ -85,18 +86,281 @@ get_running_image_id() {
   docker inspect "$cid" --format '{{.Image}}' 2>/dev/null || true
 }
 
-get_current_release_sha() {
-  local current
+get_container_release_sha() {
+  local service="$1"
+  local path
 
-  current="$(jq -r '.current // empty' "$RELEASES_REGISTRY_FILE" 2>/dev/null || true)"
-  if [ -n "$current" ]; then
-    printf '%s' "$current"
+  case "$service" in
+    web)
+      path="/app/apps/web/public/version.txt"
+      ;;
+    api|report-worker|email-broadcast-worker)
+      path="/app/services/api/release.txt"
+      ;;
+    *)
+      echo "Unknown service for release marker: $service" >&2
+      return 1
+      ;;
+  esac
+
+  compose exec -T "$service" sh -lc "cat '$path'" 2>/dev/null | tr -d '\r\n'
+}
+
+registry_get() {
+  local expression="$1"
+
+  if [ -f "$RELEASES_REGISTRY_FILE" ] && command -v jq >/dev/null 2>&1; then
+    jq -er "$expression // empty" "$RELEASES_REGISTRY_FILE" 2>/dev/null || true
+  fi
+}
+
+registry_release_complete() {
+  local release_sha="$1"
+
+  [ -n "$release_sha" ] || return 1
+  [ -f "$RELEASES_REGISTRY_FILE" ] || return 1
+
+  jq -e "--arg" releaseSha "$release_sha" '
+    (.releases[$releaseSha].apiImageId // "") != "" and
+    (.releases[$releaseSha].webImageId // "") != "" and
+    (.releases[$releaseSha].reportWorkerImageId // "") != "" and
+    (.releases[$releaseSha].emailBroadcastWorkerImageId // "") != ""
+  ' "$RELEASES_REGISTRY_FILE" >/dev/null 2>&1
+}
+
+load_release_images_from_registry() {
+  local release_sha="$1"
+
+  API_IMAGE_ID_BEFORE="$(registry_get ".releases[\"$release_sha\"].apiImageId")"
+  WEB_IMAGE_ID_BEFORE="$(registry_get ".releases[\"$release_sha\"].webImageId")"
+  REPORT_WORKER_IMAGE_ID_BEFORE="$(registry_get ".releases[\"$release_sha\"].reportWorkerImageId")"
+  EMAIL_BROADCAST_WORKER_IMAGE_ID_BEFORE="$(registry_get ".releases[\"$release_sha\"].emailBroadcastWorkerImageId")"
+}
+
+release_images_exist() {
+  local api_image_id="$1"
+  local web_image_id="$2"
+  local report_worker_image_id="$3"
+  local email_broadcast_worker_image_id="$4"
+
+  [ -n "$api_image_id" ] || return 1
+  [ -n "$web_image_id" ] || return 1
+  [ -n "$report_worker_image_id" ] || return 1
+  [ -n "$email_broadcast_worker_image_id" ] || return 1
+
+  docker image inspect "$api_image_id" >/dev/null 2>&1 &&
+    docker image inspect "$web_image_id" >/dev/null 2>&1 &&
+    docker image inspect "$report_worker_image_id" >/dev/null 2>&1 &&
+    docker image inspect "$email_broadcast_worker_image_id" >/dev/null 2>&1
+}
+
+find_earliest_manifest_for_release() {
+  local release_sha="$1"
+  local release_backup_root="$DEPLOY_ROOT/backups/releases/$release_sha"
+
+  [ -d "$release_backup_root" ] || return 0
+
+  find "$release_backup_root" -mindepth 2 -maxdepth 2 -type f -name deploy-manifest.json 2>/dev/null |
+    sort |
+    head -1
+}
+
+recover_previous_images_from_manifest() {
+  local manifest_file="$1"
+  local recovered_previous recovered_api recovered_web recovered_report_worker recovered_email_broadcast_worker
+
+  [ -n "$manifest_file" ] || return 1
+  [ -f "$manifest_file" ] || return 1
+  jq -e . "$manifest_file" >/dev/null 2>&1 || return 1
+
+  recovered_previous="$(jq -r '.previousReleaseSha // empty' "$manifest_file")"
+  recovered_api="$(jq -r '.apiImageIdBefore // empty' "$manifest_file")"
+  recovered_web="$(jq -r '.webImageIdBefore // empty' "$manifest_file")"
+  recovered_report_worker="$(jq -r '.reportWorkerImageIdBefore // empty' "$manifest_file")"
+  recovered_email_broadcast_worker="$(jq -r '.emailBroadcastWorkerImageIdBefore // empty' "$manifest_file")"
+
+  recovered_report_worker="${recovered_report_worker:-$recovered_api}"
+  recovered_email_broadcast_worker="${recovered_email_broadcast_worker:-$recovered_api}"
+
+  [ -n "$recovered_previous" ] || return 1
+  release_images_exist "$recovered_api" "$recovered_web" "$recovered_report_worker" "$recovered_email_broadcast_worker" || return 1
+
+  PREVIOUS_RELEASE_SHA="$recovered_previous"
+  API_IMAGE_ID_BEFORE="$recovered_api"
+  WEB_IMAGE_ID_BEFORE="$recovered_web"
+  REPORT_WORKER_IMAGE_ID_BEFORE="$recovered_report_worker"
+  EMAIL_BROADCAST_WORKER_IMAGE_ID_BEFORE="$recovered_email_broadcast_worker"
+  PREVIOUS_IMAGE_SOURCE="manifest:$manifest_file"
+}
+
+update_release_entry_only() {
+  local release_sha="$1"
+  local api_image_id="$2"
+  local web_image_id="$3"
+  local report_worker_image_id="$4"
+  local email_broadcast_worker_image_id="$5"
+  local updated_at tmp base_file
+
+  command -v jq >/dev/null 2>&1 || {
+    echo "ERROR: jq is required to update $RELEASES_REGISTRY_FILE"
+    exit 1
+  }
+
+  updated_at="$(date -u +%FT%TZ)"
+  tmp="$(mktemp)"
+  base_file="$RELEASES_REGISTRY_FILE"
+
+  if [ ! -f "$RELEASES_REGISTRY_FILE" ] || ! jq -e . "$RELEASES_REGISTRY_FILE" >/dev/null 2>&1; then
+    base_file="$(mktemp)"
+    printf '{"current":null,"previous":null,"updatedAt":null,"releases":{}}\n' > "$base_file"
+  fi
+
+  jq \
+    "--arg" releaseSha "$release_sha" \
+    "--arg" apiImageId "$api_image_id" \
+    "--arg" webImageId "$web_image_id" \
+    "--arg" reportWorkerImageId "$report_worker_image_id" \
+    "--arg" emailBroadcastWorkerImageId "$email_broadcast_worker_image_id" \
+    "--arg" updatedAt "$updated_at" \
+    '
+      .releases = (.releases // {}) |
+      (.releases[$releaseSha] // {}) as $existing |
+      .updatedAt = $updatedAt |
+      .releases[$releaseSha] = {
+        releaseSha: $releaseSha,
+        apiImageId: $apiImageId,
+        webImageId: $webImageId,
+        reportWorkerImageId: $reportWorkerImageId,
+        emailBroadcastWorkerImageId: $emailBroadcastWorkerImageId,
+        createdAt: ($existing.createdAt // $updatedAt)
+      }
+    ' "$base_file" > "$tmp"
+
+  mv "$tmp" "$RELEASES_REGISTRY_FILE"
+  [ "$base_file" = "$RELEASES_REGISTRY_FILE" ] || rm -f "$base_file"
+}
+
+maybe_register_previous_release() {
+  local reason="$1"
+
+  [ -n "$PREVIOUS_RELEASE_SHA" ] || return 0
+  [ -n "$API_IMAGE_ID_BEFORE" ] || return 0
+  [ -n "$WEB_IMAGE_ID_BEFORE" ] || return 0
+
+  REPORT_WORKER_IMAGE_ID_BEFORE="${REPORT_WORKER_IMAGE_ID_BEFORE:-$API_IMAGE_ID_BEFORE}"
+  EMAIL_BROADCAST_WORKER_IMAGE_ID_BEFORE="${EMAIL_BROADCAST_WORKER_IMAGE_ID_BEFORE:-$API_IMAGE_ID_BEFORE}"
+
+  if registry_release_complete "$PREVIOUS_RELEASE_SHA" && [ "${FORCE_UPDATE_PREVIOUS_RELEASE_IMAGES:-false}" != "true" ] && [ "$reason" != "manifest-recovery" ]; then
+    echo "Preserving previous release registry entry for $PREVIOUS_RELEASE_SHA."
     return 0
   fi
 
-  if [ -f "$APP_DIR/.release-commit" ]; then
-    tr -d '\r\n' < "$APP_DIR/.release-commit"
+  if release_images_exist "$API_IMAGE_ID_BEFORE" "$WEB_IMAGE_ID_BEFORE" "$REPORT_WORKER_IMAGE_ID_BEFORE" "$EMAIL_BROADCAST_WORKER_IMAGE_ID_BEFORE"; then
+    update_release_entry_only \
+      "$PREVIOUS_RELEASE_SHA" \
+      "$API_IMAGE_ID_BEFORE" \
+      "$WEB_IMAGE_ID_BEFORE" \
+      "$REPORT_WORKER_IMAGE_ID_BEFORE" \
+      "$EMAIL_BROADCAST_WORKER_IMAGE_ID_BEFORE"
+    echo "Updated previous release registry entry for $PREVIOUS_RELEASE_SHA from $reason."
+  else
+    echo "WARNING: previous release image IDs for $PREVIOUS_RELEASE_SHA are incomplete or missing locally."
+    echo "Not overwriting previous release registry entry."
   fi
+}
+
+determine_previous_release_images() {
+  local registry_current registry_previous release_commit running_api_release running_web_release
+  local running_report_worker_release running_email_broadcast_worker_release earliest_manifest
+  local running_already_target=false
+
+  registry_current="$(registry_get '.current')"
+  registry_previous="$(registry_get '.previous')"
+  release_commit=""
+  if [ -f "$APP_DIR/.release-commit" ]; then
+    release_commit="$(tr -d '\r\n' < "$APP_DIR/.release-commit")"
+  fi
+
+  running_api_release="$(get_container_release_sha api || true)"
+  running_web_release="$(get_container_release_sha web || true)"
+  running_report_worker_release="$(get_container_release_sha report-worker || true)"
+  running_email_broadcast_worker_release="$(get_container_release_sha email-broadcast-worker || true)"
+
+  echo "Registry current release SHA: ${registry_current:-none}"
+  echo "Registry previous release SHA: ${registry_previous:-none}"
+  echo "Release commit marker before deploy: ${release_commit:-none}"
+  echo "Running API release marker: ${running_api_release:-unknown}"
+  echo "Running Web release marker: ${running_web_release:-unknown}"
+  echo "Running report-worker release marker: ${running_report_worker_release:-unknown}"
+  echo "Running email-broadcast-worker release marker: ${running_email_broadcast_worker_release:-unknown}"
+
+  if [ "$running_api_release" = "$RELEASE_SHA" ] && [ "$running_web_release" = "$RELEASE_SHA" ]; then
+    running_already_target=true
+  fi
+
+  if [ "$running_already_target" = "true" ]; then
+    echo "Detected rerun after containers already switched to target release."
+    earliest_manifest="$(find_earliest_manifest_for_release "$RELEASE_SHA")"
+
+    if recover_previous_images_from_manifest "$earliest_manifest"; then
+      echo "Recovered previous image IDs from earliest manifest:"
+      echo "manifest=$earliest_manifest"
+      echo "previousReleaseSha=$PREVIOUS_RELEASE_SHA"
+      echo "apiImageIdBefore=$API_IMAGE_ID_BEFORE"
+      echo "webImageIdBefore=$WEB_IMAGE_ID_BEFORE"
+      echo "reportWorkerImageIdBefore=$REPORT_WORKER_IMAGE_ID_BEFORE"
+      echo "emailBroadcastWorkerImageIdBefore=$EMAIL_BROADCAST_WORKER_IMAGE_ID_BEFORE"
+      maybe_register_previous_release "manifest-recovery"
+      return 0
+    fi
+
+    PREVIOUS_RELEASE_SHA=""
+    if [ -n "$registry_current" ] && [ "$registry_current" != "$RELEASE_SHA" ]; then
+      PREVIOUS_RELEASE_SHA="$registry_current"
+    elif [ -n "$registry_previous" ] && [ "$registry_previous" != "$RELEASE_SHA" ]; then
+      PREVIOUS_RELEASE_SHA="$registry_previous"
+    fi
+
+    if registry_release_complete "$PREVIOUS_RELEASE_SHA"; then
+      load_release_images_from_registry "$PREVIOUS_RELEASE_SHA"
+      PREVIOUS_IMAGE_SOURCE="registry-preserved"
+      echo "Preserving previous release registry entry."
+      echo "Previous release SHA: $PREVIOUS_RELEASE_SHA"
+      echo "apiImageIdBefore=$API_IMAGE_ID_BEFORE"
+      echo "webImageIdBefore=$WEB_IMAGE_ID_BEFORE"
+      return 0
+    fi
+
+    echo "WARNING: running containers already match RELEASE_SHA, but no previous image mapping could be recovered."
+    echo "Not overwriting previous release registry entry."
+    PREVIOUS_IMAGE_SOURCE="unknown-rerun-target-running"
+    return 0
+  fi
+
+  if [ -n "$running_api_release" ] && [ "$running_api_release" != "$RELEASE_SHA" ]; then
+    PREVIOUS_RELEASE_SHA="$running_api_release"
+  elif [ -n "$registry_current" ] && [ "$registry_current" != "$RELEASE_SHA" ]; then
+    PREVIOUS_RELEASE_SHA="$registry_current"
+  elif [ -n "$release_commit" ] && [ "$release_commit" != "$RELEASE_SHA" ]; then
+    PREVIOUS_RELEASE_SHA="$release_commit"
+  elif [ -n "$registry_previous" ] && [ "$registry_previous" != "$RELEASE_SHA" ]; then
+    PREVIOUS_RELEASE_SHA="$registry_previous"
+  fi
+
+  API_IMAGE_ID_BEFORE="$(get_running_image_id api)"
+  WEB_IMAGE_ID_BEFORE="$(get_running_image_id web)"
+  REPORT_WORKER_IMAGE_ID_BEFORE="$(get_running_image_id report-worker)"
+  EMAIL_BROADCAST_WORKER_IMAGE_ID_BEFORE="$(get_running_image_id email-broadcast-worker)"
+  PREVIOUS_IMAGE_SOURCE="running-containers"
+
+  echo "Previous release SHA: ${PREVIOUS_RELEASE_SHA:-unknown}"
+  echo "Captured previous image IDs from running containers."
+  echo "API_IMAGE_ID_BEFORE=${API_IMAGE_ID_BEFORE:-}"
+  echo "WEB_IMAGE_ID_BEFORE=${WEB_IMAGE_ID_BEFORE:-}"
+  echo "REPORT_WORKER_IMAGE_ID_BEFORE=${REPORT_WORKER_IMAGE_ID_BEFORE:-}"
+  echo "EMAIL_BROADCAST_WORKER_IMAGE_ID_BEFORE=${EMAIL_BROADCAST_WORKER_IMAGE_ID_BEFORE:-}"
+
+  maybe_register_previous_release "running-containers"
 }
 
 update_release_registry() {
@@ -105,7 +369,7 @@ update_release_registry() {
   local web_image_id="$3"
   local report_worker_image_id="$4"
   local email_broadcast_worker_image_id="$5"
-  local updated_at current_before tmp base_file
+  local updated_at current_before previous_candidate tmp base_file
 
   command -v jq >/dev/null 2>&1 || {
     echo "ERROR: jq is required to update $RELEASES_REGISTRY_FILE"
@@ -114,6 +378,7 @@ update_release_registry() {
 
   updated_at="$(date -u +%FT%TZ)"
   current_before="$(jq -r '.current // empty' "$RELEASES_REGISTRY_FILE" 2>/dev/null || true)"
+  previous_candidate="${PREVIOUS_RELEASE_SHA:-}"
   tmp="$(mktemp)"
   base_file="$RELEASES_REGISTRY_FILE"
 
@@ -125,6 +390,7 @@ update_release_registry() {
   jq \
     "--arg" releaseSha "$release_sha" \
     "--arg" currentBefore "$current_before" \
+    "--arg" previousCandidate "$previous_candidate" \
     "--arg" apiImageId "$api_image_id" \
     "--arg" webImageId "$web_image_id" \
     "--arg" reportWorkerImageId "$report_worker_image_id" \
@@ -136,6 +402,8 @@ update_release_registry() {
       .previous = (
         if $currentBefore != "" and $currentBefore != $releaseSha
         then $currentBefore
+        elif $previousCandidate != "" and $previousCandidate != $releaseSha
+        then $previousCandidate
         else (.previous // null)
         end
       ) |
@@ -708,17 +976,7 @@ mark_stale_running_state_if_needed
 
 set_stage "$CURRENT_STAGE"
 
-PREVIOUS_RELEASE_SHA="$(get_current_release_sha)"
-API_IMAGE_ID_BEFORE="$(get_running_image_id api)"
-WEB_IMAGE_ID_BEFORE="$(get_running_image_id web)"
-REPORT_WORKER_IMAGE_ID_BEFORE="$(get_running_image_id report-worker)"
-EMAIL_BROADCAST_WORKER_IMAGE_ID_BEFORE="$(get_running_image_id email-broadcast-worker)"
-
-echo "Previous release SHA: ${PREVIOUS_RELEASE_SHA:-unknown}"
-echo "API_IMAGE_ID_BEFORE=${API_IMAGE_ID_BEFORE:-}"
-echo "WEB_IMAGE_ID_BEFORE=${WEB_IMAGE_ID_BEFORE:-}"
-echo "REPORT_WORKER_IMAGE_ID_BEFORE=${REPORT_WORKER_IMAGE_ID_BEFORE:-}"
-echo "EMAIL_BROADCAST_WORKER_IMAGE_ID_BEFORE=${EMAIL_BROADCAST_WORKER_IMAGE_ID_BEFORE:-}"
+determine_previous_release_images
 
 if [ -n "$PREVIOUS_RELEASE_SHA" ] && [ -n "$API_IMAGE_ID_BEFORE" ] && [ -n "$WEB_IMAGE_ID_BEFORE" ]; then
   SAFE_PREVIOUS_TAG="$(safe_release_tag "$PREVIOUS_RELEASE_SHA")"
@@ -726,12 +984,6 @@ if [ -n "$PREVIOUS_RELEASE_SHA" ] && [ -n "$API_IMAGE_ID_BEFORE" ] && [ -n "$WEB
     docker tag "$API_IMAGE_ID_BEFORE" "app-api:$SAFE_PREVIOUS_TAG" || true
     docker tag "$WEB_IMAGE_ID_BEFORE" "app-web:$SAFE_PREVIOUS_TAG" || true
   fi
-  update_release_registry \
-    "$PREVIOUS_RELEASE_SHA" \
-    "$API_IMAGE_ID_BEFORE" \
-    "$WEB_IMAGE_ID_BEFORE" \
-    "${REPORT_WORKER_IMAGE_ID_BEFORE:-$API_IMAGE_ID_BEFORE}" \
-    "${EMAIL_BROADCAST_WORKER_IMAGE_ID_BEFORE:-$API_IMAGE_ID_BEFORE}"
 fi
 
 mkdir -p "$APP_DIR"
