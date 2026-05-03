@@ -1,12 +1,13 @@
 'use client';
 
-import Image from 'next/image';
 import type { FormEvent } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteParams } from '@/hooks/useRouteParams';
-import { adminApi, eventMediaApi, type EventMediaItem, type EventMediaSettings, type EventMediaSummary, type MediaInput } from '@/lib/api';
+import { adminApi, eventMediaApi, type EventMediaItem, type EventMediaPublicVisibility, type EventMediaSettings, type EventMediaSummary, type MediaInput } from '@/lib/api';
+import { MediaPreview } from '@/components/media/MediaPreview';
+import { formatMediaDisplayNumber } from '@/components/media/MediaCard';
 import { EmptyState, FieldInput, FieldTextarea, LoadingLines, Notice, Panel, SectionHeader, StatusBadge, ToolbarRow } from '@/components/ui/signal-primitives';
 import { EventNotFound, EventWorkspaceHeader, formatAdminDateTime, type AdminEventRecord } from '@/components/admin/AdminEventWorkspace';
 import { getFriendlyApiErrorMessage } from '@/lib/api-errors';
@@ -55,10 +56,15 @@ function statusTone(status: EventMediaItem['status']): 'success' | 'warning' | '
 
 function renderPreview(item: EventMediaItem) {
   const label = item.altText || item.title || item.caption || item.asset.originalFilename;
-  if (item.kind === 'image') {
-    return <Image src={item.asset.publicUrl} alt={label} fill sizes="220px" />;
-  }
-  return <video src={item.asset.publicUrl} controls preload="metadata" aria-label={label} />;
+  return (
+    <MediaPreview
+      publicUrl={item.asset.publicUrl}
+      storageKey={item.asset.storageKey}
+      kind={item.kind}
+      alt={label}
+      sizes="220px"
+    />
+  );
 }
 
 function emptyDraft(item?: EventMediaItem): MediaInput {
@@ -83,11 +89,17 @@ export default function AdminEventMediaPage() {
   const [settingsDraft, setSettingsDraft] = useState<EventMediaSettings>(DEFAULT_SETTINGS);
   const [status, setStatus] = useState<MediaStatusFilter>('PENDING');
   const [summary, setSummary] = useState<EventMediaSummary>({ total: 0, pending: 0, approved: 0, rejected: 0, deleted: 0, participant: 0, admin: 0, images: 0, videos: 0 });
+  const [visibility, setVisibility] = useState<EventMediaPublicVisibility | null>(null);
   const [type, setType] = useState<MediaTypeFilter>('all');
   const [search, setSearch] = useState('');
   const [pageLoading, setPageLoading] = useState(true);
   const [mediaLoading, setMediaLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [pageError, setPageError] = useState('');
+  const [uploadError, setUploadError] = useState('');
+  const [settingsError, setSettingsError] = useState('');
+  const [listError, setListError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [summaryError, setSummaryError] = useState('');
   const [notice, setNotice] = useState('');
   const [busyId, setBusyId] = useState('');
   const [drafts, setDrafts] = useState<Record<string, MediaInput>>({});

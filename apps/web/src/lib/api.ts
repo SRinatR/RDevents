@@ -74,6 +74,7 @@ export type EventMediaSettings = {
   allowParticipantCaption: boolean;
   maxFileSizeMb: number;
   allowedTypes: Array<'image' | 'video'>;
+  nextMediaDisplayNumber?: number;
 };
 
 export type MediaInput = {
@@ -88,6 +89,7 @@ export type EventMediaItem = {
   eventId: string;
   source: 'ADMIN' | 'PARTICIPANT';
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELETED';
+  displayNumber?: number | null;
   kind: 'image' | 'video';
   title?: string | null;
   caption?: string | null;
@@ -107,11 +109,32 @@ export type EventMediaItem = {
     sizeBytes: number;
     publicUrl: string;
     storageKey?: string;
+    checksumSha256?: string | null;
   };
   uploader?: { id: string; name?: string | null; email?: string | null; avatarUrl?: string | null } | null;
   approvedBy?: { id: string; name?: string | null; email?: string | null } | null;
   rejectedBy?: { id: string; name?: string | null; email?: string | null } | null;
   event?: { id: string; slug: string; title: string; startsAt?: string | null };
+};
+
+export type PublicMediaEvent = {
+  id: string;
+  slug: string;
+  title: string;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  location?: string | null;
+  coverImageUrl?: string | null;
+};
+
+export type EventMediaPublicVisibility = {
+  eventPublished: boolean;
+  mediaBankEnabled: boolean;
+  approvedMedia: number;
+  activeAssets: number;
+  visibleOnPublicPages: boolean;
+  reasonCode: 'OK' | 'EVENT_NOT_PUBLISHED' | 'MEDIA_BANK_DISABLED' | 'NO_APPROVED_MEDIA' | 'NO_ACTIVE_ASSETS' | 'UNKNOWN';
+  reason: string;
 };
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -437,6 +460,16 @@ export type AdminMediaParams = {
   limit?: number;
 };
 
+export type SiteMediaParams = {
+  type?: 'all' | 'image' | 'video';
+  eventId?: string;
+  slug?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort?: 'newest' | 'oldest' | 'number';
+};
+
 export type AdminMediaUpdate = Partial<MediaInput> & {
   status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELETED';
   moderationNotes?: string;
@@ -451,6 +484,20 @@ function appendMediaFormFields(formData: FormData, body?: MediaInput) {
 }
 
 export const eventMediaApi = {
+  siteList: (params: SiteMediaParams = {}) =>
+    request<{
+      media: EventMediaItem[];
+      events: PublicMediaEvent[];
+      meta: { total: number; page: number; limit: number; pages: number };
+    }>(`/api/events/media${toQuery(params)}`),
+
+  eventPage: (slug: string, params: SiteMediaParams = {}) =>
+    request<{
+      event: PublicMediaEvent;
+      media: EventMediaItem[];
+      meta: { total: number; images: number; videos: number; page: number; limit: number; pages: number; settings?: EventMediaSettings };
+    }>(`/api/events/${slug}/media-bank${toQuery(params)}`),
+
   publicList: (eventId: string, params?: { type?: 'all' | 'image' | 'video'; limit?: number; cursor?: string }) => {
     const qs = toQuery(params ?? {});
     return request<{ media: EventMediaItem[]; meta: { nextCursor: string | null; settings?: EventMediaSettings } }>(`/api/events/${eventId}/media${qs}`);
@@ -474,6 +521,9 @@ export const eventMediaApi = {
 
   summary: (eventId: string) =>
     request<{ summary: EventMediaSummary }>(`/api/admin/events/${eventId}/media/summary`, { auth: true }),
+
+  publicVisibility: (eventId: string) =>
+    request<{ visibility: EventMediaPublicVisibility }>(`/api/admin/events/${eventId}/media/public-visibility`, { auth: true }),
 
   adminUpload: (eventId: string, file: File, body?: MediaInput) => {
     const formData = new FormData();
