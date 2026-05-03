@@ -23,6 +23,12 @@ type ArchiveOptions = {
   useFilenameAsTitle: boolean;
   skipDuplicates: boolean;
   preserveFolders: boolean;
+  dateMode: 'metadata' | 'filename' | 'manual' | 'none';
+  manualCapturedAt: string;
+  timezone: string;
+  groupMode: 'none' | 'first_folder' | 'full_path';
+  captionTemplate: string;
+  defaultCredit: string;
 };
 
 const MAX_CONCURRENT_UPLOADS = 4;
@@ -32,6 +38,12 @@ const DEFAULT_ARCHIVE_OPTIONS: ArchiveOptions = {
   useFilenameAsTitle: true,
   skipDuplicates: true,
   preserveFolders: true,
+  dateMode: 'metadata',
+  manualCapturedAt: '',
+  timezone: 'Asia/Tashkent',
+  groupMode: 'first_folder',
+  captionTemplate: '{group} · {date} {time}',
+  defaultCredit: '',
 };
 
 function isRunningJob(job?: EventMediaImportJob | null) {
@@ -217,6 +229,12 @@ export function AdminMediaBulkUploadPanel({ eventId, locale, onDone }: AdminMedi
       formData.append('useFilenameAsTitle', String(archiveOptions.useFilenameAsTitle));
       formData.append('skipDuplicates', String(archiveOptions.skipDuplicates));
       formData.append('preserveFolders', String(archiveOptions.preserveFolders));
+      formData.append('dateMode', archiveOptions.dateMode);
+      formData.append('manualCapturedAt', archiveOptions.manualCapturedAt);
+      formData.append('timezone', archiveOptions.timezone);
+      formData.append('groupMode', archiveOptions.groupMode);
+      formData.append('captionTemplate', archiveOptions.captionTemplate);
+      formData.append('defaultCredit', archiveOptions.defaultCredit);
 
       const result = await eventMediaApi.imports.start(eventId, formData);
       setActiveArchiveJob(result.job);
@@ -286,8 +304,8 @@ export function AdminMediaBulkUploadPanel({ eventId, locale, onDone }: AdminMedi
         <SectionHeader
           title={isRu ? 'Загрузка ZIP-архива' : 'ZIP archive import'}
           subtitle={isRu
-            ? 'Загрузите архив с фото и видео разных типов. Система распакует, проверит типы, пропустит дубликаты и создаст отчёт.'
-            : 'Upload an archive with mixed photo and video files. The system unpacks it, validates types, skips duplicates, and creates a report.'}
+            ? 'Загрузите архив с фото и видео разных типов. Система распакует, извлечёт даты, сгруппирует папки и создаст отчёт.'
+            : 'Upload an archive with mixed photos/videos. The system extracts dates, groups folders, and creates a report.'}
         />
 
         <form className="admin-media-upload-form" onSubmit={handleArchiveImport}>
@@ -298,57 +316,58 @@ export function AdminMediaBulkUploadPanel({ eventId, locale, onDone }: AdminMedi
           </label>
 
           <ToolbarRow>
-            <label className="signal-muted">
-              <input
-                type="radio"
-                name="publishMode"
-                checked={archiveOptions.publishMode === 'approved'}
-                onChange={() => patchArchiveOption('publishMode', 'approved')}
-              />{' '}
-              {isRu ? 'Сразу публиковать' : 'Publish immediately'}
-            </label>
-            <label className="signal-muted">
-              <input
-                type="radio"
-                name="publishMode"
-                checked={archiveOptions.publishMode === 'pending'}
-                onChange={() => patchArchiveOption('publishMode', 'pending')}
-              />{' '}
-              {isRu ? 'Отправить на модерацию' : 'Send to moderation'}
-            </label>
+            <label className="signal-muted"><input type="radio" name="publishMode" checked={archiveOptions.publishMode === 'approved'} onChange={() => patchArchiveOption('publishMode', 'approved')} /> {isRu ? 'Сразу публиковать' : 'Publish immediately'}</label>
+            <label className="signal-muted"><input type="radio" name="publishMode" checked={archiveOptions.publishMode === 'pending'} onChange={() => patchArchiveOption('publishMode', 'pending')} /> {isRu ? 'Отправить на модерацию' : 'Send to moderation'}</label>
+          </ToolbarRow>
+
+          <ToolbarRow>
+            <label className="signal-muted"><input type="checkbox" checked={archiveOptions.useFilenameAsTitle} onChange={(event) => patchArchiveOption('useFilenameAsTitle', event.target.checked)} /> {isRu ? 'Имя файла как название' : 'Filename as title'}</label>
+            <label className="signal-muted"><input type="checkbox" checked={archiveOptions.skipDuplicates} onChange={(event) => patchArchiveOption('skipDuplicates', event.target.checked)} /> {isRu ? 'Пропускать дубликаты' : 'Skip duplicates'}</label>
+            <label className="signal-muted"><input type="checkbox" checked={archiveOptions.preserveFolders} onChange={(event) => patchArchiveOption('preserveFolders', event.target.checked)} /> {isRu ? 'Сохранять папки' : 'Preserve folders'}</label>
           </ToolbarRow>
 
           <ToolbarRow>
             <label className="signal-muted">
-              <input
-                type="checkbox"
-                checked={archiveOptions.useFilenameAsTitle}
-                onChange={(event) => patchArchiveOption('useFilenameAsTitle', event.target.checked)}
-              />{' '}
-              {isRu ? 'Использовать имя файла как название' : 'Use filename as title'}
+              {isRu ? 'Дата:' : 'Date:'}{' '}
+              <select className="signal-field signal-select" value={archiveOptions.dateMode} onChange={(event) => patchArchiveOption('dateMode', event.target.value as ArchiveOptions['dateMode'])}>
+                <option value="metadata">{isRu ? 'Из metadata, потом filename/manual' : 'Metadata, then filename/manual'}</option>
+                <option value="filename">{isRu ? 'Из имени файла, потом manual' : 'Filename, then manual'}</option>
+                <option value="manual">{isRu ? 'Одна дата вручную для всех' : 'Manual date for all'}</option>
+                <option value="none">{isRu ? 'Не указывать дату' : 'No date'}</option>
+              </select>
             </label>
             <label className="signal-muted">
-              <input
-                type="checkbox"
-                checked={archiveOptions.skipDuplicates}
-                onChange={(event) => patchArchiveOption('skipDuplicates', event.target.checked)}
-              />{' '}
-              {isRu ? 'Пропускать дубликаты' : 'Skip duplicates'}
+              {isRu ? 'Дата вручную:' : 'Manual date:'}{' '}
+              <input className="signal-field" type="datetime-local" value={archiveOptions.manualCapturedAt} onChange={(event) => patchArchiveOption('manualCapturedAt', event.target.value)} />
             </label>
-            <label className="signal-muted">
-              <input
-                type="checkbox"
-                checked={archiveOptions.preserveFolders}
-                onChange={(event) => patchArchiveOption('preserveFolders', event.target.checked)}
-              />{' '}
-              {isRu ? 'Сохранять папки в названии' : 'Preserve folders in filename'}
-            </label>
+            <FieldInput value={archiveOptions.timezone} onChange={(event) => patchArchiveOption('timezone', event.target.value)} placeholder="Asia/Tashkent" />
           </ToolbarRow>
+
+          <ToolbarRow>
+            <label className="signal-muted">
+              {isRu ? 'Группы:' : 'Groups:'}{' '}
+              <select className="signal-field signal-select" value={archiveOptions.groupMode} onChange={(event) => patchArchiveOption('groupMode', event.target.value as ArchiveOptions['groupMode'])}>
+                <option value="first_folder">{isRu ? 'Первая папка' : 'First folder'}</option>
+                <option value="full_path">{isRu ? 'Весь путь папки' : 'Full folder path'}</option>
+                <option value="none">{isRu ? 'Без групп' : 'No groups'}</option>
+              </select>
+            </label>
+            <FieldInput value={archiveOptions.defaultCredit} onChange={(event) => patchArchiveOption('defaultCredit', event.target.value)} placeholder={isRu ? 'Автор / credit для всех' : 'Author / credit for all'} />
+          </ToolbarRow>
+
+          <FieldInput
+            value={archiveOptions.captionTemplate}
+            onChange={(event) => patchArchiveOption('captionTemplate', event.target.value)}
+            placeholder="{group} · {date} {time}"
+          />
+          <div className="signal-muted">
+            {isRu ? 'Шаблон подписи поддерживает:' : 'Caption template supports:'} {'{filename} {title} {folder} {group} {date} {time} {datetime} {size} {index} {eventTitle}'}
+          </div>
 
           <Notice tone="info">
             {isRu
-              ? 'Следующий этап: EXIF/video metadata, дата для всех вручную, группы из папок, шаблоны подписей и preview перед публикацией. Это требует backend-миграций из #183.'
-              : 'Next phase: EXIF/video metadata, manual date for all, folder groups, caption templates, and preview before publishing. This requires backend migrations from #183.'}
+              ? 'Сейчас дата и группы попадают в подпись и CSV-отчёт. Постоянные поля capturedAt/groupTitle/downloadEnabled будут добавлены отдельной миграцией БД.'
+              : 'Date and groups currently go into captions and the CSV report. Persistent capturedAt/groupTitle/downloadEnabled fields will be added in a separate DB migration.'}
           </Notice>
 
           <button className="btn btn-primary btn-sm" type="submit" disabled={archiveStarting || !archiveFile}>
@@ -361,10 +380,7 @@ export function AdminMediaBulkUploadPanel({ eventId, locale, onDone }: AdminMedi
 
       {activeArchiveJob ? (
         <Panel variant="elevated" className="admin-command-panel">
-          <SectionHeader
-            title={isRu ? 'Текущая обработка архива' : 'Current archive processing'}
-            subtitle={`${activeArchiveJob.originalFilename} · ${jobStatusLabel(activeArchiveJob.status, isRu)}`}
-          />
+          <SectionHeader title={isRu ? 'Текущая обработка архива' : 'Current archive processing'} subtitle={`${activeArchiveJob.originalFilename} · ${jobStatusLabel(activeArchiveJob.status, isRu)}`} />
           <div className="signal-muted">
             {isRu ? 'Прогресс' : 'Progress'}: {runningProgress}% · {isRu ? 'импортировано' : 'imported'}: {activeArchiveJob.importedCount} · {isRu ? 'пропущено' : 'skipped'}: {activeArchiveJob.skippedCount} · {isRu ? 'ошибок' : 'failed'}: {activeArchiveJob.failedCount}
           </div>
@@ -391,12 +407,8 @@ export function AdminMediaBulkUploadPanel({ eventId, locale, onDone }: AdminMedi
                     {isRu ? 'Импортировано' : 'Imported'}: {job.importedCount} · {isRu ? 'дубликатов' : 'duplicates'}: {job.duplicateCount} · {isRu ? 'пропущено' : 'skipped'}: {job.skippedCount} · {isRu ? 'ошибок' : 'failed'}: {job.failedCount}
                   </div>
                   <ToolbarRow>
-                    <button className="btn btn-secondary btn-sm" type="button" onClick={() => setActiveArchiveJob(job)}>
-                      {isRu ? 'Открыть статус' : 'Open status'}
-                    </button>
-                    <button className="btn btn-ghost btn-sm" type="button" onClick={() => eventMediaApi.imports.downloadReport(eventId, job.id)}>
-                      CSV
-                    </button>
+                    <button className="btn btn-secondary btn-sm" type="button" onClick={() => setActiveArchiveJob(job)}>{isRu ? 'Открыть статус' : 'Open status'}</button>
+                    <button className="btn btn-ghost btn-sm" type="button" onClick={() => eventMediaApi.imports.downloadReport(eventId, job.id)}>CSV</button>
                   </ToolbarRow>
                 </div>
               </article>
