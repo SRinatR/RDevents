@@ -85,9 +85,8 @@ function normalizeGroupMode(value: unknown): ImportGroupMode {
 }
 
 function normalizeImportOptions(input: Record<string, unknown> = {}): ImportOptions {
-  const publishMode = input['publishMode'] === 'pending' ? 'pending' : 'approved';
   return {
-    publishMode,
+    publishMode: input['publishMode'] === 'pending' ? 'pending' : 'approved',
     useFilenameAsTitle: parseBoolean(input['useFilenameAsTitle'], true),
     skipDuplicates: parseBoolean(input['skipDuplicates'], true),
     preserveFolders: parseBoolean(input['preserveFolders'], false),
@@ -204,16 +203,6 @@ function parseFilenameDate(filename: string): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function readAsciiFromTiff(buffer: Buffer, tiffStart: number, entryOffset: number, littleEndian: boolean) {
-  const type = readUInt16(buffer, entryOffset + 2, littleEndian);
-  const count = readUInt32(buffer, entryOffset + 4, littleEndian);
-  if (type !== 2 || count <= 1 || count > 64) return null;
-
-  const valueOffset = count <= 4 ? entryOffset + 8 : tiffStart + readUInt32(buffer, entryOffset + 8, littleEndian);
-  if (valueOffset < 0 || valueOffset + count > buffer.length) return null;
-  return buffer.subarray(valueOffset, valueOffset + count).toString('ascii').replace(/\0/g, '').trim() || null;
-}
-
 function readUInt16(buffer: Buffer, offset: number, littleEndian: boolean) {
   if (offset + 2 > buffer.length) return 0;
   return littleEndian ? buffer.readUInt16LE(offset) : buffer.readUInt16BE(offset);
@@ -224,10 +213,18 @@ function readUInt32(buffer: Buffer, offset: number, littleEndian: boolean) {
   return littleEndian ? buffer.readUInt32LE(offset) : buffer.readUInt32BE(offset);
 }
 
+function readAsciiFromTiff(buffer: Buffer, tiffStart: number, entryOffset: number, littleEndian: boolean) {
+  const type = readUInt16(buffer, entryOffset + 2, littleEndian);
+  const count = readUInt32(buffer, entryOffset + 4, littleEndian);
+  if (type !== 2 || count <= 1 || count > 64) return null;
+  const valueOffset = count <= 4 ? entryOffset + 8 : tiffStart + readUInt32(buffer, entryOffset + 8, littleEndian);
+  if (valueOffset < 0 || valueOffset + count > buffer.length) return null;
+  return buffer.subarray(valueOffset, valueOffset + count).toString('ascii').replace(/\0/g, '').trim() || null;
+}
+
 function findExifDateInIfd(buffer: Buffer, tiffStart: number, ifdOffset: number, littleEndian: boolean): { dateText: string | null; exifIfdOffset: number | null } {
   const absoluteIfdOffset = tiffStart + ifdOffset;
   if (absoluteIfdOffset < 0 || absoluteIfdOffset + 2 > buffer.length) return { dateText: null, exifIfdOffset: null };
-
   const entryCount = readUInt16(buffer, absoluteIfdOffset, littleEndian);
   let dateText: string | null = null;
   let exifIfdOffset: number | null = null;
@@ -239,9 +236,7 @@ function findExifDateInIfd(buffer: Buffer, tiffStart: number, ifdOffset: number,
     if (tag === 0x0132 || tag === 0x9003 || tag === 0x9004) {
       dateText = readAsciiFromTiff(buffer, tiffStart, entryOffset, littleEndian) ?? dateText;
     }
-    if (tag === 0x8769) {
-      exifIfdOffset = readUInt32(buffer, entryOffset + 8, littleEndian);
-    }
+    if (tag === 0x8769) exifIfdOffset = readUInt32(buffer, entryOffset + 8, littleEndian);
   }
 
   return { dateText, exifIfdOffset };
@@ -249,7 +244,6 @@ function findExifDateInIfd(buffer: Buffer, tiffStart: number, ifdOffset: number,
 
 function extractJpegExifDate(buffer: Buffer): Date | null {
   if (buffer.length < 12 || buffer[0] !== 0xff || buffer[1] !== 0xd8) return null;
-
   let offset = 2;
   while (offset + 4 < buffer.length) {
     if (buffer[offset] !== 0xff) break;
@@ -272,7 +266,6 @@ function extractJpegExifDate(buffer: Buffer): Date | null {
 
     offset = segmentEnd;
   }
-
   return null;
 }
 
@@ -531,10 +524,7 @@ async function processEventMediaImportJob(jobId: string, actor: User) {
   if (!job || !job.archiveAsset) return;
 
   const options = normalizeImportOptions((job.optionsJson ?? {}) as Record<string, unknown>);
-  await prisma.eventMediaImportJob.update({
-    where: { id: job.id },
-    data: { status: 'PROCESSING', startedAt: new Date() },
-  });
+  await prisma.eventMediaImportJob.update({ where: { id: job.id }, data: { status: 'PROCESSING', startedAt: new Date() } });
 
   const archiveBuffer = await readStoredFile(job.archiveAsset.storageKey);
   const zip = await JSZip.loadAsync(archiveBuffer);
@@ -543,14 +533,9 @@ async function processEventMediaImportJob(jobId: string, actor: User) {
   let totalUncompressedSize = 0;
   let mediaIndex = 0;
 
-  await prisma.eventMediaImportJob.update({
-    where: { id: job.id },
-    data: { totalEntries: entries.length },
-  });
+  await prisma.eventMediaImportJob.update({ where: { id: job.id }, data: { totalEntries: entries.length } });
 
-  if (entries.length > MAX_ENTRIES) {
-    throw new EventMediaImportError(`Archive contains more than ${MAX_ENTRIES} entries`, 'EVENT_MEDIA_IMPORT_TOO_MANY_ENTRIES');
-  }
+  if (entries.length > MAX_ENTRIES) throw new EventMediaImportError(`Archive contains more than ${MAX_ENTRIES} entries`, 'EVENT_MEDIA_IMPORT_TOO_MANY_ENTRIES');
 
   for (const entry of entries) {
     const archivePath = entry.name;
@@ -562,16 +547,9 @@ async function processEventMediaImportJob(jobId: string, actor: User) {
     const normalizedArchivePath = normalizeArchivePath(archivePath);
     const originalFilename = options.preserveFolders ? normalizedArchivePath : path.posix.basename(normalizedArchivePath);
     const group = groupInfoFromArchivePath(normalizedArchivePath, options.groupMode);
+
     if (isUnsafeArchivePath(archivePath)) {
-      const item = {
-        archivePath,
-        originalFilename,
-        groupKey: group.groupKey,
-        groupTitle: group.groupTitle,
-        status: 'FAILED',
-        reasonCode: 'ZIP_SLIP',
-        reasonMessage: 'Unsafe archive path',
-      };
+      const item: ImportItemReport = { archivePath, originalFilename, groupKey: group.groupKey, groupTitle: group.groupTitle, status: 'FAILED', reasonCode: 'ZIP_SLIP', reasonMessage: 'Unsafe archive path' };
       report.push(item);
       await createImportItem(job.id, job.eventId, item);
       continue;
@@ -579,16 +557,7 @@ async function processEventMediaImportJob(jobId: string, actor: User) {
 
     const mimeType = inferMimeType(originalFilename);
     if (!mimeType || !EVENT_MEDIA_ALLOWED_MIME_TYPES.has(mimeType)) {
-      const item = {
-        archivePath,
-        originalFilename,
-        groupKey: group.groupKey,
-        groupTitle: group.groupTitle,
-        mimeType,
-        status: 'SKIPPED_UNSUPPORTED_TYPE',
-        reasonCode: 'UNSUPPORTED_TYPE',
-        reasonMessage: 'Unsupported media type',
-      };
+      const item: ImportItemReport = { archivePath, originalFilename, groupKey: group.groupKey, groupTitle: group.groupTitle, mimeType, status: 'SKIPPED_UNSUPPORTED_TYPE', reasonCode: 'UNSUPPORTED_TYPE', reasonMessage: 'Unsupported media type' };
       report.push(item);
       await createImportItem(job.id, job.eventId, item);
       continue;
@@ -597,8 +566,9 @@ async function processEventMediaImportJob(jobId: string, actor: User) {
     try {
       const buffer = await entry.async('nodebuffer');
       totalUncompressedSize += buffer.length;
+
       if (buffer.length === 0 || buffer.length > MAX_SINGLE_MEDIA_SIZE_BYTES) {
-        const item = {
+        const item: ImportItemReport = {
           archivePath,
           originalFilename,
           groupKey: group.groupKey,
@@ -613,21 +583,17 @@ async function processEventMediaImportJob(jobId: string, actor: User) {
         await createImportItem(job.id, job.eventId, item);
         continue;
       }
-      if (totalUncompressedSize > MAX_TOTAL_UNCOMPRESSED_SIZE_BYTES) {
-        throw new EventMediaImportError('Archive uncompressed size limit exceeded', 'EVENT_MEDIA_IMPORT_UNCOMPRESSED_TOO_LARGE');
-      }
+
+      if (totalUncompressedSize > MAX_TOTAL_UNCOMPRESSED_SIZE_BYTES) throw new EventMediaImportError('Archive uncompressed size limit exceeded', 'EVENT_MEDIA_IMPORT_UNCOMPRESSED_TOO_LARGE');
 
       const checksumSha256 = createHash('sha256').update(buffer).digest('hex');
       if (options.skipDuplicates) {
         const duplicate = await prisma.mediaAsset.findFirst({
-          where: {
-            checksumSha256,
-            eventMedia: { eventId: job.eventId },
-          },
+          where: { checksumSha256, eventMedia: { eventId: job.eventId } },
           select: { id: true, eventMedia: { select: { id: true } } },
         });
         if (duplicate) {
-          const item = {
+          const item: ImportItemReport = {
             archivePath,
             originalFilename,
             groupKey: group.groupKey,
@@ -671,19 +637,16 @@ async function processEventMediaImportJob(jobId: string, actor: User) {
         size: buffer.length,
         buffer,
       } as Express.Multer.File;
+
       const media = await uploadEventMedia(
         job.eventId,
         actor,
         fakeFile,
-        {
-          title: title ?? undefined,
-          caption: caption ?? undefined,
-          credit: options.defaultCredit ?? undefined,
-          altText: title ?? caption ?? undefined,
-        },
+        { title: title ?? undefined, caption: caption ?? undefined, credit: options.defaultCredit ?? undefined, altText: title ?? caption ?? undefined },
         { mode: 'admin', forceStatus: options.publishMode === 'pending' ? 'PENDING' : 'APPROVED' },
       );
-      const item = {
+
+      const baseItem: ImportItemReport = {
         archivePath,
         originalFilename,
         groupKey: group.groupKey,
@@ -699,12 +662,15 @@ async function processEventMediaImportJob(jobId: string, actor: User) {
         credit: options.defaultCredit,
         status: 'IMPORTED',
       };
-      item.metadataJson = JSON.parse(metadataJsonForImport(item, options, { mimeType, sizeBytes: buffer.length, checksumSha256 }));
+      const item: ImportItemReport = {
+        ...baseItem,
+        metadataJson: JSON.parse(metadataJsonForImport(baseItem, options, { mimeType, sizeBytes: buffer.length, checksumSha256 })) as Record<string, unknown>,
+      };
       report.push(item);
       await persistEventMediaMetadata(media.id, item, options);
       await createImportItem(job.id, job.eventId, item);
     } catch (err: any) {
-      const item = {
+      const item: ImportItemReport = {
         archivePath,
         originalFilename,
         groupKey: group.groupKey,
@@ -723,11 +689,10 @@ async function processEventMediaImportJob(jobId: string, actor: User) {
 
   await updateJobCounters(job.id);
   const failedCount = report.filter((item) => item.status === 'FAILED').length;
-  const finalStatus = failedCount > 0 ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED';
   await prisma.eventMediaImportJob.update({
     where: { id: job.id },
     data: {
-      status: finalStatus,
+      status: failedCount > 0 ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED',
       completedAt: new Date(),
       reportJson: report as any,
     },
@@ -735,11 +700,7 @@ async function processEventMediaImportJob(jobId: string, actor: User) {
 }
 
 async function updateJobCounters(jobId: string) {
-  const rows = await prisma.eventMediaImportItem.groupBy({
-    by: ['status'],
-    where: { jobId },
-    _count: true,
-  });
+  const rows = await prisma.eventMediaImportItem.groupBy({ by: ['status'], where: { jobId }, _count: true });
   const countByStatus = new Map(rows.map((row: any) => [row.status, row._count]));
   const importedCount = countByStatus.get('IMPORTED') ?? 0;
   const duplicateCount = countByStatus.get('SKIPPED_DUPLICATE') ?? 0;
