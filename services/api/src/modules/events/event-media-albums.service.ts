@@ -194,22 +194,28 @@ export async function assignEventMediaToAlbum(eventId: string, albumId: string |
     if (!album) throw new EventMediaAlbumError('Album not found', 'EVENT_MEDIA_ALBUM_NOT_FOUND');
   }
 
-  const existingRows = await prisma.eventMedia.findMany({
-    where: { id: { in: mediaIds }, eventId, deletedAt: null },
-    select: { id: true },
-  });
+  const existingRows = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT id FROM "event_media"
+    WHERE "eventId" = ${eventId}
+      AND "deletedAt" IS NULL
+      AND id = ANY(${mediaIds}::text[])
+  `;
   if (existingRows.length !== mediaIds.length) {
     throw new EventMediaAlbumError('Some media items were not found in this event', 'EVENT_MEDIA_ALBUM_MEDIA_NOT_FOUND');
   }
 
-  const result = await prisma.eventMedia.updateMany({
-    where: { id: { in: mediaIds }, eventId },
-    data: { albumId: albumId ?? null } as any,
-  });
+  const updatedRows = await prisma.$queryRaw<Array<{ id: string }>>`
+    UPDATE "event_media"
+    SET "albumId" = ${albumId}, "updatedAt" = NOW()
+    WHERE "eventId" = ${eventId}
+      AND "deletedAt" IS NULL
+      AND id = ANY(${mediaIds}::text[])
+    RETURNING id
+  `;
 
   if (albumId) {
     const album = await findAlbum(eventId, albumId);
-    return { ok: true, movedCount: result.count, album: serializeAlbum(album!) };
+    return { ok: true, movedCount: updatedRows.length, album: serializeAlbum(album!) };
   }
-  return { ok: true, movedCount: result.count, album: null };
+  return { ok: true, movedCount: updatedRows.length, album: null };
 }
