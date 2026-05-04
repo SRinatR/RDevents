@@ -2,7 +2,7 @@
 
 import type { ChangeEvent, FormEvent } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { eventMediaApi, type EventMediaImportJob } from '@/lib/api';
+import { eventMediaApi, type EventMediaImportJob, type UploadProgress } from '@/lib/api';
 import { mediaBankAdminApi } from '@/lib/media-bank-admin-api';
 import { getFriendlyApiErrorMessage } from '@/lib/api-errors';
 import { EmptyState, FieldInput, LoadingLines, Notice, Panel, SectionHeader, ToolbarRow } from '@/components/ui/signal-primitives';
@@ -30,6 +30,17 @@ type ArchiveOptions = {
   groupMode: 'none' | 'first_folder' | 'full_path';
   captionTemplate: string;
   defaultCredit: string;
+};
+
+type ArchiveUploadPhase = 'selected' | 'uploading' | 'finalizing' | 'complete' | 'error';
+
+type ArchiveUploadState = {
+  phase: ArchiveUploadPhase;
+  loadedBytes: number;
+  totalBytes: number;
+  percent: number;
+  bytesPerSecond: number | null;
+  etaSeconds: number | null;
 };
 
 const MAX_CONCURRENT_UPLOADS = 4;
@@ -73,14 +84,66 @@ function jobStatusLabel(status: EventMediaImportJob['status'], isRu: boolean) {
 
 function formatFileSize(bytes: number) {
   if (!bytes || !Number.isFinite(bytes)) return '0 KB';
+  if (bytes < 1024) return `${Math.max(1, Math.round(bytes))} B`;
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(bytes < 10 * 1024 * 1024 * 1024 ? 1 : 0)} GB`;
+}
+
+function formatDuration(seconds: number | null, isRu: boolean) {
+  if (!seconds || !Number.isFinite(seconds) || seconds <= 0) return isRu ? 'считаем' : 'calculating';
+  if (seconds < 5) return isRu ? 'несколько секунд' : 'a few seconds';
+
+  const totalSeconds = Math.ceil(seconds);
+  const minutes = Math.floor(totalSeconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const restMinutes = minutes % 60;
+  const restSeconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return isRu ? `${hours} ч ${restMinutes} мин` : `${hours} h ${restMinutes} min`;
+  }
+  if (minutes > 0) {
+    return isRu ? `${minutes} мин ${restSeconds} сек` : `${minutes} min ${restSeconds} sec`;
+  }
+  return isRu ? `${totalSeconds} сек` : `${totalSeconds} sec`;
+}
+
+function clampPercent(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function archiveUploadPhaseLabel(phase: ArchiveUploadPhase, isRu: boolean) {
+  const ru: Record<ArchiveUploadPhase, string> = {
+    selected: 'Архив выбран',
+    uploading: 'Загружаем на сервер',
+    finalizing: 'Проверяем и запускаем импорт',
+    complete: 'Архив загружен',
+    error: 'Загрузка не удалась',
+  };
+  const en: Record<ArchiveUploadPhase, string> = {
+    selected: 'Archive selected',
+    uploading: 'Uploading to server',
+    finalizing: 'Checking and starting import',
+    complete: 'Archive uploaded',
+    error: 'Upload failed',
+  };
+  return (isRu ? ru : en)[phase];
 }
 
 function jobProgress(job: EventMediaImportJob) {
   const done = job.importedCount + job.skippedCount + job.failedCount;
   const total = Math.max(job.mediaEntries, done, 1);
   return Math.min(100, Math.round((done / total) * 100));
+}
+
+function jobProcessingStats(job: EventMediaImportJob) {
+  const done = job.importedCount + job.skippedCount + job.failedCount;
+  const total = Math.max(job.mediaEntries, done, 0);
+  const remaining = Math.max(total - done, 0);
+  const percent = total > 0 ? clampPercent((done / total) * 100) : 0;
+  return { done, total, remaining, percent };
 }
 
 function normalizeMediaFiles(fileList: FileList | null) {
@@ -96,6 +159,7 @@ export function AdminMediaBulkUploadPanel({ eventId, locale, onDone }: AdminMedi
   const [bulkError, setBulkError] = useState('');
 
   const [archiveFile, setArchiveFile] = useState<File | null>(null);
+  const [archiveUpload, setArchiveUpload] = useState<ArchiveUploadState | null>(null);
   const [archiveOptions, setArchiveOptions] = useState<ArchiveOptions>(DEFAULT_ARCHIVE_OPTIONS);
   const [archiveJobs, setArchiveJobs] = useState<EventMediaImportJob[]>([]);
   const [activeArchiveJob, setActiveArchiveJob] = useState<EventMediaImportJob | null>(null);
@@ -106,6 +170,8 @@ export function AdminMediaBulkUploadPanel({ eventId, locale, onDone }: AdminMedi
   const [notice, setNotice] = useState('');
 
   const bulkTotalSize = useMemo(() => bulkFiles.reduce((sum, file) => sum + file.size, 0), [bulkFiles]);
+  const archiveRemainingBytes = archiveUpload ? Math.max(archiveUpload.totalBytes - archiveUpload.loadedBytes, 0) : 0;
+  const archiveProcessingStats = activeArchiveJob ? jobProcessingStats(activeArchiveJob) : null;
 
   const loadArchiveJobs = useCallback(async () => {
     setArchiveLoading(true);
@@ -210,6 +276,16 @@ export function AdminMediaBulkUploadPanel({ eventId, locale, onDone }: AdminMedi
   function handleArchiveFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0] ?? null;
     setArchiveFile(file);
+    setArchiveUpload(file
+      ? {
+          phase: 'selected',
+          loadedBytes: 0,
+          totalBytes: file.size,
+          percent: 0,
+          bytesPerSecond: null,
+          etaSeconds: null,
+        }
+      : null);
     setArchiveError('');
     setNotice('');
   }
@@ -224,6 +300,14 @@ export function AdminMediaBulkUploadPanel({ eventId, locale, onDone }: AdminMedi
     setArchiveStarting(true);
     setArchiveError('');
     setNotice('');
+    setArchiveUpload({
+      phase: 'uploading',
+      loadedBytes: 0,
+      totalBytes: archiveFile.size,
+      percent: 0,
+      bytesPerSecond: null,
+      etaSeconds: null,
+    });
     try {
       const formData = new FormData();
       formData.append('archive', archiveFile);
@@ -238,11 +322,31 @@ export function AdminMediaBulkUploadPanel({ eventId, locale, onDone }: AdminMedi
       formData.append('captionTemplate', archiveOptions.captionTemplate);
       formData.append('defaultCredit', archiveOptions.defaultCredit);
 
-      const result = await eventMediaApi.imports.start(eventId, formData);
+      const updateArchiveUpload = (progress: UploadProgress) => {
+        const totalBytes = progress.total ?? archiveFile.size;
+        const loadedBytes = Math.min(progress.loaded, totalBytes);
+        const percent = progress.total
+          ? progress.percent
+          : clampPercent((loadedBytes / Math.max(totalBytes, 1)) * 100);
+        setArchiveUpload({
+          phase: percent >= 100 ? 'finalizing' : 'uploading',
+          loadedBytes,
+          totalBytes,
+          percent,
+          bytesPerSecond: progress.bytesPerSecond,
+          etaSeconds: progress.etaSeconds,
+        });
+      };
+
+      const result = await eventMediaApi.imports.start(eventId, formData, updateArchiveUpload);
       setActiveArchiveJob(result.job);
       setArchiveJobs((current) => [result.job, ...current.filter((job) => job.id !== result.job.id)]);
+      setArchiveUpload((current) => current
+        ? { ...current, phase: 'complete', loadedBytes: current.totalBytes, percent: 100, etaSeconds: 0 }
+        : current);
       setNotice(isRu ? 'Архив поставлен в обработку.' : 'Archive import has started.');
     } catch (err: any) {
+      setArchiveUpload((current) => current ? { ...current, phase: 'error' } : current);
       setArchiveError(getFriendlyApiErrorMessage(err, locale));
     } finally {
       setArchiveStarting(false);
@@ -300,6 +404,22 @@ export function AdminMediaBulkUploadPanel({ eventId, locale, onDone }: AdminMedi
   }
 
   const runningProgress = activeArchiveJob ? jobProgress(activeArchiveJob) : 0;
+  const archiveUploadStatus = archiveUpload ? archiveUploadPhaseLabel(archiveUpload.phase, isRu) : '';
+  const archiveUploadEtaLabel = archiveUpload?.phase === 'uploading'
+    ? formatDuration(archiveUpload.etaSeconds, isRu)
+    : archiveUpload?.phase === 'finalizing'
+      ? (isRu ? 'ждём ответ сервера' : 'waiting for server')
+      : archiveUpload?.phase === 'complete'
+        ? (isRu ? 'готово' : 'done')
+        : archiveUpload?.phase === 'error'
+          ? (isRu ? 'можно повторить' : 'ready to retry')
+          : (isRu ? 'после старта' : 'after start');
+  const archiveUploadSpeedLabel = archiveUpload?.bytesPerSecond
+    ? `${formatFileSize(archiveUpload.bytesPerSecond)}/s`
+    : (isRu ? 'появится при загрузке' : 'shown while uploading');
+  const archiveRemainingLabel = archiveUpload?.phase === 'selected'
+    ? formatFileSize(archiveUpload.totalBytes)
+    : formatFileSize(archiveRemainingBytes);
 
   return (
     <div className="signal-page-shell">
@@ -363,6 +483,39 @@ export function AdminMediaBulkUploadPanel({ eventId, locale, onDone }: AdminMedi
             <input type="file" accept=".zip,application/zip,application/x-zip-compressed" onChange={handleArchiveFileChange} />
           </label>
 
+          {archiveUpload && archiveFile ? (
+            <div className={`archive-upload-card is-${archiveUpload.phase}`}>
+              <div className="archive-upload-card-header">
+                <div className="archive-upload-file">
+                  <small>{isRu ? 'Выбранный архив' : 'Selected archive'}</small>
+                  <strong title={archiveFile.name}>{archiveFile.name}</strong>
+                  <span>{formatFileSize(archiveFile.size)} · ZIP</span>
+                </div>
+                <div className="archive-upload-percent">
+                  <strong>{archiveUpload.percent}%</strong>
+                  <span>{archiveUploadStatus}</span>
+                </div>
+              </div>
+              <div className="archive-upload-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={archiveUpload.percent}>
+                <span style={{ width: `${archiveUpload.percent}%` }} />
+              </div>
+              <div className="archive-upload-stats">
+                <div>
+                  <small>{archiveUpload.phase === 'selected' ? (isRu ? 'Размер' : 'Size') : (isRu ? 'Осталось' : 'Remaining')}</small>
+                  <strong>{archiveRemainingLabel}</strong>
+                </div>
+                <div>
+                  <small>{isRu ? 'Время' : 'Time left'}</small>
+                  <strong>{archiveUploadEtaLabel}</strong>
+                </div>
+                <div>
+                  <small>{isRu ? 'Скорость' : 'Speed'}</small>
+                  <strong>{archiveUploadSpeedLabel}</strong>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <ToolbarRow>
             <label className="signal-muted"><input type="radio" name="publishMode" checked={archiveOptions.publishMode === 'approved'} onChange={() => patchArchiveOption('publishMode', 'approved')} /> {isRu ? 'Сразу публиковать' : 'Publish immediately'}</label>
             <label className="signal-muted"><input type="radio" name="publishMode" checked={archiveOptions.publishMode === 'pending'} onChange={() => patchArchiveOption('publishMode', 'pending')} /> {isRu ? 'Отправить на модерацию' : 'Send to moderation'}</label>
@@ -423,8 +576,34 @@ export function AdminMediaBulkUploadPanel({ eventId, locale, onDone }: AdminMedi
       {activeArchiveJob ? (
         <Panel variant="elevated" className="admin-command-panel">
           <SectionHeader title={isRu ? 'Текущая обработка архива' : 'Current archive processing'} subtitle={`${activeArchiveJob.originalFilename} · ${jobStatusLabel(activeArchiveJob.status, isRu)}`} />
-          <div className="signal-muted">
-            {isRu ? 'Прогресс' : 'Progress'}: {runningProgress}% · {isRu ? 'импортировано' : 'imported'}: {activeArchiveJob.importedCount} · {isRu ? 'пропущено' : 'skipped'}: {activeArchiveJob.skippedCount} · {isRu ? 'ошибок' : 'failed'}: {activeArchiveJob.failedCount}
+          <div className="archive-processing-card">
+            <div className="archive-processing-head">
+              <div>
+                <small>{isRu ? 'Серверная обработка' : 'Server processing'}</small>
+                <strong>{jobStatusLabel(activeArchiveJob.status, isRu)}</strong>
+              </div>
+              <span>{runningProgress}%</span>
+            </div>
+            <div className="archive-upload-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={runningProgress}>
+              <span style={{ width: `${runningProgress}%` }} />
+            </div>
+            <div className="archive-upload-stats">
+              <div>
+                <small>{isRu ? 'Готово' : 'Done'}</small>
+                <strong>{archiveProcessingStats?.done ?? 0}{archiveProcessingStats?.total ? ` / ${archiveProcessingStats.total}` : ''}</strong>
+              </div>
+              <div>
+                <small>{isRu ? 'Осталось' : 'Remaining'}</small>
+                <strong>{archiveProcessingStats?.total ? archiveProcessingStats.remaining : (isRu ? 'считаем файлы' : 'counting files')}</strong>
+              </div>
+              <div>
+                <small>{isRu ? 'Итоги' : 'Results'}</small>
+                <strong>{isRu ? 'импорт' : 'import'} {activeArchiveJob.importedCount} · {isRu ? 'ошибки' : 'failed'} {activeArchiveJob.failedCount}</strong>
+              </div>
+            </div>
+            <div className="signal-muted">
+              {isRu ? 'Пропущено' : 'Skipped'}: {activeArchiveJob.skippedCount} · {isRu ? 'дубликатов' : 'duplicates'}: {activeArchiveJob.duplicateCount}
+            </div>
           </div>
           <ToolbarRow>
             <button className="btn btn-secondary btn-sm" type="button" onClick={() => eventMediaApi.imports.downloadReport(eventId, activeArchiveJob.id)}>{isRu ? 'Скачать CSV-отчёт' : 'Download CSV report'}</button>
