@@ -12,6 +12,7 @@ type MediaPreviewProps = {
   className?: string;
   sizes?: string;
   controls?: boolean;
+  objectFit?: 'cover' | 'contain';
   onOpen?: () => void;
 };
 
@@ -23,6 +24,7 @@ export function MediaPreview({
   className,
   sizes = '320px',
   controls = true,
+  objectFit = 'cover',
   onOpen,
 }: MediaPreviewProps) {
   const [failed, setFailed] = useState(false);
@@ -45,15 +47,26 @@ export function MediaPreview({
   }
 
   if (kind === 'video') {
-    return (
+    const video = (
       <video
         className={className}
         src={src}
         controls={controls}
         preload="metadata"
+        muted={!controls}
+        playsInline
         onError={() => setFailed(true)}
         aria-label={alt}
+        style={{ objectFit }}
       />
+    );
+
+    if (!onOpen || controls) return video;
+
+    return (
+      <button className="media-preview-open-button" type="button" onClick={onOpen} aria-label={alt}>
+        {video}
+      </button>
     );
   }
 
@@ -66,7 +79,7 @@ export function MediaPreview({
       sizes={sizes}
       unoptimized={shouldDisableNextImageOptimization(src)}
       onError={() => setFailed(true)}
-      style={{ objectFit: 'cover' }}
+      style={{ objectFit }}
     />
   );
 

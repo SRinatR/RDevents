@@ -466,6 +466,7 @@ adminEventsRouter.get('/:id/media', async (req, res) => {
     status: status as EventMediaStatus | 'ALL',
     type: req.query['type'],
     search: req.query['search'],
+    albumId: req.query['albumId'],
     page: req.query['page'],
     limit: req.query['limit'],
   });

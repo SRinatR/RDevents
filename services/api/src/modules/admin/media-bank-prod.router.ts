@@ -24,6 +24,7 @@ const MAX_ARCHIVE_SIZE_BYTES = 2 * 1024 * 1024 * 1024;
 const IMPORT_SERVICE_COMPAT_SIZE_BYTES = 500 * 1024 * 1024;
 const MEDIA_STATUS_FILTERS = new Set(['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'DELETED']);
 const MEDIA_TYPE_FILTERS = new Set(['all', 'image', 'video']);
+const MEDIA_ALBUM_FILTER_UNASSIGNED = 'UNASSIGNED';
 
 const mediaImportUpload = multer({
   storage: multer.diskStorage({
@@ -122,6 +123,19 @@ function serializeRawMediaRow(row: any) {
     caption: row.caption,
     altText: row.altText,
     credit: row.credit,
+    albumId: row.albumId,
+    album: row.albumId ? {
+      id: row.albumId,
+      title: row.albumTitle,
+    } : null,
+    capturedAt: row.capturedAt,
+    capturedAtSource: row.capturedAtSource,
+    capturedTimezone: row.capturedTimezone,
+    groupKey: row.groupKey,
+    groupTitle: row.groupTitle,
+    downloadEnabled: row.downloadEnabled,
+    durationSeconds: row.durationSeconds,
+    metadataJson: row.metadataJson,
     moderationNotes: row.moderationNotes,
     approvedAt: row.approvedAt,
     rejectedAt: row.rejectedAt,
@@ -186,6 +200,7 @@ async function listAdminMediaStable(req: Request) {
   const status = normalizeMediaStatus(req.query['status']);
   const type = normalizeMediaType(req.query['type']);
   const search = cleanSearch(req.query['search']);
+  const albumId = cleanSearch(req.query['albumId']);
   const page = toPositiveInt(req.query['page'], 1, 100000);
   const limit = toPositiveInt(req.query['limit'], 20, 100);
   const offset = (page - 1) * limit;
@@ -206,6 +221,12 @@ async function listAdminMediaStable(req: Request) {
     whereParts.push(Prisma.sql`(asset."mimeType" LIKE 'image/%' OR asset."mimeType" LIKE 'video/%')`);
   }
 
+  if (albumId && albumId !== 'ALL') {
+    whereParts.push(albumId === MEDIA_ALBUM_FILTER_UNASSIGNED
+      ? Prisma.sql`m."albumId" IS NULL`
+      : Prisma.sql`m."albumId" = ${albumId}`);
+  }
+
   if (search) {
     const pattern = `%${search}%`;
     const numericSearch = Number(search.replace(/^#/, ''));
@@ -216,6 +237,8 @@ async function listAdminMediaStable(req: Request) {
       m."title" ILIKE ${pattern}
       OR m."caption" ILIKE ${pattern}
       OR m."credit" ILIKE ${pattern}
+      OR m."groupTitle" ILIKE ${pattern}
+      OR album."title" ILIKE ${pattern}
       OR uploader."name" ILIKE ${pattern}
       OR uploader."email" ILIKE ${pattern}
       OR asset."originalFilename" ILIKE ${pattern}
@@ -229,6 +252,7 @@ async function listAdminMediaStable(req: Request) {
     SELECT COUNT(*)::bigint AS total
     FROM "event_media" m
     JOIN "media_assets" asset ON asset.id = m."assetId"
+    LEFT JOIN "event_media_albums" album ON album.id = m."albumId"
     LEFT JOIN "users" uploader ON uploader.id = m."uploaderUserId"
     ${whereSql}
   `;
@@ -245,6 +269,16 @@ async function listAdminMediaStable(req: Request) {
       m."caption",
       m."altText",
       m."credit",
+      m."albumId",
+      album."title" AS "albumTitle",
+      m."capturedAt",
+      m."capturedAtSource",
+      m."capturedTimezone",
+      m."groupKey",
+      m."groupTitle",
+      m."downloadEnabled",
+      m."durationSeconds",
+      m."metadataJson",
       m."moderationNotes",
       m."approvedAt",
       m."rejectedAt",
@@ -270,6 +304,7 @@ async function listAdminMediaStable(req: Request) {
       rejected_by."email" AS "rejectedByEmail"
     FROM "event_media" m
     JOIN "media_assets" asset ON asset.id = m."assetId"
+    LEFT JOIN "event_media_albums" album ON album.id = m."albumId"
     LEFT JOIN "users" uploader ON uploader.id = m."uploaderUserId"
     LEFT JOIN "users" approved_by ON approved_by.id = m."approvedByUserId"
     LEFT JOIN "users" rejected_by ON rejected_by.id = m."rejectedByUserId"

@@ -118,6 +118,9 @@ export async function bulkUpdateEventMediaAdmin(eventId: string, actor: User, in
       caption: patch.caption,
       credit: patch.credit,
       altText: patch.altText,
+      capturedAt: patch.capturedAt,
+      groupTitle: patch.groupTitle,
+      downloadEnabled: patch.downloadEnabled,
       moderationNotes: patch.moderationNotes ?? patch.notes,
     });
     updatedCount += 1;
