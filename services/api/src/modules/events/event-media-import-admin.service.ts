@@ -40,7 +40,7 @@ export async function updateEventMediaImportAdmin(eventId: string, jobId: string
   return updated;
 }
 
-export async function deleteEventMediaImportAdmin(eventId: string, jobId: string, actor: User, options: { deleteImportedMedia?: unknown } = {}) {
+export async function deleteEventMediaImportAdmin(eventId: string, jobId: string, _actor: User, options: { deleteImportedMedia?: unknown } = {}) {
   const job = await prisma.eventMediaImportJob.findFirst({
     where: { id: jobId, eventId },
     include: { items: { where: { mediaId: { not: null } }, select: { mediaId: true } } },
@@ -59,10 +59,14 @@ export async function deleteEventMediaImportAdmin(eventId: string, jobId: string
         where: { id: { in: mediaIds }, eventId, deletedAt: null },
         data: { status: 'DELETED', deletedAt: new Date(), moderationNotes: 'Deleted together with import job' } as any,
       });
-      await tx.mediaAsset.updateMany({
-        where: { eventMedia: { id: { in: mediaIds } } },
-        data: { status: 'DELETED', deletedAt: new Date() } as any,
-      });
+      await tx.$executeRaw`
+        UPDATE "media_assets" asset
+        SET "status" = 'DELETED', "deletedAt" = NOW(), "updatedAt" = NOW()
+        FROM "event_media" media
+        WHERE media."assetId" = asset.id
+          AND media.id = ANY(${mediaIds}::text[])
+          AND media."eventId" = ${eventId}
+      `;
     }
 
     await tx.eventMediaImportItem.deleteMany({ where: { jobId: job.id } });
