@@ -4,6 +4,7 @@
 -- for new inserts and keeps numbering consistent for admin, participant, and ZIP imports.
 
 ALTER TABLE "event_media_settings"
+  ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   ADD COLUMN IF NOT EXISTS "nextImageDisplayNumber" INTEGER NOT NULL DEFAULT 1,
   ADD COLUMN IF NOT EXISTS "nextVideoDisplayNumber" INTEGER NOT NULL DEFAULT 1;
 
@@ -14,9 +15,8 @@ DROP INDEX IF EXISTS "event_media_eventId_displayNumber_key";
 CREATE INDEX IF NOT EXISTS "event_media_eventId_displayNumber_idx" ON "event_media"("eventId", "displayNumber");
 
 -- Ensure every event with media has a settings row before counter backfill.
--- event_media_settings has updatedAt but no createdAt.
-INSERT INTO "event_media_settings" ("eventId")
-SELECT DISTINCT m."eventId"
+INSERT INTO "event_media_settings" ("eventId", "createdAt", "updatedAt")
+SELECT DISTINCT m."eventId", NOW(), NOW()
 FROM "event_media" m
 ON CONFLICT ("eventId") DO NOTHING;
 
@@ -69,9 +69,9 @@ BEGIN
 
   IF media_kind = 'video' THEN
     INSERT INTO "event_media_settings" (
-      "eventId", "nextMediaDisplayNumber", "nextImageDisplayNumber", "nextVideoDisplayNumber", "updatedAt"
+      "eventId", "createdAt", "updatedAt", "nextMediaDisplayNumber", "nextImageDisplayNumber", "nextVideoDisplayNumber"
     ) VALUES (
-      NEW."eventId", 1, 1, 2, NOW()
+      NEW."eventId", NOW(), NOW(), 1, 1, 2
     )
     ON CONFLICT ("eventId") DO UPDATE
     SET
@@ -80,9 +80,9 @@ BEGIN
     RETURNING COALESCE("nextVideoDisplayNumber", 1) - 1 INTO next_number;
   ELSE
     INSERT INTO "event_media_settings" (
-      "eventId", "nextMediaDisplayNumber", "nextImageDisplayNumber", "nextVideoDisplayNumber", "updatedAt"
+      "eventId", "createdAt", "updatedAt", "nextMediaDisplayNumber", "nextImageDisplayNumber", "nextVideoDisplayNumber"
     ) VALUES (
-      NEW."eventId", 1, 2, 1, NOW()
+      NEW."eventId", NOW(), NOW(), 1, 2, 1
     )
     ON CONFLICT ("eventId") DO UPDATE
     SET
