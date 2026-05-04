@@ -13,6 +13,7 @@ import { registrationsRouter } from './modules/registrations/registrations.route
 import { usersRouter } from './modules/users/users.router.js';
 import { adminRouter } from './modules/admin/admin.router.js';
 import { adminEventMediaAlbumsRouter } from './modules/admin/event-media-albums.router.js';
+import { adminMediaBankProdRouter } from './modules/admin/media-bank-prod.router.js';
 import { adminEmailRouter } from './modules/admin-email/admin-email.router.js';
 import { analyticsRouter } from './modules/analytics/analytics.router.js';
 import { volunteersRouter } from './modules/volunteers/volunteers.router.js';
@@ -97,6 +98,9 @@ export function createApp() {
   app.use('/api/me/dashboard', dashboardRouter);
   app.use('/api/users', usersRouter);
   app.use('/api/admin/events/:id/media/albums', adminEventMediaAlbumsRouter);
+  // Must be mounted before /api/admin, otherwise the legacy import route with
+  // the old 500 MB multer limit captures archive uploads first.
+  app.use('/api/admin/events/:id/media', adminMediaBankProdRouter);
   app.use('/api/admin', adminRouter);
   app.use('/api/admin/email', adminEmailRouter);
   app.use('/api/admin/calendar', calendarRouter);

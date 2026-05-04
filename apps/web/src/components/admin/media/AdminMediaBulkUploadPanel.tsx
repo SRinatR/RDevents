@@ -3,6 +3,7 @@
 import type { ChangeEvent, FormEvent } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { eventMediaApi, type EventMediaImportJob } from '@/lib/api';
+import { mediaBankAdminApi } from '@/lib/media-bank-admin-api';
 import { getFriendlyApiErrorMessage } from '@/lib/api-errors';
 import { EmptyState, FieldInput, LoadingLines, Notice, Panel, SectionHeader, ToolbarRow } from '@/components/ui/signal-primitives';
 
@@ -100,6 +101,7 @@ export function AdminMediaBulkUploadPanel({ eventId, locale, onDone }: AdminMedi
   const [activeArchiveJob, setActiveArchiveJob] = useState<EventMediaImportJob | null>(null);
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [archiveStarting, setArchiveStarting] = useState(false);
+  const [archiveBusyId, setArchiveBusyId] = useState('');
   const [archiveError, setArchiveError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -247,6 +249,52 @@ export function AdminMediaBulkUploadPanel({ eventId, locale, onDone }: AdminMedi
     }
   }
 
+  async function cancelImport(job: EventMediaImportJob) {
+    setArchiveBusyId(job.id);
+    setArchiveError('');
+    try {
+      const result = await eventMediaApi.imports.cancel(eventId, job.id);
+      setActiveArchiveJob(result.job);
+      setNotice(isRu ? 'Импорт отменён.' : 'Import cancelled.');
+      await loadArchiveJobs();
+    } catch (err: any) {
+      setArchiveError(getFriendlyApiErrorMessage(err, locale));
+    } finally {
+      setArchiveBusyId('');
+    }
+  }
+
+  async function rollbackImport(job: EventMediaImportJob) {
+    setArchiveBusyId(job.id);
+    setArchiveError('');
+    try {
+      const result = await mediaBankAdminApi.rollbackImport(eventId, job.id);
+      setNotice(isRu ? `Импорт откатан. Скрыто медиа: ${result.deletedMediaCount}.` : `Import rolled back. Hidden media: ${result.deletedMediaCount}.`);
+      await Promise.all([loadArchiveJobs(), onDone?.()]);
+    } catch (err: any) {
+      setArchiveError(getFriendlyApiErrorMessage(err, locale));
+    } finally {
+      setArchiveBusyId('');
+    }
+  }
+
+  async function deleteImport(job: EventMediaImportJob, deleteImportedMedia: boolean) {
+    setArchiveBusyId(job.id);
+    setArchiveError('');
+    try {
+      const result = await mediaBankAdminApi.deleteImport(eventId, job.id, { deleteImportedMedia });
+      if (activeArchiveJob?.id === job.id) setActiveArchiveJob(null);
+      setNotice(deleteImportedMedia
+        ? (isRu ? `Импорт удалён. Скрыто медиа: ${result.deletedMediaCount}.` : `Import deleted. Hidden media: ${result.deletedMediaCount}.`)
+        : (isRu ? 'Запись импорта удалена. Медиа остались в фотобанке.' : 'Import record deleted. Media items stayed in the bank.'));
+      await Promise.all([loadArchiveJobs(), onDone?.()]);
+    } catch (err: any) {
+      setArchiveError(getFriendlyApiErrorMessage(err, locale));
+    } finally {
+      setArchiveBusyId('');
+    }
+  }
+
   function patchArchiveOption<K extends keyof ArchiveOptions>(key: K, value: ArchiveOptions[K]) {
     setArchiveOptions((current) => ({ ...current, [key]: value }));
   }
@@ -311,7 +359,7 @@ export function AdminMediaBulkUploadPanel({ eventId, locale, onDone }: AdminMedi
         <form className="admin-media-upload-form" onSubmit={handleArchiveImport}>
           <label className="media-upload-dropzone">
             <span>{archiveFile ? archiveFile.name : (isRu ? 'ZIP-архив с медиа' : 'ZIP archive with media')}</span>
-            <small>{isRu ? 'До 500 MB, до 1000 файлов внутри' : 'Up to 500 MB, up to 1000 entries inside'}</small>
+            <small>{isRu ? 'До 2 GB, до 1000 файлов внутри' : 'Up to 2 GB, up to 1000 entries inside'}</small>
             <input type="file" accept=".zip,application/zip,application/x-zip-compressed" onChange={handleArchiveFileChange} />
           </label>
 
@@ -364,12 +412,6 @@ export function AdminMediaBulkUploadPanel({ eventId, locale, onDone }: AdminMedi
             {isRu ? 'Шаблон подписи поддерживает:' : 'Caption template supports:'} {'{filename} {title} {folder} {group} {date} {time} {datetime} {size} {index} {eventTitle}'}
           </div>
 
-          <Notice tone="info">
-            {isRu
-              ? 'Сейчас дата и группы попадают в подпись и CSV-отчёт. Постоянные поля capturedAt/groupTitle/downloadEnabled будут добавлены отдельной миграцией БД.'
-              : 'Date and groups currently go into captions and the CSV report. Persistent capturedAt/groupTitle/downloadEnabled fields will be added in a separate DB migration.'}
-          </Notice>
-
           <button className="btn btn-primary btn-sm" type="submit" disabled={archiveStarting || !archiveFile}>
             {archiveStarting ? (isRu ? 'Запускаем...' : 'Starting...') : (isRu ? 'Запустить импорт архива' : 'Start archive import')}
           </button>
@@ -385,9 +427,9 @@ export function AdminMediaBulkUploadPanel({ eventId, locale, onDone }: AdminMedi
             {isRu ? 'Прогресс' : 'Progress'}: {runningProgress}% · {isRu ? 'импортировано' : 'imported'}: {activeArchiveJob.importedCount} · {isRu ? 'пропущено' : 'skipped'}: {activeArchiveJob.skippedCount} · {isRu ? 'ошибок' : 'failed'}: {activeArchiveJob.failedCount}
           </div>
           <ToolbarRow>
-            <button className="btn btn-secondary btn-sm" type="button" onClick={() => eventMediaApi.imports.downloadReport(eventId, activeArchiveJob.id)}>
-              {isRu ? 'Скачать CSV-отчёт' : 'Download CSV report'}
-            </button>
+            <button className="btn btn-secondary btn-sm" type="button" onClick={() => eventMediaApi.imports.downloadReport(eventId, activeArchiveJob.id)}>{isRu ? 'Скачать CSV-отчёт' : 'Download CSV report'}</button>
+            {isRunningJob(activeArchiveJob) ? <button className="btn btn-ghost btn-sm" type="button" disabled={archiveBusyId === activeArchiveJob.id} onClick={() => void cancelImport(activeArchiveJob)}>{isRu ? 'Отменить' : 'Cancel'}</button> : null}
+            {!isRunningJob(activeArchiveJob) ? <button className="btn btn-ghost btn-sm" type="button" disabled={archiveBusyId === activeArchiveJob.id} onClick={() => void rollbackImport(activeArchiveJob)}>{isRu ? 'Откатить импорт' : 'Rollback import'}</button> : null}
           </ToolbarRow>
         </Panel>
       ) : null}
@@ -409,6 +451,10 @@ export function AdminMediaBulkUploadPanel({ eventId, locale, onDone }: AdminMedi
                   <ToolbarRow>
                     <button className="btn btn-secondary btn-sm" type="button" onClick={() => setActiveArchiveJob(job)}>{isRu ? 'Открыть статус' : 'Open status'}</button>
                     <button className="btn btn-ghost btn-sm" type="button" onClick={() => eventMediaApi.imports.downloadReport(eventId, job.id)}>CSV</button>
+                    {isRunningJob(job) ? <button className="btn btn-ghost btn-sm" type="button" disabled={archiveBusyId === job.id} onClick={() => void cancelImport(job)}>{isRu ? 'Отменить' : 'Cancel'}</button> : null}
+                    {!isRunningJob(job) ? <button className="btn btn-ghost btn-sm" type="button" disabled={archiveBusyId === job.id} onClick={() => void rollbackImport(job)}>{isRu ? 'Откатить' : 'Rollback'}</button> : null}
+                    {!isRunningJob(job) ? <button className="btn btn-ghost btn-sm" type="button" disabled={archiveBusyId === job.id} onClick={() => void deleteImport(job, false)}>{isRu ? 'Удалить запись' : 'Delete record'}</button> : null}
+                    {!isRunningJob(job) ? <button className="btn btn-ghost btn-sm" type="button" disabled={archiveBusyId === job.id} onClick={() => void deleteImport(job, true)}>{isRu ? 'Удалить с медиа' : 'Delete with media'}</button> : null}
                   </ToolbarRow>
                 </div>
               </article>
