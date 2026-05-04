@@ -38,6 +38,16 @@ export class ApiError extends Error {
   }
 }
 
+export type UploadProgress = {
+  loaded: number;
+  total: number | null;
+  percent: number;
+  lengthComputable: boolean;
+  bytesPerSecond: number | null;
+  remainingBytes: number | null;
+  etaSeconds: number | null;
+};
+
 export type EventMediaHistoryItem = {
   id: string;
   action: 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'UPDATED' | 'DELETED' | 'RESTORED';
@@ -241,6 +251,84 @@ async function requestForm<T>(path: string, formData: FormData, auth = false): P
   }
 
   return res.json() as Promise<T>;
+}
+
+function requestFormWithProgress<T>(
+  path: string,
+  formData: FormData,
+  auth = false,
+  onUploadProgress?: (progress: UploadProgress) => void
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const startedAt = performance.now();
+    let lastLoaded = 0;
+    let lastTotal: number | null = null;
+
+    function emitProgress(loaded: number, total: number | null, lengthComputable: boolean) {
+      const safeLoaded = Math.max(0, loaded);
+      const safeTotal = total && total > 0 ? total : null;
+      lastLoaded = safeLoaded;
+      lastTotal = safeTotal;
+      const elapsedSeconds = Math.max((performance.now() - startedAt) / 1000, 0.001);
+      const bytesPerSecond = safeLoaded > 0 ? safeLoaded / elapsedSeconds : null;
+      const remainingBytes = safeTotal ? Math.max(safeTotal - safeLoaded, 0) : null;
+      const etaSeconds = remainingBytes !== null && bytesPerSecond && bytesPerSecond > 0
+        ? remainingBytes / bytesPerSecond
+        : null;
+
+      onUploadProgress?.({
+        loaded: safeLoaded,
+        total: safeTotal,
+        percent: safeTotal ? Math.min(100, Math.round((safeLoaded / safeTotal) * 100)) : 0,
+        lengthComputable,
+        bytesPerSecond,
+        remainingBytes,
+        etaSeconds,
+      });
+    }
+
+    xhr.open('POST', `${BASE_URL}${path}`);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader('Cache-Control', 'no-cache');
+    xhr.setRequestHeader('Pragma', 'no-cache');
+    if (auth && _accessToken) {
+      xhr.setRequestHeader('Authorization', `Bearer ${_accessToken}`);
+    }
+
+    xhr.upload.onprogress = (event) => {
+      emitProgress(event.loaded, event.lengthComputable ? event.total : null, event.lengthComputable);
+    };
+
+    xhr.upload.onload = () => {
+      if (lastTotal) {
+        emitProgress(lastTotal, lastTotal, true);
+      } else if (lastLoaded > 0) {
+        emitProgress(lastLoaded, lastLoaded, true);
+      }
+    };
+
+    xhr.onerror = () => reject(new ApiError(0, 'Network error'));
+    xhr.onabort = () => reject(new ApiError(0, 'Request aborted'));
+    xhr.onload = () => {
+      const responseText = xhr.responseText || '{}';
+      let data: any = {};
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        data = { error: responseText || 'Unknown error' };
+      }
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(data as T);
+        return;
+      }
+
+      reject(new ApiError(xhr.status, data.error ?? 'Request failed', data.details, data.code));
+    };
+
+    xhr.send(formData);
+  });
 }
 
 async function downloadWithAuth(path: string, filenameFallback: string) {
@@ -607,8 +695,8 @@ export const eventMediaApi = {
     }),
 
   imports: {
-    start: (eventId: string, formData: FormData) =>
-      requestForm<{ job: EventMediaImportJob }>(`/api/admin/events/${eventId}/media/imports`, formData, true),
+    start: (eventId: string, formData: FormData, onUploadProgress?: (progress: UploadProgress) => void) =>
+      requestFormWithProgress<{ job: EventMediaImportJob }>(`/api/admin/events/${eventId}/media/imports`, formData, true, onUploadProgress),
     list: (eventId: string) =>
       request<{ jobs: EventMediaImportJob[] }>(`/api/admin/events/${eventId}/media/imports`, { auth: true }),
     get: (eventId: string, jobId: string) =>
