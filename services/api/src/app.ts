@@ -14,7 +14,7 @@ import { usersRouter } from './modules/users/users.router.js';
 import { adminRouter } from './modules/admin/admin.router.js';
 import { adminEventMediaAlbumsRouter } from './modules/admin/event-media-albums.router.js';
 import { adminEmailRouter } from './modules/admin-email/admin-email.router.js';
-import { analyticsRouter } from './modules/analytics/analytics.service.js';
+import { analyticsRouter } from './modules/analytics/analytics.router.js';
 import { volunteersRouter } from './modules/volunteers/volunteers.router.js';
 import { uploadsRouter } from './modules/uploads/uploads.router.js';
 import { referenceRouter } from './modules/reference/reference.router.js';
