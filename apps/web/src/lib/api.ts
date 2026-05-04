@@ -92,6 +92,9 @@ export type MediaInput = {
   caption?: string;
   altText?: string;
   credit?: string;
+  capturedAt?: string | null;
+  groupTitle?: string | null;
+  downloadEnabled?: boolean;
 };
 
 export type EventMediaItem = {
@@ -105,6 +108,16 @@ export type EventMediaItem = {
   caption?: string | null;
   altText?: string | null;
   credit?: string | null;
+  albumId?: string | null;
+  album?: { id: string; title: string } | null;
+  capturedAt?: string | null;
+  capturedAtSource?: string | null;
+  capturedTimezone?: string | null;
+  groupKey?: string | null;
+  groupTitle?: string | null;
+  downloadEnabled?: boolean | null;
+  durationSeconds?: number | null;
+  metadataJson?: Record<string, unknown> | null;
   moderationNotes?: string | null;
   approvedAt?: string | null;
   rejectedAt?: string | null;
@@ -594,6 +607,7 @@ export const eventsApi = {
 export type AdminMediaParams = {
   status?: 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELETED';
   type?: 'all' | 'image' | 'video';
+  albumId?: string;
   search?: string;
   page?: number;
   limit?: number;
@@ -620,6 +634,9 @@ function appendMediaFormFields(formData: FormData, body?: MediaInput) {
   if (body?.caption) formData.append('caption', body.caption);
   if (body?.altText) formData.append('altText', body.altText);
   if (body?.credit) formData.append('credit', body.credit);
+  if (body?.capturedAt) formData.append('capturedAt', body.capturedAt);
+  if (body?.groupTitle) formData.append('groupTitle', body.groupTitle);
+  if (body?.downloadEnabled !== undefined) formData.append('downloadEnabled', String(body.downloadEnabled));
 }
 
 export const eventMediaApi = {

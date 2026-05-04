@@ -22,6 +22,7 @@ export const EVENT_MEDIA_ALLOWED_MIME_TYPES = new Set([
 const PARTICIPANT_UPLOAD_STATUSES = ['ACTIVE', 'APPROVED', 'RESERVE'] as const;
 const MEDIA_TYPE_FILTERS = new Set(['all', 'image', 'video']);
 const MEDIA_STATUS_FILTERS = new Set(['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'DELETED']);
+const MEDIA_ALBUM_FILTER_UNASSIGNED = 'UNASSIGNED';
 
 type MediaKind = 'image' | 'video';
 type MediaTypeFilter = 'all' | MediaKind;
@@ -71,6 +72,28 @@ function cleanText(value: unknown, maxLength: number) {
   const trimmed = value.trim();
   if (!trimmed) return null;
   return trimmed.slice(0, maxLength);
+}
+
+function parseOptionalDate(value: unknown) {
+  if (value === null) return null;
+  if (value === undefined) return undefined;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? undefined : value;
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const date = new Date(trimmed);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function parseOptionalBoolean(value: unknown) {
+  if (value === undefined) return undefined;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') return true;
+    if (normalized === 'false') return false;
+  }
+  return undefined;
 }
 
 function normalizeMediaKind(value: unknown): MediaKind | null {
@@ -176,6 +199,19 @@ function serializeEventMedia(item: any, options: { publicView?: boolean; setting
     caption: item.caption,
     altText: item.altText,
     credit: publicView && !settings.showCredit ? null : item.credit,
+    albumId: item.albumId,
+    album: item.album ? {
+      id: item.album.id,
+      title: item.album.title,
+    } : null,
+    capturedAt: item.capturedAt,
+    capturedAtSource: item.capturedAtSource,
+    capturedTimezone: item.capturedTimezone,
+    groupKey: item.groupKey,
+    groupTitle: item.groupTitle,
+    downloadEnabled: item.downloadEnabled,
+    durationSeconds: item.durationSeconds,
+    metadataJson: publicView ? undefined : item.metadataJson,
     moderationNotes: publicView ? null : item.moderationNotes,
     approvedAt: item.approvedAt,
     rejectedAt: item.rejectedAt,
@@ -206,6 +242,7 @@ function serializeEventMedia(item: any, options: { publicView?: boolean; setting
 
 const EVENT_MEDIA_INCLUDE = {
   asset: true,
+  album: { select: { id: true, title: true } },
   uploader: { select: { id: true, name: true, email: true, avatarUrl: true } },
   approvedBy: { select: { id: true, name: true, email: true, avatarUrl: true } },
   rejectedBy: { select: { id: true, name: true, email: true, avatarUrl: true } },
@@ -573,6 +610,7 @@ export async function listEventMediaForModeration(
     status?: EventMediaStatus | 'ALL';
     type?: unknown;
     search?: unknown;
+    albumId?: unknown;
     page?: unknown;
     limit?: unknown;
   } = {},
@@ -584,6 +622,7 @@ export async function listEventMediaForModeration(
   const page = Math.max(1, Number(params.page ?? 1) || 1);
   const limit = Math.min(100, Math.max(1, Number(params.limit ?? 20) || 20));
   const search = cleanText(params.search, 120);
+  const albumId = cleanText(params.albumId, 120);
 
   const where: any = {
     eventId,
@@ -592,11 +631,17 @@ export async function listEventMediaForModeration(
     asset: { ...assetKindWhere(type) },
   };
 
+  if (albumId && albumId !== 'ALL') {
+    where.albumId = albumId === MEDIA_ALBUM_FILTER_UNASSIGNED ? null : albumId;
+  }
+
   if (search) {
     where.OR = [
       { title: { contains: search, mode: 'insensitive' } },
       { caption: { contains: search, mode: 'insensitive' } },
       { credit: { contains: search, mode: 'insensitive' } },
+      { groupTitle: { contains: search, mode: 'insensitive' } },
+      { album: { title: { contains: search, mode: 'insensitive' } } },
       { uploader: { name: { contains: search, mode: 'insensitive' } } },
       { uploader: { email: { contains: search, mode: 'insensitive' } } },
       { asset: { originalFilename: { contains: search, mode: 'insensitive' } } },
@@ -702,6 +747,9 @@ export async function uploadEventMedia(
     caption?: unknown;
     altText?: unknown;
     credit?: unknown;
+    capturedAt?: unknown;
+    groupTitle?: unknown;
+    downloadEnabled?: unknown;
   } = {},
   options: { mode?: 'participant' | 'admin' | 'auto'; forceStatus?: EventMediaStatus } = {},
 ) {
@@ -753,6 +801,9 @@ export async function uploadEventMedia(
   const source = isAdminUpload ? 'ADMIN' : 'PARTICIPANT';
   const title = isAdminUpload || settings.allowParticipantTitle ? cleanText(input.title, 120) : null;
   const caption = isAdminUpload || settings.allowParticipantCaption ? cleanText(input.caption, 1000) : null;
+  const capturedAt = parseOptionalDate(input.capturedAt);
+  const groupTitle = cleanText(input.groupTitle, 120);
+  const downloadEnabled = parseOptionalBoolean(input.downloadEnabled);
 
   const item = await prisma.$transaction(async (tx: any) => {
     const counter = await tx.eventMediaSettings.upsert({
@@ -792,6 +843,11 @@ export async function uploadEventMedia(
         caption,
         altText: cleanText(input.altText, 180),
         credit: cleanText(input.credit, 120),
+        capturedAt: capturedAt === undefined ? null : capturedAt,
+        capturedAtSource: capturedAt ? 'ADMIN' : null,
+        groupTitle,
+        groupKey: groupTitle ? groupTitle.toLowerCase().replace(/\s+/g, '-').slice(0, 180) : null,
+        downloadEnabled: downloadEnabled ?? true,
         approvedByUserId: status === 'APPROVED' ? actor.id : null,
         approvedAt: status === 'APPROVED' ? now : null,
       },
@@ -839,6 +895,9 @@ export async function moderateEventMedia(
     caption?: unknown;
     altText?: unknown;
     credit?: unknown;
+    capturedAt?: unknown;
+    groupTitle?: unknown;
+    downloadEnabled?: unknown;
     moderationNotes?: unknown;
     notes?: unknown;
   },
@@ -869,6 +928,26 @@ export async function moderateEventMedia(
       updateData[key] = nextValue;
       if ((existing as any)[key] !== nextValue) changedFields.push(key);
     }
+  }
+
+  if (input.groupTitle !== undefined) {
+    const nextValue = cleanText(input.groupTitle, 120);
+    updateData['groupTitle'] = nextValue;
+    updateData['groupKey'] = nextValue ? nextValue.toLowerCase().replace(/\s+/g, '-').slice(0, 180) : null;
+    if ((existing as any).groupTitle !== nextValue) changedFields.push('groupTitle');
+  }
+
+  const capturedAt = parseOptionalDate(input.capturedAt);
+  if (capturedAt !== undefined) {
+    updateData['capturedAt'] = capturedAt;
+    updateData['capturedAtSource'] = capturedAt ? 'ADMIN' : null;
+    if (String((existing as any).capturedAt ?? '') !== String(capturedAt ?? '')) changedFields.push('capturedAt');
+  }
+
+  const downloadEnabled = parseOptionalBoolean(input.downloadEnabled);
+  if (downloadEnabled !== undefined) {
+    updateData['downloadEnabled'] = downloadEnabled;
+    if ((existing as any).downloadEnabled !== downloadEnabled) changedFields.push('downloadEnabled');
   }
 
   if (input.moderationNotes !== undefined || input.notes !== undefined) {
