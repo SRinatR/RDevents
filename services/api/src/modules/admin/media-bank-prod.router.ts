@@ -4,6 +4,7 @@ import path from 'node:path';
 import { Router, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import multer from 'multer';
 import type { User } from '@prisma/client';
+import { prisma } from '../../db/prisma.js';
 import { canAccessEvent } from '../access-control/access-control.service.js';
 import {
   EventMediaImportError,
@@ -19,6 +20,7 @@ import {
 export const adminMediaBankProdRouter = Router({ mergeParams: true });
 
 const MAX_ARCHIVE_SIZE_BYTES = 2 * 1024 * 1024 * 1024;
+const IMPORT_SERVICE_COMPAT_SIZE_BYTES = 500 * 1024 * 1024;
 
 const mediaImportUpload = multer({
   storage: multer.diskStorage({
@@ -83,6 +85,30 @@ function sendImportError(res: any, err: unknown) {
   return false;
 }
 
+function createImportServiceFile(file: Express.Multer.File | undefined) {
+  if (!file) return { file, originalSizeBytes: 0 };
+  const originalSizeBytes = file.size;
+  if (file.size <= IMPORT_SERVICE_COMPAT_SIZE_BYTES) return { file, originalSizeBytes };
+  return {
+    file: {
+      ...file,
+      size: IMPORT_SERVICE_COMPAT_SIZE_BYTES,
+    } as Express.Multer.File,
+    originalSizeBytes,
+  };
+}
+
+async function restoreArchiveAssetSize(jobId: string, originalSizeBytes: number) {
+  if (!jobId || originalSizeBytes <= IMPORT_SERVICE_COMPAT_SIZE_BYTES) return;
+  await prisma.$executeRaw`
+    UPDATE "media_assets" asset
+    SET "sizeBytes" = ${originalSizeBytes}, "updatedAt" = NOW()
+    FROM "event_media_import_jobs" job
+    WHERE job.id = ${jobId}
+      AND job."archiveAssetId" = asset.id
+  `;
+}
+
 adminMediaBankProdRouter.use(async (req, res, next) => {
   const user = (req as any).user as User;
   const eventId = getEventId(req);
@@ -97,7 +123,10 @@ adminMediaBankProdRouter.use(async (req, res, next) => {
 adminMediaBankProdRouter.post('/imports', handleImportArchiveUpload(mediaImportUpload.single('archive')), async (req, res) => {
   const user = (req as any).user as User;
   try {
-    const job = await startEventMediaImport(getEventId(req), user, (req as any).file as Express.Multer.File | undefined, req.body ?? {});
+    const uploadedArchive = (req as any).file as Express.Multer.File | undefined;
+    const normalizedArchive = createImportServiceFile(uploadedArchive);
+    const job = await startEventMediaImport(getEventId(req), user, normalizedArchive.file, req.body ?? {});
+    await restoreArchiveAssetSize(job.id, normalizedArchive.originalSizeBytes);
     res.status(202).json({ job });
   } catch (err) {
     if (sendImportError(res, err)) return;
