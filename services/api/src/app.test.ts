@@ -44,4 +44,18 @@ describe('API health endpoints', () => {
 
     expect(res.status).not.toBe(404);
   });
+
+  it.each([
+    ['GET', '/api/admin/events/event-1/media'],
+    ['GET', '/api/admin/events/event-1/media/imports'],
+    ['POST', '/api/admin/events/event-1/media/imports'],
+    ['GET', '/api/admin/events/event-1/media/albums'],
+  ])('%s %s requires auth on early-mounted admin media routes', async (method, path) => {
+    const res = method === 'POST'
+      ? await request(app).post(path)
+      : await request(app).get(path);
+
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe('UNAUTHORIZED');
+  });
 });

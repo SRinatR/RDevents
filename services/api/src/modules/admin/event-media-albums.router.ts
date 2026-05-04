@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { User } from '@prisma/client';
+import { requireAuth } from '../../common/middleware.js';
 import { canAccessEvent } from '../access-control/access-control.service.js';
 import {
   assignEventMediaToAlbum,
@@ -27,8 +28,13 @@ function sendAlbumError(res: any, err: unknown) {
   return false;
 }
 
+adminEventMediaAlbumsRouter.use(requireAuth);
 adminEventMediaAlbumsRouter.use(async (req, res, next) => {
-  const user = (req as any).user as User;
+  const user = (req as any).user as User | undefined;
+  if (!user) {
+    res.status(401).json({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
+    return;
+  }
   const eventId = getEventId(req);
   if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
     res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });

@@ -5,6 +5,7 @@ import { Router, type NextFunction, type Request, type RequestHandler, type Resp
 import multer from 'multer';
 import { Prisma, type User } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
+import { requireAuth } from '../../common/middleware.js';
 import { canAccessEvent } from '../access-control/access-control.service.js';
 import {
   EventMediaImportError,
@@ -284,8 +285,13 @@ async function listAdminMediaStable(req: Request) {
   };
 }
 
+adminMediaBankProdRouter.use(requireAuth);
 adminMediaBankProdRouter.use(async (req, res, next) => {
-  const user = (req as any).user as User;
+  const user = (req as any).user as User | undefined;
+  if (!user) {
+    res.status(401).json({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
+    return;
+  }
   const eventId = getEventId(req);
   if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
     res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
