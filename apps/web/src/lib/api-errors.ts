@@ -56,6 +56,32 @@ export function getFriendlyApiErrorMessage(err: unknown, locale: string) {
           ? 'Файл слишком большой для загрузки.'
           : 'The file is too large to upload.';
 
+      case 'EVENT_MEDIA_IMPORT_ARCHIVE_REQUIRED':
+        return isRu
+          ? 'Выберите ZIP-архив с фото или видео.'
+          : 'Choose a ZIP archive with photos or videos.';
+
+      case 'EVENT_MEDIA_IMPORT_UNSUPPORTED_ARCHIVE':
+        return isRu
+          ? 'Поддерживается только ZIP-архив. Проверьте расширение файла и попробуйте снова.'
+          : 'Only ZIP archives are supported. Check the file extension and try again.';
+
+      case 'EVENT_MEDIA_IMPORT_ARCHIVE_TOO_LARGE':
+      case 'EVENT_MEDIA_IMPORT_UPLOAD_TOO_LARGE':
+        return isRu
+          ? 'ZIP-архив слишком большой. Максимальный размер архива — 2 ГБ.'
+          : 'The ZIP archive is too large. Maximum archive size is 2 GB.';
+
+      case 'EVENT_MEDIA_IMPORT_TOO_MANY_ENTRIES':
+        return isRu
+          ? 'В архиве слишком много файлов. Разделите архив на несколько частей и загрузите их отдельно.'
+          : 'The archive contains too many files. Split it into several archives and upload them separately.';
+
+      case 'EVENT_MEDIA_IMPORT_UNCOMPRESSED_TOO_LARGE':
+        return isRu
+          ? 'Архив слишком большой после распаковки. Уменьшите количество или размер медиафайлов.'
+          : 'The archive is too large after unpacking. Reduce the number or size of media files.';
+
       case 'EVENT_MEDIA_REJECTION_REASON_REQUIRED':
         return isRu
           ? 'Укажите причину отклонения материала.'
@@ -76,5 +102,7 @@ export function getFriendlyApiErrorMessage(err: unknown, locale: string) {
     }
   }
 
-  return isRu ? 'Действие не удалось.' : 'Action failed.';
+  return isRu
+    ? 'Действие не удалось. Если вы загружали большой архив, проверьте размер файла и лимит сервера.'
+    : 'Action failed. If you uploaded a large archive, check the file size and server limit.';
 }
