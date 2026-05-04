@@ -1,11 +1,24 @@
 -- Separate public numbering for photos and videos inside every event.
 -- Photo #001 and Video #001 should both be possible in the same event.
--- The application still writes displayNumber, but this trigger is the source of truth
+-- The application may pass displayNumber, but this trigger is the source of truth
 -- for new inserts and keeps numbering consistent for admin, participant, and ZIP imports.
 
 ALTER TABLE "event_media_settings"
   ADD COLUMN IF NOT EXISTS "nextImageDisplayNumber" INTEGER NOT NULL DEFAULT 1,
   ADD COLUMN IF NOT EXISTS "nextVideoDisplayNumber" INTEGER NOT NULL DEFAULT 1;
+
+-- The old production_v2 migration created a unique index on (eventId, displayNumber).
+-- That is incompatible with separate counters because Photo #001 and Video #001
+-- intentionally share the same numeric displayNumber inside one event.
+DROP INDEX IF EXISTS "event_media_eventId_displayNumber_key";
+CREATE INDEX IF NOT EXISTS "event_media_eventId_displayNumber_idx" ON "event_media"("eventId", "displayNumber");
+
+-- Ensure every event with media has a settings row before counter backfill.
+-- event_media_settings has updatedAt but no createdAt.
+INSERT INTO "event_media_settings" ("eventId")
+SELECT DISTINCT m."eventId"
+FROM "event_media" m
+ON CONFLICT ("eventId") DO NOTHING;
 
 -- Backfill existing media numbers per event and per media kind.
 WITH numbered AS (
@@ -24,12 +37,6 @@ UPDATE "event_media" m
 SET "displayNumber" = numbered.rn
 FROM numbered
 WHERE numbered.id = m.id;
-
--- Ensure every event with media has a settings row before counter backfill.
-INSERT INTO "event_media_settings" ("eventId", "createdAt", "updatedAt")
-SELECT DISTINCT m."eventId", NOW(), NOW()
-FROM "event_media" m
-ON CONFLICT ("eventId") DO NOTHING;
 
 WITH counters AS (
   SELECT
@@ -62,9 +69,9 @@ BEGIN
 
   IF media_kind = 'video' THEN
     INSERT INTO "event_media_settings" (
-      "eventId", "nextMediaDisplayNumber", "nextImageDisplayNumber", "nextVideoDisplayNumber", "createdAt", "updatedAt"
+      "eventId", "nextMediaDisplayNumber", "nextImageDisplayNumber", "nextVideoDisplayNumber", "updatedAt"
     ) VALUES (
-      NEW."eventId", 1, 1, 2, NOW(), NOW()
+      NEW."eventId", 1, 1, 2, NOW()
     )
     ON CONFLICT ("eventId") DO UPDATE
     SET
@@ -73,9 +80,9 @@ BEGIN
     RETURNING COALESCE("nextVideoDisplayNumber", 1) - 1 INTO next_number;
   ELSE
     INSERT INTO "event_media_settings" (
-      "eventId", "nextMediaDisplayNumber", "nextImageDisplayNumber", "nextVideoDisplayNumber", "createdAt", "updatedAt"
+      "eventId", "nextMediaDisplayNumber", "nextImageDisplayNumber", "nextVideoDisplayNumber", "updatedAt"
     ) VALUES (
-      NEW."eventId", 1, 2, 1, NOW(), NOW()
+      NEW."eventId", 1, 2, 1, NOW()
     )
     ON CONFLICT ("eventId") DO UPDATE
     SET
