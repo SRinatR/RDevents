@@ -1,11 +1,10 @@
 import { mkdirSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Router } from 'express';
+import { Router, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import multer from 'multer';
 import type { User } from '@prisma/client';
 import { canAccessEvent } from '../access-control/access-control.service.js';
-import { handleEventMediaMulterUpload } from '../events/event-media.service.js';
 import {
   EventMediaImportError,
   startEventMediaImport,
@@ -41,6 +40,32 @@ const mediaImportUpload = multer({
   },
 });
 
+function handleImportArchiveUpload(upload: RequestHandler): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction) => {
+    upload(req, res, (err: unknown) => {
+      if (!err) {
+        next();
+        return;
+      }
+      if (err instanceof multer.MulterError) {
+        const code = err.code === 'LIMIT_FILE_SIZE'
+          ? 'EVENT_MEDIA_IMPORT_UPLOAD_TOO_LARGE'
+          : err.code === 'LIMIT_UNEXPECTED_FILE'
+            ? 'EVENT_MEDIA_IMPORT_ARCHIVE_REQUIRED'
+            : 'EVENT_MEDIA_IMPORT_UPLOAD_INVALID';
+        const error = err.code === 'LIMIT_FILE_SIZE'
+          ? 'ZIP archive is too large. Maximum archive size is 2 GB.'
+          : err.code === 'LIMIT_UNEXPECTED_FILE'
+            ? 'Upload field must be archive.'
+            : err.message;
+        res.status(400).json({ error, code, details: { multerCode: err.code, field: err.field ?? null } });
+        return;
+      }
+      next(err);
+    });
+  };
+}
+
 function getEventId(req: any) {
   return String(req.params.id ?? req.params.eventId ?? '');
 }
@@ -69,7 +94,7 @@ adminMediaBankProdRouter.use(async (req, res, next) => {
 });
 
 // POST /api/admin/events/:id/media/imports — 2GB archive upload with import-specific errors.
-adminMediaBankProdRouter.post('/imports', handleEventMediaMulterUpload(mediaImportUpload.single('archive')), async (req, res) => {
+adminMediaBankProdRouter.post('/imports', handleImportArchiveUpload(mediaImportUpload.single('archive')), async (req, res) => {
   const user = (req as any).user as User;
   try {
     const job = await startEventMediaImport(getEventId(req), user, (req as any).file as Express.Multer.File | undefined, req.body ?? {});
