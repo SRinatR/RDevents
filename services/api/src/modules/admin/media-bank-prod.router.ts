@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { Router, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import multer from 'multer';
-import type { User } from '@prisma/client';
+import { Prisma, type User } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
 import { canAccessEvent } from '../access-control/access-control.service.js';
 import {
@@ -21,6 +21,8 @@ export const adminMediaBankProdRouter = Router({ mergeParams: true });
 
 const MAX_ARCHIVE_SIZE_BYTES = 2 * 1024 * 1024 * 1024;
 const IMPORT_SERVICE_COMPAT_SIZE_BYTES = 500 * 1024 * 1024;
+const MEDIA_STATUS_FILTERS = new Set(['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'DELETED']);
+const MEDIA_TYPE_FILTERS = new Set(['all', 'image', 'video']);
 
 const mediaImportUpload = multer({
   storage: multer.diskStorage({
@@ -85,6 +87,75 @@ function sendImportError(res: any, err: unknown) {
   return false;
 }
 
+function cleanSearch(value: unknown) {
+  if (typeof value !== 'string') return '';
+  return value.trim().slice(0, 120);
+}
+
+function normalizeMediaStatus(value: unknown) {
+  const status = String(value ?? 'PENDING').toUpperCase();
+  return MEDIA_STATUS_FILTERS.has(status) ? status : 'PENDING';
+}
+
+function normalizeMediaType(value: unknown) {
+  const type = String(value ?? 'all').toLowerCase();
+  return MEDIA_TYPE_FILTERS.has(type) ? type : 'all';
+}
+
+function toPositiveInt(value: unknown, fallback: number, max: number) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(max, Math.max(1, Math.trunc(numeric)));
+}
+
+function serializeRawMediaRow(row: any) {
+  const mimeType = String(row.assetMimeType ?? 'image/jpeg');
+  return {
+    id: row.id,
+    eventId: row.eventId,
+    source: row.source,
+    status: row.status,
+    displayNumber: row.displayNumber,
+    kind: mimeType.startsWith('video/') ? 'video' : 'image',
+    title: row.title,
+    caption: row.caption,
+    altText: row.altText,
+    credit: row.credit,
+    moderationNotes: row.moderationNotes,
+    approvedAt: row.approvedAt,
+    rejectedAt: row.rejectedAt,
+    deletedAt: row.deletedAt,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    asset: {
+      id: row.assetId,
+      originalFilename: row.assetOriginalFilename,
+      mimeType,
+      sizeBytes: Number(row.assetSizeBytes ?? 0),
+      publicUrl: row.assetPublicUrl,
+      storageKey: row.assetStorageKey,
+      checksumSha256: row.assetChecksumSha256,
+    },
+    uploader: row.uploaderId ? {
+      id: row.uploaderId,
+      name: row.uploaderName,
+      email: row.uploaderEmail,
+      avatarUrl: row.uploaderAvatarUrl,
+    } : null,
+    approvedBy: row.approvedById ? {
+      id: row.approvedById,
+      name: row.approvedByName,
+      email: row.approvedByEmail,
+    } : null,
+    rejectedBy: row.rejectedById ? {
+      id: row.rejectedById,
+      name: row.rejectedByName,
+      email: row.rejectedByEmail,
+    } : null,
+    history: [],
+  };
+}
+
 function createImportServiceFile(file: Express.Multer.File | undefined) {
   if (!file) return { file, originalSizeBytes: 0 };
   const originalSizeBytes = file.size;
@@ -109,6 +180,110 @@ async function restoreArchiveAssetSize(jobId: string, originalSizeBytes: number)
   `;
 }
 
+async function listAdminMediaStable(req: Request) {
+  const eventId = getEventId(req);
+  const status = normalizeMediaStatus(req.query['status']);
+  const type = normalizeMediaType(req.query['type']);
+  const search = cleanSearch(req.query['search']);
+  const page = toPositiveInt(req.query['page'], 1, 100000);
+  const limit = toPositiveInt(req.query['limit'], 20, 100);
+  const offset = (page - 1) * limit;
+
+  const whereParts: Prisma.Sql[] = [Prisma.sql`m."eventId" = ${eventId}`];
+
+  if (status !== 'ALL') {
+    whereParts.push(Prisma.sql`m."status" = ${status}`);
+  }
+  if (status !== 'DELETED' && status !== 'ALL') {
+    whereParts.push(Prisma.sql`m."deletedAt" IS NULL`);
+  }
+  if (type === 'image') {
+    whereParts.push(Prisma.sql`asset."mimeType" LIKE 'image/%'`);
+  } else if (type === 'video') {
+    whereParts.push(Prisma.sql`asset."mimeType" LIKE 'video/%'`);
+  } else {
+    whereParts.push(Prisma.sql`(asset."mimeType" LIKE 'image/%' OR asset."mimeType" LIKE 'video/%')`);
+  }
+
+  if (search) {
+    const pattern = `%${search}%`;
+    const numericSearch = Number(search.replace(/^#/, ''));
+    const numberFilter = Number.isInteger(numericSearch) && numericSearch > 0
+      ? Prisma.sql`OR m."displayNumber" = ${numericSearch}`
+      : Prisma.empty;
+    whereParts.push(Prisma.sql`(
+      m."title" ILIKE ${pattern}
+      OR m."caption" ILIKE ${pattern}
+      OR m."credit" ILIKE ${pattern}
+      OR uploader."name" ILIKE ${pattern}
+      OR uploader."email" ILIKE ${pattern}
+      OR asset."originalFilename" ILIKE ${pattern}
+      ${numberFilter}
+    )`);
+  }
+
+  const whereSql = Prisma.sql`WHERE ${Prisma.join(whereParts, ' AND ')}`;
+
+  const totalRows = await prisma.$queryRaw<Array<{ total: bigint }>>`
+    SELECT COUNT(*)::bigint AS total
+    FROM "event_media" m
+    JOIN "media_assets" asset ON asset.id = m."assetId"
+    LEFT JOIN "users" uploader ON uploader.id = m."uploaderUserId"
+    ${whereSql}
+  `;
+  const total = Number(totalRows[0]?.total ?? 0);
+
+  const rows = await prisma.$queryRaw<any[]>`
+    SELECT
+      m.id,
+      m."eventId",
+      m."source",
+      m."status",
+      m."displayNumber",
+      m."title",
+      m."caption",
+      m."altText",
+      m."credit",
+      m."moderationNotes",
+      m."approvedAt",
+      m."rejectedAt",
+      m."deletedAt",
+      m."createdAt",
+      m."updatedAt",
+      asset.id AS "assetId",
+      asset."originalFilename" AS "assetOriginalFilename",
+      asset."mimeType" AS "assetMimeType",
+      asset."sizeBytes" AS "assetSizeBytes",
+      asset."publicUrl" AS "assetPublicUrl",
+      asset."storageKey" AS "assetStorageKey",
+      asset."checksumSha256" AS "assetChecksumSha256",
+      uploader.id AS "uploaderId",
+      uploader."name" AS "uploaderName",
+      uploader."email" AS "uploaderEmail",
+      uploader."avatarUrl" AS "uploaderAvatarUrl",
+      approved_by.id AS "approvedById",
+      approved_by."name" AS "approvedByName",
+      approved_by."email" AS "approvedByEmail",
+      rejected_by.id AS "rejectedById",
+      rejected_by."name" AS "rejectedByName",
+      rejected_by."email" AS "rejectedByEmail"
+    FROM "event_media" m
+    JOIN "media_assets" asset ON asset.id = m."assetId"
+    LEFT JOIN "users" uploader ON uploader.id = m."uploaderUserId"
+    LEFT JOIN "users" approved_by ON approved_by.id = m."approvedByUserId"
+    LEFT JOIN "users" rejected_by ON rejected_by.id = m."rejectedByUserId"
+    ${whereSql}
+    ORDER BY m."status" ASC, m."createdAt" DESC, m.id DESC
+    OFFSET ${offset}
+    LIMIT ${limit}
+  `;
+
+  return {
+    media: rows.map(serializeRawMediaRow),
+    meta: { total, page, limit, pages: Math.ceil(total / limit) },
+  };
+}
+
 adminMediaBankProdRouter.use(async (req, res, next) => {
   const user = (req as any).user as User;
   const eventId = getEventId(req);
@@ -117,6 +292,20 @@ adminMediaBankProdRouter.use(async (req, res, next) => {
     return;
   }
   next();
+});
+
+// GET /api/admin/events/:id/media — stable production media list.
+adminMediaBankProdRouter.get('/', async (req, res) => {
+  try {
+    const result = await listAdminMediaStable(req);
+    res.json(result);
+  } catch (err) {
+    console.error('[media-bank] stable admin list failed', err);
+    res.status(500).json({
+      error: 'Media list failed',
+      code: 'EVENT_MEDIA_LIST_FAILED',
+    });
+  }
 });
 
 // POST /api/admin/events/:id/media/imports — 2GB archive upload with import-specific errors.
