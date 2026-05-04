@@ -60,6 +60,17 @@ adminEventMediaAlbumsRouter.post('/', async (req, res) => {
   }
 });
 
+// POST /api/admin/events/:id/media/albums/unassigned/media
+adminEventMediaAlbumsRouter.post('/unassigned/media', async (req, res) => {
+  try {
+    const result = await assignEventMediaToAlbum(getEventId(req), null, req.body?.mediaIds);
+    res.json(result);
+  } catch (err) {
+    if (sendAlbumError(res, err)) return;
+    throw err;
+  }
+});
+
 // PATCH /api/admin/events/:id/media/albums/:albumId
 adminEventMediaAlbumsRouter.patch('/:albumId', async (req, res) => {
   try {
@@ -86,17 +97,6 @@ adminEventMediaAlbumsRouter.delete('/:albumId', async (req, res) => {
 adminEventMediaAlbumsRouter.post('/:albumId/media', async (req, res) => {
   try {
     const result = await assignEventMediaToAlbum(getEventId(req), String(req.params.albumId), req.body?.mediaIds);
-    res.json(result);
-  } catch (err) {
-    if (sendAlbumError(res, err)) return;
-    throw err;
-  }
-});
-
-// POST /api/admin/events/:id/media/albums/unassigned/media
-adminEventMediaAlbumsRouter.post('/unassigned/media', async (req, res) => {
-  try {
-    const result = await assignEventMediaToAlbum(getEventId(req), null, req.body?.mediaIds);
     res.json(result);
   } catch (err) {
     if (sendAlbumError(res, err)) return;
