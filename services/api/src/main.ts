@@ -23,9 +23,16 @@ async function main() {
 
   try {
     await prisma.$connect();
+    await prisma.$queryRaw`SELECT 1`;
     logger.info('Database connected successfully', { action: 'database_connected' });
   } catch (error) {
     logger.error('Database connection failed', error, { action: 'database_failed' });
+    if (env.isProd) {
+      logger.error('Production API cannot start without a reachable database', error, {
+        action: 'database_required_in_production',
+      });
+      throw error;
+    }
     logger.warn('Starting API in degraded mode; /ready will return 503 until the database is reachable', {
       action: 'database_degraded_startup',
     });
