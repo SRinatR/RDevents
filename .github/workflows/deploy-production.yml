@@ -178,10 +178,6 @@ jobs:
 
       - name: Upload archive
         shell: bash
-        env:
-          PROD_HOST: ${{ secrets.PROD_HOST }}
-          PROD_PORT: ${{ secrets.PROD_PORT }}
-          PROD_USER: ${{ secrets.PROD_USER }}
         run: |
           set -euo pipefail
           ARCHIVE_PATH="$RUNNER_TEMP/$ARCHIVE_NAME"
@@ -192,9 +188,6 @@ jobs:
       - name: Write env file on server
         shell: bash
         env:
-          PROD_HOST: ${{ secrets.PROD_HOST }}
-          PROD_PORT: ${{ secrets.PROD_PORT }}
-          PROD_USER: ${{ secrets.PROD_USER }}
           PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
         run: |
           set -euo pipefail
@@ -203,10 +196,6 @@ jobs:
 
       - name: Upload deploy scripts
         shell: bash
-        env:
-          PROD_HOST: ${{ secrets.PROD_HOST }}
-          PROD_PORT: ${{ secrets.PROD_PORT }}
-          PROD_USER: ${{ secrets.PROD_USER }}
         run: |
           set -euo pipefail
           scp \
@@ -221,10 +210,6 @@ jobs:
       - name: Deploy on server
         id: deploy_server
         shell: bash
-        env:
-          PROD_HOST: ${{ secrets.PROD_HOST }}
-          PROD_PORT: ${{ secrets.PROD_PORT }}
-          PROD_USER: ${{ secrets.PROD_USER }}
         run: |
           set -euo pipefail
 
@@ -233,10 +218,6 @@ jobs:
 
       - name: Verify deployed release on server
         shell: bash
-        env:
-          PROD_HOST: ${{ secrets.PROD_HOST }}
-          PROD_PORT: ${{ secrets.PROD_PORT }}
-          PROD_USER: ${{ secrets.PROD_USER }}
         run: |
           set -euo pipefail
 
@@ -246,10 +227,6 @@ jobs:
       - name: Read deploy result from server
         if: always()
         shell: bash
-        env:
-          PROD_HOST: ${{ secrets.PROD_HOST }}
-          PROD_PORT: ${{ secrets.PROD_PORT }}
-          PROD_USER: ${{ secrets.PROD_USER }}
         run: |
           set +e
 

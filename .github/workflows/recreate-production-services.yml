@@ -129,10 +129,6 @@ jobs:
 
       - name: Run recovery on server
         shell: bash
-        env:
-          PROD_HOST: ${{ secrets.PROD_HOST }}
-          PROD_PORT: ${{ secrets.PROD_PORT }}
-          PROD_USER: ${{ secrets.PROD_USER }}
         run: |
           set -euo pipefail
 
@@ -310,10 +306,6 @@ jobs:
 
       - name: Read recovery result from server
         shell: bash
-        env:
-          PROD_HOST: ${{ secrets.PROD_HOST }}
-          PROD_PORT: ${{ secrets.PROD_PORT }}
-          PROD_USER: ${{ secrets.PROD_USER }}
         run: |
           set -euo pipefail
 
