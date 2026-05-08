@@ -80,13 +80,84 @@ jobs:
         env:
           PROD_HOST: ${{ secrets.PROD_HOST }}
           PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
           PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
         run: |
           set -euo pipefail
+
+          required_secret() {
+            local name="$1"
+            if [ -z "${!name:-}" ]; then
+              echo "Required production secret is empty: ${name}"
+              exit 1
+            fi
+          }
+
+          required_secret PROD_HOST
+          required_secret PROD_PORT
+          required_secret PROD_USER
+          required_secret PROD_SSH_KEY
+
+          if [[ "$PROD_HOST" == *[[:space:]]* ]]; then
+            echo "PROD_HOST must not contain whitespace."
+            exit 1
+          fi
+
+          if [[ "$PROD_USER" == *[[:space:]]* ]]; then
+            echo "PROD_USER must not contain whitespace."
+            exit 1
+          fi
+
+          if ! [[ "$PROD_PORT" =~ ^[0-9]+$ ]]; then
+            echo "PROD_PORT must be a numeric TCP port."
+            exit 1
+          fi
+
+          port_number=$((10#$PROD_PORT))
+          if (( port_number < 1 || port_number > 65535 )); then
+            echo "PROD_PORT must be between 1 and 65535."
+            exit 1
+          fi
+
           mkdir -p ~/.ssh
-          printf '%s' "$PROD_SSH_KEY" > ~/.ssh/id_ed25519
+          key="${PROD_SSH_KEY//$'\\n'/$'\n'}"
+          printf '%s\n' "$key" | sed 's/\r$//' > ~/.ssh/id_ed25519
+          unset key
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -p "$PROD_PORT" -H "$PROD_HOST" >> ~/.ssh/known_hosts
+
+          if ! timeout 10 ssh-keygen -y -f ~/.ssh/id_ed25519 >/dev/null 2>&1; then
+            echo "PROD_SSH_KEY is invalid, passphrase-protected, or not readable by OpenSSH."
+            exit 1
+          fi
+
+          ssh-keyscan -T 20 -p "$PROD_PORT" -H "$PROD_HOST" > ~/.ssh/known_hosts.tmp 2>/tmp/ssh-keyscan.log || true
+          if [ ! -s ~/.ssh/known_hosts.tmp ]; then
+            echo "Could not read SSH host key from production server."
+            cat /tmp/ssh-keyscan.log
+            exit 1
+          fi
+          mv ~/.ssh/known_hosts.tmp ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+          cat > ~/.ssh/config <<EOF
+          Host prod
+            HostName $PROD_HOST
+            Port $PROD_PORT
+            User $PROD_USER
+            IdentityFile ~/.ssh/id_ed25519
+            IdentitiesOnly yes
+            BatchMode yes
+            StrictHostKeyChecking yes
+            UserKnownHostsFile ~/.ssh/known_hosts
+            ConnectTimeout 20
+            ServerAliveInterval 15
+            ServerAliveCountMax 4
+          EOF
+          chmod 600 ~/.ssh/config
+
+          echo "Checking SSH authentication to production host..."
+          ssh prod 'printf "ssh-ok\n"'
+          echo "SSH authentication succeeded."
 
       - name: Pack project
         shell: bash
@@ -115,8 +186,8 @@ jobs:
           set -euo pipefail
           ARCHIVE_PATH="$RUNNER_TEMP/$ARCHIVE_NAME"
 
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "mkdir -p '$DEPLOY_ROOT'"
-          scp -P "$PROD_PORT" -i ~/.ssh/id_ed25519 "$ARCHIVE_PATH" "$PROD_USER@$PROD_HOST:$DEPLOY_ROOT/$ARCHIVE_NAME"
+          ssh prod "mkdir -p '$DEPLOY_ROOT'"
+          scp "$ARCHIVE_PATH" "prod:$DEPLOY_ROOT/$ARCHIVE_NAME"
 
       - name: Write env file on server
         shell: bash
@@ -127,8 +198,8 @@ jobs:
           PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
         run: |
           set -euo pipefail
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "mkdir -p '$DEPLOY_ROOT'"
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" "cat > '$DEPLOY_ROOT/.env'" <<< "$PROD_ENV_FILE"
+          ssh prod "mkdir -p '$DEPLOY_ROOT'"
+          ssh prod "cat > '$DEPLOY_ROOT/.env'" <<< "$PROD_ENV_FILE"
 
       - name: Upload deploy scripts
         shell: bash
@@ -138,13 +209,13 @@ jobs:
           PROD_USER: ${{ secrets.PROD_USER }}
         run: |
           set -euo pipefail
-          scp -P "$PROD_PORT" -i ~/.ssh/id_ed25519 \
+          scp \
             ops/deploy-production.sh \
-            "$PROD_USER@$PROD_HOST:/tmp/rdevents-deploy-production.sh"
-          scp -P "$PROD_PORT" -i ~/.ssh/id_ed25519 \
+            "prod:/tmp/rdevents-deploy-production.sh"
+          scp \
             ops/verify-production-release.sh \
-            "$PROD_USER@$PROD_HOST:/tmp/rdevents-verify-production-release.sh"
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
+            "prod:/tmp/rdevents-verify-production-release.sh"
+          ssh prod \
             "chmod 700 /tmp/rdevents-deploy-production.sh /tmp/rdevents-verify-production-release.sh"
 
       - name: Deploy on server
@@ -157,7 +228,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
+          ssh prod \
             "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' ARCHIVE_NAME='$ARCHIVE_NAME' RELEASE_SHA='$RELEASE_SHA' bash /tmp/rdevents-deploy-production.sh"
 
       - name: Verify deployed release on server
@@ -169,7 +240,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" \
+          ssh prod \
             "DEPLOY_ROOT='$DEPLOY_ROOT' APP_DIR='$APP_DIR' RELEASE_SHA='$RELEASE_SHA' bash /tmp/rdevents-verify-production-release.sh"
 
       - name: Read deploy result from server
@@ -182,7 +253,7 @@ jobs:
         run: |
           set +e
 
-          ssh -p "$PROD_PORT" -i ~/.ssh/id_ed25519 "$PROD_USER@$PROD_HOST" << 'EOF'
+          ssh prod << 'EOF'
             echo "=== deploy-state.json ==="
             cat /opt/rdevents/runtime/deploy-state.json 2>/dev/null || echo "(no state file)"
             echo
