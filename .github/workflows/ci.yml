@@ -22,6 +22,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   # Required Checks aggregates every upstream job. If an older run is auto-cancelled,
@@ -46,6 +50,46 @@ jobs:
       - name: Run production safety validation
         run: bash ops/ci-validate-production-safety.sh
 
+  shell-validation:
+    name: Shell Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate tracked shell scripts
+        run: |
+          set -euo pipefail
+          git ls-files '*.sh' | xargs -r bash -n
+
+      - name: Validate workflow scripts
+        run: |
+          set -euo pipefail
+          bash -n ops/deploy-production.sh
+          bash -n ops/verify-production-release.sh
+          bash -n ops/rollback-production.sh
+          bash -n ops/rollback-code.sh
+
+  production-compose-config:
+    name: Production Compose Config
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare production-style env
+        run: bash ops/write-ci-production-env.sh "$RUNNER_TEMP/production.env"
+
+      - name: Validate production compose config
+        run: |
+          set -euo pipefail
+          grep -Eq '^DATABASE_URL=.*@postgres:5432/' "$RUNNER_TEMP/production.env"
+          docker compose --env-file "$RUNNER_TEMP/production.env" -f docker-compose.prod.yml config --quiet
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -54,11 +98,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Validate ops scripts
-        run: |
-          bash -n ops/deploy-production.sh
-          bash -n ops/verify-production-release.sh
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -162,6 +201,39 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Wait for postgres service
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const net = require('node:net');
+
+          const deadline = Date.now() + 60_000;
+
+          function check() {
+            const socket = net.connect(5432, '127.0.0.1');
+            socket.setTimeout(1000);
+            socket.once('connect', () => {
+              socket.destroy();
+              console.log('Postgres TCP port is reachable.');
+            });
+            socket.once('error', retry);
+            socket.once('timeout', () => {
+              socket.destroy();
+              retry();
+            });
+          }
+
+          function retry() {
+            if (Date.now() > deadline) {
+              console.error('Timed out waiting for Postgres on 127.0.0.1:5432.');
+              process.exit(1);
+            }
+            setTimeout(check, 1000);
+          }
+
+          check();
+          NODE
+
       - name: Run tests
         env:
           DATABASE_URL: postgresql://event_platform_user:event_platform_password@127.0.0.1:5432/event_platform?schema=public
@@ -185,9 +257,9 @@ jobs:
     timeout-minutes: 35
 
     env:
-      DATABASE_URL: postgresql://event_platform_user:event_platform_password@127.0.0.1:5432/event_platform?schema=public
-      # Runner-only placeholder for build-time Prisma tooling.
-      # This job does not prove docker-compose network reachability and must not claim production topology parity.
+      DATABASE_URL: postgresql://event_platform_user:event_platform_password@postgres:5432/event_platform?schema=public
+      # Production-style placeholder for build-time Prisma tooling. The build must not
+      # require a live database connection.
       JWT_ACCESS_SECRET: ci-access-secret
       JWT_REFRESH_SECRET: ci-refresh-secret
       CORS_ORIGIN: http://localhost:3000
@@ -230,6 +302,8 @@ jobs:
     timeout-minutes: 45
     needs:
       - production-safety
+      - shell-validation
+      - production-compose-config
       - lint
       - typecheck
       - test
@@ -246,17 +320,23 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Prepare production-style env
+        run: bash ops/write-ci-production-env.sh "$RUNNER_TEMP/production.env"
+
       - name: Docker compose build
-        run: docker compose -f docker-compose.prod.yml build api web report-worker email-broadcast-worker
+        run: docker compose --env-file "$RUNNER_TEMP/production.env" -f docker-compose.prod.yml build api web report-worker email-broadcast-worker
 
   container-smoke:
     name: Container Smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     needs:
       - docker-build
 
     env:
+      COMPOSE_PROJECT_NAME: rdevents_ci_${{ github.run_id }}
+      PRODUCTION_ENV_FILE: /tmp/rdevents-production-${{ github.run_id }}.env
+      CI_DEPLOY_ROOT: /tmp/rdevents-${{ github.run_id }}
       RELEASE_SHA: ${{ github.sha }}
       NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:4000
       DATABASE_URL: postgresql://event_platform_user:event_platform_password@postgres:5432/event_platform?schema=public
@@ -272,46 +352,154 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Prepare production-style runtime
+        run: |
+          set -euo pipefail
+          bash ops/write-ci-production-env.sh "$PRODUCTION_ENV_FILE"
+          mkdir -p "$CI_DEPLOY_ROOT/backups" "$CI_DEPLOY_ROOT/runtime"
+          sudo mkdir -p /opt/rdevents/runtime/reports
+          sudo chmod -R 777 /opt/rdevents
+
+      - name: Build production images
+        run: docker compose --env-file "$PRODUCTION_ENV_FILE" -f docker-compose.prod.yml build api web report-worker email-broadcast-worker
+
       - name: Start postgres
-        run: docker compose -f docker-compose.prod.yml up -d postgres
+        run: docker compose --env-file "$PRODUCTION_ENV_FILE" -f docker-compose.prod.yml up -d postgres
 
       - name: Wait for postgres
         run: |
           set -euo pipefail
-          CID=$(docker compose -f docker-compose.prod.yml ps -q postgres)
-          for i in $(seq 1 30); do
-            HEALTH=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' "$CID")
-            if [ "$HEALTH" = "healthy" ]; then
-              exit 0
+          wait_for_service_healthy() {
+            local service="$1"
+            local timeout_seconds="$2"
+            local elapsed=0
+            local cid status health
+
+            cid="$(docker compose --env-file "$PRODUCTION_ENV_FILE" -f docker-compose.prod.yml ps -q "$service")"
+            if [ -z "$cid" ]; then
+              echo "Container for service '$service' was not created."
+              return 1
             fi
-            sleep 2
-          done
-          docker compose -f docker-compose.prod.yml ps
-          docker compose -f docker-compose.prod.yml logs --tail=100 postgres
-          exit 1
+
+            while [ "$elapsed" -lt "$timeout_seconds" ]; do
+              status="$(docker inspect -f '{{.State.Status}}' "$cid")"
+              health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' "$cid")"
+              echo "$service status=$status health=$health elapsed=${elapsed}s"
+
+              if [ "$health" = "healthy" ] || { [ "$health" = "no-healthcheck" ] && [ "$status" = "running" ]; }; then
+                return 0
+              fi
+
+              if [ "$status" = "exited" ] || [ "$status" = "dead" ]; then
+                return 1
+              fi
+
+              sleep 3
+              elapsed=$((elapsed + 3))
+            done
+
+            return 1
+          }
+
+          wait_for_service_healthy postgres 120 || {
+            docker compose --env-file "$PRODUCTION_ENV_FILE" -f docker-compose.prod.yml ps
+            docker compose --env-file "$PRODUCTION_ENV_FILE" -f docker-compose.prod.yml logs --tail=120 postgres
+            exit 1
+          }
+
+      - name: Verify production database URL contract
+        run: |
+          set -euo pipefail
+          docker compose --env-file "$PRODUCTION_ENV_FILE" -f docker-compose.prod.yml run --rm --no-deps --entrypoint sh api -lc '
+            case "$DATABASE_URL" in
+              *@postgres:5432/*)
+                echo "DATABASE_URL uses postgres:5432 inside compose."
+                ;;
+              *)
+                echo "DATABASE_URL must use postgres:5432 inside compose. Got: $DATABASE_URL"
+                exit 1
+                ;;
+            esac
+          '
 
       - name: Run migrations
         run: |
-          echo "DATABASE_URL inside api container: $DATABASE_URL"
-          docker compose -f docker-compose.prod.yml run --rm --no-deps --entrypoint sh api -lc \
-            'echo "Effective DATABASE_URL: $DATABASE_URL" && cd /app/services/api && pnpm exec prisma migrate deploy'
+          set -euo pipefail
+          docker compose --env-file "$PRODUCTION_ENV_FILE" -f docker-compose.prod.yml run --rm --no-deps --entrypoint sh api -lc \
+            'cd /app/services/api && pnpm exec prisma migrate deploy'
 
-      - name: Start api, web, and report worker
-        run: docker compose -f docker-compose.prod.yml up -d api web report-worker email-broadcast-worker
-
-      - name: Wait for api, web, and report worker
+      - name: Smoke predeploy backup package
         run: |
           set -euo pipefail
-          for service in api web report-worker email-broadcast-worker; do
-            CID=$(docker compose -f docker-compose.prod.yml ps -q "$service")
-            for i in $(seq 1 40); do
-              STATUS=$(docker inspect -f '{{.State.Status}}' "$CID")
-              HEALTH=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' "$CID")
-              if [ "$HEALTH" = "healthy" ] || { [ "$HEALTH" = "no-healthcheck" ] && [ "$STATUS" = "running" ]; }; then
-                break
+
+          docker compose --env-file "$PRODUCTION_ENV_FILE" -f docker-compose.prod.yml run --rm --no-deps --entrypoint sh api -lc \
+            'mkdir -p /app/services/api/uploads && printf "ci upload smoke\n" > /app/services/api/uploads/ci-upload-smoke.txt'
+
+          API_IMAGE_ID="$(docker image inspect app-api:latest --format '{{.Id}}')"
+          WEB_IMAGE_ID="$(docker image inspect app-web:latest --format '{{.Id}}')"
+
+          BACKUP_DIR="$(
+            DEPLOY_ROOT="$CI_DEPLOY_ROOT" \
+            APP_DIR="$GITHUB_WORKSPACE" \
+            ENV_FILE="$PRODUCTION_ENV_FILE" \
+            COMPOSE_FILE="$GITHUB_WORKSPACE/docker-compose.prod.yml" \
+            RELEASE_SHA="$RELEASE_SHA" \
+            MIN_DB_BACKUP_BYTES=1 \
+            ALLOW_BUSINESS_CHECK_FAILURE=true \
+            API_IMAGE_ID_AFTER="$API_IMAGE_ID" \
+            WEB_IMAGE_ID_AFTER="$WEB_IMAGE_ID" \
+            bash ops/create-predeploy-backup.sh
+          )"
+
+          test -s "$BACKUP_DIR/db.sql.gz"
+          gzip -t "$BACKUP_DIR/db.sql.gz"
+          tar -tzf "$BACKUP_DIR/uploads.tar.gz" >/dev/null
+          test -s "$BACKUP_DIR/deploy-manifest.json"
+
+      - name: Start api, web, and workers
+        run: docker compose --env-file "$PRODUCTION_ENV_FILE" -f docker-compose.prod.yml up -d --no-build api web report-worker email-broadcast-worker
+
+      - name: Wait for app services
+        run: |
+          set -euo pipefail
+          wait_for_service_healthy() {
+            local service="$1"
+            local timeout_seconds="$2"
+            local elapsed=0
+            local cid status health
+
+            cid="$(docker compose --env-file "$PRODUCTION_ENV_FILE" -f docker-compose.prod.yml ps -q "$service")"
+            if [ -z "$cid" ]; then
+              echo "Container for service '$service' was not created."
+              return 1
+            fi
+
+            while [ "$elapsed" -lt "$timeout_seconds" ]; do
+              status="$(docker inspect -f '{{.State.Status}}' "$cid")"
+              health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' "$cid")"
+              echo "$service status=$status health=$health elapsed=${elapsed}s"
+
+              if [ "$health" = "healthy" ] || { [ "$health" = "no-healthcheck" ] && [ "$status" = "running" ]; }; then
+                return 0
               fi
-              sleep 2
+
+              if [ "$status" = "exited" ] || [ "$status" = "dead" ]; then
+                return 1
+              fi
+
+              sleep 3
+              elapsed=$((elapsed + 3))
             done
+
+            return 1
+          }
+
+          for service in api web report-worker email-broadcast-worker; do
+            wait_for_service_healthy "$service" 240 || {
+              docker compose --env-file "$PRODUCTION_ENV_FILE" -f docker-compose.prod.yml ps
+              docker compose --env-file "$PRODUCTION_ENV_FILE" -f docker-compose.prod.yml logs --tail=160 "$service"
+              exit 1
+            }
           done
 
       - name: Verify runtime contract
@@ -328,14 +516,38 @@ jobs:
 
           curl -fsS http://127.0.0.1:4000/health > /dev/null
           curl -fsS http://127.0.0.1:4000/ready > /dev/null
+          curl -fsS http://127.0.0.1:4000/version | grep -Fx "$RELEASE_SHA"
+          curl -fsS http://127.0.0.1:4000/api/version | grep -Fx "$RELEASE_SHA"
+          curl -fsS http://127.0.0.1:3000/version.txt | grep -Fx "$RELEASE_SHA"
           curl -fsS http://127.0.0.1:3000/ru > /dev/null
           curl -fsS http://127.0.0.1:3000/ru/events > /dev/null
 
-          docker compose -f docker-compose.prod.yml exec -T report-worker sh -lc \
+          docker compose --env-file "$PRODUCTION_ENV_FILE" -f docker-compose.prod.yml exec -T api sh -lc \
             'test "$(cat /app/services/api/release.txt)" = "$RELEASE_SHA"'
 
-          docker compose -f docker-compose.prod.yml exec -T email-broadcast-worker sh -lc \
+          docker compose --env-file "$PRODUCTION_ENV_FILE" -f docker-compose.prod.yml exec -T web sh -lc \
+            'test "$(cat /app/apps/web/public/version.txt)" = "$RELEASE_SHA"'
+
+          docker compose --env-file "$PRODUCTION_ENV_FILE" -f docker-compose.prod.yml exec -T report-worker sh -lc \
             'test "$(cat /app/services/api/release.txt)" = "$RELEASE_SHA"'
+
+          docker compose --env-file "$PRODUCTION_ENV_FILE" -f docker-compose.prod.yml exec -T email-broadcast-worker sh -lc \
+            'test "$(cat /app/services/api/release.txt)" = "$RELEASE_SHA"'
+
+      - name: Dump compose diagnostics
+        if: failure()
+        run: |
+          set +e
+          docker compose --env-file "$PRODUCTION_ENV_FILE" -f docker-compose.prod.yml ps
+          docker compose --env-file "$PRODUCTION_ENV_FILE" -f docker-compose.prod.yml logs --tail=200 postgres api web report-worker email-broadcast-worker
+
+      - name: Stop production compose stack
+        if: always()
+        run: |
+          set +e
+          if [ -f "$PRODUCTION_ENV_FILE" ]; then
+            docker compose --env-file "$PRODUCTION_ENV_FILE" -f docker-compose.prod.yml down -v --remove-orphans
+          fi
 
   required-checks:
     name: Required Checks
@@ -343,6 +555,8 @@ jobs:
     if: always()
     needs:
       - production-safety
+      - shell-validation
+      - production-compose-config
       - lint
       - typecheck
       - test
@@ -367,6 +581,8 @@ jobs:
           }
 
           require_success "production-safety" "${{ needs.production-safety.result }}"
+          require_success "shell-validation" "${{ needs.shell-validation.result }}"
+          require_success "production-compose-config" "${{ needs.production-compose-config.result }}"
           require_success "lint" "${{ needs.lint.result }}"
           require_success "typecheck" "${{ needs.typecheck.result }}"
           require_success "test" "${{ needs.test.result }}"
