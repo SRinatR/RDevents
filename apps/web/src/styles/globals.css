@@ -13886,6 +13886,27 @@ body {
   width: 100%;
 }
 
+.admin-media-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 16px 0;
+  color: var(--color-text-muted);
+  font-size: 0.84rem;
+  font-weight: 750;
+}
+
+.admin-media-pagination-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-media-bulk-page-note {
+  margin: -4px 0 2px;
+}
+
 .admin-media-tile-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));

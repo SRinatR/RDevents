@@ -52,6 +52,7 @@ import {
   listEventMediaForModeration,
   moderateEventMedia,
   rejectCaptionSuggestion,
+  resetEventMediaDisplayCounter,
   updateEventMediaSettings,
   uploadEventMedia,
 } from '../events/event-media.service.js';
@@ -547,6 +548,19 @@ adminEventsRouter.patch('/:id/media/settings', async (req, res) => {
     }
     throw err;
   }
+});
+
+// POST /admin/events/:id/media/reset-counter — align next display number after maintenance cleanup
+adminEventsRouter.post('/:id/media/reset-counter', async (req, res) => {
+  const user = (req as any).user as User;
+  const eventId = String(req.params['id']);
+  if (!(await canAccessEvent(user, eventId, 'event.manageMedia'))) {
+    res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    return;
+  }
+
+  const result = await resetEventMediaDisplayCounter(eventId);
+  res.json(result);
 });
 
 // POST /admin/events/:id/media/imports — upload zip archive and start async import

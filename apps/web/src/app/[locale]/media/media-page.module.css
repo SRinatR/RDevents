@@ -36,6 +36,12 @@
   font-weight: 500;
 }
 
+.statsMuted {
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
 .typeChips {
   display: flex;
   flex-wrap: wrap;
@@ -276,6 +282,12 @@
 .emptyWrap,
 .loadingWrap {
   margin-top: 18px;
+}
+
+.loadMoreWrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 32px;
 }
 
 @media (max-width: 960px) {

@@ -89,7 +89,7 @@ export default function AdminMediaBankPage() {
 
   const totals = useMemo(() => {
     return Object.values(overview).reduce((acc, item) => {
-      acc.media += item.summary?.total ?? 0;
+      acc.media += item.summary?.activeTotal ?? item.summary?.total ?? 0;
       acc.pending += item.summary?.pending ?? 0;
       acc.suggestions += item.pendingSuggestions ?? 0;
       return acc;
@@ -145,7 +145,7 @@ export default function AdminMediaBankPage() {
                     {[formatDate(event.startsAt, locale), event.location, event.category].filter(Boolean).join(' · ')}
                   </div>
                   <div className="workspace-status-strip workspace-status-strip-v2">
-                    <div className="workspace-status-card"><small>{isRu ? 'Всего' : 'Total'}</small><strong>{item?.summary?.total ?? '—'}</strong></div>
+                    <div className="workspace-status-card"><small>{isRu ? 'Всего' : 'Total'}</small><strong>{item?.summary?.activeTotal ?? item?.summary?.total ?? '—'}</strong></div>
                     <div className="workspace-status-card"><small>{isRu ? 'Опубликовано' : 'Approved'}</small><strong>{item?.summary?.approved ?? '—'}</strong></div>
                     <div className="workspace-status-card"><small>{isRu ? 'Медиа на модерации' : 'Pending media'}</small><strong>{item?.summary?.pending ?? '—'}</strong></div>
                     <div className="workspace-status-card"><small>{isRu ? 'Подписи' : 'Captions'}</small><strong>{item?.pendingSuggestions ?? '—'}</strong></div>
