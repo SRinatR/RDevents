@@ -335,8 +335,8 @@ jobs:
 
     env:
       COMPOSE_PROJECT_NAME: rdevents_ci_${{ github.run_id }}
-      PRODUCTION_ENV_FILE: ${{ runner.temp }}/production.env
-      CI_DEPLOY_ROOT: ${{ runner.temp }}/rdevents
+      PRODUCTION_ENV_FILE: /tmp/rdevents-production-${{ github.run_id }}.env
+      CI_DEPLOY_ROOT: /tmp/rdevents-${{ github.run_id }}
       RELEASE_SHA: ${{ github.sha }}
       NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:4000
       DATABASE_URL: postgresql://event_platform_user:event_platform_password@postgres:5432/event_platform?schema=public
