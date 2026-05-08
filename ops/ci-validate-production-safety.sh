@@ -38,6 +38,49 @@ require_file ops/restore-uploads-from-backup.sh
 require_file docs/production-rollback-runbook.md
 require_file docs/production-data-safety-runbook.md
 require_file docs/backup-retention-policy.md
+require_file .github/workflows/ci.yml
+require_file .github/workflows/deploy-production.yml
+require_file .github/workflows/recreate-production-services.yml
+
+require_grep 'cancel-in-progress:[[:space:]]*false' .github/workflows/ci.yml \
+  "CI must not auto-cancel runs because Required Checks aggregates upstream job statuses"
+require_grep 'Required upstream job did not pass' .github/workflows/ci.yml \
+  "Required Checks must print a clear error for failed or cancelled upstream jobs"
+for job in production-safety lint typecheck test build docker-build container-smoke; do
+  require_grep "require_success[[:space:]]+\"$job\"" .github/workflows/ci.yml \
+    "Required Checks must require success for $job"
+done
+
+for workflow in .github/workflows/deploy-production.yml .github/workflows/recreate-production-services.yml; do
+  require_grep 'required_secret PROD_HOST' "$workflow" \
+    "$workflow must validate PROD_HOST before SSH"
+  require_grep 'required_secret PROD_PORT' "$workflow" \
+    "$workflow must validate PROD_PORT before SSH"
+  require_grep 'required_secret PROD_USER' "$workflow" \
+    "$workflow must validate PROD_USER before SSH"
+  require_grep 'required_secret PROD_SSH_KEY' "$workflow" \
+    "$workflow must validate PROD_SSH_KEY before SSH"
+  require_grep 'ssh-keygen[[:space:]]+-y' "$workflow" \
+    "$workflow must validate the production SSH private key"
+  require_grep 'ssh-keyscan[[:space:]]+-T[[:space:]]+20' "$workflow" \
+    "$workflow must bound ssh-keyscan with a timeout"
+  require_grep 'Host prod' "$workflow" \
+    "$workflow must configure a production SSH host alias"
+  require_grep 'BatchMode yes' "$workflow" \
+    "$workflow must use non-interactive SSH authentication"
+  require_grep 'IdentitiesOnly yes' "$workflow" \
+    "$workflow must force the configured deploy identity"
+  require_grep 'ConnectTimeout 20' "$workflow" \
+    "$workflow must fail unreachable SSH connections quickly"
+  require_grep 'ServerAliveInterval 15' "$workflow" \
+    "$workflow must keep long SSH sessions alive"
+  require_grep 'ssh prod' "$workflow" \
+    "$workflow must use the hardened production SSH alias"
+  reject_grep 'ssh[[:space:]]+-p' "$workflow" \
+    "$workflow must not bypass the hardened production SSH alias"
+  reject_grep 'scp[[:space:]]+-P' "$workflow" \
+    "$workflow must not bypass the hardened production SSH alias for scp"
+done
 
 require_grep 'create-predeploy-backup\.sh' ops/deploy-production.sh \
   "deploy-production.sh must create a predeploy backup package"

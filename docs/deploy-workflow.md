@@ -45,6 +45,7 @@ Triggers:
 Jobs:
 
 - `Lint`: installs dependencies and runs `pnpm lint`
+- `Production Safety`: validates deployment script invariants, CI Required Checks behavior, and hardened SSH workflow configuration
 - `Shell validation`: validates host script syntax and runtime redaction smoke test
 - `Typecheck`: installs dependencies, generates Prisma client, and runs `pnpm typecheck` on the GitHub runner
 - `Test`: starts PostgreSQL as a GitHub Actions service on the runner, generates Prisma client, and runs `pnpm test`
