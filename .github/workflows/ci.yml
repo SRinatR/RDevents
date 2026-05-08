@@ -24,7 +24,9 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Required Checks aggregates every upstream job. If an older run is auto-cancelled,
+  # the aggregate job can fail only because upstream jobs report "cancelled".
+  cancel-in-progress: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -353,20 +355,23 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "lint=${{ needs.lint.result }}"
-          echo "production-safety=${{ needs.production-safety.result }}"
-          echo "typecheck=${{ needs.typecheck.result }}"
-          echo "test=${{ needs.test.result }}"
-          echo "build=${{ needs.build.result }}"
-          echo "docker-build=${{ needs.docker-build.result }}"
-          echo "container-smoke=${{ needs.container-smoke.result }}"
+          require_success() {
+            local job="$1"
+            local result="$2"
 
-          [ "${{ needs.production-safety.result }}" = "success" ] || exit 1
-          [ "${{ needs.lint.result }}" = "success" ] || exit 1
-          [ "${{ needs.typecheck.result }}" = "success" ] || exit 1
-          [ "${{ needs.test.result }}" = "success" ] || exit 1
-          [ "${{ needs.build.result }}" = "success" ] || exit 1
-          [ "${{ needs.docker-build.result }}" = "success" ] || exit 1
-          [ "${{ needs.container-smoke.result }}" = "success" ] || exit 1
+            echo "${job}=${result}"
+            if [ "$result" != "success" ]; then
+              echo "::error title=Required upstream job did not pass::${job} finished with status '${result}'"
+              exit 1
+            fi
+          }
+
+          require_success "production-safety" "${{ needs.production-safety.result }}"
+          require_success "lint" "${{ needs.lint.result }}"
+          require_success "typecheck" "${{ needs.typecheck.result }}"
+          require_success "test" "${{ needs.test.result }}"
+          require_success "build" "${{ needs.build.result }}"
+          require_success "docker-build" "${{ needs.docker-build.result }}"
+          require_success "container-smoke" "${{ needs.container-smoke.result }}"
 
           echo "All required checks passed."

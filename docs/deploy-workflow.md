@@ -61,7 +61,7 @@ Runtime policy:
 
 Concurrency:
 
-- old CI runs for the same PR or branch are cancelled with `cancel-in-progress: true`
+- CI runs for the same PR or branch are serialized with `cancel-in-progress: false`. This keeps the `Required Checks` aggregate from failing only because a newer push cancelled upstream jobs in an older run.
 
 Required status checks for branch protection:
 
