@@ -41,13 +41,16 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   try {
     const user = await prisma.user.findUnique({ where: { id: payload.sub } });
 
-    if (!user || !user.isActive) {
+    if (!user || !user.isActive || user.deletedAt) {
       logger.warn('Auth request rejected', {
         module: 'auth',
         action: 'auth_unauthorized',
         requestId: (req as any).requestId,
         userId: payload.sub,
-        meta: { path: req.path, reason: user ? 'inactive_user' : 'user_not_found' },
+        meta: {
+          path: req.path,
+          reason: user ? (user.deletedAt ? 'deleted_user' : 'inactive_user') : 'user_not_found',
+        },
       });
       res.status(401).json({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
       return;
@@ -73,7 +76,7 @@ export async function optionalAuth(req: Request, _res: Response, next: NextFunct
   try {
     const payload = verifyAccessToken(header.slice(7));
     const user = await prisma.user.findUnique({ where: { id: payload.sub } });
-    if (user?.isActive) (req as AuthenticatedRequest).user = user;
+    if (user?.isActive && !user.deletedAt) (req as AuthenticatedRequest).user = user;
   } catch {
     // Public routes should not fail just because an optional token is stale.
   }

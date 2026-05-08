@@ -6,6 +6,8 @@ const prismaMock = vi.hoisted(() => ({
     findUnique: vi.fn(),
   },
   event: {
+    count: vi.fn(),
+    findFirst: vi.fn(),
     findUnique: vi.fn(),
     findMany: vi.fn(),
   },
@@ -17,6 +19,7 @@ const prismaMock = vi.hoisted(() => ({
     findUnique: vi.fn(),
   },
   eventMedia: {
+    aggregate: vi.fn(),
     count: vi.fn(),
     create: vi.fn(),
     findMany: vi.fn(),
@@ -136,15 +139,96 @@ function mediaRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function publicEventRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'event-1',
+    slug: 'event-one',
+    title: 'Event One',
+    startsAt: new Date('2026-01-01T10:00:00.000Z'),
+    endsAt: new Date('2026-01-01T12:00:00.000Z'),
+    location: 'Tashkent',
+    coverImageUrl: 'https://cdn.example.test/cover.jpg',
+    mediaSettings: defaultSettings,
+    ...overrides,
+  };
+}
+
+function mediaRows(count: number, overrides: Record<string, unknown> = {}) {
+  return Array.from({ length: count }, (_, index) => mediaRow({
+    id: `media-${index + 1}`,
+    asset: {
+      id: `asset-${index + 1}`,
+      originalFilename: `media-${index + 1}.jpg`,
+      mimeType: 'image/jpeg',
+      sizeBytes: 1024,
+      publicUrl: `https://cdn.example.test/media-${index + 1}.jpg`,
+      storageKey: `media-${index + 1}.jpg`,
+      status: 'ACTIVE',
+    },
+    ...overrides,
+  }));
+}
+
+function rawMediaRows(count: number, overrides: Record<string, unknown> = {}) {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `media-${index + 1}`,
+    eventId: 'event-1',
+    source: 'PARTICIPANT',
+    status: 'APPROVED',
+    displayNumber: index + 1,
+    title: null,
+    caption: null,
+    altText: null,
+    credit: 'Author Name',
+    albumId: null,
+    albumTitle: null,
+    capturedAt: null,
+    capturedAtSource: null,
+    capturedTimezone: null,
+    groupKey: null,
+    groupTitle: null,
+    downloadEnabled: true,
+    durationSeconds: null,
+    metadataJson: null,
+    moderationNotes: null,
+    approvedAt: new Date('2026-01-01T10:00:00.000Z'),
+    rejectedAt: null,
+    deletedAt: null,
+    createdAt: new Date('2026-01-01T09:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T09:00:00.000Z'),
+    assetId: `asset-${index + 1}`,
+    assetOriginalFilename: `media-${index + 1}.jpg`,
+    assetMimeType: 'image/jpeg',
+    assetSizeBytes: 1024,
+    assetPublicUrl: `https://cdn.example.test/media-${index + 1}.jpg`,
+    assetStorageKey: `media-${index + 1}.jpg`,
+    assetChecksumSha256: 'checksum',
+    uploaderId: testUser.id,
+    uploaderName: testUser.name,
+    uploaderEmail: testUser.email,
+    uploaderAvatarUrl: null,
+    approvedById: null,
+    approvedByName: null,
+    approvedByEmail: null,
+    rejectedById: null,
+    rejectedByName: null,
+    rejectedByEmail: null,
+    ...overrides,
+  }));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   prismaMock.user.findUnique.mockResolvedValue(testUser);
+  prismaMock.event.count.mockResolvedValue(0);
+  prismaMock.event.findFirst.mockResolvedValue(null);
   prismaMock.event.findUnique.mockResolvedValue({ id: 'event-1', status: 'PUBLISHED' });
   prismaMock.event.findMany.mockResolvedValue([]);
   prismaMock.eventMediaSettings.findUnique.mockResolvedValue(defaultSettings);
   prismaMock.eventMediaSettings.upsert.mockResolvedValue(defaultSettings);
   prismaMock.eventMember.findUnique.mockResolvedValue({ status: 'ACTIVE' });
   prismaMock.eventMedia.count.mockResolvedValue(0);
+  prismaMock.eventMedia.aggregate.mockResolvedValue({ _max: { displayNumber: null } });
   prismaMock.eventMedia.create.mockResolvedValue({ id: 'media-created' });
   prismaMock.eventMedia.findMany.mockResolvedValue([]);
   prismaMock.eventMedia.findUnique.mockResolvedValue(mediaRow({ id: 'media-created' }));
@@ -266,6 +350,143 @@ describe('public event media privacy', () => {
       mimeType: { startsWith: 'image/' },
     });
   });
+
+  it('GET /api/events/:slug/media-bank paginates and returns global counters', async () => {
+    prismaMock.event.findFirst.mockResolvedValue(publicEventRow());
+    prismaMock.eventMedia.count
+      .mockResolvedValueOnce(300)
+      .mockResolvedValueOnce(300)
+      .mockResolvedValueOnce(291)
+      .mockResolvedValueOnce(9);
+    prismaMock.eventMedia.findMany.mockResolvedValue(mediaRows(80));
+
+    const res = await request(app).get('/api/events/event-one/media-bank?limit=80&page=1&type=all');
+    const query = prismaMock.eventMedia.findMany.mock.calls[0][0];
+
+    expect(res.status).toBe(200);
+    expect(res.body.media).toHaveLength(80);
+    expect(res.body.meta).toMatchObject({
+      total: 300,
+      filteredTotal: 300,
+      images: 291,
+      videos: 9,
+      page: 1,
+      limit: 80,
+      pages: 4,
+    });
+    expect(query.skip).toBe(0);
+    expect(query.take).toBe(80);
+  });
+
+  it('GET /api/events/:slug/media-bank keeps global counters for the video filter', async () => {
+    prismaMock.event.findFirst.mockResolvedValue(publicEventRow());
+    prismaMock.eventMedia.count
+      .mockResolvedValueOnce(9)
+      .mockResolvedValueOnce(300)
+      .mockResolvedValueOnce(291)
+      .mockResolvedValueOnce(9);
+    prismaMock.eventMedia.findMany.mockResolvedValue(mediaRows(9, {
+      asset: {
+        id: 'asset-video',
+        originalFilename: 'video.mp4',
+        mimeType: 'video/mp4',
+        sizeBytes: 4096,
+        publicUrl: 'https://cdn.example.test/video.mp4',
+        storageKey: 'video.mp4',
+        status: 'ACTIVE',
+      },
+    }));
+
+    const res = await request(app).get('/api/events/event-one/media-bank?limit=80&page=1&type=video');
+    const query = prismaMock.eventMedia.findMany.mock.calls[0][0];
+
+    expect(res.status).toBe(200);
+    expect(res.body.media).toHaveLength(9);
+    expect(res.body.meta).toMatchObject({
+      total: 300,
+      filteredTotal: 9,
+      images: 291,
+      videos: 9,
+      page: 1,
+      limit: 80,
+      pages: 1,
+    });
+    expect(query.where.asset).toMatchObject({
+      status: 'ACTIVE',
+      mimeType: { startsWith: 'video/' },
+    });
+  });
+
+  it('GET /api/events/media/albums returns event album counters from the full result set', async () => {
+    const event = publicEventRow();
+    prismaMock.event.count.mockResolvedValue(1);
+    prismaMock.event.findMany.mockResolvedValue([event]);
+    prismaMock.eventMedia.count
+      .mockResolvedValueOnce(300)
+      .mockResolvedValueOnce(291)
+      .mockResolvedValueOnce(9)
+      .mockResolvedValueOnce(120)
+      .mockResolvedValueOnce(300)
+      .mockResolvedValueOnce(291)
+      .mockResolvedValueOnce(9)
+      .mockResolvedValueOnce(120);
+    prismaMock.eventMedia.findMany
+      .mockResolvedValueOnce(mediaRows(4, { event }))
+      .mockResolvedValueOnce([
+        { asset: { sizeBytes: 1024 } },
+        { asset: { sizeBytes: 2048 } },
+      ]);
+
+    const res = await request(app).get('/api/events/media/albums?limit=20&page=1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.albums).toHaveLength(1);
+    expect(res.body.albums[0].counts).toMatchObject({
+      total: 300,
+      images: 291,
+      videos: 9,
+      organizers: 120,
+    });
+    expect(res.body.albums[0].previewMedia.length).toBeLessThanOrEqual(4);
+    expect(res.body.albums[0].totalSizeBytes).toBe(3072);
+    expect(res.body.meta).toMatchObject({
+      totalAlbums: 1,
+      totalMedia: 300,
+      images: 291,
+      videos: 9,
+      organizers: 120,
+      page: 1,
+      limit: 20,
+      pages: 1,
+    });
+  });
+
+  it('GET /api/events/media/albums applies the organizer source filter on the backend', async () => {
+    const event = publicEventRow();
+    prismaMock.event.count.mockResolvedValue(1);
+    prismaMock.event.findMany.mockResolvedValue([event]);
+    prismaMock.eventMedia.count
+      .mockResolvedValueOnce(120)
+      .mockResolvedValueOnce(118)
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(120)
+      .mockResolvedValueOnce(120)
+      .mockResolvedValueOnce(118)
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(120);
+    prismaMock.eventMedia.findMany
+      .mockResolvedValueOnce(mediaRows(4, { event, source: 'ADMIN' }))
+      .mockResolvedValueOnce([{ asset: { sizeBytes: 1024 } }]);
+
+    const res = await request(app).get('/api/events/media/albums?source=admin');
+    const previewQuery = prismaMock.eventMedia.findMany.mock.calls[0][0];
+
+    expect(res.status).toBe(200);
+    expect(res.body.albums[0].previewMedia.every((item: any) => item.source === 'ADMIN')).toBe(true);
+    expect(res.body.albums[0].counts.organizers).toBe(120);
+    expect(res.body.meta.organizers).toBe(120);
+    expect(previewQuery.where.source).toBe('ADMIN');
+  });
 });
 
 describe('participant media upload errors', () => {
@@ -303,6 +524,53 @@ describe('participant media upload errors', () => {
 
     expect(res.status).toBe(403);
     expect(res.body.code).toBe('EVENT_MEDIA_UPLOAD_FORBIDDEN');
+  });
+});
+
+describe('admin media list pagination', () => {
+  beforeEach(() => {
+    prismaMock.user.findUnique.mockResolvedValue(adminUser);
+    accessMocks.canAccessEvent.mockResolvedValue(true);
+  });
+
+  it('GET /api/admin/events/:id/media returns requested page metadata', async () => {
+    prismaMock.$queryRaw
+      .mockResolvedValueOnce([{ total: BigInt(300) }])
+      .mockResolvedValueOnce(rawMediaRows(80));
+
+    const res = await request(app)
+      .get('/api/admin/events/event-1/media?status=ALL&limit=80&page=2')
+      .set('Authorization', authHeader(adminUser));
+
+    expect(res.status).toBe(200);
+    expect(res.body.media).toHaveLength(80);
+    expect(res.body.meta).toMatchObject({
+      total: 300,
+      page: 2,
+      limit: 80,
+      pages: 4,
+    });
+    expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('POST /api/admin/events/:id/media/reset-counter aligns next display number', async () => {
+    prismaMock.eventMedia.aggregate.mockResolvedValue({ _max: { displayNumber: 387 } });
+    prismaMock.eventMediaSettings.upsert.mockResolvedValue({ ...defaultSettings, nextMediaDisplayNumber: 388 });
+
+    const res = await request(app)
+      .post('/api/admin/events/event-1/media/reset-counter')
+      .set('Authorization', authHeader(adminUser));
+
+    expect(res.status).toBe(200);
+    expect(res.body.nextMediaDisplayNumber).toBe(388);
+    expect(prismaMock.eventMedia.aggregate).toHaveBeenCalledWith({
+      where: { eventId: 'event-1' },
+      _max: { displayNumber: true },
+    });
+    expect(prismaMock.eventMediaSettings.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { eventId: 'event-1' },
+      update: { nextMediaDisplayNumber: 388 },
+    }));
   });
 });
 
@@ -437,6 +705,7 @@ describe('admin event media summary', () => {
   it('GET /api/admin/events/:id/media/summary counts all media for the requested event', async () => {
     prismaMock.eventMedia.count
       .mockResolvedValueOnce(7)
+      .mockResolvedValueOnce(6)
       .mockResolvedValueOnce(2)
       .mockResolvedValueOnce(3)
       .mockResolvedValueOnce(1)
@@ -452,6 +721,7 @@ describe('admin event media summary', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.summary).toMatchObject({
+      activeTotal: 6,
       pending: 2,
       approved: 3,
       rejected: 1,

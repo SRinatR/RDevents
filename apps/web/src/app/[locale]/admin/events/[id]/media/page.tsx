@@ -38,6 +38,7 @@ type BulkField = 'title' | 'caption' | 'credit' | 'altText' | 'groupTitle' | 'ca
 const STATUS_FILTERS: MediaStatusFilter[] = ['PENDING', 'APPROVED', 'REJECTED', 'DELETED', 'ALL'];
 const TYPE_FILTERS: MediaTypeFilter[] = ['all', 'image', 'video'];
 const BULK_FIELDS: BulkField[] = ['title', 'caption', 'credit', 'altText', 'groupTitle', 'capturedAt', 'downloadEnabled'];
+const ADMIN_PAGE_SIZE = 80;
 
 const DEFAULT_SETTINGS: EventMediaSettings = {
   enabled: true,
@@ -203,7 +204,8 @@ export default function AdminEventMediaPage() {
   const [media, setMedia] = useState<EventMediaItem[]>([]);
   const [albums, setAlbums] = useState<EventMediaAlbum[]>([]);
   const [settingsDraft, setSettingsDraft] = useState<EventMediaSettings>(DEFAULT_SETTINGS);
-  const [summary, setSummary] = useState<EventMediaSummary>({ total: 0, pending: 0, approved: 0, rejected: 0, deleted: 0, participant: 0, admin: 0, images: 0, videos: 0 });
+  const [summary, setSummary] = useState<EventMediaSummary>({ total: 0, activeTotal: 0, pending: 0, approved: 0, rejected: 0, deleted: 0, participant: 0, admin: 0, images: 0, videos: 0 });
+  const [mediaMeta, setMediaMeta] = useState({ total: 0, page: 1, limit: ADMIN_PAGE_SIZE, pages: 0 });
   const [visibility, setVisibility] = useState<EventMediaPublicVisibility | null>(null);
   const [status, setStatus] = useState<MediaStatusFilter>('PENDING');
   const [type, setType] = useState<MediaTypeFilter>('all');
@@ -306,7 +308,7 @@ export default function AdminEventMediaPage() {
     }
   }, [eventId]);
 
-  const loadMedia = useCallback(async () => {
+  const loadMedia = useCallback(async (nextPage = 1) => {
     if (!eventId) return;
     setMediaLoading(true);
     setListError('');
@@ -316,10 +318,12 @@ export default function AdminEventMediaPage() {
         type,
         search,
         albumId: albumFilter === 'ALL' ? undefined : albumFilter,
-        limit: 80,
+        page: nextPage,
+        limit: ADMIN_PAGE_SIZE,
       });
       const visibleIds = new Set(result.media.map((item) => item.id));
       setMedia(result.media);
+      setMediaMeta(result.meta);
       setDrafts(Object.fromEntries(result.media.map((item) => [item.id, emptyDraft(item)])));
       setAlbumTargets(Object.fromEntries(result.media.map((item) => [item.id, item.albumId ?? ''])));
       setRejectReasons(Object.fromEntries(result.media.map((item) => [item.id, item.moderationNotes ?? ''])));
@@ -333,8 +337,8 @@ export default function AdminEventMediaPage() {
     }
   }, [albumFilter, eventId, locale, search, status, type]);
 
-  const refreshMediaState = useCallback(async () => {
-    await Promise.all([loadMedia(), loadAlbums(), loadSummary(), loadVisibility()]);
+  const refreshMediaState = useCallback(async (nextPage = 1) => {
+    await Promise.all([loadMedia(nextPage), loadAlbums(), loadSummary(), loadVisibility()]);
   }, [loadAlbums, loadMedia, loadSummary, loadVisibility]);
 
   useEffect(() => {
@@ -449,7 +453,7 @@ export default function AdminEventMediaPage() {
       setNotice(nextStatus
         ? (isRu ? `Статус обновлён: ${statusLabel(nextStatus, locale)}.` : `Status updated: ${statusLabel(nextStatus, locale)}.`)
         : (isRu ? 'Карточка сохранена.' : 'Media card saved.'));
-      await refreshMediaState();
+      await refreshMediaState(mediaMeta.page);
     } catch (err: any) {
       console.error('[media-bank] media action failed', err);
       setActionError(getFriendlyApiErrorMessage(err, locale));
@@ -466,7 +470,7 @@ export default function AdminEventMediaPage() {
     try {
       await eventMediaApi.adminDelete(eventId, item.id);
       setNotice(isRu ? 'Медиа скрыто из фотобанка.' : 'Media was hidden from the bank.');
-      await refreshMediaState();
+      await refreshMediaState(mediaMeta.page);
     } catch (err: any) {
       console.error('[media-bank] media delete failed', err);
       setActionError(getFriendlyApiErrorMessage(err, locale));
@@ -488,7 +492,7 @@ export default function AdminEventMediaPage() {
         await adminMediaAlbumsApi.unassignMedia(eventId, [item.id]);
       }
       setNotice(isRu ? 'Альбом обновлён.' : 'Album updated.');
-      await refreshMediaState();
+      await refreshMediaState(mediaMeta.page);
     } catch (err: any) {
       setActionError(getFriendlyApiErrorMessage(err, locale));
     } finally {
@@ -518,7 +522,7 @@ export default function AdminEventMediaPage() {
       const result = await mediaBankAdminApi.bulkUpdateMedia(eventId, selectedMediaIds, patch);
       setNotice(isRu ? `Обновлено карточек: ${result.updatedCount}.` : `Updated cards: ${result.updatedCount}.`);
       setBulkApply(defaultBulkApply());
-      await refreshMediaState();
+      await refreshMediaState(mediaMeta.page);
     } catch (err: any) {
       setActionError(getFriendlyApiErrorMessage(err, locale));
     } finally {
@@ -543,7 +547,7 @@ export default function AdminEventMediaPage() {
         moderationNotes: nextStatus === 'REJECTED' ? reason : reason || undefined,
       });
       setNotice(isRu ? `Статус обновлён у ${result.updatedCount} карточек.` : `Status updated for ${result.updatedCount} cards.`);
-      await refreshMediaState();
+      await refreshMediaState(mediaMeta.page);
     } catch (err: any) {
       setActionError(getFriendlyApiErrorMessage(err, locale));
     } finally {
@@ -563,7 +567,7 @@ export default function AdminEventMediaPage() {
       setNotice(albumId
         ? (isRu ? `Перемещено в альбом: ${result.movedCount}.` : `Moved to album: ${result.movedCount}.`)
         : (isRu ? `Убрано из альбомов: ${result.movedCount}.` : `Removed from albums: ${result.movedCount}.`));
-      await refreshMediaState();
+      await refreshMediaState(mediaMeta.page);
     } catch (err: any) {
       setActionError(getFriendlyApiErrorMessage(err, locale));
     } finally {
@@ -625,9 +629,11 @@ export default function AdminEventMediaPage() {
       ) : event ? (
         <>
           <div className="workspace-status-strip workspace-status-strip-v2">
-            <div className="workspace-status-card"><small>{isRu ? 'Всего' : 'Total'}</small><strong>{summary.total}</strong></div>
+            <div className="workspace-status-card"><small>{isRu ? 'Всего' : 'Total'}</small><strong>{summary.activeTotal}</strong></div>
             <div className="workspace-status-card"><small>{isRu ? 'На модерации' : 'Pending'}</small><strong>{summary.pending}</strong></div>
             <div className="workspace-status-card"><small>{isRu ? 'Опубликовано' : 'Approved'}</small><strong>{summary.approved}</strong></div>
+            <div className="workspace-status-card"><small>{isRu ? 'Фото' : 'Photos'}</small><strong>{summary.images}</strong></div>
+            <div className="workspace-status-card"><small>{isRu ? 'Видео' : 'Videos'}</small><strong>{summary.videos}</strong></div>
             <div className="workspace-status-card"><small>{isRu ? 'Альбомов' : 'Albums'}</small><strong>{albums.length}</strong></div>
           </div>
 
@@ -678,8 +684,8 @@ export default function AdminEventMediaPage() {
                 <SectionHeader
                   title={isRu ? 'Материалы фотобанка' : 'Media bank items'}
                   subtitle={isRu
-                    ? `${media.length} на экране · выбрано ${selectedCount}`
-                    : `${media.length} on screen · selected ${selectedCount}`}
+                    ? `Показано ${media.length} из ${mediaMeta.total} · выбрано ${selectedCount}`
+                    : `Showing ${media.length} of ${mediaMeta.total} · selected ${selectedCount}`}
                 />
                 {actionError ? <Notice tone="danger">{actionError}</Notice> : null}
                 {listError ? <Notice tone="danger">{listError}</Notice> : null}
@@ -708,6 +714,32 @@ export default function AdminEventMediaPage() {
                   <div className="admin-media-filter-actions">
                     <button type="button" className="btn btn-secondary btn-sm" onClick={selectAllVisible} disabled={!media.length}>{isRu ? 'Выбрать видимые' : 'Select visible'}</button>
                     <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSelectedMediaIds([])} disabled={!selectedCount}>{isRu ? 'Снять выбор' : 'Clear'}</button>
+                  </div>
+                </div>
+
+                <div className="admin-media-pagination">
+                  <span>
+                    {isRu
+                      ? `Показано ${media.length} из ${mediaMeta.total}. Страница ${mediaMeta.page} из ${mediaMeta.pages || 1}`
+                      : `Showing ${media.length} of ${mediaMeta.total}. Page ${mediaMeta.page} of ${mediaMeta.pages || 1}`}
+                  </span>
+                  <div className="admin-media-pagination-actions">
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={mediaLoading || mediaMeta.page <= 1}
+                      onClick={() => void loadMedia(mediaMeta.page - 1)}
+                    >
+                      {isRu ? 'Назад' : 'Previous'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={mediaLoading || mediaMeta.page >= mediaMeta.pages}
+                      onClick={() => void loadMedia(mediaMeta.page + 1)}
+                    >
+                      {isRu ? 'Вперёд' : 'Next'}
+                    </button>
                   </div>
                 </div>
 
@@ -759,6 +791,11 @@ export default function AdminEventMediaPage() {
                       title={isRu ? 'Массовые действия' : 'Bulk actions'}
                       subtitle={isRu ? `Выбрано карточек: ${selectedCount}` : `Selected cards: ${selectedCount}`}
                     />
+                    <p className="signal-muted admin-media-bulk-page-note">
+                      {isRu
+                        ? 'Массовые действия применяются к выбранным материалам на текущей странице.'
+                        : 'Bulk actions apply to selected media on the current page.'}
+                    </p>
                     <div className="admin-media-bulk-box">
                       <div className="admin-media-bulk-status">
                         <button type="button" className="btn btn-secondary btn-sm" disabled={bulkBusy} onClick={() => void handleBulkStatus('APPROVED')}>{isRu ? 'Одобрить' : 'Approve'}</button>

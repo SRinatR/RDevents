@@ -64,6 +64,7 @@ export type EventMediaHistoryItem = {
 
 export type EventMediaSummary = {
   total: number;
+  activeTotal: number;
   pending: number;
   approved: number;
   rejected: number;
@@ -615,12 +616,58 @@ export type AdminMediaParams = {
 
 export type SiteMediaParams = {
   type?: 'all' | 'image' | 'video';
+  source?: 'all' | 'admin' | 'participant';
   eventId?: string;
   slug?: string;
   search?: string;
   page?: number;
   limit?: number;
   sort?: 'newest' | 'oldest' | 'number';
+};
+
+export type PublicEventMediaMeta = {
+  total: number;
+  filteredTotal: number;
+  images: number;
+  videos: number;
+  page: number;
+  limit: number;
+  pages: number;
+  settings?: EventMediaSettings;
+};
+
+export type SiteMediaAlbum = {
+  event: PublicMediaEvent;
+  previewMedia: EventMediaItem[];
+  counts: {
+    total: number;
+    images: number;
+    videos: number;
+    organizers: number;
+  };
+  totalSizeBytes: number;
+};
+
+export type SiteMediaAlbumsParams = {
+  type?: 'all' | 'image' | 'video';
+  source?: 'all' | 'admin' | 'participant';
+  eventId?: string;
+  slug?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort?: 'newest' | 'oldest' | 'number';
+};
+
+export type SiteMediaAlbumsMeta = {
+  totalAlbums: number;
+  totalMedia: number;
+  images: number;
+  videos: number;
+  organizers: number;
+  page: number;
+  limit: number;
+  pages: number;
 };
 
 export type AdminMediaUpdate = Partial<MediaInput> & {
@@ -647,11 +694,18 @@ export const eventMediaApi = {
       meta: { total: number; page: number; limit: number; pages: number };
     }>(`/api/events/media${toQuery(params)}`),
 
+  siteAlbums: (params: SiteMediaAlbumsParams = {}) =>
+    request<{
+      albums: SiteMediaAlbum[];
+      events: PublicMediaEvent[];
+      meta: SiteMediaAlbumsMeta;
+    }>(`/api/events/media/albums${toQuery(params)}`),
+
   eventPage: (slug: string, params: SiteMediaParams = {}) =>
     request<{
       event: PublicMediaEvent;
       media: EventMediaItem[];
-      meta: { total: number; images: number; videos: number; page: number; limit: number; pages: number; settings?: EventMediaSettings };
+      meta: PublicEventMediaMeta;
     }>(`/api/events/${slug}/media-bank${toQuery(params)}`),
 
   publicList: (eventId: string, params?: { type?: 'all' | 'image' | 'video'; limit?: number; cursor?: string }) => {
@@ -680,6 +734,9 @@ export const eventMediaApi = {
 
   publicVisibility: (eventId: string) =>
     request<{ visibility: EventMediaPublicVisibility }>(`/api/admin/events/${eventId}/media/public-visibility`, { auth: true }),
+
+  resetCounter: (eventId: string) =>
+    request<{ nextMediaDisplayNumber: number }>(`/api/admin/events/${eventId}/media/reset-counter`, { method: 'POST', auth: true }),
 
   adminUpload: (eventId: string, file: File, body?: MediaInput) => {
     const formData = new FormData();

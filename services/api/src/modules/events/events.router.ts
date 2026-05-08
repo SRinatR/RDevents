@@ -8,6 +8,7 @@ import {
   handleEventMediaMulterUpload,
   listEventMediaHighlights,
   listSiteEventMedia,
+  listSiteMediaAlbums,
   getEventMediaBankBySlug,
   listApprovedEventMedia,
   uploadEventMedia,
@@ -124,10 +125,26 @@ eventsRouter.get('/media/highlights', optionalAuth, async (req, res) => {
   res.json({ media });
 });
 
+// GET /api/events/media/albums — public media grouped by event with full counters
+eventsRouter.get('/media/albums', optionalAuth, async (req, res) => {
+  const result = await listSiteMediaAlbums({
+    type: req.query['type'],
+    source: req.query['source'],
+    eventId: req.query['eventId'],
+    slug: req.query['slug'],
+    search: req.query['search'],
+    page: req.query['page'],
+    limit: req.query['limit'],
+    sort: req.query['sort'],
+  });
+  res.json(result);
+});
+
 // GET /api/events/media — approved public media across all published events
 eventsRouter.get('/media', optionalAuth, async (req, res) => {
   const result = await listSiteEventMedia({
     type: req.query['type'],
+    source: req.query['source'],
     eventId: req.query['eventId'],
     slug: req.query['slug'],
     search: req.query['search'],
@@ -143,6 +160,7 @@ eventsRouter.get('/:slug/media-bank', optionalAuth, async (req, res) => {
   try {
     const result = await getEventMediaBankBySlug(String(req.params['slug']), {
       type: req.query['type'],
+      source: req.query['source'],
       search: req.query['search'],
       sort: req.query['sort'],
       page: req.query['page'],

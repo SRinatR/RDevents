@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { use, useCallback, useEffect, useMemo, useState } from 'react';
-import { eventMediaApi, type EventMediaItem, type PublicMediaEvent } from '@/lib/api';
+import { use, useCallback, useEffect, useState } from 'react';
+import { eventMediaApi, type PublicMediaEvent, type SiteMediaAlbum } from '@/lib/api';
 import { formatMediaDisplayNumber } from '@/components/media/MediaCard';
 import { MediaPreview } from '@/components/media/MediaPreview';
 import { EmptyState, FieldInput, LoadingLines, Panel } from '@/components/ui/signal-primitives';
@@ -11,18 +11,7 @@ import styles from './media-page.module.css';
 type MediaFilter = 'all' | 'image' | 'video' | 'organizers';
 type MediaSort = 'newest' | 'oldest' | 'number';
 
-type EventAlbum = {
-  key: string;
-  title: string;
-  slug?: string | null;
-  startsAt?: string | null;
-  items: EventMediaItem[];
-  photos: number;
-  videos: number;
-  organizers: number;
-  totalSize: number;
-};
-
+const PAGE_SIZE = 20;
 const FILTERS: MediaFilter[] = ['all', 'image', 'video', 'organizers'];
 const SORTS: MediaSort[] = ['newest', 'oldest', 'number'];
 
@@ -56,79 +45,69 @@ function formatFileSize(bytes: number | null | undefined) {
   return `${(bytes / 1024 / 1024).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
 }
 
-function filterMedia(items: EventMediaItem[], filter: MediaFilter) {
-  if (filter === 'organizers') return items.filter((item) => item.source === 'ADMIN');
-  if (filter === 'image' || filter === 'video') return items.filter((item) => item.kind === filter);
-  return items;
-}
-
-function groupIntoAlbums(items: EventMediaItem[], locale: string): EventAlbum[] {
-  const fallbackTitle = locale === 'ru' ? 'Материалы без мероприятия' : 'Ungrouped media';
-  const map = new Map<string, EventAlbum>();
-
-  for (const item of items) {
-    const key = item.event?.id ?? item.eventId ?? 'ungrouped';
-    const album = map.get(key) ?? {
-      key,
-      title: item.event?.title ?? fallbackTitle,
-      slug: item.event?.slug,
-      startsAt: item.event?.startsAt,
-      items: [],
-      photos: 0,
-      videos: 0,
-      organizers: 0,
-      totalSize: 0,
-    };
-
-    album.items.push(item);
-    if (item.kind === 'image') album.photos += 1;
-    if (item.kind === 'video') album.videos += 1;
-    if (item.source === 'ADMIN') album.organizers += 1;
-    album.totalSize += Number(item.asset.sizeBytes ?? 0);
-    map.set(key, album);
-  }
-
-  return Array.from(map.values()).sort((a, b) => {
-    const aDate = new Date(a.startsAt ?? a.items[0]?.approvedAt ?? a.items[0]?.createdAt ?? 0).getTime();
-    const bDate = new Date(b.startsAt ?? b.items[0]?.approvedAt ?? b.items[0]?.createdAt ?? 0).getTime();
-    return bDate - aDate;
-  });
-}
-
 export default function SiteMediaPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = use(params);
   const isRu = locale === 'ru';
-  const [media, setMedia] = useState<EventMediaItem[]>([]);
+  const [albums, setAlbums] = useState<SiteMediaAlbum[]>([]);
   const [events, setEvents] = useState<PublicMediaEvent[]>([]);
+  const [meta, setMeta] = useState({
+    totalAlbums: 0,
+    totalMedia: 0,
+    images: 0,
+    videos: 0,
+    organizers: 0,
+    page: 1,
+    limit: PAGE_SIZE,
+    pages: 0,
+  });
   const [filter, setFilter] = useState<MediaFilter>('all');
   const [sort, setSort] = useState<MediaSort>('newest');
   const [eventId, setEventId] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  const loadMedia = useCallback(async () => {
-    setLoading(true);
+  const loadAlbums = useCallback(async (nextPage = 1, mode: 'replace' | 'append' = 'replace') => {
+    if (mode === 'replace') {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
     try {
       const apiType = filter === 'image' || filter === 'video' ? filter : 'all';
-      const result = await eventMediaApi.siteList({ type: apiType, sort, eventId, search, limit: 80 });
-      setMedia(filterMedia(result.media, filter));
+      const source = filter === 'organizers' ? 'admin' : 'all';
+      const result = await eventMediaApi.siteAlbums({
+        type: apiType,
+        source,
+        sort,
+        eventId,
+        search,
+        page: nextPage,
+        limit: PAGE_SIZE,
+      });
       setEvents(result.events);
+      setMeta(result.meta);
+      setAlbums((current) => {
+        if (mode === 'replace') return result.albums;
+
+        const known = new Set(current.map((album) => album.event.id));
+        const unique = result.albums.filter((album) => !known.has(album.event.id));
+        return [...current, ...unique];
+      });
     } catch {
-      setMedia([]);
+      if (mode === 'replace') {
+        setAlbums([]);
+      }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [filter, sort, eventId, search]);
 
   useEffect(() => {
-    const handle = window.setTimeout(() => void loadMedia(), 180);
+    const handle = window.setTimeout(() => void loadAlbums(1, 'replace'), 180);
     return () => window.clearTimeout(handle);
-  }, [loadMedia]);
-
-  const photoCount = useMemo(() => media.filter((item) => item.kind === 'image').length, [media]);
-  const videoCount = useMemo(() => media.filter((item) => item.kind === 'video').length, [media]);
-  const organizerCount = useMemo(() => media.filter((item) => item.source === 'ADMIN').length, [media]);
-  const albums = useMemo(() => groupIntoAlbums(media, locale), [media, locale]);
+  }, [loadAlbums]);
 
   return (
     <div className="public-page-shell route-shell route-site-media-page">
@@ -141,9 +120,16 @@ export default function SiteMediaPage({ params }: { params: Promise<{ locale: st
                 <h1 className={styles.title}>{isRu ? 'Медиабанк мероприятий' : 'Event media bank'}</h1>
                 <p className={styles.stats}>
                   {isRu
-                    ? `${media.length} материалов · ${photoCount} фото · ${videoCount} видео`
-                    : `${media.length} items · ${photoCount} photos · ${videoCount} videos`}
+                    ? `${meta.totalMedia} материалов · ${meta.images} фото · ${meta.videos} видео`
+                    : `${meta.totalMedia} items · ${meta.images} photos · ${meta.videos} videos`}
                 </p>
+                {filter === 'organizers' ? (
+                  <p className={styles.statsMuted}>
+                    {isRu
+                      ? `Материалов от организаторов: ${meta.organizers}`
+                      : `Organizer media: ${meta.organizers}`}
+                  </p>
+                ) : null}
               </div>
 
               <div className={styles.typeChips}>
@@ -153,7 +139,7 @@ export default function SiteMediaPage({ params }: { params: Promise<{ locale: st
                     type="button"
                     className={`${styles.chip} ${filter === item ? styles.chipActive : ''}`}
                     onClick={() => setFilter(item)}
-                    title={item === 'organizers' ? `${organizerCount}` : undefined}
+                    title={item === 'organizers' ? `${meta.organizers}` : undefined}
                   >
                     {filterLabel(item, isRu)}
                   </button>
@@ -190,11 +176,27 @@ export default function SiteMediaPage({ params }: { params: Promise<{ locale: st
                 <Panel><LoadingLines rows={8} /></Panel>
               </div>
             ) : albums.length ? (
-              <div className={styles.albumGrid}>
-                {albums.map((album) => (
-                  <EventAlbumCard key={album.key} album={album} locale={locale} />
-                ))}
-              </div>
+              <>
+                <div className={styles.albumGrid}>
+                  {albums.map((album) => (
+                    <EventAlbumCard key={album.event.id} album={album} locale={locale} />
+                  ))}
+                </div>
+                {meta.page < meta.pages ? (
+                  <div className={styles.loadMoreWrap}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={loadingMore}
+                      onClick={() => void loadAlbums(meta.page + 1, 'append')}
+                    >
+                      {loadingMore
+                        ? (isRu ? 'Загружаем...' : 'Loading...')
+                        : (isRu ? 'Показать ещё события' : 'Load more events')}
+                    </button>
+                  </div>
+                ) : null}
+              </>
             ) : (
               <div className={styles.emptyWrap}>
                 <EmptyState
@@ -213,13 +215,13 @@ export default function SiteMediaPage({ params }: { params: Promise<{ locale: st
   );
 }
 
-function EventAlbumCard({ album, locale }: { album: EventAlbum; locale: string }) {
+function EventAlbumCard({ album, locale }: { album: SiteMediaAlbum; locale: string }) {
   const isRu = locale === 'ru';
-  const href = album.slug ? `/${locale}/events/${album.slug}/media` : `/${locale}/media`;
-  const previewItems = album.items.slice(0, 4);
-  const hiddenCount = Math.max(0, album.items.length - previewItems.length);
-  const size = formatFileSize(album.totalSize);
-  const date = formatDate(album.startsAt ?? album.items[0]?.approvedAt ?? album.items[0]?.createdAt, locale);
+  const href = album.event.slug ? `/${locale}/events/${album.event.slug}/media` : `/${locale}/media`;
+  const previewItems = album.previewMedia;
+  const hiddenCount = Math.max(0, album.counts.total - previewItems.length);
+  const size = formatFileSize(album.totalSizeBytes);
+  const date = formatDate(album.event.startsAt, locale);
 
   return (
     <Link href={href} className={styles.albumCard}>
@@ -230,7 +232,7 @@ function EventAlbumCard({ album, locale }: { album: EventAlbum; locale: string }
               publicUrl={item.asset.publicUrl}
               storageKey={item.asset.storageKey}
               kind={item.kind}
-              alt={item.altText || item.title || item.caption || album.title}
+              alt={item.altText || item.title || item.caption || album.event.title}
               sizes="(max-width: 640px) 100vw, 340px"
               controls={false}
             />
@@ -242,14 +244,14 @@ function EventAlbumCard({ album, locale }: { album: EventAlbum; locale: string }
 
       <div className={styles.albumBody}>
         <div className={styles.albumTitleRow}>
-          <h2 className={styles.albumTitle}>{album.title}</h2>
-          <span className={styles.albumCount}>{album.items.length}</span>
+          <h2 className={styles.albumTitle}>{album.event.title}</h2>
+          <span className={styles.albumCount}>{album.counts.total}</span>
         </div>
 
         <div className={styles.albumMeta}>
           {date ? <span>{date}</span> : null}
-          <span>{isRu ? `${album.photos} фото` : `${album.photos} photos`}</span>
-          <span>{isRu ? `${album.videos} видео` : `${album.videos} videos`}</span>
+          <span>{isRu ? `${album.counts.images} фото` : `${album.counts.images} photos`}</span>
+          <span>{isRu ? `${album.counts.videos} видео` : `${album.counts.videos} videos`}</span>
           {size ? <span>{size}</span> : null}
         </div>
 

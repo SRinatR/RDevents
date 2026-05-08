@@ -11,6 +11,7 @@ import {
   EventMediaImportError,
   startEventMediaImport,
 } from '../events/event-media-import.service.js';
+import { resetEventMediaDisplayCounter } from '../events/event-media.service.js';
 import {
   bulkUpdateEventMediaAdmin,
   deleteEventMediaImportAdmin,
@@ -347,6 +348,12 @@ adminMediaBankProdRouter.get('/', async (req, res) => {
       code: 'EVENT_MEDIA_LIST_FAILED',
     });
   }
+});
+
+// POST /api/admin/events/:id/media/reset-counter — align next display number after maintenance cleanup.
+adminMediaBankProdRouter.post('/reset-counter', async (req, res) => {
+  const result = await resetEventMediaDisplayCounter(getEventId(req));
+  res.json(result);
 });
 
 // POST /api/admin/events/:id/media/imports — 2GB archive upload with import-specific errors.

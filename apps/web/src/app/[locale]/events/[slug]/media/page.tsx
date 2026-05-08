@@ -13,6 +13,7 @@ import styles from './EventMediaPage.module.css';
 type MediaFilter = 'all' | 'image' | 'video';
 type MediaSort = 'newest' | 'oldest' | 'number';
 
+const PAGE_SIZE = 80;
 const FILTERS: MediaFilter[] = ['all', 'image', 'video'];
 const SORTS: MediaSort[] = ['newest', 'oldest', 'number'];
 
@@ -43,11 +44,12 @@ export default function EventMediaPage({ params }: { params: Promise<{ locale: s
   const { user } = useAuth();
   const [event, setEvent] = useState<PublicMediaEvent | null>(null);
   const [media, setMedia] = useState<EventMediaItem[]>([]);
-  const [meta, setMeta] = useState({ total: 0, images: 0, videos: 0, page: 1, limit: 40, pages: 0 });
+  const [meta, setMeta] = useState({ total: 0, filteredTotal: 0, images: 0, videos: 0, page: 1, limit: PAGE_SIZE, pages: 0 });
   const [filter, setFilter] = useState<MediaFilter>('all');
   const [sort, setSort] = useState<MediaSort>('newest');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [viewerItem, setViewerItem] = useState<EventMediaItem | null>(null);
 
@@ -55,23 +57,34 @@ export default function EventMediaPage({ params }: { params: Promise<{ locale: s
   const cabinetHref = `/${locale}/cabinet/events/${slug}/media`;
   const uploadHref = user ? cabinetHref : `/${locale}/login?next=${encodeURIComponent(cabinetHref)}`;
 
-  const loadMedia = useCallback(async () => {
-    setLoading(true);
+  const loadMedia = useCallback(async (nextPage = 1, mode: 'replace' | 'append' = 'replace') => {
+    if (mode === 'replace') {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
     setError('');
     try {
-      const result = await eventMediaApi.eventPage(slug, { type: filter, sort, search, limit: 40 });
+      const result = await eventMediaApi.eventPage(slug, { type: filter, sort, search, page: nextPage, limit: PAGE_SIZE });
       setEvent(result.event);
-      setMedia(result.media);
       setMeta(result.meta);
+      setMedia((current) => {
+        if (mode === 'replace') return result.media;
+
+        const known = new Set(current.map((item) => item.id));
+        const unique = result.media.filter((item) => !known.has(item.id));
+        return [...current, ...unique];
+      });
     } catch (err: any) {
       setError(err.message || (isRu ? 'Не удалось загрузить фотобанк.' : 'Could not load media bank.'));
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [slug, filter, sort, search, isRu]);
 
   useEffect(() => {
-    const handle = window.setTimeout(() => void loadMedia(), 180);
+    const handle = window.setTimeout(() => void loadMedia(1, 'replace'), 180);
     return () => window.clearTimeout(handle);
   }, [loadMedia]);
 
@@ -80,9 +93,19 @@ export default function EventMediaPage({ params }: { params: Promise<{ locale: s
     return [formatDate(event.startsAt, locale), event.location].filter(Boolean).join(' · ');
   }, [event, locale]);
 
+  const visibleTotal = meta.filteredTotal ?? meta.total;
+  const hasMore = meta.page < meta.pages;
   const mediaSummary = isRu
     ? `${meta.total} материалов · ${meta.images} фото · ${meta.videos} видео`
     : `${meta.total} items · ${meta.images} photos · ${meta.videos} videos`;
+  const loadedSummary = isRu
+    ? `Показано ${media.length} из ${visibleTotal}`
+    : `Showing ${media.length} of ${visibleTotal}`;
+  const activeFilterSummary = filter !== 'all'
+    ? (isRu
+      ? `Фильтр: ${filterLabel(filter, true)} · найдено ${visibleTotal}`
+      : `Filter: ${filterLabel(filter, false)} · ${visibleTotal} found`)
+    : '';
 
   return (
     <div className={`public-page-shell route-shell route-media-bank-page ${styles.mediaBankPage}`}>
@@ -125,6 +148,8 @@ export default function EventMediaPage({ params }: { params: Promise<{ locale: s
                 <div>
                   <h2>{isRu ? 'Фотобанк' : 'Media bank'}</h2>
                   <p>{mediaSummary}</p>
+                  <p className={styles.loadedSummary}>{loadedSummary}</p>
+                  {activeFilterSummary ? <p className={styles.filterSummary}>{activeFilterSummary}</p> : null}
                 </div>
                 <div className={styles.topActions}>
                   <Link href={uploadHref} className="btn btn-primary btn-sm">
@@ -159,11 +184,28 @@ export default function EventMediaPage({ params }: { params: Promise<{ locale: s
               {loading ? (
                 <LoadingLines rows={8} />
               ) : media.length ? (
-                <div className={styles.gallery}>
-                  {media.map((item) => (
-                    <MediaCard key={item.id} item={item} locale={locale} onOpen={setViewerItem} />
-                  ))}
-                </div>
+                <>
+                  <div className={styles.gallery}>
+                    {media.map((item) => (
+                      <MediaCard key={item.id} item={item} locale={locale} onOpen={setViewerItem} />
+                    ))}
+                  </div>
+                  {hasMore ? (
+                    <div className={styles.loadMoreWrap}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={loadingMore}
+                        onClick={() => void loadMedia(meta.page + 1, 'append')}
+                      >
+                        {loadingMore
+                          ? (isRu ? 'Загружаем...' : 'Loading...')
+                          : (isRu ? 'Показать ещё' : 'Load more')}
+                      </button>
+                      <p className={styles.loadedSummary}>{loadedSummary}</p>
+                    </div>
+                  ) : null}
+                </>
               ) : (
                 <EmptyState
                   title={isRu ? 'Материалы не найдены' : 'No media found'}

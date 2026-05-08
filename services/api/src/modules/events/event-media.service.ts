@@ -21,11 +21,13 @@ export const EVENT_MEDIA_ALLOWED_MIME_TYPES = new Set([
 
 const PARTICIPANT_UPLOAD_STATUSES = ['ACTIVE', 'APPROVED', 'RESERVE'] as const;
 const MEDIA_TYPE_FILTERS = new Set(['all', 'image', 'video']);
+const MEDIA_SOURCE_FILTERS = new Set(['all', 'admin', 'participant']);
 const MEDIA_STATUS_FILTERS = new Set(['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'DELETED']);
 const MEDIA_ALBUM_FILTER_UNASSIGNED = 'UNASSIGNED';
 
 type MediaKind = 'image' | 'video';
 type MediaTypeFilter = 'all' | MediaKind;
+type MediaSourceFilter = 'all' | 'admin' | 'participant';
 type PublicMediaReasonCode =
   | 'OK'
   | 'EVENT_NOT_PUBLISHED'
@@ -104,6 +106,11 @@ function normalizeMediaKind(value: unknown): MediaKind | null {
 function normalizeTypeFilter(value: unknown): MediaTypeFilter {
   const type = String(value ?? 'all').toLowerCase();
   return MEDIA_TYPE_FILTERS.has(type) ? type as MediaTypeFilter : 'all';
+}
+
+function normalizeSourceFilter(value: unknown): MediaSourceFilter {
+  const source = String(value ?? 'all').toLowerCase();
+  return MEDIA_SOURCE_FILTERS.has(source) ? source as MediaSourceFilter : 'all';
 }
 
 function normalizeAllowedTypesInput(value: unknown): MediaKind[] {
@@ -370,9 +377,10 @@ function normalizePublicMediaSort(value: unknown): any {
   return [{ approvedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }];
 }
 
-function buildPublicMediaWhere(input: { eventId?: string | null; slug?: string | null; type?: unknown; search?: unknown }) {
+function buildPublicMediaWhere(input: { eventId?: string | null; slug?: string | null; type?: unknown; search?: unknown; source?: unknown }) {
   const type = normalizeTypeFilter(input.type);
   const search = cleanText(input.search, 120);
+  const source = normalizeSourceFilter(input.source);
   const where: any = {
     ...(input.eventId ? { eventId: input.eventId } : {}),
     status: 'APPROVED',
@@ -388,6 +396,14 @@ function buildPublicMediaWhere(input: { eventId?: string | null; slug?: string |
       ...(input.slug ? { slug: input.slug } : {}),
     },
   };
+
+  if (source === 'admin') {
+    where.source = 'ADMIN';
+  }
+
+  if (source === 'participant') {
+    where.source = 'PARTICIPANT';
+  }
 
   if (search) {
     const numericSearch = Number(search.replace(/^#/, ''));
@@ -405,6 +421,13 @@ function buildPublicMediaWhere(input: { eventId?: string | null; slug?: string |
   }
 
   return where;
+}
+
+function buildPublicMediaCountWhere(input: { eventId?: string | null; slug?: string | null; search?: unknown; source?: unknown }) {
+  return buildPublicMediaWhere({
+    ...input,
+    type: 'all',
+  });
 }
 
 export async function listApprovedEventMedia(
@@ -446,7 +469,7 @@ export async function listApprovedEventMedia(
 
 export async function getEventMediaBankBySlug(
   slug: string,
-  params: { type?: unknown; search?: unknown; sort?: unknown; page?: unknown; limit?: unknown } = {},
+  params: { type?: unknown; search?: unknown; source?: unknown; sort?: unknown; page?: unknown; limit?: unknown } = {},
 ) {
   const event = await prisma.event.findFirst({
     where: { slug, status: 'PUBLISHED', deletedAt: null },
@@ -464,29 +487,36 @@ export async function getEventMediaBankBySlug(
   if (!event) throw new Error('EVENT_NOT_FOUND');
 
   const settings = serializeSettings(event.mediaSettings);
+  const page = Math.max(1, Number(params.page ?? 1) || 1);
+  const limit = Math.min(80, Math.max(1, Number(params.limit ?? 40) || 40));
   if (!settings.enabled) {
     return {
       event: serializePublicEvent(event),
       media: [],
-      meta: { total: 0, images: 0, videos: 0, page: 1, limit: 40, pages: 0, settings },
+      meta: { filteredTotal: 0, total: 0, images: 0, videos: 0, page, limit, pages: 0, settings },
     };
   }
 
-  const page = Math.max(1, Number(params.page ?? 1) || 1);
-  const limit = Math.min(80, Math.max(1, Number(params.limit ?? 40) || 40));
-  const where = buildPublicMediaWhere({
+  const filteredWhere = buildPublicMediaWhere({
     eventId: event.id,
     type: params.type,
     search: params.search,
+    source: params.source,
+  });
+  const countWhere = buildPublicMediaCountWhere({
+    eventId: event.id,
+    search: params.search,
+    source: params.source,
   });
 
   const orderBy = normalizePublicMediaSort(params.sort);
-  const [total, images, videos, rows] = await Promise.all([
-    prisma.eventMedia.count({ where }),
-    prisma.eventMedia.count({ where: { ...where, asset: { status: 'ACTIVE', mimeType: { startsWith: 'image/' } } } }),
-    prisma.eventMedia.count({ where: { ...where, asset: { status: 'ACTIVE', mimeType: { startsWith: 'video/' } } } }),
+  const [filteredTotal, total, images, videos, rows] = await Promise.all([
+    prisma.eventMedia.count({ where: filteredWhere }),
+    prisma.eventMedia.count({ where: countWhere }),
+    prisma.eventMedia.count({ where: { ...countWhere, asset: { status: 'ACTIVE', mimeType: { startsWith: 'image/' } } } }),
+    prisma.eventMedia.count({ where: { ...countWhere, asset: { status: 'ACTIVE', mimeType: { startsWith: 'video/' } } } }),
     prisma.eventMedia.findMany({
-      where,
+      where: filteredWhere,
       include: EVENT_MEDIA_INCLUDE,
       orderBy,
       skip: (page - 1) * limit,
@@ -497,13 +527,14 @@ export async function getEventMediaBankBySlug(
   return {
     event: serializePublicEvent(event),
     media: rows.map((item) => serializeEventMedia(item, { publicView: true, settings })),
-    meta: { total, images, videos, page, limit, pages: Math.ceil(total / limit), settings },
+    meta: { filteredTotal, total, images, videos, page, limit, pages: Math.ceil(filteredTotal / limit), settings },
   };
 }
 
 export async function listSiteEventMedia(
   params: {
     type?: unknown;
+    source?: unknown;
     eventId?: unknown;
     slug?: unknown;
     search?: unknown;
@@ -519,6 +550,7 @@ export async function listSiteEventMedia(
     slug: cleanText(params.slug, 160),
     type: params.type,
     search: params.search,
+    source: params.source,
   });
 
   const [total, rows, events] = await Promise.all([
@@ -558,6 +590,140 @@ export async function listSiteEventMedia(
     ),
     events,
     meta: { total, page, limit, pages: Math.ceil(total / limit) },
+  };
+}
+
+export async function listSiteMediaAlbums(
+  params: {
+    type?: unknown;
+    source?: unknown;
+    eventId?: unknown;
+    slug?: unknown;
+    search?: unknown;
+    page?: unknown;
+    limit?: unknown;
+    sort?: unknown;
+  } = {},
+) {
+  const page = Math.max(1, Number(params.page ?? 1) || 1);
+  const limit = Math.min(50, Math.max(1, Number(params.limit ?? 20) || 20));
+  const eventId = cleanText(params.eventId, 120);
+  const slug = cleanText(params.slug, 160);
+
+  const mediaWhere = buildPublicMediaWhere({
+    eventId,
+    slug,
+    type: params.type,
+    search: params.search,
+    source: params.source,
+  });
+  const countWhere = buildPublicMediaCountWhere({
+    eventId,
+    slug,
+    search: params.search,
+    source: params.source,
+  });
+
+  const eventWhere: any = {
+    status: 'PUBLISHED',
+    deletedAt: null,
+    mediaSettings: { is: { enabled: true } },
+    ...(eventId ? { id: eventId } : {}),
+    ...(slug ? { slug } : {}),
+    mediaItems: {
+      some: mediaWhere,
+    },
+  };
+
+  const [totalAlbums, totalMedia, images, videos, organizers, events] = await Promise.all([
+    prisma.event.count({ where: eventWhere }),
+    prisma.eventMedia.count({ where: countWhere }),
+    prisma.eventMedia.count({ where: { ...countWhere, asset: { status: 'ACTIVE', mimeType: { startsWith: 'image/' } } } }),
+    prisma.eventMedia.count({ where: { ...countWhere, asset: { status: 'ACTIVE', mimeType: { startsWith: 'video/' } } } }),
+    prisma.eventMedia.count({ where: { ...countWhere, source: 'ADMIN' } }),
+    prisma.event.findMany({
+      where: eventWhere,
+      select: {
+        id: true,
+        slug: true,
+        title: true,
+        startsAt: true,
+        endsAt: true,
+        location: true,
+        coverImageUrl: true,
+        mediaSettings: true,
+      },
+      orderBy: { startsAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+  ]);
+
+  const albums = await Promise.all(events.map(async (event: any) => {
+    const eventMediaWhere = {
+      ...mediaWhere,
+      eventId: event.id,
+    };
+    const eventCountWhere = {
+      ...countWhere,
+      eventId: event.id,
+    };
+
+    const [previewMedia, total, eventImages, eventVideos, eventOrganizers, assetsForSize] = await Promise.all([
+      prisma.eventMedia.findMany({
+        where: eventMediaWhere,
+        include: EVENT_MEDIA_HIGHLIGHT_INCLUDE,
+        orderBy: normalizePublicMediaSort(params.sort),
+        take: 4,
+      }),
+      prisma.eventMedia.count({ where: eventCountWhere }),
+      prisma.eventMedia.count({ where: { ...eventCountWhere, asset: { status: 'ACTIVE', mimeType: { startsWith: 'image/' } } } }),
+      prisma.eventMedia.count({ where: { ...eventCountWhere, asset: { status: 'ACTIVE', mimeType: { startsWith: 'video/' } } } }),
+      prisma.eventMedia.count({ where: { ...eventCountWhere, source: 'ADMIN' } }),
+      prisma.eventMedia.findMany({
+        where: eventCountWhere,
+        select: {
+          asset: {
+            select: {
+              sizeBytes: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const settings = serializeSettings(event.mediaSettings);
+    const totalSizeBytes = assetsForSize.reduce(
+      (sum: number, item: any) => sum + Number(item.asset?.sizeBytes ?? 0),
+      0,
+    );
+
+    return {
+      event: serializePublicEvent(event),
+      previewMedia: previewMedia.map((item: any) => serializeEventMedia(item, { publicView: true, settings })),
+      counts: {
+        total,
+        images: eventImages,
+        videos: eventVideos,
+        organizers: eventOrganizers,
+      },
+      totalSizeBytes,
+    };
+  }));
+
+  return {
+    albums,
+    events: events.map(serializePublicEvent),
+    meta: {
+      totalAlbums,
+      totalMedia,
+      images,
+      videos,
+      organizers,
+      page,
+      limit,
+      pages: Math.ceil(totalAlbums / limit),
+    },
   };
 }
 
@@ -667,19 +833,43 @@ export async function listEventMediaForModeration(
 
 
 export async function getEventMediaSummary(eventId: string) {
-  const [total, pending, approved, rejected, deleted, participant, admin, images, videos] = await Promise.all([
+  const activeWhere: any = { eventId, deletedAt: null, status: { not: 'DELETED' } };
+  const [total, activeTotal, pending, approved, rejected, deleted, participant, admin, images, videos] = await Promise.all([
     prisma.eventMedia.count({ where: { eventId } }),
+    prisma.eventMedia.count({ where: activeWhere }),
     prisma.eventMedia.count({ where: { eventId, status: 'PENDING', deletedAt: null } }),
     prisma.eventMedia.count({ where: { eventId, status: 'APPROVED', deletedAt: null } }),
     prisma.eventMedia.count({ where: { eventId, status: 'REJECTED', deletedAt: null } }),
-    prisma.eventMedia.count({ where: { eventId, status: 'DELETED' } }),
-    prisma.eventMedia.count({ where: { eventId, source: 'PARTICIPANT' } }),
-    prisma.eventMedia.count({ where: { eventId, source: 'ADMIN' } }),
-    prisma.eventMedia.count({ where: { eventId, asset: { mimeType: { startsWith: 'image/' } } } }),
-    prisma.eventMedia.count({ where: { eventId, asset: { mimeType: { startsWith: 'video/' } } } }),
+    prisma.eventMedia.count({ where: { eventId, OR: [{ status: 'DELETED' }, { deletedAt: { not: null } }] } }),
+    prisma.eventMedia.count({ where: { ...activeWhere, source: 'PARTICIPANT' } }),
+    prisma.eventMedia.count({ where: { ...activeWhere, source: 'ADMIN' } }),
+    prisma.eventMedia.count({ where: { ...activeWhere, asset: { status: 'ACTIVE', mimeType: { startsWith: 'image/' } } } }),
+    prisma.eventMedia.count({ where: { ...activeWhere, asset: { status: 'ACTIVE', mimeType: { startsWith: 'video/' } } } }),
   ]);
 
-  return { total, pending, approved, rejected, deleted, participant, admin, images, videos };
+  return { total, activeTotal, pending, approved, rejected, deleted, participant, admin, images, videos };
+}
+
+export async function resetEventMediaDisplayCounter(eventId: string) {
+  const max = await prisma.eventMedia.aggregate({
+    where: { eventId },
+    _max: { displayNumber: true },
+  });
+
+  const nextMediaDisplayNumber = Number(max._max.displayNumber ?? 0) + 1;
+
+  await prisma.eventMediaSettings.upsert({
+    where: { eventId },
+    create: {
+      eventId,
+      nextMediaDisplayNumber,
+    },
+    update: {
+      nextMediaDisplayNumber,
+    },
+  });
+
+  return { nextMediaDisplayNumber };
 }
 
 export async function getEventMediaPublicVisibility(eventId: string) {
