@@ -45,6 +45,7 @@ Triggers:
 Jobs:
 
 - `Lint`: installs dependencies and runs `pnpm lint`
+- `Production Safety`: validates deployment script invariants, CI Required Checks behavior, and hardened SSH workflow configuration
 - `Shell validation`: validates host script syntax and runtime redaction smoke test
 - `Typecheck`: installs dependencies, generates Prisma client, and runs `pnpm typecheck` on the GitHub runner
 - `Test`: starts PostgreSQL as a GitHub Actions service on the runner, generates Prisma client, and runs `pnpm test`
@@ -61,7 +62,7 @@ Runtime policy:
 
 Concurrency:
 
-- old CI runs for the same PR or branch are cancelled with `cancel-in-progress: true`
+- CI runs for the same PR or branch are serialized with `cancel-in-progress: false`. This keeps the `Required Checks` aggregate from failing only because a newer push cancelled upstream jobs in an older run.
 
 Required status checks for branch protection:
 
