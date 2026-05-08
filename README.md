@@ -134,8 +134,9 @@ DATABASE_URL=postgresql://event_platform_user:event_platform_password@postgres:5
 `DATABASE_URL` используется **только** внутри compose-сети. Внешний доступ к БД не влияет на runtime URL.
 
 **CI note:**
-- `container-smoke` intentionally mirrors production docker-compose topology and uses `@postgres:5432`
-- runner-based jobs (`typecheck`, `test`, `build`) do not prove compose-network reachability and may use runner-local DB wiring / placeholder DATABASE_URL values
+- `Production Compose Config` validates `docker-compose.prod.yml` with a production-style env file using `@postgres:5432`
+- `container-smoke` intentionally mirrors production docker-compose topology, uses `@postgres:5432`, runs migrations, exercises the predeploy backup package, and verifies api/web/worker release markers
+- runner-based jobs (`typecheck`, `test`) do not prove compose-network reachability and may use runner-local DB wiring / placeholder DATABASE_URL values
 
 ### 3. Настройка базы данных
 
@@ -459,23 +460,18 @@ CI workflow (`.github/workflows/ci.yml`) включает следующие job
 
 | Job | Назначение |
 |-----|------------|
+| `Production Safety` | Проверка deploy-инвариантов, Required Checks, hardened SSH и production-like CI контрактов |
+| `Shell Validation` | Валидация синтаксиса shell-скриптов (`bash -n`) |
+| `Production Compose Config` | Проверка `docker-compose.prod.yml` с production-style env и `DATABASE_URL=@postgres:5432` |
 | `Lint` | ESLint проверка кода |
-| `Shell validation` | Валидация синтаксиса shell-скриптов (`bash -n`) |
 | `Typecheck` | TypeScript проверка типов |
 | `Test` | Unit тесты с PostgreSQL сервисом |
 | `Build` | Сборка всех проектов (API + Web) |
-| `Docker Build` | Сборка production Docker образов (api, web) |
-| `Container Smoke` | Запуск контейнеров и проверка runtime contract внутри compose-сети |
+| `Docker Build` | Сборка production Docker образов (api, web, report-worker, email-broadcast-worker) |
+| `Container Smoke` | Production compose smoke: миграции, predeploy backup package, api/web/workers, release markers |
 
 **Required checks** для protected branches:
 
-- `Lint`
-- `Shell validation`
-- `Typecheck`
-- `Test`
-- `Build`
-- `Docker Build`
-- `Container Smoke`
 - `Required Checks` (aggregator, подтверждает успех всех перечисленных выше)
 
 **Запуск CI:** PR в `main`/`production`, push в `main`/`feature/**`/`fix/**`/`hotfix/**`, `workflow_dispatch`
@@ -488,10 +484,10 @@ Recommended configuration — repository settings must be configured so that:
 
 | Branch | Merge | Required checks | Bypass |
 |--------|-------|-----------------|--------|
-| `main` | PR only | `Lint`, `Shell validation`, `Typecheck`, `Test`, `Build`, `Docker Build`, `Container Smoke`, `Required Checks` | owner/admin bypass for emergency |
-| `production` | PR from `main` | `Lint`, `Shell validation`, `Typecheck`, `Test`, `Build`, `Docker Build`, `Container Smoke`, `Required Checks` + environment approval | owner/admin bypass for emergency release |
+| `main` | PR only | `Required Checks` | owner/admin bypass for emergency |
+| `production` | PR from `main` | `Required Checks` + environment approval | owner/admin bypass for emergency release |
 
-The `Required Checks` aggregator job is included in required checks and confirms all individual jobs passed.
+The `Required Checks` aggregator job is the branch-protection check and confirms all individual CI jobs passed.
 
 ### Secrets для production
 

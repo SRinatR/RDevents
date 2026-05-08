@@ -44,14 +44,15 @@ Triggers:
 
 Jobs:
 
-- `Lint`: installs dependencies and runs `pnpm lint`
 - `Production Safety`: validates deployment script invariants, CI Required Checks behavior, and hardened SSH workflow configuration
-- `Shell validation`: validates host script syntax and runtime redaction smoke test
+- `Shell Validation`: validates tracked shell script syntax with `bash -n`
+- `Production Compose Config`: validates `docker-compose.prod.yml` using a production-style CI env file with `DATABASE_URL` on `postgres:5432`
+- `Lint`: installs dependencies and runs `pnpm lint`
 - `Typecheck`: installs dependencies, generates Prisma client, and runs `pnpm typecheck` on the GitHub runner
 - `Test`: starts PostgreSQL as a GitHub Actions service on the runner, generates Prisma client, and runs `pnpm test`
-- `Build`: installs dependencies, generates Prisma client, and runs `pnpm build` on the GitHub runner
-- `Docker Build`: builds API and Web Docker images using Docker Compose
-- `Container Smoke`: starts postgres/api/web via Docker Compose and validates the production-like runtime contract inside compose topology
+- `Build`: installs dependencies, generates Prisma client, and runs `pnpm build` with a production-style `DATABASE_URL` placeholder
+- `Docker Build`: builds API, Web, report-worker, and email-broadcast-worker Docker images using Docker Compose and the CI production-style env file
+- `Container Smoke`: builds and starts the production compose stack, runs migrations, exercises the predeploy backup package, starts api/web/workers, and validates release markers inside compose topology
 
 Runtime policy:
 
@@ -64,18 +65,11 @@ Concurrency:
 
 - CI runs for the same PR or branch are serialized with `cancel-in-progress: false`. This keeps the `Required Checks` aggregate from failing only because a newer push cancelled upstream jobs in an older run.
 
-Required status checks for branch protection:
+Required status check for branch protection:
 
-- `Lint`
-- `Shell validation`
-- `Typecheck`
-- `Test`
-- `Build`
-- `Docker Build`
-- `Container Smoke`
 - `Required Checks`
 
-Use the exact check-run names reported by GitHub API. In the PR UI these checks are shown under the workflow as `CI / Lint`, `CI / Shell validation`, `CI / Typecheck`, `CI / Test`, `CI / Build`, `CI / Docker Build`, `CI / Container Smoke`, and `CI / Required Checks`; branch protection stores the check names as `Lint`, `Shell validation`, `Typecheck`, `Test`, `Build`, `Docker Build`, `Container Smoke`, and `Required Checks`. The `Required Checks` aggregator job confirms all upstream jobs passed; individual job results are `Lint`, `Shell validation`, `Typecheck`, `Test`, `Build`, `Docker Build`, and `Container Smoke`.
+Use the exact check-run name reported by GitHub API. The `Required Checks` aggregator job confirms all upstream jobs passed: `Production Safety`, `Shell Validation`, `Production Compose Config`, `Lint`, `Typecheck`, `Test`, `Build`, `Docker Build`, and `Container Smoke`.
 
 ## Production Deploy Workflow
 
@@ -253,27 +247,25 @@ Version.txt and version files remain as legacy compatibility, but they are no lo
 
 The CI workflow includes a `container-smoke` job that runs after `docker-build`:
 
-- Starts postgres via Docker Compose
+- Builds the production API, Web, report-worker, and email-broadcast-worker images in the same runner that executes the smoke test
+- Starts postgres via Docker Compose with a production-style env file
+- Verifies `DATABASE_URL` uses `postgres:5432` inside compose
 - Runs database migrations
-- Starts API and Web containers
+- Exercises `ops/create-predeploy-backup.sh` against the compose postgres and uploads volume
+- Starts API, Web, report-worker, and email-broadcast-worker containers
 - Verifies runtime contract:
   - API `/release.json` SHA matches `RELEASE_SHA`
   - Web `/release.json` SHA matches `RELEASE_SHA`
+  - API `/version`, API `/api/version`, and Web `/version.txt` match `RELEASE_SHA`
   - HTML meta `app-release-sha` matches `RELEASE_SHA`
   - `/health` and `/ready` endpoints respond correctly
   - `/ru` and `/ru/events` pages respond correctly
+  - container-embedded release marker files match `RELEASE_SHA`
 
-The `container-smoke` job is a required check in `required-checks`. This ensures the containerized application passes runtime verification before any production deploy.
+The `container-smoke` job is required by `Required Checks`. This ensures the containerized application passes runtime verification before any production deploy.
 
 **Required status checks for branch protection:**
 
-- `Lint`
-- `Shell validation`
-- `Typecheck`
-- `Test`
-- `Build`
-- `Docker Build`
-- `Container Smoke`
 - `Required Checks`
 
 ### Legacy compatibility markers
@@ -388,13 +380,6 @@ Repository settings must be configured so that:
 - Require at least 1 approval for the normal contributor flow
 - Require status checks to pass before merging
 - Required checks:
-  - `Lint`
-  - `Shell validation`
-  - `Typecheck`
-  - `Test`
-  - `Build`
-  - `Docker Build`
-  - `Container Smoke`
   - `Required Checks`
 - Block direct push
 - Do not allow force pushes
@@ -414,13 +399,6 @@ Recommended configuration:
 - Require at least 2 approvals or approval from the release owner group
 - Require status checks to pass before merging
 - Required checks:
-  - `Lint`
-  - `Shell validation`
-  - `Typecheck`
-  - `Test`
-  - `Build`
-  - `Docker Build`
-  - `Container Smoke`
   - `Required Checks`
 - Restrict who can push to matching branches when the repository is in an organization
 - Restrict who can dismiss reviews
@@ -431,14 +409,14 @@ Recommended configuration:
 - Require signed commits if the team uses signed commits consistently
 - Owner/admin bypass is enabled for emergency release operations
 
-The `Required Checks` aggregator job is included in required checks and confirms all individual jobs passed.
+The `Required Checks` aggregator job is the branch-protection check and confirms all upstream CI jobs passed.
 
 ## Release Process
 
 1. Developer creates `feature/*`, `fix/*`, or `hotfix/*`.
 2. Developer opens a PR to `main`.
 3. CI runs on the PR.
-4. PR is reviewed and merged to `main` only after `Lint`, `Shell validation`, `Typecheck`, `Test`, `Build`, `Docker Build`, `Container Smoke`, and `Required Checks` are green.
+4. PR is reviewed and merged to `main` only after `Required Checks` is green.
 5. When a release is approved, open PR `main -> production`.
 6. `production` PR goes through stricter review and required checks.
 7. Merge to `production`.
@@ -451,12 +429,14 @@ The `Required Checks` aggregator job is included in required checks and confirms
 CI errors are in workflow `CI`.
 
 - `Lint` failures are ESLint violations or dependency install failures.
-- `Shell validation` failures are host script syntax errors or redaction smoke test failures.
+- `Production Safety` failures are deploy safety, CI aggregation, compose contract, or hardened SSH workflow invariant failures.
+- `Shell Validation` failures are shell script syntax errors.
+- `Production Compose Config` failures are production-style env or `docker-compose.prod.yml` configuration errors.
 - `Typecheck` failures are TypeScript or dependency install failures.
 - `Test` failures are Vitest failures, test database startup failures, Prisma client generation failures, or dependency install failures.
 - `Build` failures are production build failures.
 - `Docker Build` failures are Docker image build failures.
-- `Container Smoke` failures are runtime contract failures inside the Docker Compose topology.
+- `Container Smoke` failures are migration, predeploy backup, service health, worker health, or release marker failures inside the Docker Compose topology.
 - `Required Checks` failures mean at least one upstream job did not pass.
 - CI never means production deployment failed.
 
@@ -748,7 +728,7 @@ Before considering release governance complete, confirm in GitHub Settings:
 - Branch protection for `production` is enabled and stricter than `main`.
 - Direct push to `main` is blocked.
 - Direct push to `production` is blocked.
-- Required checks are exactly `Type check`, `Lint`, `Test`, and `Build`.
+- Required branch-protection check is `Required Checks`.
 - GitHub Environment `production` exists.
 - Environment `production` has the required reviewers or protection rules.
 - Environment `production` contains `PROD_HOST`, `PROD_PORT`, `PROD_USER`, `PROD_SSH_KEY`, and `PROD_ENV_FILE`.

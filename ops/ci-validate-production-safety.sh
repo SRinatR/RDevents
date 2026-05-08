@@ -41,15 +41,35 @@ require_file docs/backup-retention-policy.md
 require_file .github/workflows/ci.yml
 require_file .github/workflows/deploy-production.yml
 require_file .github/workflows/recreate-production-services.yml
+require_file ops/write-ci-production-env.sh
 
 require_grep 'cancel-in-progress:[[:space:]]*false' .github/workflows/ci.yml \
   "CI must not auto-cancel runs because Required Checks aggregates upstream job statuses"
 require_grep 'Required upstream job did not pass' .github/workflows/ci.yml \
   "Required Checks must print a clear error for failed or cancelled upstream jobs"
-for job in production-safety lint typecheck test build docker-build container-smoke; do
+for job in production-safety shell-validation production-compose-config lint typecheck test build docker-build container-smoke; do
   require_grep "require_success[[:space:]]+\"$job\"" .github/workflows/ci.yml \
     "Required Checks must require success for $job"
 done
+
+require_grep 'git ls-files.*\*\.sh.*bash -n' .github/workflows/ci.yml \
+  "CI must syntax-check tracked shell scripts"
+require_grep 'docker compose --env-file.*docker-compose\.prod\.yml config --quiet' .github/workflows/ci.yml \
+  "CI must validate docker-compose.prod.yml with a production-style env file"
+require_grep 'write-ci-production-env\.sh' .github/workflows/ci.yml \
+  "CI must generate a production-style env file for compose validation"
+require_grep '@postgres:5432/' ops/write-ci-production-env.sh \
+  "CI production env must use postgres:5432 for DATABASE_URL"
+require_grep 'Smoke predeploy backup package' .github/workflows/ci.yml \
+  "Container Smoke must exercise the predeploy backup package"
+require_grep 'ops/create-predeploy-backup\.sh' .github/workflows/ci.yml \
+  "Container Smoke must run create-predeploy-backup.sh"
+require_grep 'curl -fsS http://127\.0\.0\.1:4000/version' .github/workflows/ci.yml \
+  "Container Smoke must verify the API plain release marker"
+require_grep 'curl -fsS http://127\.0\.0\.1:3000/version\.txt' .github/workflows/ci.yml \
+  "Container Smoke must verify the web plain release marker"
+require_grep 'DATABASE_URL must use postgres:5432 inside compose' .github/workflows/ci.yml \
+  "Container Smoke must validate the production DATABASE_URL contract inside compose"
 
 for workflow in .github/workflows/deploy-production.yml .github/workflows/recreate-production-services.yml; do
   require_grep 'required_secret PROD_HOST' "$workflow" \
